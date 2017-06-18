@@ -12,3 +12,12 @@
 
 # Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
 .glide/
+
+# dep related files and folders
+/vendor
+
+# ignore logfiles (/* so the .gitkeep override works)
+/logs/*
+
+# Keep all gitkeep files (This needs to stay at the bottom)
+!.gitkeep
