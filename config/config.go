@@ -18,6 +18,8 @@ type Config struct {
 		SSL struct {
 			// Enabled allows to enable or disable ssl
 			Enabled bool `json:"enabled"`
+			// GenerateLetsEncrypt
+			GenerateLetsEncrypt bool `json:"GenerateLetsEncrypt"`
 			// Certificate is the certificate file path to use
 			Certificate string `json:"certificate"`
 			// Key is the path to the private key for the certificate
