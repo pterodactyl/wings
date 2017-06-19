@@ -19,5 +19,8 @@
 # ignore logfiles (/* so the .gitkeep override works)
 /logs/*
 
+# ignore configuration file
+/config.json
+
 # Keep all gitkeep files (This needs to stay at the bottom)
 !.gitkeep
