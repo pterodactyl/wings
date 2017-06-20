@@ -22,5 +22,8 @@
 # ignore configuration file
 /config.json
 
+# Ignore Vagrant stuff
+/.vagrant
+
 # Keep all gitkeep files (This needs to stay at the bottom)
 !.gitkeep
