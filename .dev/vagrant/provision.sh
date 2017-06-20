@@ -27,5 +27,5 @@ apt-get -y install mercurial #tar unzip make gcc g++ python > /dev/null
 
 echo "   ------------"
 echo "Gopath is /home/ubuntu/go"
-echo "The project is mounted to /go/src/github.com/schrej/wings.go"
+echo "The project is mounted to /home/ubuntu/go/src/github.com/schrej/wings.go"
 echo "Provisioning is completed."
