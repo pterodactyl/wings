@@ -5,9 +5,9 @@ import (
 	"html"
 	"net/http"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
-	"github.com/schrej/wings.go/config"
+	"github.com/schrej/wings/config"
 )
 
 // API is a grouping struct for the api

@@ -1,10 +1,12 @@
 package main
 
 import (
-	log "github.com/Sirupsen/logrus"
-	"github.com/schrej/wings.go/api"
-	"github.com/schrej/wings.go/config"
-	"github.com/schrej/wings.go/tools"
+	"fmt"
+
+	"github.com/schrej/wings/api"
+	"github.com/schrej/wings/config"
+	"github.com/schrej/wings/tools"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -13,15 +15,16 @@ const (
 )
 
 func main() {
+	fmt.Println("Loading configuration")
+	if err := config.LoadConfiguration(); err != nil {
+		log.WithError(err).Fatal("Failed to find configuration file")
+	}
 	tools.ConfigureLogging()
 
 	log.Info("Starting wings.go version ", Version)
 
 	// Load configuration
 	log.Info("Loading configuration...")
-	if err := config.LoadConfiguration(); err != nil {
-		log.WithError(err).Fatal("Failed to find configuration file")
-	}
 
 	log.Info("Starting api webserver")
 	api := api.NewAPI()

@@ -5,10 +5,11 @@ import (
 
 	rotatelogs "github.com/lestrrat/go-file-rotatelogs"
 	"github.com/rifflock/lfshook"
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
-func ConfigureLogging() {
+// ConfigureLogging configures logrus to our needs
+func ConfigureLogging() error {
 
 	log.SetFormatter(&log.TextFormatter{
 		DisableTimestamp: true,
@@ -28,4 +29,6 @@ func ConfigureLogging() {
 		log.FatalLevel: writer,
 		log.PanicLevel: writer,
 	}))
+
+	return nil
 }

@@ -9,7 +9,7 @@ func NewDockerEnvironment() *DockerEnvironment {
 }
 
 func (env *DockerEnvironment) Exec() error {
-
+	return nil
 }
 
 func (env *DockerEnvironment) Create() error {

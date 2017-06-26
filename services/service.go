@@ -1,6 +1,6 @@
 package services
 
-import "github.com/schrej/wings.go/environments"
+import "github.com/schrej/wings/environments"
 
 type Service struct {
 	Environment environments.Environment
