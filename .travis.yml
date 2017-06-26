@@ -9,5 +9,5 @@ install:
   - dep ensure
 
 script:
-  - go build
+  - go build -o wings
   - go test -v ./
