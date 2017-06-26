@@ -11,5 +11,5 @@ install:
 
 script:
   - go build -o wings
-  - go test -coverprofile=coverage.out
+  - go test -coverprofile=coverage.out ./...
   - godacov -t $CODACY_TOKEN -r ./coverage.out -c $TRAVIS_COMMIT
