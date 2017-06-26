@@ -10,4 +10,4 @@ install:
 
 script:
   - go build -o wings
-  - go test -v ./
+  - go test $(go list | grep -v vendor)
