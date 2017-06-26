@@ -10,4 +10,4 @@ install:
 
 script:
   - go build
-  - go test -v
+  - go test -v ./
