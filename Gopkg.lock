@@ -8,12 +8,6 @@
   version = "0.1.2"
 
 [[projects]]
-  name = "github.com/Sirupsen/logrus"
-  packages = ["."]
-  revision = "ba1b36c82c5e05c4f912a88eab0dcd91a171688f"
-  version = "v0.11.5"
-
-[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
@@ -47,7 +41,7 @@
   branch = "master"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
-  revision = "cc8532a8e9a55ea36402aa21efdf403a60d34096"
+  revision = "d0303fe809921458f417bcf828397a65db30a7e4"
 
 [[projects]]
   name = "github.com/pelletier/go-buffruneio"
@@ -58,8 +52,8 @@
 [[projects]]
   name = "github.com/pelletier/go-toml"
   packages = ["."]
-  revision = "13d49d4606eb801b8f01ae542b4afc4c6ee3d84a"
-  version = "v0.5.0"
+  revision = "5ccdfb18c776b740aecaf085c4d9a2779199c279"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/pmezard/go-difflib"
@@ -70,8 +64,14 @@
 [[projects]]
   name = "github.com/rifflock/lfshook"
   packages = ["."]
-  revision = "2adb3e0c4ddd8778c4adde609d2dfd4fbe6096ea"
-  version = "1.6"
+  revision = "6844c808343cb8fa357d7f141b1b990e05d24e41"
+  version = "1.7"
+
+[[projects]]
+  name = "github.com/sirupsen/logrus"
+  packages = ["."]
+  revision = "202f25545ea4cf9b191ff7f846df5d87c9382c2b"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -89,7 +89,7 @@
   branch = "master"
   name = "github.com/spf13/jwalterweatherman"
   packages = ["."]
-  revision = "8f07c835e5cc1450c082fe3a439cf87b0cbb2d99"
+  revision = "0efa5202c04663c757d84f90f5219c1250baf94f"
 
 [[projects]]
   branch = "master"
@@ -100,7 +100,7 @@
 [[projects]]
   name = "github.com/spf13/viper"
   packages = ["."]
-  revision = "0967fc9"
+  revision = "c1de95864d73a5465492829d7cb2dd422b19ac96"
 
 [[projects]]
   name = "github.com/stretchr/testify"
@@ -112,13 +112,13 @@
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "e62c3de784db939836898e5c19ffd41bece347da"
+  revision = "c23410a886927bab8ca5e80b08af6a56faeb330d"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/text"
   packages = ["internal/gen","internal/triegen","internal/ucd","transform","unicode/cldr","unicode/norm"]
-  revision = "19e51611da83d6be54ddafce4a4af510cb3e9ea4"
+  revision = "4e9ab9ee170f2a39bd66c92b3e0a47ff47a4bc77"
 
 [[projects]]
   branch = "v2"
@@ -129,6 +129,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e16ef683ca7989700b7906f19c244a648f891f0c9998b6ce8e2a7664a581e915"
+  inputs-digest = "5500d3d5168d468ca979c9648a6c61c0573c6b9979e8d3c21a342855b0944f98"
   solver-name = "gps-cdcl"
   solver-version = 1

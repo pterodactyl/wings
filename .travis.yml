@@ -6,10 +6,12 @@ go:
 
 install:
   - go get -u github.com/golang/dep/cmd/dep
+  - go get github.com/haya14busa/goverage
   - go get github.com/schrej/godacov
   - dep ensure
 
 script:
   - go build -o wings
-  - go test -coverprofile=coverage.out ./...
+  - goverage -v -coverprofile=coverage.out ./...
   - godacov -t $CODACY_TOKEN -r ./coverage.out -c $TRAVIS_COMMIT
+

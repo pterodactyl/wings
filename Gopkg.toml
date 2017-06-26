@@ -63,7 +63,7 @@
   name = "github.com/lestrrat/go-file-rotatelogs"
 
 [[constraint]]
-  version = "v0.11.5"
+  version = "v1.0.0"
   name = "github.com/sirupsen/logrus"
 
 [[constraint]]
@@ -71,7 +71,7 @@
   name = "github.com/rifflock/lfshook"
 
 [[constraint]]
-  revision = "0967fc9"
+  revision = "c1de95864d73a5465492829d7cb2dd422b19ac96"
   name = "github.com/spf13/viper"
 
 [[constraint]]
