@@ -77,10 +77,14 @@ type Config struct {
 
 var config *Config
 
-// LoadConfiguration loads the configuration from the disk.
-func LoadConfiguration() error {
-	viper.SetConfigName("config")
-	viper.AddConfigPath(".")
+func LoadConfiguration(path *string) error {
+	if path != nil {
+		viper.SetConfigFile(*path)
+	} else {
+		viper.AddConfigPath("./")
+		viper.SetConfigName("config")
+	}
+
 	// Find and read the config file
 	if err := viper.ReadInConfig(); err != nil {
 		return err

@@ -16,7 +16,7 @@ const (
 
 func main() {
 	fmt.Println("Loading configuration")
-	if err := config.LoadConfiguration(); err != nil {
+	if err := config.LoadConfiguration(nil); err != nil {
 		log.WithError(err).Fatal("Failed to find configuration file")
 	}
 	tools.ConfigureLogging()
