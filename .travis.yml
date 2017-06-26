@@ -1,7 +1,7 @@
 language: go
 
 go:
-  - 1.8.x
+  - 1.9.x
   - master
 
 install:
@@ -10,4 +10,4 @@ install:
 
 script:
   - go build -o wings
-  - go test $(go list ./... | grep -v vendor)
+  - go test
