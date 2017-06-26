@@ -1,35 +1,35 @@
 {
   "web": {
     "host": "0.0.0.0",
-    "listen": 8080,
+    "port": 8080,
     "ssl": {
       "enabled": false,
       "generateLetsEncrypt": true,
       "certificate": "/etc/letsencrypt/live/pterodactyl.app/fullchain.pem",
       "key": "/etc/letsencrypt/live/pterodactyl.app/privkey.pem"
+    },
+    "uploads": {
+        "maximumSize": 150000000
     }
   },
   "docker": {
     "socket": "/var/run/docker.sock",
-    "autoupdate_images": true,
-    "interface": "172.18.0.1",
-    "timezone_path": "/etc/timezone"
+    "autoupdateImages": true,
+    "networkInterface": "172.18.0.1",
+    "timezonePath": "/etc/timezone"
   },
   "sftp": {
     "path": "/srv/daemon-data",
     "port": 2022
   },
   "query": {
-    "kill_on_fail": false,
-    "fail_limit": 5
-  },
-  "logger": {
-    "path": "logs/",
-    "level": "debug"
+    "killOnFail": false,
+    "failLimit": 5
   },
   "remote": "https://pterodactyl.app",
-  "uploads": {
-    "maximumSize": 150000000,
-    "size_limit": "100"
+  "logger": {
+    "path": "logs/",
+    "level": "debug",
+    "deleteAfterDays": 100
   }
 }

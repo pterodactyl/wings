@@ -2,8 +2,9 @@ package main
 
 import (
 	log "github.com/Sirupsen/logrus"
-	"github.com/schrej/pterodactyld/config"
-	"github.com/schrej/pterodactyld/tools"
+	"github.com/schrej/wings.go/api"
+	"github.com/schrej/wings.go/config"
+	"github.com/schrej/wings.go/tools"
 )
 
 const (
@@ -14,11 +15,15 @@ const (
 func main() {
 	tools.ConfigureLogging()
 
-	log.Info("Starting pterodactyld version ", Version)
+	log.Info("Starting wings.go version ", Version)
 
 	// Load configuration
 	log.Info("Loading configuration...")
 	if err := config.LoadConfiguration(); err != nil {
 		log.WithError(err).Fatal("Failed to find configuration file")
 	}
+
+	log.Info("Starting api webserver")
+	api := api.NewAPI()
+	api.Listen()
 }

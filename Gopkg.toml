@@ -73,3 +73,7 @@
 [[constraint]]
   revision = "0967fc9"
   name = "github.com/spf13/viper"
+
+[[constraint]]
+  version = "1.1.4"
+  name = "github.com/stretchr/testify"

@@ -14,6 +14,12 @@
   version = "v0.11.5"
 
 [[projects]]
+  name = "github.com/davecgh/go-spew"
+  packages = ["spew"]
+  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
+  version = "v1.1.0"
+
+[[projects]]
   name = "github.com/fsnotify/fsnotify"
   packages = ["."]
   revision = "629574ca2a5df945712d3079857300b5e4da0236"
@@ -56,16 +62,16 @@
   version = "v0.5.0"
 
 [[projects]]
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/rifflock/lfshook"
   packages = ["."]
   revision = "2adb3e0c4ddd8778c4adde609d2dfd4fbe6096ea"
   version = "1.6"
-
-[[projects]]
-  branch = "schrej-wip"
-  name = "github.com/schrej/pterodactyld"
-  packages = ["config","environments","tools"]
-  revision = "f244cda20faac1b62e0b5ff586a1b0918787c992"
 
 [[projects]]
   branch = "master"
@@ -97,6 +103,12 @@
   revision = "0967fc9"
 
 [[projects]]
+  name = "github.com/stretchr/testify"
+  packages = ["assert"]
+  revision = "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
+  version = "v1.1.4"
+
+[[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
@@ -117,6 +129,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f24a85167f15a18e90cc0ea139dcc2c80fe6272cfe7c8dba6ecc2e2afb24e61d"
+  inputs-digest = "e16ef683ca7989700b7906f19c244a648f891f0c9998b6ce8e2a7664a581e915"
   solver-name = "gps-cdcl"
   solver-version = 1

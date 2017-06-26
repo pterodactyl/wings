@@ -3,9 +3,9 @@ package tools
 import (
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	rotatelogs "github.com/lestrrat/go-file-rotatelogs"
 	"github.com/rifflock/lfshook"
+	log "github.com/Sirupsen/logrus"
 )
 
 func ConfigureLogging() {

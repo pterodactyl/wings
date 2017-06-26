@@ -9,71 +9,73 @@ type Config struct {
 
 	// Web contains the settings of the api webserver
 	Web struct {
-		// ListenAddress is the address to bind the api webserver to
-		ListenAddress string `json:"address"`
+		// ListenHost is the host address to bind the api webserver to
+		ListenHost string `mapstructure:"host"`
 		// ListenPort is the port to bind the api webserver to
-		ListenPort int16 `json:"port"`
+		ListenPort int16 `mapstructure:"port"`
 
 		// SSL contains https configuration for the api webserver
 		SSL struct {
 			// Enabled allows to enable or disable ssl
-			Enabled bool `json:"enabled"`
+			Enabled bool `mapstructure:"enabled"`
 			// GenerateLetsEncrypt
-			GenerateLetsEncrypt bool `json:"GenerateLetsEncrypt"`
+			GenerateLetsEncrypt bool `mapstructure:"GenerateLetsEncrypt"`
 			// Certificate is the certificate file path to use
-			Certificate string `json:"certificate"`
+			Certificate string `mapstructure:"certificate"`
 			// Key is the path to the private key for the certificate
-			Key string `json:"key"`
-		} `json:"ssl"`
+			Key string `mapstructure:"key"`
+		} `mapstructure:"ssl"`
 
 		// Uploads contains file upload configuration
 		Uploads struct {
 			// MaximumSize is the maximum file upload size
-			MaximumSize int64 `json:"maximumSize"`
-		} `json:"uploads"`
-	} `json:"web"`
+			MaximumSize int64 `mapstructure:"maximumSize"`
+		} `mapstructure:"uploads"`
+	} `mapstructure:"web"`
 
 	// Docker contains docker related configuration
 	Docker struct {
 		// Socket is the path to the docker control socket
-		Socket string `json:"socket"`
+		Socket string `mapstructure:"socket"`
 		// AutoupdateImages allows to disable automatic Image updates
-		AutoupdateImages bool `json:"autoupdateImages"`
+		AutoupdateImages bool `mapstructure:"autoupdateImages"`
 		// NetworkInterface is the interface for the pterodactyl network
-		NetworkInterface string `json:"networkInterface"`
+		NetworkInterface string `mapstructure:"networkInterface"`
 		// TimezonePath is the path to the timezone file to mount in the containers
-		TimezonePath string `json:"timezonePath"`
-	} `json:"docker"`
+		TimezonePath string `mapstructure:"timezonePath"`
+	} `mapstructure:"docker"`
 
 	// Sftp contains information on the integrated sftp server
 	Sftp struct {
 		// Path is the base path of the sftp server
-		Path string `json:"path"`
+		Path string `mapstructure:"path"`
 		// Port is the port to bind the sftp server to
-		Port int16 `json:"port"`
-	} `json:"sftp"`
+		Port int16 `mapstructure:"port"`
+	} `mapstructure:"sftp"`
 
 	// Query contains parameters related to queriying of running gameservers
 	Query struct {
-		KillOnFail bool `json:"killOnFail"`
-		FailLimit  bool `json:"failLimit"`
-	} `json:"query"`
+		KillOnFail bool `mapstructure:"killOnFail"`
+		FailLimit  bool `mapstructure:"failLimit"`
+	} `mapstructure:"query"`
 
 	// Remote is the url of the panel
-	Remote string `json:"remote"`
+	Remote string `mapstructure:"remote"`
 
 	// Log contains configuration related to logging
 	Log struct {
 		// Path is the folder where logfiles should be stored
-		Path string `json:"path"`
+		Path string `mapstructure:"path"`
 		// Level is the preferred log level
-		Level string `json:"level"`
+		Level string `mapstructure:"level"`
 
 		// DeleteAfterDays is the time in days after which logfiles are deleted
 		// If set to <= 0 logs are kept forever
-		DeleteAfterDays int `json:"deleteAfterDays"`
-	} `json:"log"`
+		DeleteAfterDays int `mapstructure:"deleteAfterDays"`
+	} `mapstructure:"log"`
 }
+
+var config *Config
 
 // LoadConfiguration loads the configuration from the disk.
 func LoadConfiguration() error {
@@ -84,7 +86,17 @@ func LoadConfiguration() error {
 		return err
 	}
 
+	config = new(Config)
+	if err := viper.Unmarshal(config); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// Get returns the configuration
+func Get() *Config {
+	return config
 }
 
 func setDefaults() {
