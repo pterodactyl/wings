@@ -6,6 +6,8 @@ import (
 
 // Config contains the configuration of the Pterodactyl Daemon
 type Config struct {
+	// Debug enables debug mode
+	Debug bool `mapstructure:"debug"`
 
 	// Web contains the settings of the api webserver
 	Web struct {
@@ -67,6 +69,7 @@ type Config struct {
 		// Path is the folder where logfiles should be stored
 		Path string `mapstructure:"path"`
 		// Level is the preferred log level
+		// It is overriden to debug when debug mode is enabled
 		Level string `mapstructure:"level"`
 
 		// DeleteAfterDays is the time in days after which logfiles are deleted
