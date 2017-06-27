@@ -28,5 +28,8 @@
 # Builds by gox
 /build
 
+# Go Coverage tool
+/coverage.out
+
 # Keep all gitkeep files (This needs to stay at the bottom)
 !.gitkeep

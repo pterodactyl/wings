@@ -5,11 +5,11 @@ go:
 - master
 
 install:
-- go get github.com/golang/dep/cmd/dep
+- curl https://glide.sh/get | sh
 - go get github.com/mitchellh/gox
 - go get github.com/haya14busa/goverage
 - go get github.com/schrej/godacov
-- dep ensure
+- glide install
 
 script:
 - gox -output "build/{{.Dir}}_{{.OS}}_{{.Arch}}"

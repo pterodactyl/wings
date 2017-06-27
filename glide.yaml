@@ -1,0 +1,16 @@
+package: github.com/schrej/wings
+import:
+- package: github.com/gin-gonic/gin
+  version: ~1.1.4
+- package: github.com/lestrrat/go-file-rotatelogs
+  version: ~2.0.0
+- package: github.com/rifflock/lfshook
+  version: ~1.7.0
+- package: github.com/sirupsen/logrus
+  version: ~1.0.0
+- package: github.com/spf13/viper
+testImport:
+- package: github.com/stretchr/testify
+  version: ~1.1.4
+  subpackages:
+  - assert
