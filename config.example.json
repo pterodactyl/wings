@@ -28,9 +28,9 @@
     "failLimit": 5
   },
   "remote": "https://pterodactyl.app",
-  "logger": {
+  "log": {
     "path": "logs/",
-    "level": "debug",
+    "level": "info",
     "deleteAfterDays": 100
   }
 }
