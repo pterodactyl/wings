@@ -25,5 +25,8 @@
 # Ignore Vagrant stuff
 /.vagrant
 
+# Builds by gox
+/build
+
 # Keep all gitkeep files (This needs to stay at the bottom)
 !.gitkeep
