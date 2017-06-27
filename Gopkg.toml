@@ -77,3 +77,7 @@
 [[constraint]]
   version = "1.1.4"
   name = "github.com/stretchr/testify"
+
+[[constraint]]
+  version = "v1.1.4"
+  name = "github.com/gin-gonic/gin"
