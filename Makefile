@@ -20,9 +20,8 @@ coverage:
 	go tool cover -html=coverage.out
 
 dependencies:
-	dep ensure
+	glide install
 
 install-tools:
-	go get -u github.com/golang/dep/cmd/dep
 	go get -u github.com/mitchellh/gox
 	go get -u github.com/haya14busa/goverage
