@@ -21,6 +21,9 @@ type Environment interface {
 type BaseEnvironment struct {
 }
 
+// Ensure BaseEnvironment implements Environment
+var _ Environment = &BaseEnvironment{}
+
 func (env *BaseEnvironment) Create() error {
 	return nil
 }
@@ -40,4 +43,8 @@ func (env *BaseEnvironment) ReCreate() error {
 		}
 	}
 	return env.Create()
+}
+
+func (env *BaseEnvironment) Exec() error {
+	return nil
 }

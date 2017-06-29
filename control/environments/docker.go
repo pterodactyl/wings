@@ -4,6 +4,9 @@ type DockerEnvironment struct {
 	BaseEnvironment
 }
 
+// Ensure DockerEnvironment implements Environment
+var _ Environment = &DockerEnvironment{}
+
 func NewDockerEnvironment() *DockerEnvironment {
 	return &DockerEnvironment{}
 }
