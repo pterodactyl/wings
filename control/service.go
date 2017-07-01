@@ -1,6 +1,6 @@
 package control
 
-import "github.com/schrej/wings/control/environments"
+import "github.com/Pterodactyl/wings/control/environments"
 
 type Service struct {
 	Environment environments.Environment

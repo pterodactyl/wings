@@ -7,7 +7,7 @@ import (
 	"github.com/rifflock/lfshook"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/schrej/wings/config"
+	"github.com/Pterodactyl/wings/config"
 )
 
 // ConfigureLogging configures logrus to our needs

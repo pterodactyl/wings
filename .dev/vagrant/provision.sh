@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "Provisioning development environment for Pterodactyl go daemon."
-cp /home/ubuntu/go/github.com/schrej/wings.go/.dev/vagrant/motd.txt /etc/motd
+cp /home/ubuntu/go/github.com/Pterodactyl/wings.go/.dev/vagrant/motd.txt /etc/motd
 
 chown -R ubuntu:ubuntu /home/ubuntu/go
 
@@ -27,5 +27,5 @@ apt-get -y install mercurial #tar unzip make gcc g++ python > /dev/null
 
 echo "   ------------"
 echo "Gopath is /home/ubuntu/go"
-echo "The project is mounted to /home/ubuntu/go/src/github.com/schrej/wings.go"
+echo "The project is mounted to /home/ubuntu/go/src/github.com/Pterodactyl/wings.go"
 echo "Provisioning is completed."

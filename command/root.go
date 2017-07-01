@@ -3,9 +3,9 @@ package command
 import (
 	"fmt"
 
-	"github.com/schrej/wings/api"
-	"github.com/schrej/wings/config"
-	"github.com/schrej/wings/tools"
+	"github.com/Pterodactyl/wings/api"
+	"github.com/Pterodactyl/wings/config"
+	"github.com/Pterodactyl/wings/tools"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

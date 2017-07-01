@@ -2,7 +2,7 @@
         Pterodactyl go Daemon Vagrant VM
 
 Gopath:  /home/ubuntu/go
-Daemon:  /home/ubuntu/go/src/github.com/schrej/wings.go
+Daemon:  /home/ubuntu/go/src/github.com/Pterodactyl/wings.go
 Data:    /srv/daemon-data
 
 #####################################################

@@ -1,4 +1,4 @@
-package: github.com/schrej/wings
+package: github.com/Pterodactyl/wings
 import:
 - package: github.com/gin-gonic/gin
   version: ~1.1.4
