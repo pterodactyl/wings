@@ -11,6 +11,7 @@ install:
 - wget "https://github.com/Masterminds/glide/releases/download/v0.12.3/glide-v0.12.3-linux-arm64.tar.gz" -O glide.tar.gz
 - mkdir -p $HOME/bin
 - tar -vxz -C $HOME/bin --strip=1 -f glide.tar.gz
+- chmod +x $HOME/bin/glide
 - export PATH="$HOME/bin:$PATH"
 
 # Install other tools
