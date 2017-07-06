@@ -32,5 +32,8 @@
     "path": "logs/",
     "level": "info",
     "deleteAfterDays": 100
-  }
+  },
+  "authKeys": [
+      "somekey"
+  ]
 }

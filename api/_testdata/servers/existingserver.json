@@ -1,0 +1,14 @@
+{
+    "uuid": "existingserver",
+    "keys": {
+        "existinggkey": [
+            "g:*"
+        ],
+        "existingspecificskey": [
+            "s:test"
+        ],
+        "existingglobalskey": [
+            "s:*"
+        ]
+    }
+}
