@@ -10,12 +10,16 @@ import (
 	"github.com/Pterodactyl/wings/config"
 )
 
-// ConfigureLogging configures logrus to our needs
-func ConfigureLogging() error {
-
+func InitLogging() {
 	log.SetFormatter(&log.TextFormatter{
 		DisableTimestamp: true,
 	})
+
+	log.SetLevel(log.InfoLevel)
+}
+
+// ConfigureLogging configures logrus to our needs
+func ConfigureLogging() error {
 
 	path := config.Get().Log.Path
 	writer := rotatelogs.New(
@@ -25,14 +29,20 @@ func ConfigureLogging() error {
 		rotatelogs.WithRotationTime(time.Duration(604800)*time.Second),
 	)
 
+	log.AddHook(lfshook.NewHook(lfshook.WriterMap{
+		log.DebugLevel: writer,
+		log.InfoLevel:  writer,
+		log.WarnLevel:  writer,
+		log.ErrorLevel: writer,
+		log.FatalLevel: writer,
+	}))
+
 	level := config.Get().Log.Level
 
 	// In debug mode the log level is always debug
 	if config.Get().Debug {
 		level = "debug"
 	}
-
-	log.SetLevel(log.DebugLevel)
 
 	// Apply log level
 	switch level {
@@ -55,16 +65,7 @@ func ConfigureLogging() error {
 		log.SetLevel(log.PanicLevel)
 	}
 
-	log.AddHook(lfshook.NewHook(lfshook.WriterMap{
-		log.DebugLevel: writer,
-		log.InfoLevel:  writer,
-		log.WarnLevel:  writer,
-		log.ErrorLevel: writer,
-		log.FatalLevel: writer,
-	}))
-
 	log.Info("Log level: " + level)
-	log.Debug("Test")
 
 	return nil
 }
