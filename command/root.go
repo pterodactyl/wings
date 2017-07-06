@@ -3,16 +3,13 @@ package command
 import (
 	"github.com/Pterodactyl/wings/api"
 	"github.com/Pterodactyl/wings/config"
+	"github.com/Pterodactyl/wings/constants"
 	"github.com/Pterodactyl/wings/tools"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
-const (
-	// Version of pterodactyld
-	Version = "0.0.1-alpha"
-)
-
+// RootCommand is the root command of wings
 var RootCommand = &cobra.Command{
 	Use:   "wings",
 	Short: "",
@@ -24,6 +21,7 @@ func init() {
 
 }
 
+// Execute registers the RootCommand
 func Execute() {
 	RootCommand.Execute()
 }
@@ -31,7 +29,7 @@ func Execute() {
 func run(cmd *cobra.Command, args []string) {
 	tools.InitLogging()
 	log.Info("Loading configuration")
-	if err := config.LoadConfiguration(nil); err != nil {
+	if err := config.LoadConfiguration(""); err != nil {
 		log.WithError(err).Fatal("Failed to find configuration file")
 	}
 	tools.ConfigureLogging()
@@ -41,7 +39,7 @@ func run(cmd *cobra.Command, args []string) {
 	log.Info(`\_____\    \/\/    /   /       /  __   /   ___/`)
 	log.Info(`   \___\          /   /   /   /  /_/  /___   /`)
 	log.Info(`        \___/\___/___/___/___/___    /______/`)
-	log.Info(`                            /_______/ v` + Version)
+	log.Info(`                            /_______/ v` + constants.Version)
 	log.Info()
 
 	log.Info("Configuration loaded successfully.")
