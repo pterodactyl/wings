@@ -8,9 +8,9 @@ install:
 - mkdir $GOPATH/bin
 
 # Install the glide dependency management tool
-- wget "https://github.com/Masterminds/glide/releases/download/v0.12.3/glide-v0.12.3-linux-arm64.tar.gz"
+- wget "https://github.com/Masterminds/glide/releases/download/v0.12.3/glide-v0.12.3-linux-arm64.tar.gz" -O glide.tar.gz
 - mkdir -p $HOME/bin
-- tar -vxz -C $HOME/bin --strip=1 -f glide-0.10.2-linux-amd64.tar.gz
+- tar -vxz -C $HOME/bin --strip=1 -f glide.tar.gz
 - export PATH="$HOME/bin:$PATH"
 
 # Install other tools
