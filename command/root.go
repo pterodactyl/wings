@@ -1,8 +1,6 @@
 package command
 
 import (
-	"fmt"
-
 	"github.com/Pterodactyl/wings/api"
 	"github.com/Pterodactyl/wings/config"
 	"github.com/Pterodactyl/wings/tools"
@@ -31,16 +29,22 @@ func Execute() {
 }
 
 func run(cmd *cobra.Command, args []string) {
-	fmt.Println("Loading configuration")
+	tools.InitLogging()
+	log.Info("Loading configuration")
 	if err := config.LoadConfiguration(nil); err != nil {
 		log.WithError(err).Fatal("Failed to find configuration file")
 	}
 	tools.ConfigureLogging()
 
-	log.Info("Starting wings.go version ", Version)
+	log.Info(`                     ____`)
+	log.Info(`__ Pterodactyl _____/___/_______ _______ ______`)
+	log.Info(`\_____\    \/\/    /   /       /  __   /   ___/`)
+	log.Info(`   \___\          /   /   /   /  /_/  /___   /`)
+	log.Info(`        \___/\___/___/___/___/___    /______/`)
+	log.Info(`                            /_______/ v` + Version)
+	log.Info()
 
-	// Load configuration
-	log.Info("Loading configuration...")
+	log.Info("Configuration loaded successfully.")
 
 	log.Info("Starting api webserver")
 	api := api.NewAPI()
