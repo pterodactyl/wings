@@ -4,15 +4,15 @@ go:
 - 1.8.x
 - master
 
+addons:
+  apt:
+    sources:
+      - sourceline: 'ppa:masterminds/glide'
+    packages:
+      - glide
+
 install:
 - mkdir $GOPATH/bin
-
-# Install the glide dependency management tool
-- wget "https://github.com/Masterminds/glide/releases/download/v0.12.3/glide-v0.12.3-linux-arm64.tar.gz" -O glide.tar.gz
-- mkdir -p $HOME/bin
-- tar -vxz -C $HOME/bin --strip=1 -f glide.tar.gz
-- chmod +x $HOME/bin/glide
-- export PATH="$HOME/bin:$PATH"
 
 # Install other tools
 - go get github.com/mitchellh/gox
