@@ -76,13 +76,16 @@ type Config struct {
 		// If set to <= 0 logs are kept forever
 		DeleteAfterDays int `mapstructure:"deleteAfterDays"`
 	} `mapstructure:"log"`
+
+	AuthKeys []string `mapstructure:"authKeys"`
 }
 
 var config *Config
 
-func LoadConfiguration(path *string) error {
-	if path != nil {
-		viper.SetConfigFile(*path)
+// LoadConfiguration loads the configuration from a specified file
+func LoadConfiguration(path string) error {
+	if path != "" {
+		viper.SetConfigFile(path)
 	} else {
 		viper.AddConfigPath("./")
 		viper.SetConfigName("config")
@@ -108,4 +111,14 @@ func Get() *Config {
 
 func setDefaults() {
 
+}
+
+// ContainsAuthKey checks wether the config contains a specified authentication key
+func (c *Config) ContainsAuthKey(key string) bool {
+	for _, k := range c.AuthKeys {
+		if k == key {
+			return true
+		}
+	}
+	return false
 }
