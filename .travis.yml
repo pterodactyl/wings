@@ -6,10 +6,19 @@ go:
 
 install:
 - mkdir $GOPATH/bin
-- curl https://glide.sh/get | sh
+
+# Install the glide dependency management tool
+- wget "https://github.com/Masterminds/glide/releases/download/v0.12.3/glide-v0.12.3-linux-arm64.tar.gz"
+- mkdir -p $HOME/bin
+- tar -vxz -C $HOME/bin --strip=1 -f glide-0.10.2-linux-amd64.tar.gz
+- export PATH="$HOME/bin:$PATH"
+
+# Install other tools
 - go get github.com/mitchellh/gox
 - go get github.com/haya14busa/goverage
 - go get github.com/schrej/godacov
+
+# Install project dependencies with glide
 - glide install
 
 script:
