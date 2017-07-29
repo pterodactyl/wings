@@ -23,7 +23,7 @@ func TestAuthHandler(t *testing.T) {
 		responded, rec := requestMiddlewareWith("c:somepermission", "", "")
 
 		assert.False(t, responded)
-		assert.Equal(t, rec.Code, http.StatusBadRequest)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
 
 	t.Run("rejects c:* with invalid key", func(t *testing.T) {
@@ -32,7 +32,7 @@ func TestAuthHandler(t *testing.T) {
 		responded, rec := requestMiddlewareWith("c:somepermission", "invalidkey", "")
 
 		assert.False(t, responded)
-		assert.Equal(t, rec.Code, http.StatusForbidden)
+		assert.Equal(t, http.StatusForbidden, rec.Code)
 	})
 
 	t.Run("accepts existing c: key", func(t *testing.T) {
@@ -41,7 +41,7 @@ func TestAuthHandler(t *testing.T) {
 		responded, rec := requestMiddlewareWith("c:somepermission", "existingkey", "") // TODO: working token
 
 		assert.True(t, responded)
-		assert.Equal(t, rec.Code, http.StatusOK)
+		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 
 	t.Run("rejects missing server uuid", func(t *testing.T) {
@@ -50,7 +50,7 @@ func TestAuthHandler(t *testing.T) {
 		responded, rec := requestMiddlewareWith("g:test", "existingkey", "")
 
 		assert.False(t, responded)
-		assert.Equal(t, rec.Code, http.StatusBadRequest)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
 
 	t.Run("rejects not existing server", func(t *testing.T) {
@@ -59,7 +59,7 @@ func TestAuthHandler(t *testing.T) {
 		responded, rec := requestMiddlewareWith("g:test", "existingkey", "notexistingserver")
 
 		assert.False(t, responded)
-		assert.Equal(t, rec.Code, http.StatusNotFound)
+		assert.Equal(t, http.StatusNotFound, rec.Code)
 	})
 
 	t.Run("accepts server with existing g: key", func(t *testing.T) {
@@ -68,7 +68,7 @@ func TestAuthHandler(t *testing.T) {
 		responded, rec := requestMiddlewareWith("g:test", "existingkey", "existingserver")
 
 		assert.True(t, responded)
-		assert.Equal(t, rec.Code, http.StatusOK)
+		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 
 	t.Run("rejects server with not existing g: key", func(t *testing.T) {
@@ -77,7 +77,7 @@ func TestAuthHandler(t *testing.T) {
 		responded, rec := requestMiddlewareWith("g:test", "notexistingkey", "existingserver")
 
 		assert.False(t, responded)
-		assert.Equal(t, rec.Code, http.StatusForbidden)
+		assert.Equal(t, http.StatusForbidden, rec.Code)
 	})
 
 	t.Run("rejects server with not existing s: key", func(t *testing.T) {
@@ -86,7 +86,7 @@ func TestAuthHandler(t *testing.T) {
 		responded, rec := requestMiddlewareWith("s:test", "notexistingskey", "existingserver")
 
 		assert.False(t, responded)
-		assert.Equal(t, rec.Code, http.StatusForbidden)
+		assert.Equal(t, http.StatusForbidden, rec.Code)
 	})
 
 	t.Run("accepts server with existing s: key with specific permission", func(t *testing.T) {
@@ -95,7 +95,7 @@ func TestAuthHandler(t *testing.T) {
 		responded, rec := requestMiddlewareWith("s:test", "existingspecificskey", "existingserver")
 
 		assert.True(t, responded)
-		assert.Equal(t, rec.Code, http.StatusOK)
+		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 
 	t.Run("accepts server with existing s: key with gloabl permission", func(t *testing.T) {
@@ -104,7 +104,7 @@ func TestAuthHandler(t *testing.T) {
 		responded, rec := requestMiddlewareWith("s:test", "existingglobalskey", "existingserver")
 
 		assert.True(t, responded)
-		assert.Equal(t, rec.Code, http.StatusOK)
+		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 
 	t.Run("rejects server with existing s: key without permission", func(t *testing.T) {
@@ -113,7 +113,7 @@ func TestAuthHandler(t *testing.T) {
 		responded, rec := requestMiddlewareWith("s:without", "existingspecificskey", "existingserver")
 
 		assert.False(t, responded)
-		assert.Equal(t, rec.Code, http.StatusForbidden)
+		assert.Equal(t, http.StatusForbidden, rec.Code)
 	})
 }
 
