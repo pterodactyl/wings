@@ -8,8 +8,20 @@ import:
   version: ~1.7.0
 - package: github.com/sirupsen/logrus
   version: ~1.0.0
+- package: github.com/Sirupsen/logrus
+  version: ~1.0.0
+  repo: https://github.com/sirupsen/logrus.git
+  vcs: git
 - package: github.com/spf13/viper
 - package: github.com/spf13/cobra
+- package: github.com/shirou/gopsutil
+  version: ^2.17.6
+- package: github.com/moby/moby
+  version: ~17.5.0-ce-rc3
+  subpackages:
+  - client
+- package: github.com/fsouza/go-dockerclient
+- package: github.com/hashicorp/go-cleanhttp
 testImport:
 - package: github.com/stretchr/testify
   version: ~1.1.4
