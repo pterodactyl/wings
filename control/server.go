@@ -16,6 +16,8 @@ type Server interface {
 	Stop() error
 	Exec(command string) error
 	Rebuild() error
+
+	HasPermission(string, string) bool
 }
 
 // Server is a single instance of a Service managed by the panel
