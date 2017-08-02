@@ -1,29 +1,20 @@
 package api
 
 func (api *API) registerServerFileRoutes() {
-	// TODO: better and more consistent route names.
+	api.router.GET("/server/:server/files/file/:file", AuthHandler("s:files:read"), handleGetFile)
+	api.router.GET("/server/:server/files/stat/:file", AuthHandler("s:files:"), handleGetFileStat)
+	api.router.GET("/server/:server/files/dir/:directory", AuthHandler("s:files:get"), handleGetDirectory)
 
-	api.router.POST("/server/file/folder", AuthHandler("s:files:create"), handlePostFilesFolder)
+	api.router.POST("/server/:server/files/dir/:directory", AuthHandler("s:files:create"), handlePostFilesFolder)
+	api.router.POST("/server/:server/files/file/:file", AuthHandler("s:files:post"), handlePostFile)
 
-	api.router.GET("/server/directory/:directory", AuthHandler("s:files:get"), handleGetDirectory)
+	api.router.POST("/server/:server/files/copy/:file", AuthHandler("s:files:copy"), handlePostFileCopy)
+	api.router.POST("/server/:server/files/move/:file", AuthHandler("s:files:move"), handlePostFileMove)
+	api.router.POST("/server/:server/files/rename/:file", AuthHandler("s:files:move"), handlePostFileMove)
+	api.router.POST("/server/:server/files/compress/:file", AuthHandler("s:files:compress"), handlePostFileCompress)
+	api.router.POST("/server/:server/files/decompress/:file", AuthHandler("s:files:decompress"), handlePostFileDecompress)
 
-	api.router.POST("/server/file/copy", AuthHandler("s:files:copy"), handlePostFileCopy)
+	api.router.DELETE("/server/:server/files/file/:file", AuthHandler("s:files:delete"), handleDeleteFile)
 
-	api.router.POST("/server/file/{move,rename}", AuthHandler("s:files:move"), handlePostFileMove)
-
-	api.router.POST("/server/file/delete", AuthHandler("s:files:delete"), handlePostFileDelete)
-
-	api.router.POST("/server/file/compress", AuthHandler("s:files:compress"), handlePostFileCompress)
-
-	api.router.POST("/server/file/decompress", AuthHandler("s:files:decompress"), handlePostFileDecompress)
-
-	api.router.GET("/server/file/stat/:file", AuthHandler("s:files:"), handleGetFileStat)
-
-	api.router.GET("/server/file/f/:file", AuthHandler("s:files:read"), handleGetFile)
-
-	api.router.POST("/server/file/save", AuthHandler("s:files:post"), handlePostFile)
-
-	api.router.DELETE("/server/file/f/:file", AuthHandler("s:files:delete"), handleDeleteFile)
-
-	api.router.GET("/server/file/download/:token", handleGetDownloadFile)
+	api.router.GET("/server/:server/files/download/:token", handleGetDownloadFile)
 }

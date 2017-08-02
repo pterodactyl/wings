@@ -22,10 +22,6 @@ func handlePatchServer(c *gin.Context) {
 
 }
 
-func handlePutServer(c *gin.Context) {
-
-}
-
 func handlePostServerReinstall(c *gin.Context) {
 
 }

@@ -21,18 +21,6 @@ func TestHandleGetIndex(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recorder.Code)
 }
 
-func TestHandlePutConfig(t *testing.T) {
-	router := gin.New()
-	recorder := httptest.NewRecorder()
-
-	req, _ := http.NewRequest("PUT", "/", strings.NewReader("{}"))
-
-	router.PUT("/", handlePutConfig)
-	router.ServeHTTP(recorder, req)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
-}
-
 func TestHandlePatchConfig(t *testing.T) {
 	router := gin.New()
 	recorder := httptest.NewRecorder()
