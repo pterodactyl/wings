@@ -2,7 +2,6 @@ language: go
 
 go:
 - 1.8.x
-- master
 
 services:
   - docker
@@ -37,5 +36,5 @@ deploy:
   file_glob: true
   file: build/*
   on:
-    trags: true
+    tags: true
     branch: master
