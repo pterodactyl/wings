@@ -15,7 +15,7 @@ addons:
       - glide
 
 install:
-- mkdir $GOPATH/bin
+- mkdir -p $GOPATH/bin
 
 # Install other tools
 - go get github.com/mitchellh/gox
