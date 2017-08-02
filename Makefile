@@ -1,4 +1,5 @@
 BINARY = "build/wings"
+OSARCHLIST = "darwin/386 darwin/amd64 linux/386 linux/amd64 linux/arm linux/arm64 windows/386 windows/amd64"
 
 all: $(BINARY)
 
@@ -6,7 +7,7 @@ $(BINARY):
 	go build -o $(BINARY)
 
 cross-build:
-	gox -output "build/{{.Dir}}_{{.OS}}_{{.Arch}}"
+	gox -osarch $(OSARCHLIST) -output "build/{{.Dir}}_{{.OS}}_{{.Arch}}"
 
 .PHONY: install
 install:

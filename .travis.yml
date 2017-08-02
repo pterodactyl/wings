@@ -26,7 +26,7 @@ install:
 - glide install
 
 script:
-- gox -output "build/{{.Dir}}_{{.OS}}_{{.Arch}}"
+- make cross-build
 - goverage -v -coverprofile=coverage.out ./...
 - godacov -t $CODACY_TOKEN -r ./coverage.out -c $TRAVIS_COMMIT
 
