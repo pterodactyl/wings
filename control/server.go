@@ -3,7 +3,6 @@ package control
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"strings"
 
@@ -110,13 +109,16 @@ func loadServerConfiguration(path string) (*server, error) {
 	if err := json.Unmarshal(file, server); err != nil {
 		return nil, err
 	}
-	fmt.Println(server)
 	return server, nil
 }
 
 // GetServer returns the server identified by the provided uuid
 func GetServer(uuid string) Server {
-	return servers[uuid]
+	server := servers[uuid]
+	if server == nil {
+		return nil // https://golang.org/doc/faq#nil_error
+	}
+	return server
 }
 
 // NewServer creates a new Server

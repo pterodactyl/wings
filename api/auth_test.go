@@ -50,16 +50,16 @@ func TestAuthHandler(t *testing.T) {
 		responded, rec := requestMiddlewareWith("g:test", "existingkey", "")
 
 		assert.False(t, responded)
-		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, http.StatusForbidden, rec.Code)
 	})
 
 	t.Run("rejects not existing server", func(t *testing.T) {
 		loadConfiguration(t, true)
 
-		responded, rec := requestMiddlewareWith("g:test", "existingkey", "notexistingserver")
+		responded, rec := requestMiddlewareWith("g:testnotexisting", "existingkey", "notexistingserver")
 
 		assert.False(t, responded)
-		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Equal(t, http.StatusForbidden, rec.Code)
 	})
 
 	t.Run("accepts server with existing g: key", func(t *testing.T) {
