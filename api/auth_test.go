@@ -44,15 +44,6 @@ func TestAuthHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 
-	t.Run("rejects missing server uuid", func(t *testing.T) {
-		loadConfiguration(t, true)
-
-		responded, rec := requestMiddlewareWith("g:test", "existingkey", "")
-
-		assert.False(t, responded)
-		assert.Equal(t, http.StatusForbidden, rec.Code)
-	})
-
 	t.Run("rejects not existing server", func(t *testing.T) {
 		loadConfiguration(t, true)
 
@@ -121,15 +112,19 @@ func requestMiddlewareWith(neededPermission string, token string, serverUUID str
 	router := gin.New()
 	responded = false
 	recorder = httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/", nil)
+	req, _ := http.NewRequest("GET", "/"+serverUUID, nil)
 
-	router.GET("/", AuthHandler(neededPermission), func(c *gin.Context) {
+	endpoint := "/"
+	if serverUUID != "" {
+		endpoint += ":server"
+	}
+
+	router.GET(endpoint, AuthHandler(neededPermission), func(c *gin.Context) {
 		c.String(http.StatusOK, "Access granted.")
 		responded = true
 	})
 
 	req.Header.Set(accessTokenHeader, token)
-	req.Header.Set(accessServerHeader, serverUUID)
 	router.ServeHTTP(recorder, req)
 	return
 }

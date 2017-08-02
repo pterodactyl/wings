@@ -10,14 +10,10 @@ import (
 )
 
 const (
-	accessTokenHeader  = "X-Access-Token"
-	accessServerHeader = "X-Access-Server"
+	accessTokenHeader = "X-Access-Token"
 
-	// ContextVarServer is the gin.Context field containing the requested server (gin.Context.Get())
-	ContextVarServer = "server"
-	// ContextVarAuth is the gin.Context field containing the authorizationManager
-	// for the request (gin.Context.Get())
-	ContextVarAuth = "auth"
+	contextVarServer = "server"
+	contextVarAuth   = "auth"
 )
 
 type responseError struct {
@@ -26,7 +22,7 @@ type responseError struct {
 
 // AuthorizationManager handles permission checks
 type AuthorizationManager interface {
-	hasPermission(string) bool
+	HasPermission(string) bool
 }
 
 type authorizationManager struct {
@@ -43,7 +39,7 @@ func newAuthorizationManager(token string, server control.Server) *authorization
 	}
 }
 
-func (a *authorizationManager) hasPermission(permission string) bool {
+func (a *authorizationManager) HasPermission(permission string) bool {
 	if permission == "" {
 		return true
 	}
@@ -52,6 +48,7 @@ func (a *authorizationManager) hasPermission(permission string) bool {
 		return config.Get().ContainsAuthKey(a.token)
 	}
 	if a.server == nil {
+		log.WithField("permission", permission).Error("Auth: Server required but none found.")
 		return false
 	}
 	if prefix == "g" {
@@ -68,8 +65,9 @@ func (a *authorizationManager) hasPermission(permission string) bool {
 func AuthHandler(permission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestToken := c.Request.Header.Get(accessTokenHeader)
-		requestServer := c.Request.Header.Get(accessServerHeader)
+		requestServer := c.Param("server")
 		var server control.Server
+
 		if requestToken == "" && permission != "" {
 			log.Debug("Token missing in request.")
 			c.JSON(http.StatusBadRequest, responseError{"Missing required " + accessTokenHeader + " header."})
@@ -86,13 +84,39 @@ func AuthHandler(permission string) gin.HandlerFunc {
 
 		auth := newAuthorizationManager(requestToken, server)
 
-		if auth.hasPermission(permission) {
-			c.Set(ContextVarServer, server)
-			c.Set(ContextVarAuth, auth)
+		if auth.HasPermission(permission) {
+			c.Set(contextVarServer, server)
+			c.Set(contextVarAuth, auth)
 			return
 		}
 
 		c.JSON(http.StatusForbidden, responseError{"You do not have permission to perform this action."})
 		c.Abort()
 	}
+}
+
+// GetContextAuthManager returns a AuthorizationManager contained in
+// a gin.Context or nil
+func GetContextAuthManager(c *gin.Context) AuthorizationManager {
+	auth, exists := c.Get(contextVarAuth)
+	if !exists {
+		return nil
+	}
+	if auth, ok := auth.(AuthorizationManager); ok {
+		return auth
+	}
+	return nil
+}
+
+// GetContextServer returns a control.Server contained in a gin.Context
+// or null
+func GetContextServer(c *gin.Context) control.Server {
+	server, exists := c.Get(contextVarAuth)
+	if !exists {
+		return nil
+	}
+	if server, ok := server.(control.Server); ok {
+		return server
+	}
+	return nil
 }

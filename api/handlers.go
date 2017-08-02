@@ -13,9 +13,9 @@ import (
 
 // handleGetIndex handles GET /
 func handleGetIndex(c *gin.Context) {
-	auth, _ := c.Get(ContextVarAuth)
+	auth := GetContextAuthManager(c)
 
-	if auth := auth.(AuthorizationManager); auth.hasPermission("c:info") {
+	if auth != nil && auth.HasPermission("c:info") {
 		hostInfo, err := host.Info()
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve host information.")
