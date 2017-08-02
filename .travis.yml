@@ -4,6 +4,9 @@ go:
 - 1.8.x
 - master
 
+services:
+  - docker
+
 addons:
   apt:
     sources:
