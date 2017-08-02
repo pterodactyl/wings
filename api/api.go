@@ -28,7 +28,7 @@ func (api *API) Listen() {
 
 	api.router = gin.Default()
 
-	api.router.GET("/", getRoot)
+	api.registerRoutes()
 
 	listenString := fmt.Sprintf("%s:%d", config.Get().Web.ListenHost, config.Get().Web.ListenPort)
 

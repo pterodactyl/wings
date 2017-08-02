@@ -70,8 +70,7 @@ func AuthHandler(permission string) gin.HandlerFunc {
 		requestToken := c.Request.Header.Get(accessTokenHeader)
 		requestServer := c.Request.Header.Get(accessServerHeader)
 		var server control.Server
-
-		if requestToken == "" {
+		if requestToken == "" && permission != "" {
 			log.Debug("Token missing in request.")
 			c.JSON(http.StatusBadRequest, responseError{"Missing required " + accessTokenHeader + " header."})
 			c.Abort()
