@@ -31,5 +31,9 @@
 # Go Coverage tool
 /coverage.out
 
+# The built executable
+wings
+wings.exe
+
 # Keep all gitkeep files (This needs to stay at the bottom)
 !.gitkeep
