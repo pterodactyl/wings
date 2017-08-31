@@ -19,10 +19,10 @@ type Server interface {
 	HasPermission(string, string) bool
 }
 
-// Server is a single instance of a Service managed by the panel
-type server struct {
-	// UUID is the unique identifier of the server
-	UUID string `json:"uuid"`
+// server is a single instance of a Service managed by the panel
+type ServerStruct struct {
+	// ID is the unique identifier of the server
+	ID string `json:"uuid"`
 
 	// ServiceName is the name of the service. It is mainly used to allow storing the service
 	// in the config
@@ -73,9 +73,11 @@ type dockerContainer struct {
 }
 
 // ensure server implements Server
-var _ Server = &server{}
+var _ Server = &ServerStruct{}
 
-var servers map[string]*server
+type serversMap map[string]*ServerStruct
+
+var servers = make(serversMap)
 
 // LoadServerConfigurations loads the configured servers from a specified path
 func LoadServerConfigurations(path string) error {
@@ -83,7 +85,7 @@ func LoadServerConfigurations(path string) error {
 	if err != nil {
 		return err
 	}
-	servers = make(map[string]*server)
+	servers = make(serversMap)
 
 	for _, file := range serverFiles {
 		if !file.IsDir() {
@@ -91,42 +93,61 @@ func LoadServerConfigurations(path string) error {
 			if err != nil {
 				return err
 			}
-			servers[server.UUID] = server
+			servers[server.ID] = server
 		}
 	}
 
 	return nil
 }
 
-func loadServerConfiguration(path string) (*server, error) {
+func loadServerConfiguration(path string) (*ServerStruct, error) {
 	file, err := ioutil.ReadFile(path)
 
 	if err != nil {
 		return nil, err
 	}
 
-	server := &server{}
+	server := &ServerStruct{}
 	if err := json.Unmarshal(file, server); err != nil {
 		return nil, err
 	}
 	return server, nil
 }
 
+// GetServers returns an array of all servers the daemon manages
+func GetServers() []Server {
+	serverArray := make([]Server, len(servers))
+	i := 0
+	for _, s := range servers {
+		serverArray[i] = s
+		i++
+	}
+	return serverArray
+}
+
 // GetServer returns the server identified by the provided uuid
-func GetServer(uuid string) Server {
-	server := servers[uuid]
+func GetServer(id string) Server {
+	server := servers[id]
 	if server == nil {
 		return nil // https://golang.org/doc/faq#nil_error
 	}
 	return server
 }
 
-// NewServer creates a new Server
-func NewServer() Server {
-	return new(server)
+// CreateServer creates a new server
+func CreateServer(server *ServerStruct) (Server, error) {
+	servers[server.ID] = server
+	return server, nil
 }
 
-func (s *server) Start() error {
+// DeleteServer deletes a server and all related files
+// NOTE: This is not reversible.
+func DeleteServer(uuid string) error {
+	delete(servers, uuid)
+	return nil
+}
+
+func (s *ServerStruct) Start() error {
 	/*if err := s.Environment().Create(); err != nil {
 		return err
 	}
@@ -136,21 +157,21 @@ func (s *server) Start() error {
 	return nil
 }
 
-func (s *server) Stop() error {
+func (s *ServerStruct) Stop() error {
 	/*if err := s.Environment().Stop(); err != nil {
 		return err
 	}*/
 	return nil
 }
 
-func (s *server) Exec(command string) error {
+func (s *ServerStruct) Exec(command string) error {
 	/*if err := s.Environment().Exec(command); err != nil {
 		return err
 	}*/
 	return nil
 }
 
-func (s *server) Rebuild() error {
+func (s *ServerStruct) Rebuild() error {
 	/*if err := s.Environment().ReCreate(); err != nil {
 		return err
 	}*/
@@ -158,7 +179,7 @@ func (s *server) Rebuild() error {
 }
 
 // Service returns the server's service configuration
-func (s *server) Service() *service {
+func (s *ServerStruct) Service() *service {
 	if s.service == nil {
 		// TODO: Properly use the correct service, mock for now.
 		s.service = &service{
@@ -170,12 +191,12 @@ func (s *server) Service() *service {
 }
 
 // UUIDShort returns the first block of the UUID
-func (s *server) UUIDShort() string {
-	return s.UUID[0:strings.Index(s.UUID, "-")]
+func (s *ServerStruct) UUIDShort() string {
+	return s.ID[0:strings.Index(s.ID, "-")]
 }
 
 // Environment returns the servers environment
-func (s *server) Environment() (Environment, error) {
+func (s *ServerStruct) Environment() (Environment, error) {
 	var err error
 	if s.environment == nil {
 		switch s.Service().EnvironmentName {
@@ -190,7 +211,7 @@ func (s *server) Environment() (Environment, error) {
 }
 
 // HasPermission checks wether a provided token has a specific permission
-func (s *server) HasPermission(token string, permission string) bool {
+func (s *ServerStruct) HasPermission(token string, permission string) bool {
 	for key, perms := range s.Keys {
 		if key == token {
 			for _, perm := range perms {
@@ -202,4 +223,8 @@ func (s *server) HasPermission(token string, permission string) bool {
 		}
 	}
 	return false
+}
+
+func (s *ServerStruct) save() {
+
 }

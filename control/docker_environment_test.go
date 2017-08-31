@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func testServer() *server {
-	return &server{
-		UUID: "testuuid-something-something",
+func testServer() *ServerStruct {
+	return &ServerStruct{
+		ID: "testuuid-something-something",
 		service: &service{
 			DockerImage: "alpine:latest",
 		},
@@ -124,7 +124,7 @@ func TestExecDockerEnvironment(t *testing.T) {
 
 }
 
-func createTestDockerEnv(s *server) (*dockerEnvironment, error) {
+func createTestDockerEnv(s *ServerStruct) (*dockerEnvironment, error) {
 	if s == nil {
 		s = testServer()
 	}

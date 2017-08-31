@@ -15,7 +15,7 @@ type dockerEnvironment struct {
 	container *docker.Container
 	context   context.Context
 
-	server *server
+	server *ServerStruct
 }
 
 // Ensure DockerEnvironment implements Environment
@@ -25,7 +25,7 @@ var _ Environment = &dockerEnvironment{}
 // instance and connects to the docker client on the host system
 // If the container is already running it will try to reattach
 // to the running container
-func NewDockerEnvironment(server *server) (Environment, error) {
+func NewDockerEnvironment(server *ServerStruct) (Environment, error) {
 	env := dockerEnvironment{}
 
 	env.server = server
@@ -59,7 +59,7 @@ func (env *dockerEnvironment) reattach() error {
 // Create creates the docker container for the environment and applies all
 // settings to it
 func (env *dockerEnvironment) Create() error {
-	log.WithField("serverID", env.server.UUID).Debug("Creating docker environment")
+	log.WithField("serverID", env.server.ID).Debug("Creating docker environment")
 	// Split image repository and tag to feed it to the library
 	imageParts := strings.Split(env.server.Service().DockerImage, ":")
 	imageRepoParts := strings.Split(imageParts[0], "/")
@@ -77,7 +77,7 @@ func (env *dockerEnvironment) Create() error {
 	log.WithField("image", env.server.service.DockerImage).Debug("Pulling docker image")
 	err := env.client.PullImage(pullImageOpts, docker.AuthConfiguration{})
 	if err != nil {
-		log.WithError(err).WithField("serverID", env.server.UUID).Error("Failed to create docker environment")
+		log.WithError(err).WithField("serverID", env.server.ID).Error("Failed to create docker environment")
 		return err
 	}
 
@@ -98,7 +98,7 @@ func (env *dockerEnvironment) Create() error {
 	}
 	container, err := env.client.CreateContainer(createContainerOpts)
 	if err != nil {
-		log.WithError(err).WithField("serverID", env.server.UUID).Error("Failed to create docker container")
+		log.WithError(err).WithField("serverID", env.server.ID).Error("Failed to create docker container")
 		return err
 	}
 	env.server.DockerContainer.ID = container.ID
@@ -109,12 +109,12 @@ func (env *dockerEnvironment) Create() error {
 
 // Destroy removes the environment's docker container
 func (env *dockerEnvironment) Destroy() error {
-	log.WithField("serverID", env.server.UUID).Debug("Destroying docker environment")
+	log.WithField("serverID", env.server.ID).Debug("Destroying docker environment")
 	err := env.client.RemoveContainer(docker.RemoveContainerOptions{
 		ID: env.server.DockerContainer.ID,
 	})
 	if err != nil {
-		log.WithError(err).WithField("serverID", env.server.UUID).Error("Failed to destroy docker environment")
+		log.WithError(err).WithField("serverID", env.server.ID).Error("Failed to destroy docker environment")
 		return err
 	}
 	return nil
@@ -122,7 +122,7 @@ func (env *dockerEnvironment) Destroy() error {
 
 // Start starts the environment's docker container
 func (env *dockerEnvironment) Start() error {
-	log.WithField("serverID", env.server.UUID).Debug("Starting service in docker environment")
+	log.WithField("serverID", env.server.ID).Debug("Starting service in docker environment")
 	if err := env.client.StartContainer(env.container.ID, nil); err != nil {
 		log.WithError(err).Error("Failed to start docker container")
 		return err
@@ -132,7 +132,7 @@ func (env *dockerEnvironment) Start() error {
 
 // Stop stops the environment's docker container
 func (env *dockerEnvironment) Stop() error {
-	log.WithField("serverID", env.server.UUID).Debug("Stopping service in docker environment")
+	log.WithField("serverID", env.server.ID).Debug("Stopping service in docker environment")
 	if err := env.client.StopContainer(env.container.ID, 20000); err != nil {
 		log.WithError(err).Error("Failed to stop docker container")
 		return err
@@ -141,7 +141,7 @@ func (env *dockerEnvironment) Stop() error {
 }
 
 func (env *dockerEnvironment) Kill() error {
-	log.WithField("serverID", env.server.UUID).Debug("Killing service in docker environment")
+	log.WithField("serverID", env.server.ID).Debug("Killing service in docker environment")
 	if err := env.client.KillContainer(docker.KillContainerOptions{
 		ID: env.container.ID,
 	}); err != nil {
