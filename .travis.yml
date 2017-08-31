@@ -38,3 +38,13 @@ deploy:
   on:
     tags: true
     branch: master
+
+notifications:
+  webhooks:
+    urls:
+      - https://misc.schrej.net/travistodiscord/pterodev.php
+    on_success: change
+    on_failure: always
+    on_error: always
+    on_cancel: always
+    on_start: never
