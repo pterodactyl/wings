@@ -45,14 +45,14 @@ func (a *authorizationManager) HasPermission(permission string) bool {
 	}
 	prefix := permission[:1]
 	if prefix == "c" {
-		return config.Get().ContainsAuthKey(a.token)
+		return config.ContainsAuthKey(a.token)
 	}
 	if a.server == nil {
 		log.WithField("permission", permission).Error("Auth: Server required but none found.")
 		return false
 	}
 	if prefix == "g" {
-		return config.Get().ContainsAuthKey(a.token)
+		return config.ContainsAuthKey(a.token)
 	}
 	if prefix == "s" {
 		return a.server.HasPermission(a.token, permission)

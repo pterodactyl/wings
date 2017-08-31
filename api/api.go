@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 
 	"github.com/Pterodactyl/wings/config"
 )
@@ -22,7 +23,7 @@ func NewAPI() API {
 
 // Listen starts the api http server
 func (api *API) Listen() {
-	if !config.Get().Debug {
+	if !viper.GetBool(config.Debug) {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
@@ -30,7 +31,7 @@ func (api *API) Listen() {
 
 	api.registerRoutes()
 
-	listenString := fmt.Sprintf("%s:%d", config.Get().Web.ListenHost, config.Get().Web.ListenPort)
+	listenString := fmt.Sprintf("%s:%d", viper.GetString(config.APIHost), viper.GetInt(config.APIPort))
 
 	api.router.Run(listenString)
 

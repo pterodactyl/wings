@@ -9,6 +9,8 @@ type Config struct {
 	// Debug enables debug mode
 	Debug bool `mapstructure:"debug"`
 
+	DataPath string `mapstructure:"dataPath"`
+
 	// Web contains the settings of the api webserver
 	Web struct {
 		// ListenHost is the host address to bind the api webserver to
@@ -49,8 +51,6 @@ type Config struct {
 
 	// Sftp contains information on the integrated sftp server
 	Sftp struct {
-		// Path is the base path of the sftp server
-		Path string `mapstructure:"path"`
 		// Port is the port to bind the sftp server to
 		Port int16 `mapstructure:"port"`
 	} `mapstructure:"sftp"`
@@ -80,6 +80,7 @@ type Config struct {
 	AuthKeys []string `mapstructure:"authKeys"`
 }
 
+var configPath string
 var config *Config
 
 // LoadConfiguration loads the configuration from a specified file
@@ -96,26 +97,38 @@ func LoadConfiguration(path string) error {
 		return err
 	}
 
-	config = new(Config)
-	if err := viper.Unmarshal(config); err != nil {
-		return err
-	}
+	return nil
+}
+
+// StoreConfiguration stores the configuration to a specified file
+func StoreConfiguration(path string) error {
+	// TODO: Implement
 
 	return nil
 }
 
-// Get returns the configuration
-func Get() *Config {
-	return config
-}
-
 func setDefaults() {
-
+	viper.SetDefault(Debug, false)
+	viper.SetDefault(DataPath, "./data")
+	viper.SetDefault(APIHost, "0.0.0.0")
+	viper.SetDefault(APIPort, 8080)
+	viper.SetDefault(SSLEnabled, false)
+	viper.SetDefault(SSLGenerateLetsencrypt, false)
+	viper.SetDefault(UploadsMaximumSize, 100000)
+	viper.SetDefault(DockerSocket, "/var/run/docker.sock")
+	viper.SetDefault(DockerAutoupdateImages, true)
+	viper.SetDefault(DockerNetworkInterface, "127.18.0.0")
+	viper.SetDefault(DockerTimezonePath, "/etc/timezone")
+	viper.SetDefault(SftpHost, "0.0.0.0")
+	viper.SetDefault(SftpPort, "2202")
+	viper.SetDefault(LogPath, "./logs")
+	viper.SetDefault(LogLevel, "info")
+	viper.SetDefault(LogDeleteAfterDays, "30")
 }
 
 // ContainsAuthKey checks wether the config contains a specified authentication key
-func (c *Config) ContainsAuthKey(key string) bool {
-	for _, k := range c.AuthKeys {
+func ContainsAuthKey(key string) bool {
+	for _, k := range viper.GetStringSlice(AuthKeys) {
 		if k == key {
 			return true
 		}

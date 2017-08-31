@@ -6,6 +6,7 @@ import (
 	rotatelogs "github.com/lestrrat/go-file-rotatelogs"
 	"github.com/rifflock/lfshook"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 
 	"github.com/Pterodactyl/wings/config"
 )
@@ -21,11 +22,11 @@ func InitLogging() {
 // ConfigureLogging configures logrus to our needs
 func ConfigureLogging() error {
 
-	path := config.Get().Log.Path
+	path := viper.GetString(config.LogPath)
 	writer := rotatelogs.New(
 		path+"wings.%Y%m%d-%H%M.log",
 		rotatelogs.WithLinkName(path),
-		rotatelogs.WithMaxAge(time.Duration(config.Get().Log.DeleteAfterDays)*time.Hour*24),
+		rotatelogs.WithMaxAge(time.Duration(viper.GetInt(config.LogDeleteAfterDays))*time.Hour*24),
 		rotatelogs.WithRotationTime(time.Duration(604800)*time.Second),
 	)
 
@@ -37,10 +38,10 @@ func ConfigureLogging() error {
 		log.FatalLevel: writer,
 	}))
 
-	level := config.Get().Log.Level
+	level := viper.GetString(config.LogLevel)
 
 	// In debug mode the log level is always debug
-	if config.Get().Debug {
+	if viper.GetBool(config.Debug) {
 		level = "debug"
 	}
 
