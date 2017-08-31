@@ -17,8 +17,10 @@ var RootCommand = &cobra.Command{
 	Run:   run,
 }
 
-func init() {
+var configPath string
 
+func init() {
+	RootCommand.Flags().StringVarP(&configPath, "config", "c", "./config.json", "Allows to set the path of the configuration file.")
 }
 
 // Execute registers the RootCommand
@@ -29,7 +31,7 @@ func Execute() {
 func run(cmd *cobra.Command, args []string) {
 	tools.InitLogging()
 	log.Info("Loading configuration")
-	if err := config.LoadConfiguration(""); err != nil {
+	if err := config.LoadConfiguration(configPath); err != nil {
 		log.WithError(err).Fatal("Failed to find configuration file")
 	}
 	tools.ConfigureLogging()
