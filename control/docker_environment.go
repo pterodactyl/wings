@@ -91,7 +91,7 @@ func (env *dockerEnvironment) Create() error {
 		MemorySwap: env.server.Settings.Swap,
 	}
 	createContainerOpts := docker.CreateContainerOptions{
-		Name:       "ptdl_" + env.server.UUIDShort(),
+		Name:       "ptdl-" + env.server.UUIDShort(),
 		Config:     containerConfig,
 		HostConfig: containerHostConfig,
 		Context:    env.context,
