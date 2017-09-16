@@ -1,7 +1,10 @@
 package tools
 
 import (
+	"os"
 	"time"
+
+	"github.com/Pterodactyl/wings/constants"
 
 	rotatelogs "github.com/lestrrat/go-file-rotatelogs"
 	"github.com/rifflock/lfshook"
@@ -11,6 +14,7 @@ import (
 	"github.com/Pterodactyl/wings/config"
 )
 
+// InitLogging initalizes the logging library for first use.
 func InitLogging() {
 	log.SetFormatter(&log.TextFormatter{
 		DisableTimestamp: true,
@@ -19,10 +23,13 @@ func InitLogging() {
 	log.SetLevel(log.InfoLevel)
 }
 
-// ConfigureLogging configures logrus to our needs
+// ConfigureLogging applies the configuration to the logging library.
 func ConfigureLogging() error {
 
 	path := viper.GetString(config.LogPath)
+	if err := os.MkdirAll(path, constants.DefaultFilePerms); err != nil {
+		return err
+	}
 	writer := rotatelogs.New(
 		path+"wings.%Y%m%d-%H%M.log",
 		rotatelogs.WithLinkName(path),
