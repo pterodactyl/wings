@@ -2,6 +2,7 @@ package tools
 
 import (
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Pterodactyl/wings/constants"
@@ -26,12 +27,12 @@ func InitLogging() {
 // ConfigureLogging applies the configuration to the logging library.
 func ConfigureLogging() error {
 
-	path := viper.GetString(config.LogPath)
+	path := filepath.Clean(viper.GetString(config.LogPath))
 	if err := os.MkdirAll(path, constants.DefaultFilePerms); err != nil {
 		return err
 	}
 	writer := rotatelogs.New(
-		path+"wings.%Y%m%d-%H%M.log",
+		path+"/wings.%Y%m%d-%H%M.log",
 		rotatelogs.WithLinkName(path),
 		rotatelogs.WithMaxAge(time.Duration(viper.GetInt(config.LogDeleteAfterDays))*time.Hour*24),
 		rotatelogs.WithRotationTime(time.Duration(604800)*time.Second),

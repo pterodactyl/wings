@@ -30,7 +30,7 @@
   },
   "remote": "https://pterodactyl.app",
   "log": {
-    "path": "logs/",
+    "path": "/srv/daemon-data/logs/",
     "level": "info",
     "deleteAfterDays": 100
   },
