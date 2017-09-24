@@ -28,7 +28,7 @@ func InitLogging() {
 func ConfigureLogging() error {
 
 	path := filepath.Clean(viper.GetString(config.LogPath))
-	if err := os.MkdirAll(path, constants.DefaultFilePerms); err != nil {
+	if err := os.MkdirAll(path, constants.DefaultFolderPerms); err != nil {
 		return err
 	}
 	writer := rotatelogs.New(
