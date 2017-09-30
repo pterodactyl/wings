@@ -11,34 +11,26 @@ import (
 	"github.com/Pterodactyl/wings/config"
 )
 
-// API is a grouping struct for the api
-type API struct {
+type InternalAPI struct {
 	router *gin.Engine
 }
 
-// NewAPI creates a new Api object
-func NewAPI() API {
-	return API{}
+func NewAPI() InternalAPI {
+	return InternalAPI{}
 }
 
-// Listen starts the api http server
-func (api *API) Listen() {
+// Configure the API and begin listening on the configured IP and Port.
+func (api *InternalAPI) Listen() {
+	listener := fmt.Sprintf("%s:%d", viper.GetString(config.APIHost), viper.GetInt(config.APIPort))
+
 	if !viper.GetBool(config.Debug) {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	api.router = gin.Default()
+	api.RegisterRoutes()
 
-	api.registerRoutes()
-
-	listenString := fmt.Sprintf("%s:%d", viper.GetString(config.APIHost), viper.GetInt(config.APIPort))
-
-	api.router.Run(listenString)
-
-	log.Info("Now listening on %s", listenString)
-	log.Fatal(http.ListenAndServe(listenString, nil))
-}
-
-func getRoot(c *gin.Context) {
-	c.String(http.StatusOK, "hello!")
+	api.router.Run(listener)
+	log.Info("Now listening on %s", listener)
+	log.Fatal(http.ListenAndServe(listener, nil))
 }

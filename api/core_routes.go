@@ -11,8 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// handleGetIndex handles GET /
-func handleGetIndex(c *gin.Context) {
+func GetIndex(c *gin.Context) {
 	auth := GetContextAuthManager(c)
 
 	if auth != nil && auth.HasPermission("c:info") {
@@ -58,6 +57,6 @@ func handleGetIndex(c *gin.Context) {
 }
 
 // handlePatchConfig handles PATCH /config
-func handlePatchConfig(c *gin.Context) {
+func PatchConfiguration(c *gin.Context) {
 
 }
