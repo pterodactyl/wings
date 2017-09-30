@@ -1,13 +1,13 @@
 package api
 
 func (api *InternalAPI) RegisterRoutes() {
-	api.router.GET("/", AuthHandler(""), GetIndex)
-	api.router.PATCH("/config", AuthHandler("c:config"), PatchConfiguration)
-
 	// Register routes for v1 of the API. This API should be fully backwards compatable with
 	// the existing Nodejs Daemon API.
 	v1 := api.router.Group("/v1")
 	{
+		v1.GET("/", AuthHandler(""), GetIndex)
+		v1.PATCH("/config", AuthHandler("c:config"), PatchConfiguration)
+
 		v1BaseRoutes := v1.Group("/server")
 		{
 			v1BaseRoutes.GET("/", AuthHandler("c:list"), ListServers)
