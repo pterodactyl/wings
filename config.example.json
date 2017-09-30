@@ -34,7 +34,5 @@
     "level": "info",
     "deleteAfterDays": 100
   },
-  "authKeys": [
-      "somekey"
-  ]
+  "authKey": "somekey"
 }

@@ -10,6 +10,7 @@ func LoadConfiguration(path string) error {
 		viper.SetConfigFile(path)
 	} else {
 		viper.AddConfigPath("./")
+		viper.SetConfigType("yaml")
 		viper.SetConfigName("config")
 	}
 
@@ -49,7 +50,7 @@ func setDefaults() {
 
 // ContainsAuthKey checks wether the config contains a specified authentication key
 func ContainsAuthKey(key string) bool {
-	for _, k := range viper.GetStringSlice(AuthKeys) {
+	for _, k := range viper.GetStringSlice(AuthKey) {
 		if k == key {
 			return true
 		}

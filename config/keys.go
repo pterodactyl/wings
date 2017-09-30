@@ -21,7 +21,7 @@ const (
 	SSLGenerateLetsencrypt = "api.ssl.letsencrypt"
 	// SSLCertificate is a string containing the location of
 	// a ssl certificate to use
-	SSLCertificate = "api.ssl.certificate"
+	SSLCertificate = "api.ssl.cert"
 	// SSLKey is a string containing the location of the key
 	// for the ssl certificate
 	SSLKey = "api.ssl.key"
@@ -61,6 +61,6 @@ const (
 	// logs should be stored. They will be deleted after. If set to 0
 	// logs will be stored indefinitely.
 	LogDeleteAfterDays = "log.deleteAfterDays"
-	// AuthKeys contains an array of auth keys that will be replaced by something better
-	AuthKeys = "authkeys"
+	// AuthKey contains a key that will be replaced by something better
+	AuthKey = "authKey"
 )

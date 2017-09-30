@@ -7,7 +7,7 @@ func (api *API) registerServerRoutes() {
 	api.router.POST("/servers", AuthHandler("c:create"), handlePostServers)
 	api.router.GET("/servers/:server", AuthHandler("s:get"), handleGetServer)
 	api.router.PATCH("/servers/:server", AuthHandler("s:config"), handlePatchServer)
-	api.router.DELETE("/servers/:server", AuthHandler("g:server:delete"), handleDeleteServer)
+	//api.router.DELETE("/servers/:server", AuthHandler("g:server:delete"), handleDeleteServer)
 
 	api.router.POST("/servers/:server/reinstall", AuthHandler("s:install-server"), handlePostServerReinstall)
 	api.router.POST("/servers/:server/rebuild", AuthHandler("g:server:rebuild"), handlePostServerRebuild)

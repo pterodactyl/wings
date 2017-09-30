@@ -3,6 +3,7 @@
 *.dll
 *.so
 *.dylib
+.idea/*
 
 # Test binary, build with `go test -c`
 *.test
@@ -20,7 +21,7 @@
 /logs/*
 
 # ignore configuration file
-/config.json
+/config.yml
 
 # Ignore Vagrant stuff
 /.vagrant

@@ -1,0 +1,28 @@
+debug: true
+data: '/srv/daemon-data'
+api:
+  host: '0.0.0.0'
+  port: 8080
+  ssl:
+    enabled: false
+    cert: ''
+    key: ''
+  uploads:
+    maximumSize: 150000000
+docker:
+  socket: '/var/run/docker.sock'
+  autoupdateImages: true
+  networkInterface: '172.18.0.1'
+  timezonePath: '/etc/timezone'
+sftp:
+  host: '0.0.0.0'
+  port: 2022
+query:
+  killOnFail: false
+  failLimit: 5
+remote: 'http://pterodactyl.app'
+log:
+  path: './logs/'
+  level: 'debug'
+  deleteAfterDays: 10
+authKey: 'test123'

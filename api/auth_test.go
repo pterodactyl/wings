@@ -12,7 +12,7 @@ import (
 	"github.com/Pterodactyl/wings/control"
 )
 
-const configFile = "_testdata/config.json"
+const configFile = "_testdata/config.yml"
 
 func TestAuthHandler(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)

@@ -3,7 +3,7 @@ package tools
 import (
 	"time"
 
-	rotatelogs "github.com/lestrrat/go-file-rotatelogs"
+	"github.com/lestrrat/go-file-rotatelogs"
 	"github.com/rifflock/lfshook"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
