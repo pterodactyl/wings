@@ -28,6 +28,7 @@ func (api *InternalAPI) Listen() {
 	}
 
 	api.router = gin.Default()
+	api.router.RedirectTrailingSlash = false
 	api.RegisterRoutes()
 
 	api.router.Run(listener)
