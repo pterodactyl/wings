@@ -1,6 +1,6 @@
 package control
 
-type service struct {
+type Service struct {
 	server *Server
 
 	// EnvironmentName is the name of the environment used by the service

@@ -26,7 +26,6 @@ func InitLogging() {
 
 // ConfigureLogging applies the configuration to the logging library.
 func ConfigureLogging() error {
-
 	path := filepath.Clean(viper.GetString(config.LogPath))
 	if err := os.MkdirAll(path, constants.DefaultFolderPerms); err != nil {
 		return err

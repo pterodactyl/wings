@@ -4,22 +4,42 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/Pterodactyl/wings/config"
+	"github.com/Pterodactyl/wings/constants"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
+
+// ErrServerExists is returned when a server already exists on creation.
+type ErrServerExists struct {
+	id string
+}
+
+func (e ErrServerExists) Error() string {
+	return "server " + e.id + " already exists"
+}
 
 // Server is a Server
 type Server interface {
 	Start() error
 	Stop() error
+	Restart() error
+	Kill() error
 	Exec(command string) error
 	Rebuild() error
+
+	Save() error
+
+	Environment() (Environment, error)
 
 	HasPermission(string, string) bool
 }
 
-// server is a single instance of a Service managed by the panel
+// ServerStruct is a single instance of a Service managed by the panel
 type ServerStruct struct {
 	// ID is the unique identifier of the server
 	ID string `json:"uuid"`
@@ -27,7 +47,7 @@ type ServerStruct struct {
 	// ServiceName is the name of the service. It is mainly used to allow storing the service
 	// in the config
 	ServiceName string `json:"serviceName"`
-	service     *service
+	service     *Service
 	environment Environment
 
 	// StartupCommand is the command executed in the environment to start the server
@@ -88,8 +108,8 @@ func LoadServerConfigurations(path string) error {
 	servers = make(serversMap)
 
 	for _, file := range serverFiles {
-		if !file.IsDir() {
-			server, err := loadServerConfiguration(path + file.Name())
+		if file.IsDir() {
+			server, err := loadServerConfiguration(filepath.Join(path, file.Name(), constants.ServerConfigFile))
 			if err != nil {
 				return err
 			}
@@ -114,6 +134,38 @@ func loadServerConfiguration(path string) (*ServerStruct, error) {
 	return server, nil
 }
 
+func storeServerConfiguration(server *ServerStruct) error {
+	serverJSON, err := json.MarshalIndent(server, "", constants.JSONIndent)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(server.path(), constants.DefaultFolderPerms); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(server.configFilePath(), serverJSON, constants.DefaultFilePerms); err != nil {
+		return err
+	}
+	return nil
+}
+
+func storeServerConfigurations() error {
+	for _, s := range servers {
+		if err := storeServerConfiguration(s); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func deleteServerFolder(id string) error {
+	path := filepath.Join(viper.GetString(config.DataPath), constants.ServersPath, id)
+	folder, err := os.Stat(path)
+	if os.IsNotExist(err) || !folder.IsDir() {
+		return err
+	}
+	return os.RemoveAll(path)
+}
+
 // GetServers returns an array of all servers the daemon manages
 func GetServers() []Server {
 	serverArray := make([]Server, len(servers))
@@ -136,53 +188,83 @@ func GetServer(id string) Server {
 
 // CreateServer creates a new server
 func CreateServer(server *ServerStruct) (Server, error) {
+	if servers[server.ID] != nil {
+		return nil, ErrServerExists{server.ID}
+	}
 	servers[server.ID] = server
+	if err := server.Save(); err != nil {
+		return nil, err
+	}
 	return server, nil
 }
 
 // DeleteServer deletes a server and all related files
 // NOTE: This is not reversible.
-func DeleteServer(uuid string) error {
-	delete(servers, uuid)
+func DeleteServer(id string) error {
+	if err := deleteServerFolder(id); err != nil {
+		log.WithField("server", id).WithError(err).Error("Failed to delete server.")
+	}
+	delete(servers, id)
 	return nil
 }
 
 func (s *ServerStruct) Start() error {
-	/*if err := s.Environment().Create(); err != nil {
+	env, err := s.Environment()
+	if err != nil {
 		return err
 	}
-	if err := s.Environment().Start(); err != nil {
-		return err
-	}*/
-	return nil
+	if !env.Exists() {
+		if err := env.Create(); err != nil {
+			return err
+		}
+	}
+	return env.Start()
 }
 
 func (s *ServerStruct) Stop() error {
-	/*if err := s.Environment().Stop(); err != nil {
+	env, err := s.Environment()
+	if err != nil {
 		return err
-	}*/
-	return nil
+	}
+	return env.Stop()
+}
+
+func (s *ServerStruct) Restart() error {
+	if err := s.Stop(); err != nil {
+		return err
+	}
+	return s.Start()
+}
+
+func (s *ServerStruct) Kill() error {
+	env, err := s.Environment()
+	if err != nil {
+		return err
+	}
+	return env.Kill()
 }
 
 func (s *ServerStruct) Exec(command string) error {
-	/*if err := s.Environment().Exec(command); err != nil {
+	env, err := s.Environment()
+	if err != nil {
 		return err
-	}*/
-	return nil
+	}
+	return env.Exec(command)
 }
 
 func (s *ServerStruct) Rebuild() error {
-	/*if err := s.Environment().ReCreate(); err != nil {
+	env, err := s.Environment()
+	if err != nil {
 		return err
-	}*/
-	return nil
+	}
+	return env.ReCreate()
 }
 
 // Service returns the server's service configuration
-func (s *ServerStruct) Service() *service {
+func (s *ServerStruct) Service() *Service {
 	if s.service == nil {
 		// TODO: Properly use the correct service, mock for now.
-		s.service = &service{
+		s.service = &Service{
 			DockerImage:     "quay.io/pterodactyl/core:java",
 			EnvironmentName: "docker",
 		}
@@ -225,6 +307,22 @@ func (s *ServerStruct) HasPermission(token string, permission string) bool {
 	return false
 }
 
-func (s *ServerStruct) save() {
+func (s *ServerStruct) Save() error {
+	if err := storeServerConfiguration(s); err != nil {
+		log.WithField("server", s.ID).WithError(err).Error("Failed to store server configuration.")
+		return err
+	}
+	return nil
+}
 
+func (s *ServerStruct) path() string {
+	return filepath.Join(viper.GetString(config.DataPath), constants.ServersPath, s.ID)
+}
+
+func (s *ServerStruct) dataPath() string {
+	return filepath.Join(s.path(), constants.ServerDataPath)
+}
+
+func (s *ServerStruct) configFilePath() string {
+	return filepath.Join(s.path(), constants.ServerConfigFile)
 }

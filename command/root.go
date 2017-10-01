@@ -1,10 +1,16 @@
 package command
 
 import (
+	"path/filepath"
+	"strconv"
+
+	"github.com/spf13/viper"
+
 	"github.com/Pterodactyl/wings/api"
 	"github.com/Pterodactyl/wings/config"
 	"github.com/Pterodactyl/wings/constants"
-	"github.com/Pterodactyl/wings/tools"
+	"github.com/Pterodactyl/wings/control"
+	"github.com/Pterodactyl/wings/utils"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -30,7 +36,7 @@ func Execute() {
 
 func run(cmd *cobra.Command, args []string) {
 	tools.InitLogging()
-	log.Info("Loading configuration")
+	log.Info("Loading configuration...")
 	if err := config.LoadConfiguration(configPath); err != nil {
 		log.WithError(err).Fatal("Failed to find configuration file")
 	}
@@ -46,7 +52,17 @@ func run(cmd *cobra.Command, args []string) {
 
 	log.Info("Configuration loaded successfully.")
 
-	log.Info("Starting api webserver")
+	log.Info("Loading configured servers...")
+	if err := control.LoadServerConfigurations(filepath.Join(viper.GetString(config.DataPath), constants.ServersPath)); err != nil {
+		log.WithError(err).Error("Failed to load configured servers.")
+	}
+	if amount := len(control.GetServers()); amount == 1 {
+		log.Info("Loaded 1 server.")
+	} else {
+		log.Info("Loaded " + strconv.Itoa(amount) + " servers.")
+	}
+
+	log.Info("Starting api webserver...")
 	api := api.NewAPI()
 	api.Listen()
 }

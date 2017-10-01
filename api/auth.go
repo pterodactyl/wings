@@ -55,7 +55,7 @@ func (a *authorizationManager) HasPermission(permission string) bool {
 		return config.ContainsAuthKey(a.token)
 	}
 	if prefix == "s" {
-		return a.server.HasPermission(a.token, permission)
+		return a.server.HasPermission(a.token, permission) || config.ContainsAuthKey(a.token)
 	}
 	return false
 }

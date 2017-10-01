@@ -1,6 +1,6 @@
 {
   "debug": false,
-  "dataPath": "/srv/daemon-data",
+  "dataPath": "/srv/wings",
   "api": {
     "host": "0.0.0.0",
     "port": 8080,
@@ -30,7 +30,7 @@
   },
   "remote": "https://pterodactyl.app",
   "log": {
-    "path": "/srv/daemon-data/logs/",
+    "path": "/srv/wings/logs/",
     "level": "info",
     "deleteAfterDays": 100
   },

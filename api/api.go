@@ -29,6 +29,15 @@ func (api *API) Listen() {
 
 	api.router = gin.Default()
 
+	api.router.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+	})
+
+	api.router.OPTIONS("/", func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "X-Access-Token")
+	})
+
 	api.registerRoutes()
 
 	listenString := fmt.Sprintf("%s:%d", viper.GetString(config.APIHost), viper.GetInt(config.APIPort))
