@@ -26,7 +26,7 @@ var RootCommand = &cobra.Command{
 var configPath string
 
 func init() {
-	RootCommand.Flags().StringVarP(&configPath, "config", "c", "./config.json", "Allows to set the path of the configuration file.")
+	RootCommand.Flags().StringVarP(&configPath, "config", "c", "./config.yml", "Allows to set the path of the configuration file.")
 }
 
 // Execute registers the RootCommand
