@@ -22,6 +22,8 @@ import:
   - client
 - package: github.com/fsouza/go-dockerclient
 - package: github.com/hashicorp/go-cleanhttp
+- package: github.com/gorilla/websocket
+  version: ~1.2.0
 testImport:
 - package: github.com/stretchr/testify
   version: ~1.1.4

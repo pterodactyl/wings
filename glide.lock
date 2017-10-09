@@ -1,5 +1,5 @@
-hash: e20502ccc280db349be5bb38269606eb6b84533b70ff81d7735ecc0e03256ead
-updated: 2017-07-24T20:38:57.261980868+02:00
+hash: c55402eac6e4ebdefbac59afb32018eb6cb39af7062e85dd5d077fc975dd9909
+updated: 2017-10-09T20:56:24.390723792+02:00
 imports:
 - name: bitbucket.org/tebeka/strftime
   version: 2194253a23c090a4d5953b152a3c63fb5da4f5a4
@@ -58,6 +58,8 @@ imports:
   version: 2402d76f3d41f928c7902a765dfc872356dd3aad
   subpackages:
   - proto
+- name: github.com/gorilla/websocket
+  version: ea4d1f681babbce9545c9c5f3d5194a789c89f5b
 - name: github.com/hashicorp/go-cleanhttp
   version: 3573b8b52aa7b37b9358d966a898feb387f62437
 - name: github.com/hashicorp/hcl
@@ -103,7 +105,7 @@ imports:
 - name: github.com/rifflock/lfshook
   version: 6844c808343cb8fa357d7f141b1b990e05d24e41
 - name: github.com/shirou/gopsutil
-  version: aa0a3bce9d1f4efc710ed812f19f77851da2eedd
+  version: 6e221c482653ef05c9f6a7bf71ddceea0e40bac5
   subpackages:
   - cpu
   - host
@@ -113,12 +115,12 @@ imports:
   - process
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
-- name: github.com/sirupsen/logrus
-  version: a3f95b5c423586578a4e099b11a46c2479628cac
 - name: github.com/Sirupsen/logrus
-  version: a3f95b5c423586578a4e099b11a46c2479628cac
+  version: f006c2ac4710855cf0f916dd6b77acf6b048dc6e
   repo: https://github.com/sirupsen/logrus.git
   vcs: git
+- name: github.com/sirupsen/logrus
+  version: f006c2ac4710855cf0f916dd6b77acf6b048dc6e
 - name: github.com/spf13/afero
   version: 9be650865eab0c12963d8753212f4f9c66cdcf12
   subpackages:
@@ -135,6 +137,10 @@ imports:
   version: c1de95864d73a5465492829d7cb2dd422b19ac96
 - name: github.com/StackExchange/wmi
   version: ea383cf3ba6ec950874b8486cd72356d007c768f
+- name: golang.org/x/crypto
+  version: 9419663f5a44be8b34ca85f08abc5fe1be11f8a3
+  subpackages:
+  - ssh/terminal
 - name: golang.org/x/net
   version: f315505cf3349909cdf013ea56690da34e96a451
   subpackages:
