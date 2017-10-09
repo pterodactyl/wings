@@ -35,12 +35,12 @@ func Execute() {
 }
 
 func run(cmd *cobra.Command, args []string) {
-	tools.InitLogging()
+	utils.InitLogging()
 	log.Info("Loading configuration...")
 	if err := config.LoadConfiguration(configPath); err != nil {
 		log.WithError(err).Fatal("Failed to find configuration file")
 	}
-	tools.ConfigureLogging()
+	utils.ConfigureLogging()
 
 	log.Info(`                     ____`)
 	log.Info(`__ Pterodactyl _____/___/_______ _______ ______`)

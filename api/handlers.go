@@ -104,7 +104,7 @@ type incomingConfiguration struct {
 }
 
 // handlePatchConfig handles PATCH /config
-func handlePatchConfig(c *gin.Context) {
+func PatchConfiguration(c *gin.Context) {
 	// reqBody, err := ioutil.ReadAll(c.Request.Body)
 	// if err != nil {
 	// 	log.WithError(err).Error("Failed to read input.")
