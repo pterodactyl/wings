@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	accessTokenHeader = "X-Access-Token"
+	accessTokenHeader = "Authorization"
 
 	contextVarServer = "server"
 	contextVarAuth   = "auth"

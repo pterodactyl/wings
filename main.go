@@ -66,6 +66,6 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	logrus.Info("Registering API server and booting.")
-	a := api.NewAPI()
+	a := api.InternalAPI{}
 	a.Listen()
 }

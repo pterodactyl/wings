@@ -1,13 +1,15 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	//"runtime"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pterodactyl/wings/constants"
+	//"github.com/pterodactyl/wings/constants"
+	//"github.com/shirou/gopsutil/host"
 
-	//"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/cpu"
 	//"github.com/shirou/gopsutil/host"
 	//"github.com/shirou/gopsutil/mem"
 	log "github.com/sirupsen/logrus"
@@ -15,6 +17,30 @@ import (
 
 func GetIndex(c *gin.Context) {
 	//auth := GetContextAuthManager(c)
+	//if auth == nil {
+	//	c.Header("Content-Type", "text/html")
+	//	c.String(http.StatusOK, constants.IndexPage)
+	//}
+
+	s, err := cpu.Counts(true)
+	if err != nil {
+		log.WithError(err).Error("Failed to retrieve host information.")
+	}
+
+	fmt.Println(s)
+	i := struct {
+		Name string
+		Cpu  struct {
+			Cores int
+		}
+	}{
+		Name: "Wings",
+	}
+
+	i.Cpu.Cores = s
+
+	c.JSON(http.StatusOK, i)
+	return
 
 	//if auth != nil && auth.HasPermission("c:info") {
 	//	hostInfo, err := host.Info()
@@ -55,9 +81,6 @@ func GetIndex(c *gin.Context) {
 	//	c.JSON(http.StatusOK, info)
 	//	return
 	//}
-
-	c.Header("Content-Type", "text/html")
-	c.String(http.StatusOK, constants.IndexPage)
 }
 
 type incomingConfiguration struct {

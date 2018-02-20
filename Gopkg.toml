@@ -43,7 +43,7 @@
 
 [[constraint]]
   name = "github.com/shirou/gopsutil"
-  version = "2.18.1"
+  revision = "543a05cce094293c7747322720256bee15d88a12"
 
 [[constraint]]
   name = "github.com/sirupsen/logrus"
