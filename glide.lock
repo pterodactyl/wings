@@ -1,5 +1,5 @@
-hash: c55402eac6e4ebdefbac59afb32018eb6cb39af7062e85dd5d077fc975dd9909
-updated: 2017-10-09T20:56:24.390723792+02:00
+hash: 59375e40229965f33d35e16d1ce13db87188dc5a70f89cf54c2921eb9475ba4f
+updated: 2017-11-03T18:09:41.337408376+01:00
 imports:
 - name: bitbucket.org/tebeka/strftime
   version: 2194253a23c090a4d5953b152a3c63fb5da4f5a4
@@ -58,6 +58,8 @@ imports:
   version: 2402d76f3d41f928c7902a765dfc872356dd3aad
   subpackages:
   - proto
+- name: github.com/google/jsonapi
+  version: 46d3ced0434461be12e555852e2f1a9ed382e139
 - name: github.com/gorilla/websocket
   version: ea4d1f681babbce9545c9c5f3d5194a789c89f5b
 - name: github.com/hashicorp/go-cleanhttp
@@ -138,7 +140,7 @@ imports:
 - name: github.com/StackExchange/wmi
   version: ea383cf3ba6ec950874b8486cd72356d007c768f
 - name: golang.org/x/crypto
-  version: 9419663f5a44be8b34ca85f08abc5fe1be11f8a3
+  version: bd6f299fb381e4c3393d1c4b1f0b94f5e77650c8
   subpackages:
   - ssh/terminal
 - name: golang.org/x/net

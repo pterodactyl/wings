@@ -1,4 +1,4 @@
-package: github.com/Pterodactyl/wings
+package: github.com/pterodactyl/wings
 import:
 - package: github.com/gin-gonic/gin
   version: ~1.1.4
@@ -24,6 +24,8 @@ import:
 - package: github.com/hashicorp/go-cleanhttp
 - package: github.com/gorilla/websocket
   version: ~1.2.0
+- package: github.com/google/jsonapi
+  version: ~1.0.0
 testImport:
 - package: github.com/stretchr/testify
   version: ~1.1.4
