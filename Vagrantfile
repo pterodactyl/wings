@@ -1,7 +1,7 @@
 Vagrant.configure("2") do |cfg|
-    cfg.vm.box = "ubuntu/xenial64"
+    cfg.vm.box = "bento/ubuntu-16.04"
 
-    cfg.vm.synced_folder "./", "/home/ubuntu/go/src/github.com/Pterodactyl/wings"
+    cfg.vm.synced_folder "./", "/home/vagrant/go/src/github.com/pterodactyl/wings"
 
     cfg.vm.provision :shell, path: ".dev/vagrant/provision.sh"
 
