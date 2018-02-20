@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Pterodactyl/wings/command"
+	"github.com/pterodactyl/wings/command"
 )
 
 func main() {

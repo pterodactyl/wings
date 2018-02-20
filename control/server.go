@@ -8,8 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Pterodactyl/wings/config"
-	"github.com/Pterodactyl/wings/constants"
+	"github.com/pterodactyl/wings/api/websockets"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )

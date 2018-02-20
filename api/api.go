@@ -8,7 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 
-	"github.com/Pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/config"
 )
 
 type InternalAPI struct {

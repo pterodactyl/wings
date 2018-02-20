@@ -5,14 +5,14 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Pterodactyl/wings/constants"
+	"github.com/pterodactyl/wings/constants"
 
 	rotatelogs "github.com/lestrrat/go-file-rotatelogs"
 	"github.com/rifflock/lfshook"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 
-	"github.com/Pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/config"
 )
 
 // InitLogging initalizes the logging library for first use.

@@ -6,9 +6,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Pterodactyl/wings/constants"
+	"github.com/pterodactyl/wings/constants"
 
 	"github.com/fsouza/go-dockerclient"
+	"github.com/pterodactyl/wings/api/websockets"
 	log "github.com/sirupsen/logrus"
 )
 

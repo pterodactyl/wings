@@ -1,8 +1,8 @@
 package api
 
 import (
-	"github.com/Pterodactyl/wings/control"
 	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/control"
 )
 
 func getServerFromContext(context *gin.Context) control.Server {
