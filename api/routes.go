@@ -21,6 +21,7 @@ func (api *InternalAPI) RegisterRoutes() {
 			v1ServerRoutes.POST("/password", AuthHandler(""), handlePostServerPassword)
 			v1ServerRoutes.POST("/power", AuthHandler("s:power"), handlePostServerPower)
 			v1ServerRoutes.POST("/command", AuthHandler("s:command"), handlePostServerCommand)
+			v1ServerRoutes.GET("/console", AuthHandler("s:console"), handleGetConsole)
 			v1ServerRoutes.GET("/log", AuthHandler("s:console"), handleGetServerLog)
 			v1ServerRoutes.POST("/suspend", AuthHandler(""), handlePostServerSuspend)
 			v1ServerRoutes.POST("/unsuspend", AuthHandler(""), handlePostServerUnsuspend)
