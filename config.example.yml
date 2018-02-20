@@ -1,0 +1,41 @@
+debug: false
+data: '/srv/daemon-data'
+api:
+  host: '0.0.0.0'
+  port: 8080
+  ssl:
+    enabled: false
+    cert: ''
+    key: ''
+  uploads:
+    size_limit: 150000000
+docker:
+  container:
+    user: ''
+  network:
+    interface: '172.18.0.1'
+    name: 'pterodactyl_nw'
+  update_images: true
+  socket: '/var/run/docker.sock'
+  timezone_path: '/etc/timezone'
+sftp:
+  host: '0.0.0.0'
+  port: 2022
+  keypair:
+    bits: 2048
+    e: 65537
+log:
+  path: './logs/'
+  level: 'info'
+  prune_days: 10
+internal:
+  temp_logs: '/tmp/pterodactyl'
+  disk_check_seconds: 30
+  set_permissions_on_boot: true
+  throttle:
+    kill_at_count: 5
+    decay: 10
+    bytes: 4096
+    check_interval_ms: 100
+remote: 'http://example.com'
+token: 'test123'
