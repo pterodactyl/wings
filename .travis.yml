@@ -6,23 +6,17 @@ go:
 services:
   - docker
 
-addons:
-  apt:
-    sources:
-      - sourceline: 'ppa:masterminds/glide'
-    packages:
-      - glide
-
 install:
 - mkdir -p $GOPATH/bin
 
-# Install other tools
+# Install used tools
+- go get github.com/golang/dep/cmd/dep
 - go get github.com/mitchellh/gox
 - go get github.com/haya14busa/goverage
 - go get github.com/schrej/godacov
 
-# Install project dependencies with glide
-- glide install
+# Install project dependencies with dep
+- dep ensure
 
 script:
 - make cross-build
