@@ -3,8 +3,8 @@
 echo "Provisioning development environment for Pterodactyl go daemon."
 cp /home/vagrant/go/github.com/pterodactyl/wings.go/.dev/vagrant/motd.txt /etc/motd
 
-chown -R ubuntu:ubuntu /home/vagrant/go
-chown -R ubuntu:ubuntu /srv
+chown -R vagrant:vagrant /home/vagrant/go
+chown -R vagrant:vagrant /srv
 
 echo "Update apt repositories"
 sudo add-apt-repository ppa:longsleep/golang-backports
@@ -13,7 +13,7 @@ apt-get update > /dev/null
 echo "Install docker"
 curl -sSL https://get.docker.com/ | sh
 systemctl enable docker
-usermod -aG docker ubuntu
+usermod -aG docker vagrant
 
 echo "Install go"
 apt-get install -y golang-go
