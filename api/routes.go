@@ -6,7 +6,7 @@ func (api *InternalAPI) RegisterRoutes() {
 	v1 := api.router.Group("/v1")
 	{
 		v1.GET("/", AuthHandler(""), GetIndex)
-		v1.PATCH("/config", AuthHandler("c:config"), PatchConfiguration)
+		//v1.PATCH("/config", AuthHandler("c:config"), PatchConfiguration)
 
 		v1.GET("/servers", AuthHandler("c:list"), handleGetServers)
 		v1.POST("/servers", AuthHandler("c:create"), handlePostServers)
@@ -26,24 +26,24 @@ func (api *InternalAPI) RegisterRoutes() {
 			v1ServerRoutes.POST("/unsuspend", AuthHandler(""), handlePostServerUnsuspend)
 		}
 
-		v1ServerFileRoutes := v1.Group("/servers/:server/files")
-		{
-			v1ServerFileRoutes.GET("/file/:file", AuthHandler("s:files:read"), handleGetFile)
-			v1ServerFileRoutes.GET("/stat/:file", AuthHandler("s:files:"), handleGetFileStat)
-			v1ServerFileRoutes.GET("/dir/:directory", AuthHandler("s:files:get"), handleGetDirectory)
-
-			v1ServerFileRoutes.POST("/dir/:directory", AuthHandler("s:files:create"), handlePostFilesFolder)
-			v1ServerFileRoutes.POST("/file/:file", AuthHandler("s:files:post"), handlePostFile)
-
-			v1ServerFileRoutes.POST("/copy/:file", AuthHandler("s:files:copy"), handlePostFileCopy)
-			v1ServerFileRoutes.POST("/move/:file", AuthHandler("s:files:move"), handlePostFileMove)
-			v1ServerFileRoutes.POST("/rename/:file", AuthHandler("s:files:move"), handlePostFileMove)
-			v1ServerFileRoutes.POST("/compress/:file", AuthHandler("s:files:compress"), handlePostFileCompress)
-			v1ServerFileRoutes.POST("/decompress/:file", AuthHandler("s:files:decompress"), handlePostFileDecompress)
-
-			v1ServerFileRoutes.DELETE("/file/:file", AuthHandler("s:files:delete"), handleDeleteFile)
-
-			v1ServerFileRoutes.GET("/download/:token", handleGetDownloadFile)
-		}
+		//v1ServerFileRoutes := v1.Group("/servers/:server/files")
+		//{
+		//	v1ServerFileRoutes.GET("/file/:file", AuthHandler("s:files:read"), handleGetFile)
+		//	v1ServerFileRoutes.GET("/stat/:file", AuthHandler("s:files:"), handleGetFileStat)
+		//	v1ServerFileRoutes.GET("/dir/:directory", AuthHandler("s:files:get"), handleGetDirectory)
+		//
+		//	v1ServerFileRoutes.POST("/dir/:directory", AuthHandler("s:files:create"), handlePostFilesFolder)
+		//	v1ServerFileRoutes.POST("/file/:file", AuthHandler("s:files:post"), handlePostFile)
+		//
+		//	v1ServerFileRoutes.POST("/copy/:file", AuthHandler("s:files:copy"), handlePostFileCopy)
+		//	v1ServerFileRoutes.POST("/move/:file", AuthHandler("s:files:move"), handlePostFileMove)
+		//	v1ServerFileRoutes.POST("/rename/:file", AuthHandler("s:files:move"), handlePostFileMove)
+		//	v1ServerFileRoutes.POST("/compress/:file", AuthHandler("s:files:compress"), handlePostFileCompress)
+		//	v1ServerFileRoutes.POST("/decompress/:file", AuthHandler("s:files:decompress"), handlePostFileDecompress)
+		//
+		//	v1ServerFileRoutes.DELETE("/file/:file", AuthHandler("s:files:delete"), handleDeleteFile)
+		//
+		//	v1ServerFileRoutes.GET("/download/:token", handleGetDownloadFile)
+		//}
 	}
 }

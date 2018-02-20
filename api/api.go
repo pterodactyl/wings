@@ -21,15 +21,12 @@ func NewAPI() InternalAPI {
 
 // Configure the API and begin listening on the configured IP and Port.
 func (api *InternalAPI) Listen() {
-	listener := fmt.Sprintf("%s:%d", viper.GetString(config.APIHost), viper.GetInt(config.APIPort))
-
 	if !viper.GetBool(config.Debug) {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	api.router = gin.Default()
 	api.router.RedirectTrailingSlash = false
-	api.RegisterRoutes()
 
 	api.router.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
@@ -40,7 +37,7 @@ func (api *InternalAPI) Listen() {
 		c.Header("Access-Control-Allow-Headers", "X-Access-Token")
 	})
 
-	api.registerRoutes()
+	api.RegisterRoutes()
 
 	listenString := fmt.Sprintf("%s:%d", viper.GetString(config.APIHost), viper.GetInt(config.APIPort))
 

@@ -2,58 +2,59 @@ package api
 
 import (
 	"net/http"
-	"runtime"
+	//"runtime"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/constants"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/host"
-	"github.com/shirou/gopsutil/mem"
+
+	//"github.com/shirou/gopsutil/cpu"
+	//"github.com/shirou/gopsutil/host"
+	//"github.com/shirou/gopsutil/mem"
 	log "github.com/sirupsen/logrus"
 )
 
 func GetIndex(c *gin.Context) {
-	auth := GetContextAuthManager(c)
+	//auth := GetContextAuthManager(c)
 
-	if auth != nil && auth.HasPermission("c:info") {
-		hostInfo, err := host.Info()
-		if err != nil {
-			log.WithError(err).Error("Failed to retrieve host information.")
-		}
-		cpuInfo, err := cpu.Info()
-		if err != nil {
-			log.WithError(err).Error("Failed to retrieve CPU information.")
-		}
-		memInfo, err := mem.VirtualMemory()
-		if err != nil {
-			log.WithError(err).Error("Failed to retrieve memory information.")
-		}
-
-		info := struct {
-			Name    string `json:"name"`
-			Version string `json:"version"`
-			System  struct {
-				SystemType string `json:"type"`
-				Platform   string `json:"platform"`
-				Arch       string `json:"arch"`
-				Release    string `json:"release"`
-				Cpus       int32  `json:"cpus"`
-				Freemem    uint64 `json:"freemem"`
-			} `json:"system"`
-		}{
-			Name:    "Pterodactyl wings",
-			Version: constants.Version,
-		}
-		info.System.SystemType = hostInfo.OS
-		info.System.Platform = hostInfo.Platform
-		info.System.Arch = runtime.GOARCH
-		info.System.Release = hostInfo.KernelVersion
-		info.System.Cpus = cpuInfo[0].Cores
-		info.System.Freemem = memInfo.Free
-
-		c.JSON(http.StatusOK, info)
-		return
-	}
+	//if auth != nil && auth.HasPermission("c:info") {
+	//	hostInfo, err := host.Info()
+	//	if err != nil {
+	//		log.WithError(err).Error("Failed to retrieve host information.")
+	//	}
+	//	cpuInfo, err := cpu.Info()
+	//	if err != nil {
+	//		log.WithError(err).Error("Failed to retrieve CPU information.")
+	//	}
+	//	memInfo, err := mem.VirtualMemory()
+	//	if err != nil {
+	//		log.WithError(err).Error("Failed to retrieve memory information.")
+	//	}
+	//
+	//	info := struct {
+	//		Name    string `json:"name"`
+	//		Version string `json:"version"`
+	//		System  struct {
+	//			SystemType string `json:"type"`
+	//			Platform   string `json:"platform"`
+	//			Arch       string `json:"arch"`
+	//			Release    string `json:"release"`
+	//			Cpus       int32  `json:"cpus"`
+	//			Freemem    uint64 `json:"freemem"`
+	//		} `json:"system"`
+	//	}{
+	//		Name:    "Pterodactyl wings",
+	//		Version: constants.Version,
+	//	}
+	//	info.System.SystemType = hostInfo.OS
+	//	info.System.Platform = hostInfo.Platform
+	//	info.System.Arch = runtime.GOARCH
+	//	info.System.Release = hostInfo.KernelVersion
+	//	info.System.Cpus = cpuInfo[0].Cores
+	//	info.System.Freemem = memInfo.Free
+	//
+	//	c.JSON(http.StatusOK, info)
+	//	return
+	//}
 
 	c.Header("Content-Type", "text/html")
 	c.String(http.StatusOK, constants.IndexPage)
