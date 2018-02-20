@@ -20,6 +20,7 @@ type dockerEnvironment struct {
 	container *docker.Container
 	context   context.Context
 
+	attached        bool
 	containerInput  io.Writer
 	containerOutput io.Writer
 	closeWaiter     docker.CloseWaiter
@@ -67,23 +68,33 @@ func (env *dockerEnvironment) checkContainerExists() error {
 }
 
 func (env *dockerEnvironment) attach() error {
+	if env.attached {
+		return nil
+	}
 	pr, pw := io.Pipe()
+	env.containerInput = pw
+
+	cw := websockets.ConsoleWriter{
+		Hub: env.server.websockets,
+	}
 
 	success := make(chan struct{})
 	w, err := env.client.AttachToContainerNonBlocking(docker.AttachToContainerOptions{
 		Container:    env.server.DockerContainer.ID,
 		InputStream:  pr,
-		OutputStream: os.Stdout,
+		OutputStream: cw,
+		ErrorStream:  cw,
 		Stdin:        true,
 		Stdout:       true,
+		Stderr:       true,
 		Stream:       true,
 		Success:      success,
 	})
 	env.closeWaiter = w
-	env.containerInput = pw
 
 	<-success
 	close(success)
+	env.attached = true
 	return err
 }
 
@@ -91,11 +102,11 @@ func (env *dockerEnvironment) attach() error {
 // settings to it
 func (env *dockerEnvironment) Create() error {
 	log.WithField("server", env.server.ID).Debug("Creating docker environment")
-	// Split image repository and tag to feed it to the library
-	imageParts := strings.Split(env.server.Service().DockerImage, ":")
+	// Split image repository and tag
+	imageParts := strings.Split(env.server.GetService().DockerImage, ":")
 	imageRepoParts := strings.Split(imageParts[0], "/")
 	if len(imageRepoParts) >= 3 {
-		// Handle possibly required authentication
+		// TODO: Handle possibly required authentication
 	}
 
 	// Pull docker image
@@ -105,7 +116,7 @@ func (env *dockerEnvironment) Create() error {
 	if len(imageParts) >= 2 {
 		pullImageOpts.Tag = imageParts[1]
 	}
-	log.WithField("image", env.server.service.DockerImage).Debug("Pulling docker image")
+	log.WithField("image", env.server.GetService().DockerImage).Debug("Pulling docker image")
 	err := env.client.PullImage(pullImageOpts, docker.AuthConfiguration{})
 	if err != nil {
 		log.WithError(err).WithField("server", env.server.ID).Error("Failed to create docker environment")
@@ -119,17 +130,21 @@ func (env *dockerEnvironment) Create() error {
 	// Create docker container
 	// TODO: apply cpu, io, disk limits.
 	containerConfig := &docker.Config{
-		Image:     env.server.Service().DockerImage,
-		Cmd:       strings.Split(env.server.StartupCommand, " "),
-		OpenStdin: true,
+		Image:       env.server.GetService().DockerImage,
+		Cmd:         strings.Split(env.server.StartupCommand, " "),
+		OpenStdin:   true,
+		ArgsEscaped: false,
+		Hostname:    constants.DockerContainerPrefix + env.server.UUIDShort(),
 	}
 	containerHostConfig := &docker.HostConfig{
 		Memory:     env.server.Settings.Memory,
 		MemorySwap: env.server.Settings.Swap,
-		Binds:      []string{env.server.dataPath() + ":/home/container"},
+		// TODO: Allow custom binds via some kind of settings in the service
+		Binds: []string{env.server.dataPath() + ":/home/container"},
+		// TODO: Add port bindings
 	}
 	createContainerOpts := docker.CreateContainerOptions{
-		Name:       "ptdl-" + env.server.UUIDShort(),
+		Name:       constants.DockerContainerPrefix + env.server.UUIDShort(),
 		Config:     containerConfig,
 		HostConfig: containerHostConfig,
 		Context:    env.context,
@@ -139,12 +154,16 @@ func (env *dockerEnvironment) Create() error {
 		log.WithError(err).WithField("server", env.server.ID).Error("Failed to create docker container")
 		return err
 	}
+
 	env.server.DockerContainer.ID = container.ID
 	env.server.Save()
 	env.container = container
+	if env.closeWaiter != nil {
+		env.closeWaiter.Close()
+	}
+	env.attached = false
 
 	log.WithField("server", env.server.ID).Debug("Docker environment created")
-
 	return nil
 }
 
@@ -167,6 +186,10 @@ func (env *dockerEnvironment) Destroy() error {
 		return err
 	}
 
+	if env.closeWaiter != nil {
+		env.closeWaiter.Close()
+	}
+	env.attached = false
 	log.WithField("server", env.server.ID).Debug("Docker environment destroyed")
 	return nil
 }

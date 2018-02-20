@@ -6,7 +6,7 @@ const (
 
 	// DataPath is a string containing the path where data should
 	// be stored on the system
-	DataPath = "datapath"
+	DataPath = "data"
 
 	// APIHost is a string containing the interface ip address
 	// on what the api should listen on
