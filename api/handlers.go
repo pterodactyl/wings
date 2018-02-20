@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"runtime"
 
-	"github.com/Pterodactyl/wings/constants"
 	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/constants"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
 	"github.com/shirou/gopsutil/mem"

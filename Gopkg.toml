@@ -25,9 +25,9 @@
 #   unused-packages = true
 
 
-[[constraint]]
-  branch = "develop"
-  name = "github.com/Pterodactyl/wings"
+#[[constraint]]
+#  branch = "develop"
+#  name = "github.com/pterodactyl/wings"
 
 [[constraint]]
   name = "github.com/gin-gonic/gin"

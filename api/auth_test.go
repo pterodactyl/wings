@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Pterodactyl/wings/config"
-	"github.com/Pterodactyl/wings/control"
+	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/control"
 )
 
 const configFile = "_testdata/config.yml"

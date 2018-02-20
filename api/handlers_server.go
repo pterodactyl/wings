@@ -3,8 +3,8 @@ package api
 import (
 	"net/http"
 
-	"github.com/Pterodactyl/wings/control"
 	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/control"
 	log "github.com/sirupsen/logrus"
 )
 

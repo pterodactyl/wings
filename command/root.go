@@ -6,11 +6,11 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/Pterodactyl/wings/api"
-	"github.com/Pterodactyl/wings/config"
-	"github.com/Pterodactyl/wings/constants"
-	"github.com/Pterodactyl/wings/control"
-	"github.com/Pterodactyl/wings/utils"
+	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/constants"
+	"github.com/pterodactyl/wings/control"
+	"github.com/pterodactyl/wings/utils"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

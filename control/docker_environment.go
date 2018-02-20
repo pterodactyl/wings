@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Pterodactyl/wings/constants"
+	"github.com/pterodactyl/wings/constants"
 
 	"github.com/fsouza/go-dockerclient"
 	log "github.com/sirupsen/logrus"

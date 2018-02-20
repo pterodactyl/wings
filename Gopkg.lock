@@ -24,7 +24,7 @@
 
 [[projects]]
   branch = "develop"
-  name = "github.com/Pterodactyl/wings"
+  name = "github.com/pterodactyl/wings"
   packages = [
     "api",
     "config",
@@ -251,17 +251,10 @@
     "host",
     "internal/common",
     "mem",
-    "net",
     "process"
   ]
   revision = "c432be29ccce470088d07eea25b3ea7e68a8afbb"
   version = "v2.18.01"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/shirou/w32"
-  packages = ["."]
-  revision = "bb4de0191aa41b5507caa14b0650cdbddcd9280b"
 
 [[projects]]
   name = "github.com/sirupsen/logrus"
@@ -372,6 +365,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7f394f53c7f2fc5250192ef95a878bfa397ab1d68cb69d7ab470adb4ea216294"
+  inputs-digest = "3f6a265d298db6e8379b05d796fcdff3d78a0216b6aaaccd4501440cbcfc0792"
   solver-name = "gps-cdcl"
   solver-version = 1

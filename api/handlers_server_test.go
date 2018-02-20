@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Pterodactyl/wings/control"
 	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/control"
 	"github.com/stretchr/testify/assert"
 )
 
