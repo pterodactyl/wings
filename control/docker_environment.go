@@ -5,25 +5,21 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 	"github.com/pterodactyl/wings/constants"
-
-	"github.com/fsouza/go-dockerclient"
-	"github.com/pterodactyl/wings/api/websockets"
 	log "github.com/sirupsen/logrus"
 )
 
 type dockerEnvironment struct {
 	baseEnvironment
 
-	client    *docker.Client
-	container *docker.Container
-	context   context.Context
-
-	attached        bool
-	containerInput  io.Writer
-	containerOutput io.Writer
-	closeWaiter     docker.CloseWaiter
+	client   *client.Client
+	hires    types.HijackedResponse
+	attached bool
 
 	server *ServerStruct
 }
@@ -39,16 +35,20 @@ func NewDockerEnvironment(server *ServerStruct) (Environment, error) {
 	env := dockerEnvironment{}
 
 	env.server = server
+	env.attached = false
 
-	client, err := docker.NewClient("unix:///var/run/docker.sock")
-	env.client = client
+	cli, err := client.NewEnvClient()
+	env.client = cli
+	ctx := context.TODO()
+	cli.NegotiateAPIVersion(ctx)
+
 	if err != nil {
 		log.WithError(err).Fatal("Failed to connect to docker.")
 		return nil, err
 	}
 
 	if env.server.DockerContainer.ID != "" {
-		if err := env.checkContainerExists(); err != nil {
+		if err := env.inspectContainer(ctx); err != nil {
 			log.WithError(err).Error("Failed to find the container with stored id, removing id.")
 			env.server.DockerContainer.ID = ""
 			env.server.Save()
@@ -58,68 +58,28 @@ func NewDockerEnvironment(server *ServerStruct) (Environment, error) {
 	return &env, nil
 }
 
-func (env *dockerEnvironment) checkContainerExists() error {
-	container, err := env.client.InspectContainer(env.server.DockerContainer.ID)
-	if err != nil {
-		return err
-	}
-	env.container = container
-	return nil
+func (env *dockerEnvironment) inspectContainer(ctx context.Context) error {
+	_, err := env.client.ContainerInspect(ctx, env.server.DockerContainer.ID)
+	return err
 }
 
 func (env *dockerEnvironment) attach() error {
 	if env.attached {
 		return nil
 	}
-	pr, pw := io.Pipe()
-	env.containerInput = pw
-
-	cw := websockets.ConsoleWriter{
-		Hub: env.server.websockets,
-	}
-
-	success := make(chan struct{})
-	w, err := env.client.AttachToContainerNonBlocking(docker.AttachToContainerOptions{
-		Container:    env.server.DockerContainer.ID,
-		InputStream:  pr,
-		OutputStream: cw,
-		ErrorStream:  cw,
-		Stdin:        true,
-		Stdout:       true,
-		Stderr:       true,
-		Stream:       true,
-		Success:      success,
-	})
-	env.closeWaiter = w
-
-	<-success
-	close(success)
 	env.attached = true
-	return err
+	return nil
 }
 
 // Create creates the docker container for the environment and applies all
 // settings to it
 func (env *dockerEnvironment) Create() error {
 	log.WithField("server", env.server.ID).Debug("Creating docker environment")
-	// Split image repository and tag
-	imageParts := strings.Split(env.server.GetService().DockerImage, ":")
-	imageRepoParts := strings.Split(imageParts[0], "/")
-	if len(imageRepoParts) >= 3 {
-		// TODO: Handle possibly required authentication
-	}
 
-	// Pull docker image
-	var pullImageOpts = docker.PullImageOptions{
-		Repository: imageParts[0],
-	}
-	if len(imageParts) >= 2 {
-		pullImageOpts.Tag = imageParts[1]
-	}
-	log.WithField("image", env.server.GetService().DockerImage).Debug("Pulling docker image")
-	err := env.client.PullImage(pullImageOpts, docker.AuthConfiguration{})
-	if err != nil {
-		log.WithError(err).WithField("server", env.server.ID).Error("Failed to create docker environment")
+	ctx := context.TODO()
+
+	if err := env.pullImage(ctx); err != nil {
+		log.WithError(err).WithField("image", env.server.GetService().DockerImage).WithField("server", env.server.ID).Error("Failed to pull docker image.")
 		return err
 	}
 
@@ -129,27 +89,31 @@ func (env *dockerEnvironment) Create() error {
 
 	// Create docker container
 	// TODO: apply cpu, io, disk limits.
-	containerConfig := &docker.Config{
-		Image:       env.server.GetService().DockerImage,
-		Cmd:         strings.Split(env.server.StartupCommand, " "),
-		OpenStdin:   true,
-		ArgsEscaped: false,
-		Hostname:    constants.DockerContainerPrefix + env.server.UUIDShort(),
+
+	containerConfig := &container.Config{
+		Image:        env.server.GetService().DockerImage,
+		Cmd:          strings.Split(env.server.StartupCommand, " "),
+		AttachStdin:  true,
+		OpenStdin:    true,
+		AttachStdout: true,
+		AttachStderr: true,
+		Tty:          true,
+		Hostname:     constants.DockerContainerPrefix + env.server.UUIDShort(),
 	}
-	containerHostConfig := &docker.HostConfig{
-		Memory:     env.server.Settings.Memory,
-		MemorySwap: env.server.Settings.Swap,
+
+	containerHostConfig := &container.HostConfig{
+		Resources: container.Resources{
+			Memory:     env.server.Settings.Memory,
+			MemorySwap: env.server.Settings.Swap,
+		},
 		// TODO: Allow custom binds via some kind of settings in the service
 		Binds: []string{env.server.dataPath() + ":/home/container"},
 		// TODO: Add port bindings
 	}
-	createContainerOpts := docker.CreateContainerOptions{
-		Name:       constants.DockerContainerPrefix + env.server.UUIDShort(),
-		Config:     containerConfig,
-		HostConfig: containerHostConfig,
-		Context:    env.context,
-	}
-	container, err := env.client.CreateContainer(createContainerOpts)
+
+	containerHostConfig.Memory = 0
+
+	container, err := env.client.ContainerCreate(ctx, containerConfig, containerHostConfig, nil, constants.DockerContainerPrefix+env.server.UUIDShort())
 	if err != nil {
 		log.WithError(err).WithField("server", env.server.ID).Error("Failed to create docker container")
 		return err
@@ -157,11 +121,6 @@ func (env *dockerEnvironment) Create() error {
 
 	env.server.DockerContainer.ID = container.ID
 	env.server.Save()
-	env.container = container
-	if env.closeWaiter != nil {
-		env.closeWaiter.Close()
-	}
-	env.attached = false
 
 	log.WithField("server", env.server.ID).Debug("Docker environment created")
 	return nil
@@ -170,36 +129,29 @@ func (env *dockerEnvironment) Create() error {
 // Destroy removes the environment's docker container
 func (env *dockerEnvironment) Destroy() error {
 	log.WithField("server", env.server.ID).Debug("Destroying docker environment")
-	if _, err := env.client.InspectContainer(env.server.DockerContainer.ID); err != nil {
-		if _, ok := err.(*docker.NoSuchContainer); ok {
-			log.WithField("server", env.server.ID).Debug("Container not found, docker environment destroyed already.")
-			return nil
-		}
-		log.WithError(err).WithField("server", env.server.ID).Error("Could not destroy docker environment")
-		return err
+
+	ctx := context.TODO()
+
+	if err := env.inspectContainer(ctx); err != nil {
+		log.WithError(err).Debug("Container not found error")
+		log.WithField("server", env.server.ID).Debug("Container not found, docker environment destroyed already.")
+		return nil
 	}
-	err := env.client.RemoveContainer(docker.RemoveContainerOptions{
-		ID: env.server.DockerContainer.ID,
-	})
-	if err != nil {
+
+	if err := env.client.ContainerRemove(ctx, env.server.DockerContainer.ID, types.ContainerRemoveOptions{}); err != nil {
 		log.WithError(err).WithField("server", env.server.ID).Error("Failed to destroy docker environment")
 		return err
 	}
 
-	if env.closeWaiter != nil {
-		env.closeWaiter.Close()
-	}
-	env.attached = false
 	log.WithField("server", env.server.ID).Debug("Docker environment destroyed")
 	return nil
 }
 
 func (env *dockerEnvironment) Exists() bool {
-	if env.container != nil {
-		return true
+	if err := env.inspectContainer(context.TODO()); err != nil {
+		return false
 	}
-	env.checkContainerExists()
-	return env.container != nil
+	return true
 }
 
 // Start starts the environment's docker container
@@ -208,7 +160,8 @@ func (env *dockerEnvironment) Start() error {
 	if err := env.attach(); err != nil {
 		log.WithError(err).Error("Failed to attach to docker container")
 	}
-	if err := env.client.StartContainer(env.container.ID, nil); err != nil {
+
+	if err := env.client.ContainerStart(context.TODO(), env.server.DockerContainer.ID, types.ContainerStartOptions{}); err != nil {
 		log.WithError(err).Error("Failed to start docker container")
 		return err
 	}
@@ -218,7 +171,10 @@ func (env *dockerEnvironment) Start() error {
 // Stop stops the environment's docker container
 func (env *dockerEnvironment) Stop() error {
 	log.WithField("server", env.server.ID).Debug("Stopping service in docker environment")
-	if err := env.client.StopContainer(env.container.ID, 20000); err != nil {
+
+	// TODO: Decide after what timeout to kill the container, currently 10min
+	timeout := time.Minute * 10
+	if err := env.client.ContainerStop(context.TODO(), env.server.DockerContainer.ID, &timeout); err != nil {
 		log.WithError(err).Error("Failed to stop docker container")
 		return err
 	}
@@ -227,9 +183,8 @@ func (env *dockerEnvironment) Stop() error {
 
 func (env *dockerEnvironment) Kill() error {
 	log.WithField("server", env.server.ID).Debug("Killing service in docker environment")
-	if err := env.client.KillContainer(docker.KillContainerOptions{
-		ID: env.container.ID,
-	}); err != nil {
+
+	if err := env.client.ContainerKill(context.TODO(), env.server.DockerContainer.ID, "SIGKILL"); err != nil {
 		log.WithError(err).Error("Failed to kill docker container")
 		return err
 	}
@@ -238,7 +193,24 @@ func (env *dockerEnvironment) Kill() error {
 
 // Exec sends commands to the standard input of the docker container
 func (env *dockerEnvironment) Exec(command string) error {
-	log.Debug("Command: " + command)
-	_, err := env.containerInput.Write([]byte(command + "\n"))
+	//log.Debug("Command: " + command)
+	//_, err := env.containerInput.Write([]byte(command + "\n"))
+	//return err
+	return nil
+}
+
+func (env *dockerEnvironment) pullImage(ctx context.Context) error {
+	// Split image repository and tag
+	imageParts := strings.Split(env.server.GetService().DockerImage, ":")
+	imageRepoParts := strings.Split(imageParts[0], "/")
+	if len(imageRepoParts) >= 3 {
+		// TODO: Handle possibly required authentication
+	}
+
+	// Pull docker image
+	log.WithField("image", env.server.GetService().DockerImage).Debug("Pulling docker image")
+
+	rc, err := env.client.ImagePull(ctx, env.server.GetService().DockerImage, types.ImagePullOptions{})
+	defer rc.Close()
 	return err
 }

@@ -30,3 +30,6 @@ const JSONIndent = "  "
 // DockerContainerPrefix is the prefix used for naming Docker containers.
 // It's also used to prefix the hostnames of the docker containers.
 const DockerContainerPrefix = "ptdl-"
+
+// WSMaxMessages is the maximum number of messages that are sent in one transfer.
+const WSMaxMessages = 10

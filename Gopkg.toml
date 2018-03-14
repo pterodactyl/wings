@@ -60,3 +60,11 @@
 [prune]
   go-tests = true
   unused-packages = true
+
+[[constraint]]
+  name = "github.com/docker/docker"
+  revision = "e3831a62a3052472d7252049bc59835d5d7dc8bd"
+
+[[override]]
+  name = "github.com/docker/distribution"
+  branch = "master"
