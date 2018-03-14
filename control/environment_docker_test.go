@@ -1,125 +1,133 @@
 package control
 
-// func testServer() *ServerStruct {
-// 	return &ServerStruct{
-// 		ID: "testuuid-something-something",
-// 		service: &service{
-// 			DockerImage: "alpine:latest",
-// 		},
-// 	}
-// }
+import (
+	"context"
+	"fmt"
+	"testing"
 
-// func TestNewDockerEnvironment(t *testing.T) {
-// 	env, err := createTestDockerEnv(nil)
+	"github.com/pterodactyl/wings/api/websockets"
 
-// 	assert.Nil(t, err)
-// 	assert.NotNil(t, env)
-// 	assert.NotNil(t, env.client)
-// }
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
+	"github.com/pterodactyl/wings/config"
+	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
+)
 
-// func TestNewDockerEnvironmentExisting(t *testing.T) {
-// 	eenv, _ := createTestDockerEnv(nil)
-// 	eenv.Create()
+func testServer() *ServerStruct {
+	viper.SetDefault(config.DataPath, "./data")
+	return &ServerStruct{
+		ID: "testuuid-something-something",
+		Service: &Service{
+			DockerImage: "alpine:latest",
+		},
+		StartupCommand: "/bin/ash echo hello && sleep 100",
+		websockets:     websockets.NewCollection(),
+	}
+}
 
-// 	env, err := createTestDockerEnv(eenv.server)
+func TestNewDockerEnvironment(t *testing.T) {
+	env, err := createTestDockerEnv(nil)
 
-// 	assert.Nil(t, err)
-// 	assert.NotNil(t, env)
-// 	assert.NotNil(t, env.container)
+	assert.Nil(t, err)
+	assert.NotNil(t, env)
+	assert.NotNil(t, env.client)
+}
 
-// 	eenv.Destroy()
-// }
+func TestNewDockerEnvironmentExisting(t *testing.T) {
+	eenv, _ := createTestDockerEnv(nil)
+	eenv.Create()
 
-// func TestCreateDockerEnvironment(t *testing.T) {
-// 	env, _ := createTestDockerEnv(nil)
+	env, err := createTestDockerEnv(eenv.server)
 
-// 	err := env.Create()
+	assert.Nil(t, err)
+	assert.NotNil(t, env)
+	assert.NotNil(t, env.server.DockerContainer)
 
-// 	a := assert.New(t)
-// 	a.Nil(err)
-// 	a.NotNil(env.container)
-// 	a.Equal(env.container.Name, "ptdl_testuuid")
+	eenv.Destroy()
+}
 
-// 	if err := env.client.RemoveContainer(docker.RemoveContainerOptions{
-// 		ID: env.container.ID,
-// 	}); err != nil {
-// 		fmt.Println(err)
-// 	}
-// }
+func TestCreateDockerEnvironment(t *testing.T) {
+	env, _ := createTestDockerEnv(nil)
 
-// func TestDestroyDockerEnvironment(t *testing.T) {
-// 	env, _ := createTestDockerEnv(nil)
-// 	env.Create()
+	err := env.Create()
 
-// 	err := env.Destroy()
+	a := assert.New(t)
+	a.Nil(err)
+	a.NotNil(env.server.DockerContainer.ID)
 
-// 	_, ierr := env.client.InspectContainer(env.container.ID)
+	if err := env.client.ContainerRemove(context.TODO(), env.server.DockerContainer.ID, types.ContainerRemoveOptions{}); err != nil {
+		fmt.Println(err)
+	}
+}
 
-// 	assert.Nil(t, err)
-// 	assert.IsType(t, ierr, &docker.NoSuchContainer{})
-// }
+func TestDestroyDockerEnvironment(t *testing.T) {
+	env, _ := createTestDockerEnv(nil)
+	env.Create()
 
-// func TestStartDockerEnvironment(t *testing.T) {
-// 	env, _ := createTestDockerEnv(nil)
-// 	env.Create()
-// 	err := env.Start()
+	err := env.Destroy()
 
-// 	i, ierr := env.client.InspectContainer(env.container.ID)
+	_, ierr := env.client.ContainerInspect(context.TODO(), env.server.DockerContainer.ID)
 
-// 	assert.Nil(t, err)
-// 	assert.Nil(t, ierr)
-// 	assert.True(t, i.State.Running)
+	assert.Nil(t, err)
+	assert.True(t, client.IsErrNotFound(ierr))
+}
 
-// 	env.client.KillContainer(docker.KillContainerOptions{
-// 		ID: env.container.ID,
-// 	})
-// 	env.Destroy()
-// }
+func TestStartDockerEnvironment(t *testing.T) {
+	env, _ := createTestDockerEnv(nil)
+	env.Create()
+	err := env.Start()
 
-// func TestStopDockerEnvironment(t *testing.T) {
-// 	env, _ := createTestDockerEnv(nil)
-// 	env.Create()
-// 	env.Start()
-// 	err := env.Stop()
+	i, ierr := env.client.ContainerInspect(context.TODO(), env.server.DockerContainer.ID)
 
-// 	i, ierr := env.client.InspectContainer(env.container.ID)
+	assert.Nil(t, err)
+	assert.Nil(t, ierr)
+	assert.True(t, i.State.Running)
 
-// 	assert.Nil(t, err)
-// 	assert.Nil(t, ierr)
-// 	assert.False(t, i.State.Running)
+	env.client.ContainerKill(context.TODO(), env.server.DockerContainer.ID, "KILL")
+	env.Destroy()
+}
 
-// 	env.client.KillContainer(docker.KillContainerOptions{
-// 		ID: env.container.ID,
-// 	})
-// 	env.Destroy()
-// }
+func TestStopDockerEnvironment(t *testing.T) {
+	env, _ := createTestDockerEnv(nil)
+	env.Create()
+	env.Start()
+	err := env.Stop()
 
-// func TestKillDockerEnvironment(t *testing.T) {
-// 	env, _ := createTestDockerEnv(nil)
-// 	env.Create()
-// 	env.Start()
-// 	err := env.Kill()
+	i, ierr := env.client.ContainerInspect(context.TODO(), env.server.DockerContainer.ID)
 
-// 	i, ierr := env.client.InspectContainer(env.container.ID)
+	assert.Nil(t, err)
+	assert.Nil(t, ierr)
+	assert.False(t, i.State.Running)
 
-// 	assert.Nil(t, err)
-// 	assert.Nil(t, ierr)
-// 	assert.False(t, i.State.Running)
+	env.client.ContainerKill(context.TODO(), env.server.DockerContainer.ID, "KILL")
+	env.Destroy()
+}
 
-// 	env.client.KillContainer(docker.KillContainerOptions{
-// 		ID: env.container.ID,
-// 	})
-// 	env.Destroy()
-// }
+func TestKillDockerEnvironment(t *testing.T) {
+	env, _ := createTestDockerEnv(nil)
+	env.Create()
+	env.Start()
+	err := env.Kill()
 
-// func TestExecDockerEnvironment(t *testing.T) {
+	i, ierr := env.client.ContainerInspect(context.TODO(), env.server.DockerContainer.ID)
 
-// }
+	assert.Nil(t, err)
+	assert.Nil(t, ierr)
+	assert.False(t, i.State.Running)
 
-// func createTestDockerEnv(s *ServerStruct) (*dockerEnvironment, error) {
-// 	if s == nil {
-// 		s = testServer()
-// 	}
-// 	env, err := NewDockerEnvironment(s)
-// 	return env.(*dockerEnvironment), err
-// }
+	env.client.ContainerKill(context.TODO(), env.server.DockerContainer.ID, "KILL")
+	env.Destroy()
+}
+
+func TestExecDockerEnvironment(t *testing.T) {
+
+}
+
+func createTestDockerEnv(s *ServerStruct) (*dockerEnvironment, error) {
+	if s == nil {
+		s = testServer()
+	}
+	env, err := NewDockerEnvironment(s)
+	return env.(*dockerEnvironment), err
+}

@@ -91,7 +91,12 @@ func (s *ServerStruct) Save() error {
 }
 
 func (s *ServerStruct) path() string {
-	return filepath.Join(viper.GetString(config.DataPath), constants.ServersPath, s.ID)
+	p, err := filepath.Abs(viper.GetString(config.DataPath))
+	if err != nil {
+		log.WithError(err).WithField("server", s.ID).Error("Failed to get absolute data path for server.")
+		p = viper.GetString(config.DataPath)
+	}
+	return filepath.Join(p, constants.ServersPath, s.ID)
 }
 
 func (s *ServerStruct) dataPath() string {

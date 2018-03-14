@@ -199,8 +199,8 @@ func (env *dockerEnvironment) Start() error {
 func (env *dockerEnvironment) Stop() error {
 	log.WithField("server", env.server.ID).Debug("Stopping service in docker environment")
 
-	// TODO: Decide after what timeout to kill the container, currently 10min
-	timeout := time.Minute * 10
+	// TODO: Decide after what timeout to kill the container, currently 30 seconds
+	timeout := 30 * time.Second
 	if err := env.client.ContainerStop(context.TODO(), env.server.DockerContainer.ID, &timeout); err != nil {
 		log.WithError(err).Error("Failed to stop docker container")
 		return err
@@ -211,7 +211,7 @@ func (env *dockerEnvironment) Stop() error {
 func (env *dockerEnvironment) Kill() error {
 	log.WithField("server", env.server.ID).Debug("Killing service in docker environment")
 
-	if err := env.client.ContainerKill(context.TODO(), env.server.DockerContainer.ID, "SIGKILL"); err != nil {
+	if err := env.client.ContainerKill(context.TODO(), env.server.DockerContainer.ID, "KILL"); err != nil {
 		log.WithError(err).Error("Failed to kill docker container")
 		return err
 	}
@@ -220,24 +220,26 @@ func (env *dockerEnvironment) Kill() error {
 
 // Exec sends commands to the standard input of the docker container
 func (env *dockerEnvironment) Exec(command string) error {
-	//log.Debug("Command: " + command)
-	//_, err := env.containerInput.Write([]byte(command + "\n"))
-	//return err
-	return nil
+	log.Debug("Command: " + command)
+	_, err := env.hires.Conn.Write([]byte(command + "\n"))
+	return err
 }
 
 func (env *dockerEnvironment) pullImage(ctx context.Context) error {
 	// Split image repository and tag
-	imageParts := strings.Split(env.server.GetService().DockerImage, ":")
-	imageRepoParts := strings.Split(imageParts[0], "/")
-	if len(imageRepoParts) >= 3 {
-		// TODO: Handle possibly required authentication
-	}
+	//imageParts := strings.Split(env.server.GetService().DockerImage, ":")
+	//imageRepoParts := strings.Split(imageParts[0], "/")
+	//if len(imageRepoParts) >= 3 {
+	// TODO: Handle possibly required authentication
+	//}
 
 	// Pull docker image
 	log.WithField("image", env.server.GetService().DockerImage).Debug("Pulling docker image")
 
 	rc, err := env.client.ImagePull(ctx, env.server.GetService().DockerImage, types.ImagePullOptions{})
+	if err != nil {
+		return err
+	}
 	defer rc.Close()
-	return err
+	return nil
 }
