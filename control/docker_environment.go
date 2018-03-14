@@ -67,7 +67,34 @@ func (env *dockerEnvironment) attach() error {
 	if env.attached {
 		return nil
 	}
+
+	cw := ConsoleHandler{
+		Websockets: env.server.websockets,
+	}
+
+	var err error
+	env.hires, err = env.client.ContainerAttach(context.TODO(), env.server.DockerContainer.ID,
+		types.ContainerAttachOptions{
+			Stdin:  true,
+			Stdout: true,
+			Stderr: true,
+			Stream: true,
+		})
+
+	if err != nil {
+		log.WithField("server", env.server.ID).WithError(err).Error("Failed to attach to docker container.")
+		return err
+	}
 	env.attached = true
+
+	go func() {
+		defer env.hires.Close()
+		defer func() {
+			env.attached = false
+		}()
+		io.Copy(cw, env.hires.Reader)
+	}()
+
 	return nil
 }
 

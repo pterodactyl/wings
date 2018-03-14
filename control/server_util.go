@@ -29,7 +29,7 @@ func (s *ServerStruct) Environment() (Environment, error) {
 	return s.environment, nil
 }
 
-func (s *ServerStruct) Websockets() *websockets.Hub {
+func (s *ServerStruct) Websockets() *websockets.Collection {
 	return s.websockets
 }
 

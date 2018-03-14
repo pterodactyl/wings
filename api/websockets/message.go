@@ -47,8 +47,8 @@ type ConsolePayload struct {
 	Line string `json:"line"`
 }
 
-func (h *Hub) Log(l ConsoleLevel, m string) {
-	h.Broadcast <- Message{
+func (c *Collection) Log(l ConsoleLevel, m string) {
+	c.Broadcast <- Message{
 		Type: MessageTypeConsole,
 		Payload: ConsolePayload{
 			Source: ConsoleSourceWings,

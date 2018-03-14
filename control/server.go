@@ -37,7 +37,7 @@ type Server interface {
 	Save() error
 
 	Environment() (Environment, error)
-	Websockets() *websockets.Hub
+	Websockets() *websockets.Collection
 
 	HasPermission(string, string) bool
 }
@@ -73,7 +73,7 @@ type ServerStruct struct {
 	// TODO remove
 	Keys map[string][]string `json:"keys"`
 
-	websockets *websockets.Hub
+	websockets *websockets.Collection
 	status     Status
 }
 
@@ -161,7 +161,7 @@ func (s *ServerStruct) init() error {
 	}
 	s.status = StatusStopped
 
-	s.websockets = websockets.NewHub()
+	s.websockets = websockets.NewCollection()
 	go s.websockets.Run()
 
 	var err error
