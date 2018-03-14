@@ -30,6 +30,10 @@ sudo -H -u vagrant bash -c 'go get -u github.com/derekparker/delve/cmd/dlv'
 echo "Install additional dependencies"
 apt-get -y install mercurial #tar unzip make gcc g++ python > /dev/null
 
+echo "Install ctop for fancy container monitoring"
+wget https://github.com/bcicen/ctop/releases/download/v0.7.1/ctop-0.7.1-linux-amd64 -O /usr/local/bin/ctop
+chmod +x /usr/local/bin/ctop
+
 echo "   ------------"
 echo "Gopath is /home/vagrant/go"
 echo "The project is mounted to /home/vagrant/go/src/github.com/pterodactyl/wings"
