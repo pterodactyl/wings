@@ -15,7 +15,7 @@ import (
 )
 
 func testServer() *ServerStruct {
-	viper.SetDefault(config.DataPath, "./data")
+	viper.SetDefault(config.DataPath, "./test_data")
 	return &ServerStruct{
 		ID: "testuuid-something-something",
 		Service: &Service{

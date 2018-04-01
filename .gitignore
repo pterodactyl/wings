@@ -39,6 +39,8 @@ wings.exe
 # IDE/Editor files (VS Code)
 /.vscode
 
+# test files
+test_*/
 
 # Keep all gitkeep files (This needs to stay at the bottom)
 !.gitkeep
