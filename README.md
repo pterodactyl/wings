@@ -1,4 +1,4 @@
-# Pterodactyl wings [![travis](https://img.shields.io/travis/Pterodactyl/wings.svg?style=flat-square)](https://travis-ci.org/Pterodactyl/wings) [![codacy quality](https://img.shields.io/codacy/grade/27a1576bda86450f853b1052b12fa570.svg?style=flat-square)](https://www.codacy.com/app/schrej/wings/dashboard) [![codacy coverage](https://img.shields.io/codacy/coverage/27a1576bda86450f853b1052b12fa570.svg?style=flat-square)](https://www.codacy.com/app/schrej/wings/files)
+# Pterodactyl wings [![travis](https://img.shields.io/travis/pterodactyl/wings.svg?style=flat-square)](https://travis-ci.org/pterodactyl/wings) [![codacy quality](https://img.shields.io/codacy/grade/27a1576bda86450f853b1052b12fa570.svg?style=flat-square)](https://www.codacy.com/app/schrej/wings/dashboard) [![codacy coverage](https://img.shields.io/codacy/coverage/27a1576bda86450f853b1052b12fa570.svg?style=flat-square)](https://www.codacy.com/app/schrej/wings/files)
 
 ```
                      ____

@@ -25,9 +25,6 @@
 #   unused-packages = true
 
 
-[[constraint]]
-  name = "github.com/gin-gonic/gin"
-  version = "~1.1.4"
 
 [[constraint]]
   name = "github.com/google/jsonapi"
@@ -38,14 +35,6 @@
   version = "~1.2.0"
 
 [[constraint]]
-  name = "github.com/lestrrat/go-file-rotatelogs"
-  version = "~2.0.0"
-
-[[constraint]]
-  name = "github.com/rifflock/lfshook"
-  version = "~1.7.0"
-
-[[constraint]]
   name = "github.com/shirou/gopsutil"
   version = "2.17.6"
 
@@ -54,8 +43,28 @@
   version = "~1.0.0"
 
 [[constraint]]
+  name = "github.com/gin-gonic/gin"
+  version = "1.2.0"
+
+[[constraint]]
+  name = "github.com/lestrrat-go/file-rotatelogs"
+  version = "2.1.0"
+
+[[constraint]]
+  name = "github.com/rifflock/lfshook"
+  version = "2.2.0"
+
+[[constraint]]
+  name = "github.com/spf13/cobra"
+  version = "0.0.2"
+
+[[constraint]]
+  name = "github.com/spf13/viper"
+  version = "1.0.0"
+
+[[constraint]]
   name = "github.com/stretchr/testify"
-  version = "~1.1.4"
+  version = "1.2.1"
 
 [prune]
   go-tests = true

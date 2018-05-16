@@ -17,10 +17,11 @@ import (
 
 // RootCommand is the root command of wings
 var RootCommand = &cobra.Command{
-	Use:   "wings",
-	Short: "",
-	Long:  "",
-	Run:   run,
+	Use:     "wings",
+	Short:   "Wings is the next generation server control daemon for Pterodactyl",
+	Long:    "Wings is the next generation server control daemon for Pterodactyl",
+	Run:     run,
+	Version: constants.Version,
 }
 
 var configPath string
@@ -38,7 +39,8 @@ func run(cmd *cobra.Command, args []string) {
 	utils.InitLogging()
 	log.Info("Loading configuration...")
 	if err := config.LoadConfiguration(configPath); err != nil {
-		log.WithError(err).Fatal("Failed to find configuration file")
+		log.WithError(err).Fatal("Could not locate a suitable config.yml file. Aborting startup.")
+		log.Exit(1)
 	}
 	utils.ConfigureLogging()
 
@@ -52,17 +54,15 @@ func run(cmd *cobra.Command, args []string) {
 
 	log.Info("Configuration loaded successfully.")
 
-	log.Info("Loading configured servers...")
+	log.Info("Loading configured servers.")
 	if err := control.LoadServerConfigurations(filepath.Join(viper.GetString(config.DataPath), constants.ServersPath)); err != nil {
 		log.WithError(err).Error("Failed to load configured servers.")
 	}
-	if amount := len(control.GetServers()); amount == 1 {
-		log.Info("Loaded 1 server.")
-	} else {
-		log.Info("Loaded " + strconv.Itoa(amount) + " servers.")
+	if amount := len(control.GetServers()); amount > 0 {
+		log.Info("Loaded " + strconv.Itoa(amount) + " server(s).")
 	}
 
-	log.Info("Starting api webserver...")
-	api := api.NewAPI()
+	log.Info("Starting API server.")
+	api := &api.InternalAPI{}
 	api.Listen()
 }
