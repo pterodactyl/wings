@@ -2,8 +2,9 @@ package api
 
 import (
 	"net/http"
+    "strings"
 
-	"strconv"
+    "strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/jsonapi"
@@ -71,7 +72,9 @@ func (a *authorizationManager) HasPermission(permission string) bool {
 func AuthHandler(permission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestToken := c.Request.Header.Get(accessTokenHeader)
-		if requestToken == "" {
+		if requestToken != "" && strings.HasPrefix(requestToken, "Baerer ") {
+            requestToken = requestToken[7:]
+        } else {
 			requestToken = c.Query("token")
 		}
 		requestServer := c.Param("server")

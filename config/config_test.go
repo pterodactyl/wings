@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const configFile = "../config.yml.example"
+const configFile = "../config.example.yml"
 
 func TestLoadConfiguraiton(t *testing.T) {
 	err := LoadConfiguration(configFile)

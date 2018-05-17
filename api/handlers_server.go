@@ -181,10 +181,6 @@ func handleGetConsole(c *gin.Context) {
 	server.Websockets().Upgrade(c.Writer, c.Request)
 }
 
-func handleGetServerLog(c *gin.Context) {
-
-}
-
 func handlePostServerSuspend(c *gin.Context) {
 
 }

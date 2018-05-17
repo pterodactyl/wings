@@ -51,7 +51,7 @@ func (api *InternalAPI) Listen() {
 func (api *InternalAPI) register() {
 	v1 := api.router.Group("/api/v1")
 	{
-		v1.GET("/", AuthHandler(""), GetIndex)
+		v1.GET("", AuthHandler(""), GetIndex)
 		//v1.PATCH("/config", AuthHandler("c:config"), PatchConfiguration)
 
 		v1.GET("/servers", AuthHandler("c:list"), handleGetServers)
@@ -59,15 +59,15 @@ func (api *InternalAPI) register() {
 
 		v1ServerRoutes := v1.Group("/servers/:server")
 		{
-			v1ServerRoutes.GET("/", AuthHandler("s:get"), handleGetServer)
-			v1ServerRoutes.PATCH("/", AuthHandler("s:config"), handlePatchServer)
-			v1ServerRoutes.DELETE("/", AuthHandler("g:server:delete"), handleDeleteServer)
+			v1ServerRoutes.GET("", AuthHandler("s:get"), handleGetServer)
+			v1ServerRoutes.PATCH("", AuthHandler("s:config"), handlePatchServer)
+			v1ServerRoutes.DELETE("", AuthHandler("g:server:delete"), handleDeleteServer)
 			v1ServerRoutes.POST("/reinstall", AuthHandler("s:install-server"), handlePostServerReinstall)
 			v1ServerRoutes.POST("/rebuild", AuthHandler("g:server:rebuild"), handlePostServerRebuild)
 			v1ServerRoutes.POST("/password", AuthHandler(""), handlePostServerPassword)
 			v1ServerRoutes.POST("/power", AuthHandler("s:power"), handlePostServerPower)
 			v1ServerRoutes.POST("/command", AuthHandler("s:command"), handlePostServerCommand)
-			v1ServerRoutes.GET("/log", AuthHandler("s:console"), handleGetServerLog)
+			v1ServerRoutes.GET("/log", AuthHandler("s:console"), handleGetConsole)
 			v1ServerRoutes.POST("/suspend", AuthHandler(""), handlePostServerSuspend)
 			v1ServerRoutes.POST("/unsuspend", AuthHandler(""), handlePostServerUnsuspend)
 		}
