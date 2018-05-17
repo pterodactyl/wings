@@ -1,0 +1,33 @@
+package: github.com/pterodactyl/wings
+import:
+- package: github.com/gin-gonic/gin
+  version: ~1.1.4
+- package: github.com/lestrrat/go-file-rotatelogs
+  version: ~2.0.0
+- package: github.com/rifflock/lfshook
+  version: ~1.7.0
+- package: github.com/sirupsen/logrus
+  version: ~1.0.0
+- package: github.com/Sirupsen/logrus
+  version: ~1.0.0
+  repo: https://github.com/sirupsen/logrus.git
+  vcs: git
+- package: github.com/spf13/viper
+- package: github.com/spf13/cobra
+- package: github.com/shirou/gopsutil
+  version: ^2.17.6
+- package: github.com/moby/moby
+  version: ~17.5.0-ce-rc3
+  subpackages:
+  - client
+- package: github.com/fsouza/go-dockerclient
+- package: github.com/hashicorp/go-cleanhttp
+- package: github.com/gorilla/websocket
+  version: ~1.2.0
+- package: github.com/google/jsonapi
+  version: ~1.0.0
+testImport:
+- package: github.com/stretchr/testify
+  version: ~1.1.4
+  subpackages:
+  - assert

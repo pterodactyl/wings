@@ -1,6 +1,6 @@
 # Gopkg.toml example
 #
-# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
+# Refer to https://golang.github.io/dep/docs/Gopkg.toml.html
 # for detailed Gopkg.toml documentation.
 #
 # required = ["github.com/user/thing/cmd/thing"]
@@ -25,16 +25,29 @@
 #   unused-packages = true
 
 
-#[[constraint]]
-#  branch = "develop"
-#  name = "github.com/pterodactyl/wings"
+
+[[constraint]]
+  name = "github.com/google/jsonapi"
+  version = "~1.0.0"
+
+[[constraint]]
+  name = "github.com/gorilla/websocket"
+  version = "~1.2.0"
+
+[[constraint]]
+  name = "github.com/shirou/gopsutil"
+  version = "2.17.6"
+
+[[constraint]]
+  name = "github.com/sirupsen/logrus"
+  version = "~1.0.0"
 
 [[constraint]]
   name = "github.com/gin-gonic/gin"
   version = "1.2.0"
 
 [[constraint]]
-  name = "github.com/lestrrat/go-file-rotatelogs"
+  name = "github.com/lestrrat-go/file-rotatelogs"
   version = "2.1.0"
 
 [[constraint]]
@@ -42,16 +55,8 @@
   version = "2.2.0"
 
 [[constraint]]
-  name = "github.com/shirou/gopsutil"
-  revision = "543a05cce094293c7747322720256bee15d88a12"
-
-[[constraint]]
-  name = "github.com/sirupsen/logrus"
-  version = "1.0.4"
-
-[[constraint]]
   name = "github.com/spf13/cobra"
-  version = "0.0.1"
+  version = "0.0.2"
 
 [[constraint]]
   name = "github.com/spf13/viper"
@@ -64,3 +69,11 @@
 [prune]
   go-tests = true
   unused-packages = true
+
+[[constraint]]
+  name = "github.com/docker/docker"
+  revision = "e3831a62a3052472d7252049bc59835d5d7dc8bd"
+
+[[override]]
+  name = "github.com/docker/distribution"
+  branch = "master"

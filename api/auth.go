@@ -2,8 +2,12 @@ package api
 
 import (
 	"net/http"
+    "strings"
+
+    "strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/jsonapi"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/control"
 	log "github.com/sirupsen/logrus"
@@ -62,15 +66,25 @@ func (a *authorizationManager) HasPermission(permission string) bool {
 
 // AuthHandler returns a HandlerFunc that checks request authentication
 // permission is a permission string describing the required permission to access the route
+//
+// The AuthHandler looks for an access token header (defined in accessTokenHeader)
+// or a `token` request parameter
 func AuthHandler(permission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestToken := c.Request.Header.Get(accessTokenHeader)
+		if requestToken != "" && strings.HasPrefix(requestToken, "Baerer ") {
+            requestToken = requestToken[7:]
+        } else {
+			requestToken = c.Query("token")
+		}
 		requestServer := c.Param("server")
 		var server control.Server
 
 		if requestToken == "" && permission != "" {
-			log.Debug("Token missing in request.")
-			c.JSON(http.StatusBadRequest, responseError{"Missing required " + accessTokenHeader + " header."})
+			sendErrors(c, http.StatusUnauthorized, &jsonapi.ErrorObject{
+				Title:  "Missing required " + accessTokenHeader + " header or token param.",
+				Status: strconv.Itoa(http.StatusUnauthorized),
+			})
 			c.Abort()
 			return
 		}
@@ -90,7 +104,7 @@ func AuthHandler(permission string) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusForbidden, responseError{"You do not have permission to perform this action."})
+		sendForbidden(c)
 		c.Abort()
 	}
 }
@@ -104,19 +118,6 @@ func GetContextAuthManager(c *gin.Context) AuthorizationManager {
 	}
 	if auth, ok := auth.(AuthorizationManager); ok {
 		return auth
-	}
-	return nil
-}
-
-// GetContextServer returns a control.Server contained in a gin.Context
-// or null
-func GetContextServer(c *gin.Context) control.Server {
-	server, exists := c.Get(contextVarAuth)
-	if !exists {
-		return nil
-	}
-	if server, ok := server.(control.Server); ok {
-		return server
 	}
 	return nil
 }

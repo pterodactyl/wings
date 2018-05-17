@@ -6,9 +6,6 @@ import (
 	//"runtime"
 
 	"github.com/gin-gonic/gin"
-	//"github.com/pterodactyl/wings/constants"
-	//"github.com/shirou/gopsutil/host"
-
 	"github.com/shirou/gopsutil/cpu"
 	//"github.com/shirou/gopsutil/host"
 	//"github.com/shirou/gopsutil/mem"
@@ -128,7 +125,7 @@ type incomingConfiguration struct {
 }
 
 // handlePatchConfig handles PATCH /config
-func handlePatchConfig(c *gin.Context) {
+func PatchConfiguration(c *gin.Context) {
 	// reqBody, err := ioutil.ReadAll(c.Request.Body)
 	// if err != nil {
 	// 	log.WithError(err).Error("Failed to read input.")

@@ -3,25 +3,29 @@ package api
 import (
 	"net/http"
 
+	"strconv"
+
 	"github.com/gin-gonic/gin"
+	"github.com/google/jsonapi"
 	"github.com/pterodactyl/wings/control"
 	log "github.com/sirupsen/logrus"
 )
 
 // GET /servers
-// TODO: make jsonapi compliant
 func handleGetServers(c *gin.Context) {
 	servers := control.GetServers()
-	c.JSON(http.StatusOK, servers)
+	sendData(c, servers)
 }
 
 // POST /servers
-// TODO: make jsonapi compliant
 func handlePostServers(c *gin.Context) {
 	server := control.ServerStruct{}
 	if err := c.BindJSON(&server); err != nil {
 		log.WithField("server", server).WithError(err).Error("Failed to parse server request.")
-		c.Status(http.StatusBadRequest)
+		sendErrors(c, http.StatusBadRequest, &jsonapi.ErrorObject{
+			Status: strconv.Itoa(http.StatusBadRequest),
+			Title:  "The passed server object is invalid.",
+		})
 		return
 	}
 	var srv control.Server
@@ -30,10 +34,14 @@ func handlePostServers(c *gin.Context) {
 		if _, ok := err.(control.ErrServerExists); ok {
 			log.WithError(err).Error("Cannot create server, it already exists.")
 			c.Status(http.StatusBadRequest)
+			sendErrors(c, http.StatusConflict, &jsonapi.ErrorObject{
+				Status: strconv.Itoa(http.StatusConflict),
+				Title:  "A server with this ID already exists.",
+			})
 			return
 		}
 		log.WithField("server", server).WithError(err).Error("Failed to create server.")
-		c.Status(http.StatusInternalServerError)
+		sendInternalError(c, "Failed to create the server", "")
 		return
 	}
 	go func() {
@@ -43,19 +51,22 @@ func handlePostServers(c *gin.Context) {
 		}
 		env.Create()
 	}()
-	c.JSON(http.StatusOK, srv)
+	sendDataStatus(c, http.StatusCreated, srv)
 }
 
 // GET /servers/:server
-// TODO: make jsonapi compliant
 func handleGetServer(c *gin.Context) {
 	id := c.Param("server")
 	server := control.GetServer(id)
 	if server == nil {
-		c.Status(http.StatusNotFound)
+		sendErrors(c, http.StatusNotFound, &jsonapi.ErrorObject{
+			Code:   strconv.Itoa(http.StatusNotFound),
+			Title:  "Server not found.",
+			Detail: "The requested Server with the id " + id + " couldn't be found.",
+		})
 		return
 	}
-	c.JSON(http.StatusOK, server)
+	sendData(c, server)
 }
 
 // PATCH /servers/:server
@@ -64,7 +75,6 @@ func handlePatchServer(c *gin.Context) {
 }
 
 // DELETE /servers/:server
-// TODO: make jsonapi compliant
 func handleDeleteServer(c *gin.Context) {
 	id := c.Param("server")
 	server := control.GetServer(id)
@@ -75,18 +85,21 @@ func handleDeleteServer(c *gin.Context) {
 
 	env, err := server.Environment()
 	if err != nil {
-		log.WithError(err).WithField("server", server).Error("Failed to delete server.")
+		sendInternalError(c, "The server could not be deleted.", "")
+		return
 	}
 	if err := env.Destroy(); err != nil {
 		log.WithError(err).Error("Failed to delete server, the environment couldn't be destroyed.")
+		sendInternalError(c, "The server could not be deleted.", "The server environment couldn't be destroyed.")
+		return
 	}
 
 	if err := control.DeleteServer(id); err != nil {
 		log.WithError(err).Error("Failed to delete server.")
-		c.Status(http.StatusInternalServerError)
+		sendInternalError(c, "The server could not be deleted.", "")
 		return
 	}
-	c.Status(http.StatusOK)
+	c.Status(http.StatusNoContent)
 }
 
 func handlePostServerReinstall(c *gin.Context) {
@@ -102,7 +115,6 @@ func handlePostServerRebuild(c *gin.Context) {
 }
 
 // POST /servers/:server/power
-// TODO: make jsonapi compliant
 func handlePostServerPower(c *gin.Context) {
 	server := getServerFromContext(c)
 	if server == nil {
@@ -112,7 +124,7 @@ func handlePostServerPower(c *gin.Context) {
 
 	auth := GetContextAuthManager(c)
 	if auth == nil {
-		c.Status(http.StatusInternalServerError)
+		sendInternalError(c, "An internal error occured.", "")
 		return
 	}
 
@@ -120,7 +132,7 @@ func handlePostServerPower(c *gin.Context) {
 	case "start":
 		{
 			if !auth.HasPermission("s:power:start") {
-				c.Status(http.StatusForbidden)
+				sendForbidden(c)
 				return
 			}
 			server.Start()
@@ -128,7 +140,7 @@ func handlePostServerPower(c *gin.Context) {
 	case "stop":
 		{
 			if !auth.HasPermission("s:power:stop") {
-				c.Status(http.StatusForbidden)
+				sendForbidden(c)
 				return
 			}
 			server.Stop()
@@ -136,7 +148,7 @@ func handlePostServerPower(c *gin.Context) {
 	case "restart":
 		{
 			if !auth.HasPermission("s:power:restart") {
-				c.Status(http.StatusForbidden)
+				sendForbidden(c)
 				return
 			}
 			server.Restart()
@@ -144,7 +156,7 @@ func handlePostServerPower(c *gin.Context) {
 	case "kill":
 		{
 			if !auth.HasPermission("s:power:kill") {
-				c.Status(http.StatusForbidden)
+				sendForbidden(c)
 				return
 			}
 			server.Kill()
@@ -157,15 +169,16 @@ func handlePostServerPower(c *gin.Context) {
 }
 
 // POST /servers/:server/command
-// TODO: make jsonapi compliant
 func handlePostServerCommand(c *gin.Context) {
 	server := getServerFromContext(c)
 	cmd := c.Query("command")
 	server.Exec(cmd)
+	c.Status(204)
 }
 
-func handleGetServerLog(c *gin.Context) {
-
+func handleGetConsole(c *gin.Context) {
+	server := getServerFromContext(c)
+	server.Websockets().Upgrade(c.Writer, c.Request)
 }
 
 func handlePostServerSuspend(c *gin.Context) {

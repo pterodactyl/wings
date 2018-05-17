@@ -3,12 +3,13 @@ package utils
 import (
 	"os"
 	"path/filepath"
+	"time"
 	//"time"
 
 	"github.com/pterodactyl/wings/constants"
 
-	//"github.com/lestrrat/go-file-rotatelogs"
-	//"github.com/rifflock/lfshook"
+	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
+	"github.com/rifflock/lfshook"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 
@@ -30,20 +31,23 @@ func ConfigureLogging() error {
 	if err := os.MkdirAll(path, constants.DefaultFolderPerms); err != nil {
 		return err
 	}
-	//writer := rotatelogs.New(
-	//	path+"/wings.%Y%m%d-%H%M.log",
-	//	rotatelogs.WithLinkName(path),
-	//	rotatelogs.WithMaxAge(time.Duration(viper.GetInt(config.LogDeleteAfterDays))*time.Hour*24),
-	//	rotatelogs.WithRotationTime(time.Duration(604800)*time.Second),
-	//)
-	//
-	//log.AddHook(lfshook.NewHook(lfshook.WriterMap{
-	//	log.DebugLevel: writer,
-	//	log.InfoLevel:  writer,
-	//	log.WarnLevel:  writer,
-	//	log.ErrorLevel: writer,
-	//	log.FatalLevel: writer,
-	//}))
+	writer, err := rotatelogs.New(
+		path+"/wings.%Y%m%d-%H%M.log",
+		rotatelogs.WithLinkName(path),
+		rotatelogs.WithMaxAge(time.Duration(viper.GetInt(config.LogDeleteAfterDays))*time.Hour*24),
+		rotatelogs.WithRotationTime(time.Hour*24),
+	)
+	if err != nil {
+		return err
+	}
+
+	log.AddHook(lfshook.NewHook(lfshook.WriterMap{
+		log.DebugLevel: writer,
+		log.InfoLevel:  writer,
+		log.WarnLevel:  writer,
+		log.ErrorLevel: writer,
+		log.FatalLevel: writer,
+	}, &log.JSONFormatter{}))
 
 	level := viper.GetString(config.LogLevel)
 

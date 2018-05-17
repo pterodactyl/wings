@@ -1,58 +1,12 @@
 package api
 
-import (
-	"fmt"
-
-	"github.com/gin-gonic/gin"
-	"github.com/pterodactyl/wings/config"
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
-)
-
-type InternalAPI struct {
-	router *gin.Engine
-}
-
-// Configure the API and begin listening on the configured IP and Port.
-func (api *InternalAPI) Listen() {
-	if !viper.GetBool(config.Debug) {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	api.router = gin.Default()
-	api.router.RedirectTrailingSlash = false
-
-	// Setup Access-Control origin headers. Down the road once this is closer to
-	// release we should setup this header properly and lock it down to the domain
-	// used to run the Panel.
-	api.router.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-	})
-
-	api.router.OPTIONS("/", func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Authorization")
-	})
-
-	// Register all of the API route bindings.
-	api.register()
-
-	l := fmt.Sprintf("%s:%d", viper.GetString(config.APIHost), viper.GetInt(config.APIPort))
-	api.router.Run(l)
-
-	logrus.Info("API Server is now listening on %s", l)
-}
-
-// Register routes for v1 of the API. This API should be fully backwards compatable with
-// the existing Nodejs Daemon API.
-//
-// Routes that are not yet completed are commented out. Routes are grouped where possible
-// to keep this function organized.
-func (api *InternalAPI) register() {
-	v1 := api.router.Group("/api/v1")
+func (api *InternalAPI) RegisterRoutes() {
+	// Register routes for v1 of the API. This API should be fully backwards compatable with
+	// the existing Nodejs Daemon API.
+	v1 := api.router.Group("/v1")
 	{
 		v1.GET("", AuthHandler(""), GetIndex)
-		//v1.PATCH("/config", AuthHandler("c:config"), PatchConfiguration)
+		v1.PATCH("/config", AuthHandler("c:config"), PatchConfiguration)
 
 		v1.GET("/servers", AuthHandler("c:list"), handleGetServers)
 		v1.POST("/servers", AuthHandler("c:create"), handlePostServers)
@@ -67,7 +21,8 @@ func (api *InternalAPI) register() {
 			v1ServerRoutes.POST("/password", AuthHandler(""), handlePostServerPassword)
 			v1ServerRoutes.POST("/power", AuthHandler("s:power"), handlePostServerPower)
 			v1ServerRoutes.POST("/command", AuthHandler("s:command"), handlePostServerCommand)
-			v1ServerRoutes.GET("/log", AuthHandler("s:console"), handleGetConsole)
+			v1ServerRoutes.GET("/console", AuthHandler("s:console"), handleGetConsole)
+			v1ServerRoutes.GET("/log", AuthHandler("s:console"), handleGetServerLog)
 			v1ServerRoutes.POST("/suspend", AuthHandler(""), handlePostServerSuspend)
 			v1ServerRoutes.POST("/unsuspend", AuthHandler(""), handlePostServerUnsuspend)
 		}
