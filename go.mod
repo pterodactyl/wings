@@ -41,6 +41,9 @@ require (
 	github.com/spf13/viper v1.0.2
 	github.com/stretchr/testify v1.2.1
 	github.com/ugorji/go v0.0.0-20180112141927-9831f2c3ac10 // indirect
+	go.uber.org/atomic v1.3.2 // indirect
+	go.uber.org/multierr v1.1.0 // indirect
+	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20180330210355-12892e8c234f // indirect
 	golang.org/x/net v0.0.0-20180330215511-b68f30494add // indirect
 	golang.org/x/sys v0.0.0-20180329131831-378d26f46672 // indirect
