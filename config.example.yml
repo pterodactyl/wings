@@ -7,8 +7,7 @@ api:
     enabled: false
     cert: ''
     key: ''
-  uploads:
-    size_limit: 150000000
+  upload_limit: 150000000
 docker:
   container:
     user: ''
@@ -18,24 +17,12 @@ docker:
   update_images: true
   socket: '/var/run/docker.sock'
   timezone_path: '/etc/timezone'
-sftp:
-  host: '0.0.0.0'
-  port: 2022
-  keypair:
-    bits: 2048
-    e: 65537
-log:
-  path: './logs/'
-  level: 'info'
-  prune_days: 10
-internal:
-  temp_logs: '/tmp/pterodactyl'
-  disk_check_seconds: 30
-  set_permissions_on_boot: true
-  throttle:
-    kill_at_count: 5
-    decay: 10
-    bytes: 4096
-    check_interval_ms: 100
+set_permissions_on_boot: true
+disk_check_timeout: 30
+throttles:
+  kill_at_count: 5
+  decay: 10
+  bytes: 4096
+  check_interval: 100
 remote: 'http://example.com'
 token: 'test123'

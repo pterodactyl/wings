@@ -6,34 +6,41 @@ import (
     "go.uber.org/zap"
 )
 
-var (
-    configPath string
-    debug      bool
-)
-
 // Entrypoint for the Wings application. Configures the logger and checks any
 // flags that were passed through in the boot arguments.
 func main() {
-    flag.StringVar(&configPath, "config", "config.yml", "set the location for the configuration file")
-    flag.BoolVar(&debug, "debug", false, "pass in order to run wings in debug mode")
+    var configPath = *flag.String("config", "config.yml", "set the location for the configuration file")
+    var debug = *flag.Bool("debug", false, "pass in order to run wings in debug mode")
 
     flag.Parse()
 
-    printLogo()
-    if err := configureLogging(); err != nil {
+    zap.S().Infof("using configuration file: %s", configPath)
+
+    c, err := ReadConfiguration(configPath)
+    if err != nil {
         panic(err)
+        return
     }
 
     if debug {
+        c.Debug = true
+    }
+
+    printLogo()
+    if err := configureLogging(c.Debug); err != nil {
+        panic(err)
+    }
+
+    if c.Debug {
         zap.S().Debugw("running in debug mode")
     }
 
-    zap.S().Infof("using configuration file: %s", configPath)
+    zap.S().Infow("configuration initalized", zap.Any("config", c))
 }
 
 // Configures the global logger for Zap so that we can call it from any location
 // in the code without having to pass around a logger instance.
-func configureLogging() error {
+func configureLogging(debug bool) error {
     cfg := zap.NewProductionConfig()
     if debug {
         cfg = zap.NewDevelopmentConfig()
