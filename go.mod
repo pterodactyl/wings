@@ -30,7 +30,7 @@ require (
 	github.com/pelletier/go-toml v1.1.0 // indirect
 	github.com/pkg/errors v0.8.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/remeh/sizedwaitgroup v0.0.0-20180822144253-5e7302b12cce // indirect
+	github.com/remeh/sizedwaitgroup v0.0.0-20180822144253-5e7302b12cce
 	github.com/rifflock/lfshook v0.0.0-20180227222202-bf539943797a // indirect
 	github.com/shirou/gopsutil v0.0.0-20180227225847-5776ff9c7c5d
 	github.com/sirupsen/logrus v1.0.5

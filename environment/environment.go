@@ -1,7 +1,6 @@
 package environment
 
 import (
-	"github.com/pterodactyl/wings/server"
 	"os"
 )
 
@@ -24,12 +23,4 @@ type Environment interface {
 	// Terminates a running server instance using the provided signal. If the server
 	// is not running no error should be returned.
 	Terminate(signal os.Signal) error
-}
-
-// Defines an environment controller for a server instance. This can either be
-// a docker environment where the server is running in a container, or a host
-// CLI environment where it is not running in a container at all (theoretically).
-type Controller struct {
-	// The server instance attached to this environment.
-	Server *server.Server
 }

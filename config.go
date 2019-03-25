@@ -1,6 +1,7 @@
-package wings
+package main
 
 import (
+	"github.com/pterodactyl/wings/environment"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -15,7 +16,7 @@ type Configuration struct {
 	Data string
 
 	Api    *ApiConfiguration
-	Docker *DockerConfiguration
+	Docker *environment.DockerConfiguration
 
 	// Determines if permissions for a server should be set automatically on
 	// daemon boot. This can take a long time on systems with many servers, or on
@@ -78,39 +79,6 @@ type ApiConfiguration struct {
 	UploadLimit int `yaml:"upload_limit"`
 }
 
-// Defines the docker configuration used by the daemon when interacting with
-// containers and networks on the system.
-type DockerConfiguration struct {
-	Container struct {
-		User string
-	}
-
-	// Network configuration that should be used when creating a new network
-	// for containers run through the daemon.
-	Network struct {
-		// The interface that should be used to create the network. Must not conflict
-		// with any other interfaces in use by Docker or on the system.
-		Interface string
-
-		// The name of the network to use. If this network already exists it will not
-		// be created. If it is not found, a new network will be created using the interface
-		// defined.
-		Name string
-	}
-
-	// If true, container images will be updated when a server starts if there
-	// is an update available. If false the daemon will not attempt updates and will
-	// defer to the host system to manage image updates.
-	UpdateImages bool `yaml:"update_images"`
-
-	// The location of the Docker socket.
-	Socket string
-
-	// Defines the location of the timezone file on the host system that should
-	// be mounted into the created containers so that they all use the same time.
-	TimezonePath string `yaml:"timezone_path"`
-}
-
 // Configures the default values for many of the configuration options present
 // in the structs. If these values are set in the configuration file they will
 // be overridden. However, if they don't exist and we don't set these here, all
@@ -146,7 +114,7 @@ func (c *Configuration) SetDefaults() {
 	c.Throttles.CheckInterval = 100
 
 	// Configure the defaults for Docker connection and networks.
-	c.Docker = &DockerConfiguration{}
+	c.Docker = &environment.DockerConfiguration{}
 	c.Docker.UpdateImages = true
 	c.Docker.Socket = "/var/run/docker.sock"
 	c.Docker.Network.Name = "pterodactyl_nw"

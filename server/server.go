@@ -1,13 +1,13 @@
 package server
 
 import (
-	"github.com/pterodactyl/wings"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 )
 
@@ -79,38 +79,62 @@ type Allocations struct {
 
 // Iterates over a given directory and loads all of the servers listed before returning
 // them to the calling function.
-func LoadDirectory(dir string) (*[]Server, error) {
-	wg := sizedwaitgroup.New(5)
+func LoadDirectory(dir string, cfg environment.DockerConfiguration) ([]*Server, error) {
+	// We could theoretically use a standard wait group here, however doing
+	// that introduces the potential to crash the program due to too many
+	// open files. This wouldn't happen on a small setup, but once the daemon is
+	// handling many servers you run that risk.
+	//
+	// For now just process 10 files at a time, that should be plenty fast to
+	// read and parse the YAML. We should probably make this configurable down
+	// the road to help big instances scale better.
+	wg := sizedwaitgroup.New(10)
 
 	f, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	zap.S().Debug("starting loop")
+	var servers []*Server
+
 	for _, file := range f {
-		if !strings.HasSuffix(file.Name(), ".yml") {
+		if !strings.HasSuffix(file.Name(), ".yml") || file.IsDir() {
 			continue
 		}
 
 		wg.Add()
+		// For each of the YAML files we find, parse it and create a new server
+		// configuration object that can then be returned to the caller.
 		go func(file os.FileInfo) {
-			zap.S().Debugw("processing in parallel", zap.String("name", file.Name()))
-			wg.Done()
+			defer wg.Done()
+
+			b, err := ioutil.ReadFile(path.Join(dir, file.Name()))
+			if err != nil {
+				zap.S().Errorw("failed to read server configuration file, skipping...", zap.Error(err))
+				return
+			}
+
+			s, err := FromConfiguration(b, cfg)
+			if err != nil {
+				zap.S().Errorw("failed to parse server configuration, skipping...", zap.Error(err))
+				return
+			}
+
+			servers = append(servers, s)
 		}(file)
 	}
 
+	// Wait until we've processed all of the configuration files in the directory
+	// before continuing.
 	wg.Wait()
 
-	zap.S().Debug("done processing files")
-
-	return nil, nil
+	return servers, nil
 }
 
 // Initalizes a server using a data byte array. This will be marshaled into the
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
-func FromConfiguration(data []byte, cfg wings.DockerConfiguration) (*Server, error) {
+func FromConfiguration(data []byte, cfg environment.DockerConfiguration) (*Server, error) {
 	s := &Server{}
 
 	if err := yaml.Unmarshal(data, s); err != nil {
@@ -122,9 +146,6 @@ func FromConfiguration(data []byte, cfg wings.DockerConfiguration) (*Server, err
 	// some modifications here obviously.
 	var env environment.Environment
 	env = &environment.Docker{
-		Controller: &environment.Controller{
-			Server: s,
-		},
 		Configuration: cfg,
 	}
 

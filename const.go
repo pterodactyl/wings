@@ -1,4 +1,4 @@
-package wings
+package main
 
 import "os"
 

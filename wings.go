@@ -1,4 +1,4 @@
-package wings
+package main
 
 import (
 	"flag"
@@ -36,9 +36,15 @@ func main() {
 		zap.S().Debugw("running in debug mode")
 	}
 
-	zap.S().Infow("configuration initalized", zap.Any("config", c))
+	servers, err := server.LoadDirectory("config/servers", *c.Docker)
+	if err != nil {
+		zap.S().Fatalw("failed to load server configurations", zap.Error(err))
+		return
+	}
 
-	server.LoadDirectory("config/servers")
+	for _, s := range servers {
+		zap.S().Infow("loaded configuration for server", zap.String("server", s.Uuid))
+	}
 }
 
 // Configures the global logger for Zap so that we can call it from any location
