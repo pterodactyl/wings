@@ -1,4 +1,4 @@
-package main
+package wings
 
 import (
     "gopkg.in/yaml.v2"
