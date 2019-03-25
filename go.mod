@@ -20,7 +20,7 @@ require (
 	github.com/gorilla/websocket v1.2.0
 	github.com/hashicorp/hcl v0.0.0-20180320202055-f40e974e75af // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/lestrrat-go/file-rotatelogs v2.1.0+incompatible
+	github.com/lestrrat-go/file-rotatelogs v2.1.0+incompatible // indirect
 	github.com/lestrrat/go-strftime v0.0.0-20180220042222-ba3bf9c1d042 // indirect
 	github.com/magiconair/properties v1.7.6 // indirect
 	github.com/mattn/go-isatty v0.0.3 // indirect
@@ -30,12 +30,13 @@ require (
 	github.com/pelletier/go-toml v1.1.0 // indirect
 	github.com/pkg/errors v0.8.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/rifflock/lfshook v0.0.0-20180227222202-bf539943797a
+	github.com/remeh/sizedwaitgroup v0.0.0-20180822144253-5e7302b12cce // indirect
+	github.com/rifflock/lfshook v0.0.0-20180227222202-bf539943797a // indirect
 	github.com/shirou/gopsutil v0.0.0-20180227225847-5776ff9c7c5d
 	github.com/sirupsen/logrus v1.0.5
 	github.com/spf13/afero v1.0.2 // indirect
 	github.com/spf13/cast v1.2.0 // indirect
-	github.com/spf13/cobra v0.0.2
+	github.com/spf13/cobra v0.0.2 // indirect
 	github.com/spf13/jwalterweatherman v0.0.0-20180109140146-7c0cea34c8ec // indirect
 	github.com/spf13/pflag v1.0.0 // indirect
 	github.com/spf13/viper v1.0.2
