@@ -20,10 +20,15 @@ type Server struct {
     // The power state of the server.
     State int
 
+    // The command that should be used when booting up the server instance.
+    Invocation string
+
+    // An array of environment variables that should be passed along to the running
+    // server process.
     EnvVars map[string]string `yaml:"env"`
 
-    Build   *BuildSettings
-    Network *Allocations
+    Build       *BuildSettings
+    Allocations *Allocations
 
     environment *environment.Environment
 }
@@ -33,22 +38,22 @@ type Server struct {
 type BuildSettings struct {
     // The total amount of memory in megabytes that this server is allowed to
     // use on the host system.
-    MemoryLimit int
+    MemoryLimit int `yaml:"memory"`
 
     // The amount of additional swap space to be provided to a container instance.
     Swap int
 
     // The relative weight for IO operations in a container. This is relative to other
     // containers on the system and should be a value between 10 and 1000.
-    IoWeight int
+    IoWeight int `yaml:"io"`
 
     // The percentage of CPU that this instance is allowed to consume relative to
     // the host. A value of 200% represents complete utilization of two cores. This
     // should be a value between 1 and THREAD_COUNT * 100.
-    CpuLimit int
+    CpuLimit int `yaml:"cpu"`
 
     // The amount of disk space in megabytes that a server is allowed to use.
-    DiskSpace int
+    DiskSpace int `yaml:"disk"`
 }
 
 // Defines the allocations available for a given server. When using the Docker environment
@@ -60,7 +65,7 @@ type Allocations struct {
     DefaultMapping struct {
         Ip   string
         Port int
-    }
+    } `yaml:"default"`
 
     // Mappings contains all of the ports that should be assigned to a given server
     // attached to the IP they correspond to.
