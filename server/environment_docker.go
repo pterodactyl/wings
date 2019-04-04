@@ -225,8 +225,8 @@ func (d *DockerEnvironment) portBindings() nat.PortMap {
 				},
 			}
 
-			out[nat.Port(fmt.Sprintf("%s/tcp", port))] = binding
-			out[nat.Port(fmt.Sprintf("%s/udp", port))] = binding
+			out[nat.Port(fmt.Sprintf("%d/tcp", port))] = binding
+			out[nat.Port(fmt.Sprintf("%d/udp", port))] = binding
 		}
 	}
 
