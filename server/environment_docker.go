@@ -6,6 +6,7 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/daemon/logger/jsonfilelog"
+	"github.com/docker/go-connections/nat"
 	"golang.org/x/net/context"
 	"os"
 	"strings"
@@ -99,6 +100,8 @@ func (d *DockerEnvironment) Create() error {
 		OpenStdin:    true,
 		Tty:          true,
 
+		ExposedPorts: d.exposedPorts(),
+
 		Image: d.Server.Container.Image,
 		Env:   d.environmentVariables(),
 
@@ -108,6 +111,8 @@ func (d *DockerEnvironment) Create() error {
 	}
 
 	hostConf := &container.HostConfig{
+		PortBindings: d.portBindings(),
+
 		// Configure the mounts for this container. First mount the server data directory
 		// into the container as a r/w bind. Additionally mount the host timezone data into
 		// the container as a readonly bind so that software running in the container uses
@@ -199,4 +204,47 @@ func (d *DockerEnvironment) environmentVariables() []string {
 
 func (d *DockerEnvironment) volumes() map[string]struct{} {
 	return nil
+}
+
+// Converts the server allocation mappings into a format that can be understood
+// by Docker.
+func (d *DockerEnvironment) portBindings() nat.PortMap {
+	var out = nat.PortMap{}
+
+	for ip, ports := range d.Server.Allocations.Mappings {
+		for _, port := range ports {
+			// Skip over invalid ports.
+			if port < 0 || port > 65535 {
+				continue
+			}
+
+			binding := []nat.PortBinding{
+				{
+					HostIP:   ip,
+					HostPort: string(port),
+				},
+			}
+
+			out[nat.Port(fmt.Sprintf("%s/tcp", port))] = binding
+			out[nat.Port(fmt.Sprintf("%s/udp", port))] = binding
+		}
+	}
+
+	return out
+}
+
+// Converts the server allocation mappings into a PortSet that can be understood
+// by Docker. This formatting is slightly different than portBindings as it should
+// return an empty struct rather than a binding.
+//
+// To accomplish this, we'll just get the values from portBindings and then set them
+// to empty structs. Because why not.
+func (d *DockerEnvironment) exposedPorts() nat.PortSet {
+	var out = nat.PortSet{}
+
+	for port := range d.portBindings() {
+		out[port] = struct{}{}
+	}
+
+	return out
 }
