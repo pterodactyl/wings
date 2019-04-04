@@ -40,6 +40,8 @@ type Server struct {
 	}
 
 	environment Environment
+
+	fs *Filesystem
 }
 
 // The build settings for a given server that impact docker container creation and
@@ -54,7 +56,7 @@ type BuildSettings struct {
 
 	// The relative weight for IO operations in a container. This is relative to other
 	// containers on the system and should be a value between 10 and 1000.
-	IoWeight int64 `yaml:"io"`
+	IoWeight uint16 `yaml:"io"`
 
 	// The percentage of CPU that this instance is allowed to consume relative to
 	// the host. A value of 200% represents complete utilization of two cores. This
@@ -63,6 +65,28 @@ type BuildSettings struct {
 
 	// The amount of disk space in megabytes that a server is allowed to use.
 	DiskSpace int64 `yaml:"disk"`
+}
+
+// Converts the CPU limit for a server build into a number that can be better understood
+// by the Docker environment. If there is no limit set, return -1 which will indicate to
+// Docker that it has unlimited CPU quota.
+func (b *BuildSettings) ConvertedCpuLimit() int64 {
+	if b.CpuLimit == 0 {
+		return -1
+	}
+
+	return b.CpuLimit * 1000
+}
+
+// Returns the amount of swap available as a total in bytes. This is returned as the amount
+// of memory available to the server initially, PLUS the amount of additional swap to include
+// which is the format used by Docker.
+func (b *BuildSettings) ConvertedSwap() int64 {
+	if b.Swap < 0 {
+		return -1
+	}
+
+	return (b.Swap * 1000000) + (b.MemoryLimit * 1000000)
 }
 
 // Defines the allocations available for a given server. When using the Docker environment
@@ -156,7 +180,17 @@ func FromConfiguration(data []byte, cfg DockerConfiguration) (*Server, error) {
 
 	s.environment = env
 
+	s.fs = &Filesystem{
+		// @todo adjust this to be configuration provided!
+		Root: "/srv/daemon-data",
+		Server: s,
+	}
+
 	return s, nil
+}
+
+func (s *Server) Filesystem() *Filesystem {
+	return s.fs
 }
 
 // Determine if the server is bootable in it's current state or not. This will not

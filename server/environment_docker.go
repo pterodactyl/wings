@@ -3,7 +3,9 @@ package server
 import (
 	"fmt"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/daemon/logger/jsonfilelog"
 	"golang.org/x/net/context"
 	"os"
 	"strings"
@@ -79,6 +81,8 @@ func (d *DockerEnvironment) Create() error {
 		return err
 	}
 
+	var oomDisabled = true
+
 	// If the container already exists don't hit the user with an error, just return
 	// the current information about it which is what we would do when creating the
 	// container anyways.
@@ -87,16 +91,16 @@ func (d *DockerEnvironment) Create() error {
 	}
 
 	conf := &container.Config{
-		Hostname: "container",
-		User: d.Configuration.Container.User,
-		AttachStdin: true,
+		Hostname:     "container",
+		User:         d.Configuration.Container.User,
+		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
-		OpenStdin: true,
-		Tty: true,
+		OpenStdin:    true,
+		Tty:          true,
 
 		Image: d.Server.Container.Image,
-		Env: d.environmentVariables(),
+		Env:   d.environmentVariables(),
 
 		Labels: map[string]string{
 			"Service": "Pterodactyl",
@@ -104,9 +108,69 @@ func (d *DockerEnvironment) Create() error {
 	}
 
 	hostConf := &container.HostConfig{
-		Resources: container.Resources{
-			Memory: d.Server.Build.MemoryLimit * 1000000,
+		// Configure the mounts for this container. First mount the server data directory
+		// into the container as a r/w bind. Additionally mount the host timezone data into
+		// the container as a readonly bind so that software running in the container uses
+		// the same time as the host system.
+		Mounts: []mount.Mount{
+			{
+				Target:   "/home/container",
+				Source:   d.Server.Filesystem().Path(),
+				Type:     mount.TypeBind,
+				ReadOnly: false,
+			},
+			{
+				Target:   d.Configuration.TimezonePath,
+				Source:   d.Configuration.TimezonePath,
+				Type:     mount.TypeBind,
+				ReadOnly: true,
+			},
 		},
+
+		// Configure the /tmp folder mapping in containers. This is necessary for some
+		// games that need to make use of it for downloads and other installation processes.
+		Tmpfs: map[string]string{
+			"/tmp": "rw,exec,nosuid,size=50M",
+		},
+
+		// Define resource limits for the container based on the data passed through
+		// from the Panel.
+		Resources: container.Resources{
+			// @todo memory limit should be slightly higher than the reservation
+			Memory:            d.Server.Build.MemoryLimit * 1000000,
+			MemoryReservation: d.Server.Build.MemoryLimit * 1000000,
+			MemorySwap:        d.Server.Build.ConvertedSwap(),
+
+			CPUQuota:  d.Server.Build.ConvertedCpuLimit(),
+			CPUPeriod: 100000,
+			CPUShares: 1024,
+
+			BlkioWeight:    d.Server.Build.IoWeight,
+			OomKillDisable: &oomDisabled,
+		},
+
+		// @todo make this configurable again
+		DNS: []string{"1.1.1.1", "8.8.8.8"},
+
+		// Configure logging for the container to make it easier on the Daemon to grab
+		// the server output. Ensure that we don't use too much space on the host machine
+		// since we only need it for the last few hundred lines of output and don't care
+		// about anything else in it.
+		LogConfig: container.LogConfig{
+			Type: jsonfilelog.Name,
+			Config: map[string]string{
+				"max-size": "5m",
+				"max-file": "1",
+			},
+		},
+
+		SecurityOpt:    []string{"no-new-privileges"},
+		ReadonlyRootfs: true,
+		CapDrop: []string{
+			"setpcap", "mknod", "audit_write", "net_raw", "dac_override",
+			"fowner", "fsetid", "net_bind_service", "sys_chroot", "setfcap",
+		},
+		NetworkMode: "pterodactyl_nw",
 	}
 
 	if _, err := cli.ContainerCreate(ctx, conf, hostConf, nil, d.Server.Uuid); err != nil {
