@@ -9,6 +9,7 @@ import (
 	"github.com/docker/go-connections/nat"
 	"golang.org/x/net/context"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -221,7 +222,7 @@ func (d *DockerEnvironment) portBindings() nat.PortMap {
 			binding := []nat.PortBinding{
 				{
 					HostIP:   ip,
-					HostPort: string(port),
+					HostPort: strconv.Itoa(port),
 				},
 			}
 
