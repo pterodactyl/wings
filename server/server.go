@@ -1,7 +1,6 @@
 package server
 
 import (
-	"github.com/pterodactyl/wings/environment"
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
@@ -35,7 +34,12 @@ type Server struct {
 	Build       *BuildSettings
 	Allocations *Allocations
 
-	environment *environment.Environment
+	Container struct {
+		// Defines the Docker image that will be used for this server
+		Image string
+	}
+
+	environment Environment
 }
 
 // The build settings for a given server that impact docker container creation and
@@ -43,22 +47,22 @@ type Server struct {
 type BuildSettings struct {
 	// The total amount of memory in megabytes that this server is allowed to
 	// use on the host system.
-	MemoryLimit int `yaml:"memory"`
+	MemoryLimit int64 `yaml:"memory"`
 
 	// The amount of additional swap space to be provided to a container instance.
-	Swap int
+	Swap int64
 
 	// The relative weight for IO operations in a container. This is relative to other
 	// containers on the system and should be a value between 10 and 1000.
-	IoWeight int `yaml:"io"`
+	IoWeight int64 `yaml:"io"`
 
 	// The percentage of CPU that this instance is allowed to consume relative to
 	// the host. A value of 200% represents complete utilization of two cores. This
 	// should be a value between 1 and THREAD_COUNT * 100.
-	CpuLimit int `yaml:"cpu"`
+	CpuLimit int64 `yaml:"cpu"`
 
 	// The amount of disk space in megabytes that a server is allowed to use.
-	DiskSpace int `yaml:"disk"`
+	DiskSpace int64 `yaml:"disk"`
 }
 
 // Defines the allocations available for a given server. When using the Docker environment
@@ -79,7 +83,7 @@ type Allocations struct {
 
 // Iterates over a given directory and loads all of the servers listed before returning
 // them to the calling function.
-func LoadDirectory(dir string, cfg environment.DockerConfiguration) ([]*Server, error) {
+func LoadDirectory(dir string, cfg DockerConfiguration) ([]*Server, error) {
 	// We could theoretically use a standard wait group here, however doing
 	// that introduces the potential to crash the program due to too many
 	// open files. This wouldn't happen on a small setup, but once the daemon is
@@ -134,7 +138,7 @@ func LoadDirectory(dir string, cfg environment.DockerConfiguration) ([]*Server, 
 // Initalizes a server using a data byte array. This will be marshaled into the
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
-func FromConfiguration(data []byte, cfg environment.DockerConfiguration) (*Server, error) {
+func FromConfiguration(data []byte, cfg DockerConfiguration) (*Server, error) {
 	s := &Server{}
 
 	if err := yaml.Unmarshal(data, s); err != nil {
@@ -144,12 +148,25 @@ func FromConfiguration(data []byte, cfg environment.DockerConfiguration) (*Serve
 	// Right now we only support a Docker based environment, so I'm going to hard code
 	// this logic in. When we're ready to support other environment we'll need to make
 	// some modifications here obviously.
-	var env environment.Environment
-	env = &environment.Docker{
+	var env Environment
+	env = &DockerEnvironment{
+		Server:        s,
 		Configuration: cfg,
 	}
 
-	s.environment = &env
+	s.environment = env
 
 	return s, nil
+}
+
+// Determine if the server is bootable in it's current state or not. This will not
+// indicate why a server is not bootable, only if it is.
+func (s *Server) IsBootable() bool {
+	return s.environment.Exists()
+}
+
+// Initalizes a server instance. This will run through and ensure that the environment
+// for the server is setup, and that all of the necessary files are created.
+func (s *Server) CreateEnvironment() error {
+	return s.environment.Create()
 }

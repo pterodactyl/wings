@@ -44,6 +44,11 @@ func main() {
 
 	for _, s := range servers {
 		zap.S().Infow("loaded configuration for server", zap.String("server", s.Uuid))
+		zap.S().Infow("ensuring envrionment exists", zap.String("server", s.Uuid))
+
+		if err := s.CreateEnvironment(); err != nil {
+			zap.S().Errorw("failed to create an environment for server", zap.String("server", s.Uuid), zap.Error(err))
+		}
 	}
 }
 

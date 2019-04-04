@@ -1,4 +1,4 @@
-package environment
+package server
 
 import (
 	"os"
@@ -23,4 +23,9 @@ type Environment interface {
 	// Terminates a running server instance using the provided signal. If the server
 	// is not running no error should be returned.
 	Terminate(signal os.Signal) error
+
+	// Creates the necessary environment for running the server process. For example,
+	// in the Docker environment create will create a new container instance for the
+	// server.
+	Create() error
 }

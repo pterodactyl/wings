@@ -7,7 +7,7 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 // indirect
 	github.com/davecgh/go-spew v1.1.0 // indirect
 	github.com/docker/distribution v0.0.0-20180327202408-83389a148052 // indirect
-	github.com/docker/docker v0.0.0-20180221001059-e3831a62a305
+	github.com/docker/docker v1.13.1
 	github.com/docker/go-connections v0.3.0 // indirect
 	github.com/docker/go-units v0.3.2 // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
@@ -46,7 +46,7 @@ require (
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20180330210355-12892e8c234f // indirect
-	golang.org/x/net v0.0.0-20180330215511-b68f30494add // indirect
+	golang.org/x/net v0.0.0-20180330215511-b68f30494add
 	golang.org/x/sys v0.0.0-20180329131831-378d26f46672 // indirect
 	golang.org/x/text v0.3.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect

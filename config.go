@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/server"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -16,7 +16,7 @@ type Configuration struct {
 	Data string
 
 	Api    *ApiConfiguration
-	Docker *environment.DockerConfiguration
+	Docker *server.DockerConfiguration
 
 	// Determines if permissions for a server should be set automatically on
 	// daemon boot. This can take a long time on systems with many servers, or on
@@ -114,7 +114,7 @@ func (c *Configuration) SetDefaults() {
 	c.Throttles.CheckInterval = 100
 
 	// Configure the defaults for Docker connection and networks.
-	c.Docker = &environment.DockerConfiguration{}
+	c.Docker = &server.DockerConfiguration{}
 	c.Docker.UpdateImages = true
 	c.Docker.Socket = "/var/run/docker.sock"
 	c.Docker.Network.Name = "pterodactyl_nw"
