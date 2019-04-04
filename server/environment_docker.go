@@ -88,13 +88,13 @@ func (d *DockerEnvironment) Create() error {
 
 	conf := &container.Config{
 		Hostname: "container",
-		User: "pterodactyl",
+		User: d.Configuration.Container.User,
 		AttachStdin: true,
 		AttachStdout: true,
 		AttachStderr: true,
+		OpenStdin: true,
 		Tty: true,
 
-		Cmd: strings.Split(d.Server.Invocation, " "),
 		Image: d.Server.Container.Image,
 		Env: d.environmentVariables(),
 
@@ -118,10 +118,16 @@ func (d *DockerEnvironment) Create() error {
 
 // Returns the environment variables for a server in KEY="VALUE" form.
 func (d *DockerEnvironment) environmentVariables() []string {
-	var out []string
+	var out = []string{
+		fmt.Sprintf("STARTUP=%s", d.Server.Invocation),
+	}
 
 	for k, v := range d.Server.EnvVars {
-		out = append(out, fmt.Sprintf("%s=\"%s\"", k, v))
+		if strings.ToUpper(k) == "STARTUP" {
+			continue
+		}
+
+		out = append(out, fmt.Sprintf("%s=\"%s\"", strings.ToUpper(k), v))
 	}
 
 	return out
