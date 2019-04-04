@@ -78,7 +78,7 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 // available for it. If the container already exists it will be returned.
 func (d *DockerEnvironment) Create() error {
 	ctx := context.Background()
-	cli, err := client.NewEnvClient()
+	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return err
 	}
