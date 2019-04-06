@@ -1,12 +1,16 @@
 package server
 
 import (
+	"io"
 	"os"
 )
 
 // Defines the basic interface that all environments need to implement so that
 // a server can be properly controlled.
 type Environment interface {
+	// Returns the name of the environment.
+	Type() string
+
 	// Starts a server instance. If the server instance is not in a state where it
 	// can be started an error should be returned.
 	Start() error
@@ -28,4 +32,12 @@ type Environment interface {
 	// in the Docker environment create will create a new container instance for the
 	// server.
 	Create() error
+
+	// Attaches to the server console environment and allows piping the output to a
+	// websocket or other internal tool to monitor output.
+	Attach() (io.ReadCloser, error)
+
+	// Reads the log file for the process from the end backwards until the provided
+	// number of bytes is met.
+	Readlog(int64) ([]string, error)
 }

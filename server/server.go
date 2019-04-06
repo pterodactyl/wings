@@ -191,6 +191,11 @@ func FromConfiguration(data []byte, cfg DockerConfiguration) (*Server, error) {
 	return s, nil
 }
 
+// Reads the log file for a server up to a specified number of bytes.
+func (s *Server) ReadLogfile(len int64) ([]string, error) {
+	return s.Environment().Readlog(len)
+}
+
 func (s *Server) Environment() Environment {
 	return s.environment
 }

@@ -1,6 +1,9 @@
 package server
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -8,7 +11,9 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/daemon/logger/jsonfilelog"
 	"github.com/docker/go-connections/nat"
+	"github.com/pkg/errors"
 	"golang.org/x/net/context"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -77,6 +82,11 @@ func NewDockerEnvironment(cfg DockerConfiguration) (*DockerEnvironment, error) {
 // from the base environment interface.
 var _ Environment = (*DockerEnvironment)(nil)
 
+// Returns the name of the environment.
+func (d *DockerEnvironment) Type() string {
+	return "docker"
+}
+
 // Determines if the container exists in this environment.
 func (d *DockerEnvironment) Exists() bool {
 	_, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
@@ -125,6 +135,31 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 	}
 
 	return d.Client.ContainerKill(ctx, d.Server.Uuid, signal.String())
+}
+
+// Contrary to the name, this doesn't actually attach to the Docker container itself,
+// but rather attaches to the log for the container and then pipes that output to
+// a websocket.
+//
+// This avoids us missing cruicial output that happens in the split seconds before the
+// code moves from 'Starting' to 'Attaching' on the process.
+//
+// @todo add throttle code
+func (d *DockerEnvironment) Attach() (io.ReadCloser, error) {
+	if !d.Exists() {
+		return nil, errors.New(fmt.Sprintf("no such container: %s", d.Server.Uuid))
+	}
+
+	ctx := context.Background()
+	opts := types.ContainerLogsOptions{
+		ShowStderr: true,
+		ShowStdout: true,
+		Follow:     true,
+	}
+
+	r, err := d.Client.ContainerLogs(ctx, d.Server.Uuid, opts)
+
+	return r, err
 }
 
 // Creates a new container for the server using all of the data that is currently
@@ -237,6 +272,83 @@ func (d *DockerEnvironment) Create() error {
 	}
 
 	return nil
+}
+
+// Reads the log file for the server. This does not care if the server is running or not, it will
+// simply try to read the last X bytes of the file and return them.
+func (d *DockerEnvironment) Readlog(len int64) ([]string, error) {
+	ctx := context.Background()
+
+	j, err := d.Client.ContainerInspect(ctx, d.Server.Uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	if j.LogPath == "" {
+		return nil, errors.New("empty log path defined for server")
+	}
+
+	f, err := os.Open(j.LogPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	// Check if the length of the file is smaller than the amount of data that was requested
+	// for reading. If so, adjust the length to be the total length of the file. If this is not
+	// done an error is thrown since we're reading backwards, and not forwards.
+	if stat, err := os.Stat(j.LogPath); err != nil {
+		return nil, err
+	} else if stat.Size() < len {
+		len = stat.Size()
+	}
+
+	// Seed to the end of the file and then move backwards until the length is met to avoid
+	// reading the entirety of the file into memory.
+	if _, err := f.Seek(-len, io.SeekEnd); err != nil {
+		return nil, err
+	}
+
+	b := make([]byte, len)
+
+	if _, err := f.Read(b); err != nil && err != io.EOF {
+		return nil, err
+	}
+
+	return d.parseLogToStrings(b)
+}
+
+type dockerLogLine struct {
+	Log    string `json:"log"`
+}
+
+// Docker stores the logs for server output in a JSON format. This function will iterate over the JSON
+// that was read from the log file and parse it into a more human readable format.
+func (d *DockerEnvironment) parseLogToStrings(b []byte) ([]string, error) {
+	var hasError = false
+	var out []string
+
+	scanner := bufio.NewScanner(bytes.NewReader(b))
+	for scanner.Scan() {
+		var l dockerLogLine
+		// Unmarshal the contents and allow up to a single error before bailing out of the process. We
+		// do this because if you're arbitrarily reading a length of the file you'll likely end up
+		// with the first line in the output being improperly formatted JSON. In those cases we want to
+		// just skip over it. However if we see another error we're going to bail out because that is an
+		// abnormal situation.
+		if err := json.Unmarshal([]byte(scanner.Text()), &l); err != nil {
+			if hasError {
+				return nil, err
+			}
+
+			hasError = true
+			continue
+		}
+
+		out = append(out, l.Log)
+	}
+
+	return out, nil
 }
 
 // Returns the environment variables for a server in KEY="VALUE" form.

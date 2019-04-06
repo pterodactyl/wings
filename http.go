@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -169,6 +170,25 @@ func (rt *Router) routeServerPower(w http.ResponseWriter, r *http.Request, ps ht
 	w.WriteHeader(http.StatusAccepted)
 }
 
+// Return the last 1Kb of the server log file.
+func (rt *Router) routeServerLogs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.Servers.Get(ps.ByName("server"))
+
+	l, _ := strconv.ParseInt(r.URL.Query().Get("size"), 10, 64)
+	if l <= 0 {
+		l = 2048
+	}
+
+	out, err := s.ReadLogfile(l)
+	if err != nil {
+		zap.S().Errorw("failed to read server log file", zap.Error(err))
+		http.Error(w, "failed to read log", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(struct{Data []string `json:"data"`}{Data: out })
+}
+
 // Configures the router and all of the associated routes.
 func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router := httprouter.New()
@@ -176,6 +196,8 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/", rt.routeIndex)
 	router.GET("/api/servers", rt.AuthenticateToken("i:servers", rt.routeAllServers))
 	router.GET("/api/servers/:server", rt.AuthenticateToken("s:view", rt.AuthenticateServer(rt.routeServer)))
+	router.GET("/api/servers/:server/logs", rt.AuthenticateToken("s:logs", rt.AuthenticateServer(rt.routeServerLogs)))
+
 	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))
 
 	return router
