@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
+	"net/http"
 )
 
 // Entrypoint for the Wings application. Configures the logger and checks any
@@ -49,6 +50,16 @@ func main() {
 		if err := s.CreateEnvironment(); err != nil {
 			zap.S().Errorw("failed to create an environment for server", zap.String("server", s.Uuid), zap.Error(err))
 		}
+	}
+
+	r := &Router{
+		Servers: servers,
+	}
+
+	router := r.ConfigureRouter()
+	zap.S().Infow("configuring webserver", zap.String("host", c.Api.Host), zap.Int("port", c.Api.Port))
+	if err := http.ListenAndServe(fmt.Sprintf("%s:%d", c.Api.Host, c.Api.Port), router); err != nil {
+		zap.S().Fatalw("failed to configure HTTP server", zap.Error(err))
 	}
 }
 

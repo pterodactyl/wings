@@ -15,6 +15,7 @@ require (
 	github.com/gogo/protobuf v1.0.0 // indirect
 	github.com/google/go-cmp v0.2.0 // indirect
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
+	github.com/julienschmidt/httprouter v1.2.0
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/onsi/gomega v1.5.0 // indirect

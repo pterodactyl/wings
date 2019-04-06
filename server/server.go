@@ -15,29 +15,29 @@ type Server struct {
 	// The unique identifier for the server that should be used when referencing
 	// it aganist the Panel API (and internally). This will be used when naming
 	// docker containers as well as in log output.
-	Uuid string
+	Uuid string `json:"uuid"`
 
 	// Wether or not the server is in a suspended state. Suspended servers cannot
 	// be started or modified except in certain scenarios by an admin user.
-	Suspended bool
+	Suspended bool `json:"suspended"`
 
 	// The power state of the server.
-	State int
+	State int `json:"state"`
 
 	// The command that should be used when booting up the server instance.
-	Invocation string
+	Invocation string `json:"invocation"`
 
 	// An array of environment variables that should be passed along to the running
 	// server process.
-	EnvVars map[string]string `yaml:"env"`
+	EnvVars map[string]string `json:"environment" yaml:"env"`
 
-	Build       *BuildSettings
-	Allocations *Allocations
+	Build       *BuildSettings `json:"build"`
+	Allocations *Allocations   `json:"allocations"`
 
 	Container struct {
 		// Defines the Docker image that will be used for this server
-		Image string
-	}
+		Image string `json:"image,omitempty"`
+	} `json:"container,omitempty"`
 
 	environment Environment
 
@@ -49,22 +49,22 @@ type Server struct {
 type BuildSettings struct {
 	// The total amount of memory in megabytes that this server is allowed to
 	// use on the host system.
-	MemoryLimit int64 `yaml:"memory"`
+	MemoryLimit int64 `json:"memory_limit" yaml:"memory"`
 
 	// The amount of additional swap space to be provided to a container instance.
-	Swap int64
+	Swap int64 `json:"swap"`
 
 	// The relative weight for IO operations in a container. This is relative to other
 	// containers on the system and should be a value between 10 and 1000.
-	IoWeight uint16 `yaml:"io"`
+	IoWeight uint16 `json:"io_weight" yaml:"io"`
 
 	// The percentage of CPU that this instance is allowed to consume relative to
 	// the host. A value of 200% represents complete utilization of two cores. This
 	// should be a value between 1 and THREAD_COUNT * 100.
-	CpuLimit int64 `yaml:"cpu"`
+	CpuLimit int64 `json:"cpu_limit" yaml:"cpu"`
 
 	// The amount of disk space in megabytes that a server is allowed to use.
-	DiskSpace int64 `yaml:"disk"`
+	DiskSpace int64 `json:"disk_space" yaml:"disk"`
 }
 
 // Converts the CPU limit for a server build into a number that can be better understood
@@ -96,13 +96,13 @@ type Allocations struct {
 	// what will be used for {SERVER_IP} and {SERVER_PORT} when modifying configuration
 	// files or the startup arguments for a server.
 	DefaultMapping struct {
-		Ip   string
-		Port int
-	} `yaml:"default"`
+		Ip   string `json:"ip"`
+		Port int    `json:"port"`
+	} `json:"default" yaml:"default"`
 
 	// Mappings contains all of the ports that should be assigned to a given server
 	// attached to the IP they correspond to.
-	Mappings map[string][]int
+	Mappings map[string][]int `json:"mappings"`
 }
 
 // Iterates over a given directory and loads all of the servers listed before returning
@@ -184,7 +184,7 @@ func FromConfiguration(data []byte, cfg DockerConfiguration) (*Server, error) {
 
 	s.fs = &Filesystem{
 		// @todo adjust this to be configuration provided!
-		Root: "/srv/daemon-data",
+		Root:   "/srv/daemon-data",
 		Server: s,
 	}
 
