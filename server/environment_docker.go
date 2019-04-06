@@ -24,8 +24,8 @@ import (
 type DockerEnvironment struct {
 	Server *Server
 
-	// The user that containers should be running as.
-	User string
+	// The user ID that containers should be running as.
+	User int
 
 	// Defines the configuration for the Docker instance that will allow us to connect
 	// and create and modify containers.
@@ -43,6 +43,7 @@ func NewDockerEnvironment(opts ...func(*DockerEnvironment)) (*DockerEnvironment,
 	}
 
 	env := &DockerEnvironment{
+		User: 1000,
 		Client: cli,
 	}
 
@@ -157,7 +158,7 @@ func (d *DockerEnvironment) Create() error {
 
 	conf := &container.Config{
 		Hostname:     "container",
-		User:         d.User,
+		User:         strconv.Itoa(d.User),
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,

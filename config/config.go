@@ -66,7 +66,14 @@ type SystemConfiguration struct {
 	Data string
 
 	// The user that should own all of the server files, and be used for containers.
-	User string
+	Username string
+
+	// Definitions for the user that gets created to ensure that we can quickly access
+	// this information without constantly having to do a system lookup.
+	User struct {
+		Uid int
+		Gid int
+	}
 
 	// The path to the system's timezone file that will be mounted into running Docker containers.
 	TimezonePath string `yaml:"timezone_path"`
@@ -133,6 +140,7 @@ type ApiConfiguration struct {
 // a tedious thing to have to do.
 func (c *Configuration) SetDefaults() {
 	c.System = &SystemConfiguration{
+		Username: "pterodactyl",
 		Data: "/srv/daemon-data",
 		TimezonePath:"/etc/timezone",
 	}
@@ -198,12 +206,12 @@ func ReadConfiguration(path string) (*Configuration, error) {
 // If files are not owned by this user there will be issues with permissions on Docker
 // mount points.
 func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
-	u, err := user.Lookup(c.System.User)
+	u, err := user.Lookup(c.System.Username)
 
 	// If an error is returned but it isn't the unknown user error just abort
 	// the process entirely. If we did find a user, return it immediately.
 	if err == nil {
-		return u, nil
+		return u, c.setSystemUser(u)
 	} else if _, ok := err.(user.UnknownUserError); !ok {
 		return nil, err
 	}
@@ -213,16 +221,16 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 		return nil, err
 	}
 
-	var command = fmt.Sprintf("useradd --system --no-create-home --shell /bin/false %s", c.System.User)
+	var command = fmt.Sprintf("useradd --system --no-create-home --shell /bin/false %s", c.System.Username)
 
 	// Alpine Linux is the only OS we currently support that doesn't work with the useradd command, so
 	// in those cases we just modify the command a bit to work as expected.
 	if strings.HasPrefix(sysName, "Alpine") {
-		command = fmt.Sprintf("adduser -S -D -H -G %[1]s -s /bin/false %[1]s", c.System.User)
+		command = fmt.Sprintf("adduser -S -D -H -G %[1]s -s /bin/false %[1]s", c.System.Username)
 
 		// We have to create the group first on Alpine, so do that here before continuing on
 		// to the user creation process.
-		if _, err := exec.Command("addgroup", "-s", c.System.User).Output(); err != nil {
+		if _, err := exec.Command("addgroup", "-s", c.System.Username).Output(); err != nil {
 			return nil, err
 		}
 	}
@@ -232,7 +240,24 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 		return nil, err
 	}
 
-	return user.Lookup(c.System.User)
+	if u, err := user.Lookup(c.System.Username); err != nil {
+		return nil, err
+	} else {
+		return u, c.setSystemUser(u)
+	}
+}
+
+// Set the system user into the configuration and then write it to the disk so that
+// it is persisted on boot.
+func (c *Configuration) setSystemUser(u *user.User) error {
+	uid, _ := strconv.Atoi(u.Uid)
+	gid, _ := strconv.Atoi(u.Gid)
+
+	c.System.Username = u.Username
+	c.System.User.Uid = uid
+	c.System.User.Gid = gid
+
+	return c.WriteToDisk()
 }
 
 // Ensures that the configured data directory has the correct permissions assigned to
@@ -251,7 +276,7 @@ func (c *Configuration) EnsureFilePermissions() error {
 		return err
 	}
 
-	su, err := user.Lookup(c.System.User)
+	su, err := user.Lookup(c.System.Username)
 	if err != nil {
 		return err
 	}
@@ -283,6 +308,28 @@ func (c *Configuration) EnsureFilePermissions() error {
 	}
 
 	wg.Wait()
+
+	return nil
+}
+
+// Writes the configuration to the disk as a blocking operation by obtaining an exclusive
+// lock on the file. This prevents something else from writing at the exact same time and
+// leading to bad data conditions.
+func (c *Configuration) WriteToDisk() error {
+	f, err := os.OpenFile("config.yml", os.O_WRONLY, os.ModeExclusive)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	b, err := yaml.Marshal(&c)
+	if err != nil {
+		return err
+	}
+
+	if _, err := f.Write(b); err != nil {
+		return err
+	}
 
 	return nil
 }

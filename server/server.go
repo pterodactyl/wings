@@ -171,7 +171,7 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	}
 
 	withConfiguration := func (e *DockerEnvironment) {
-		e.User = cfg.User
+		e.User = cfg.User.Uid
 		e.TimezonePath = cfg.TimezonePath
 		e.Server = s
 	}
