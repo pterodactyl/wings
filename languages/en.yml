@@ -1,0 +1,7 @@
+prefix: "[Pterodactyl Daemon] "
+messages:
+  off: "Server marked as OFF"
+  on: "Server marked as ON"
+  starting: "Server marked as STARTING"
+  stopping: "Server marked as STOPPING"
+  no_egg_configuration: "No server egg configuration could be located; aborting startup."
