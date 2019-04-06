@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type ServerCollection []*server.Server
@@ -26,6 +27,10 @@ func (sc *ServerCollection) Get(uuid string) *server.Server {
 
 type Router struct {
 	Servers ServerCollection
+
+	// The authentication token defined in the config.yml file that allows
+	// a request to perform any action aganist the daemon.
+	token string
 }
 
 // Middleware to protect server specific routes. This will ensure that the server exists and
@@ -38,6 +43,45 @@ func (rt *Router) AuthenticateServer(h httprouter.Handle) httprouter.Handle {
 		}
 
 		http.NotFound(w, r)
+	}
+}
+
+// Authenticates the request token aganist the given permission string, ensuring that
+// if it is a server permission, the token has control over that server. If it is a global
+// token, this will ensure that the request is using a properly signed global token.
+func (rt *Router) AuthenticateToken(permission string, h httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		t := strings.Split(permission, ":")[0]
+
+		auth := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
+		if len(auth) != 2 || auth[0] != "Bearer" {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			http.Error(w, "authorization failed", http.StatusUnauthorized)
+			return
+		}
+
+		if t != "i" && t != "s" {
+			zap.S().Warnw("could not match a permission string", zap.String("permission", permission), zap.String("route", r.URL.String()))
+
+			// If for whatever reason we didn't match a permission string just
+			// return a 404. This should only ever happen because of developer error.
+			http.NotFound(w, r)
+
+			return
+		}
+
+		// Try to match the request aganist the global token for the Daemon, regardless
+		// of the permission type. If nothing is matched we will fall through to the Panel
+		// API to try and validate permissions for a server.
+		if t == "s" || t == "i" {
+			if auth[1] == rt.token {
+				h(w, r, ps)
+				return
+			}
+		}
+
+		http.Error(w, "not implemented", http.StatusNotImplemented)
+		return
 	}
 }
 
@@ -125,13 +169,14 @@ func (rt *Router) routeServerPower(w http.ResponseWriter, r *http.Request, ps ht
 	w.WriteHeader(http.StatusAccepted)
 }
 
+// Configures the router and all of the associated routes.
 func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router := httprouter.New()
 
 	router.GET("/", rt.routeIndex)
-	router.GET("/api/servers", rt.routeAllServers)
-	router.GET("/api/servers/:server", rt.AuthenticateServer(rt.routeServer))
-	router.POST("/api/servers/:server/power", rt.AuthenticateServer(rt.routeServerPower))
+	router.GET("/api/servers", rt.AuthenticateToken("i:servers", rt.routeAllServers))
+	router.GET("/api/servers/:server", rt.AuthenticateToken("s:view", rt.AuthenticateServer(rt.routeServer)))
+	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))
 
 	return router
 }

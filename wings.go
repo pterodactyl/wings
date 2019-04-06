@@ -54,6 +54,7 @@ func main() {
 
 	r := &Router{
 		Servers: servers,
+		token: c.AuthenticationToken,
 	}
 
 	router := r.ConfigureRouter()
