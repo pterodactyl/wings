@@ -38,6 +38,14 @@ func main() {
 		zap.S().Debugw("running in debug mode")
 	}
 
+	zap.S().Infof("checking for pterodactyl system user \"%s\"", c.System.User)
+	if su, err := c.EnsurePterodactylUser(); err != nil {
+		zap.S().Panicw("failed to create pterodactyl system user", zap.Error(err))
+		return
+	} else {
+		zap.S().Infow("configured system user", zap.String("username", su.Username), zap.String("uid", su.Uid), zap.String("gid", su.Gid))
+	}
+
 	servers, err := server.LoadDirectory("data/servers", c.System)
 	if err != nil {
 		zap.S().Fatalw("failed to load server configurations", zap.Error(err))

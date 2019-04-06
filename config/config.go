@@ -1,9 +1,13 @@
 package config
 
 import (
+	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"os/user"
+	"strings"
 )
 
 type Configuration struct {
@@ -188,12 +192,57 @@ func ReadConfiguration(path string) (*Configuration, error) {
 //
 // If files are not owned by this user there will be issues with permissions on Docker
 // mount points.
-func (c *Configuration) EnsurePterodactylUser() error {
-	return nil
+func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
+	u, err := user.Lookup(c.System.User)
+
+	// If an error is returned but it isn't the unknown user error just abort
+	// the process entirely. If we did find a user, return it immediately.
+	if err == nil {
+		return u, nil
+	} else if _, ok := err.(user.UnknownUserError); !ok {
+		return nil, err
+	}
+
+	sysName, err := getSystemName()
+	if err != nil {
+		return nil, err
+	}
+
+	var command = fmt.Sprintf("useradd --system --no-create-home --shell /bin/false %s", c.System.User)
+
+	// Alpine Linux is the only OS we currently support that doesn't work with the useradd command, so
+	// in those cases we just modify the command a bit to work as expected.
+	if strings.HasPrefix(sysName, "Alpine") {
+		command = fmt.Sprintf("adduser -S -D -H -G %[1]s -s /bin/false %[1]s", c.System.User)
+
+		// We have to create the group first on Alpine, so do that here before continuing on
+		// to the user creation process.
+		if _, err := exec.Command("addgroup", "-s", c.System.User).Output(); err != nil {
+			return nil, err
+		}
+	}
+
+	split := strings.Split(command, " ")
+	if _, err := exec.Command(split[0], split[1:]...).Output(); err != nil {
+		return nil, err
+	}
+
+	return user.Lookup(c.System.User)
 }
 
 // Ensures that the configured data directory has the correct permissions assigned to
 // all of the files and folders within.
 func (c *Configuration) EnsureFilePermissions() error {
 	return nil
+}
+
+func getSystemName() (string, error) {
+	cmd := exec.Command("lsb_release", "-is")
+
+	b, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
 }
