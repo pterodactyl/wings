@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/patrickmn/go-cache"
 	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 )
 
 // High level definition for a server instance being controlled by Wings.
@@ -43,6 +45,10 @@ type Server struct {
 	environment Environment
 
 	fs *Filesystem
+
+	// Server cache used to store frequently requested information in memory and make
+	// certain long operations return faster. For example, FS disk space usage.
+	cache *cache.Cache
 }
 
 // The build settings for a given server that impact docker container creation and
@@ -187,7 +193,7 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	}
 
 	s.environment = env
-
+	s.cache = cache.New(time.Minute * 10, time.Minute * 15)
 	s.fs = &Filesystem{
 		Root:   cfg.Data,
 		Server: s,
@@ -207,6 +213,10 @@ func (s *Server) Environment() Environment {
 
 func (s *Server) Filesystem() *Filesystem {
 	return s.fs
+}
+
+func (s *Server) Cache() *cache.Cache {
+	return s.cache
 }
 
 // Determine if the server is bootable in it's current state or not. This will not
