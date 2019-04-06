@@ -46,6 +46,13 @@ func main() {
 		zap.S().Infow("configured system user", zap.String("username", su.Username), zap.String("uid", su.Uid), zap.String("gid", su.Gid))
 	}
 
+	zap.S().Infow("beginnning file permission setting on server data directories")
+	if err := c.EnsureFilePermissions(); err != nil {
+		zap.S().Errorw("failed to properly chown data directories", zap.Error(err))
+	} else {
+		zap.S().Infow("finished ensuring file permissions")
+	}
+
 	servers, err := server.LoadDirectory("data/servers", c.System)
 	if err != nil {
 		zap.S().Fatalw("failed to load server configurations", zap.Error(err))

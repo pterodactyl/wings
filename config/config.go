@@ -2,12 +2,17 @@ package config
 
 import (
 	"fmt"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
+	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 )
 
 type Configuration struct {
@@ -233,9 +238,56 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 // Ensures that the configured data directory has the correct permissions assigned to
 // all of the files and folders within.
 func (c *Configuration) EnsureFilePermissions() error {
+	// Don't run this unless it is configured to be run. On large system this can often slow
+	// things down dramatically during the boot process.
+	if !c.System.SetPermissionsOnBoot {
+		return nil
+	}
+
+	r := regexp.MustCompile("^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$")
+
+	files, err := ioutil.ReadDir(c.System.Data)
+	if err != nil {
+		return err
+	}
+
+	su, err := user.Lookup(c.System.User)
+	if err != nil {
+		return err
+	}
+
+	wg := new(sync.WaitGroup)
+
+	for _, file := range files {
+		wg.Add(1)
+
+		// Asynchronously run through the list of files and folders in the data directory. If
+		// the item is not a folder, or is not a folder that matches the expected UUIDv4 format
+		// skip over it.
+		//
+		// If we do have a positive match, run a chown aganist the directory.
+		go func(f os.FileInfo) {
+			defer wg.Done()
+
+			if !f.IsDir() || !r.MatchString(f.Name()) {
+				return
+			}
+
+			uid, _ := strconv.Atoi(su.Uid)
+			gid, _ := strconv.Atoi(su.Gid)
+
+			if err := os.Chown(path.Join(c.System.Data, f.Name()), uid, gid); err != nil {
+				zap.S().Warnw("failed to chown server directory", zap.String("directory", f.Name()), zap.Error(err))
+			}
+		}(file)
+	}
+
+	wg.Wait()
+
 	return nil
 }
 
+// Gets the system release name.
 func getSystemName() (string, error) {
 	cmd := exec.Command("lsb_release", "-is")
 
