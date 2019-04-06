@@ -173,9 +173,11 @@ func FromConfiguration(data []byte, cfg DockerConfiguration) (*Server, error) {
 	// this logic in. When we're ready to support other environment we'll need to make
 	// some modifications here obviously.
 	var env Environment
-	env = &DockerEnvironment{
-		Server:        s,
-		Configuration: cfg,
+	if t, err := NewDockerEnvironment(cfg); err != nil {
+		t.Server = s
+		env = t
+	} else {
+		return nil, err
 	}
 
 	s.environment = env

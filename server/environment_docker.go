@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Defines the docker configuration used by the daemon when interacting with
@@ -46,32 +48,83 @@ type DockerConfiguration struct {
 	TimezonePath string `yaml:"timezone_path"`
 }
 
+// Defines the base environment for Docker instances running through Wings.
 type DockerEnvironment struct {
 	Server *Server
 
 	// Defines the configuration for the Docker instance that will allow us to connect
 	// and create and modify containers.
 	Configuration DockerConfiguration
+
+	// The Docker client being used for this instance.
+	Client *client.Client
+}
+
+// Creates a new base Docker environment. A server must still be attached to it.
+func NewDockerEnvironment(cfg DockerConfiguration) (*DockerEnvironment, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DockerEnvironment{
+		Configuration: cfg,
+		Client:        cli,
+	}, nil
 }
 
 // Ensure that the Docker environment is always implementing all of the methods
 // from the base environment interface.
 var _ Environment = (*DockerEnvironment)(nil)
 
+// Determines if the container exists in this environment.
 func (d *DockerEnvironment) Exists() bool {
-	return true
+	_, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
+
+	return err == nil
 }
 
+// Checks if there is a container that already exists for the server. If so that
+// container is started. If there is no container, one is created and then started.
 func (d *DockerEnvironment) Start() error {
-	return nil
+	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
+	if err != nil {
+		// @todo what?
+		return err
+	}
+
+	// No reason to try starting a container that is already running.
+	if c.State.Running {
+		return nil
+	}
+
+	opts := types.ContainerStartOptions{}
+
+	return d.Client.ContainerStart(context.Background(), d.Server.Uuid, opts)
 }
 
+// Stops the container that the server is running in. This will allow up to 10
+// seconds to pass before a failure occurs.
 func (d *DockerEnvironment) Stop() error {
-	return nil
+	t := time.Second * 10
+
+	return d.Client.ContainerStop(context.Background(), d.Server.Uuid, &t)
 }
 
+// Forcefully terminates the container using the signal passed through.
 func (d *DockerEnvironment) Terminate(signal os.Signal) error {
-	return nil
+	ctx := context.Background()
+
+	c, err := d.Client.ContainerInspect(ctx, d.Server.Uuid)
+	if err != nil {
+		return err
+	}
+
+	if !c.State.Running {
+		return nil
+	}
+
+	return d.Client.ContainerKill(ctx, d.Server.Uuid, signal.String())
 }
 
 // Creates a new container for the server using all of the data that is currently
