@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
 	"net/http"
@@ -18,7 +19,7 @@ func main() {
 
 	zap.S().Infof("using configuration file: %s", configPath)
 
-	c, err := ReadConfiguration(configPath)
+	c, err := config.ReadConfiguration(configPath)
 	if err != nil {
 		panic(err)
 		return
@@ -37,7 +38,7 @@ func main() {
 		zap.S().Debugw("running in debug mode")
 	}
 
-	servers, err := server.LoadDirectory("config/servers", *c.Docker)
+	servers, err := server.LoadDirectory("data/servers", c.System)
 	if err != nil {
 		zap.S().Fatalw("failed to load server configurations", zap.Error(err))
 		return

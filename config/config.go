@@ -1,7 +1,6 @@
-package main
+package config
 
 import (
-	"github.com/pterodactyl/wings/server"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -12,16 +11,9 @@ type Configuration struct {
 	// if the debug flag is passed through the command line arguments.
 	Debug bool
 
-	// Directory where the server data is stored at.
-	Data string
-
 	Api    *ApiConfiguration
-	Docker *server.DockerConfiguration
-
-	// Determines if permissions for a server should be set automatically on
-	// daemon boot. This can take a long time on systems with many servers, or on
-	// systems with servers containing thousands of files.
-	SetPermissionsOnBoot bool `yaml:"set_permissions_on_boot"`
+	System *SystemConfiguration
+	Docker *DockerConfiguration
 
 	// The amount of time in seconds that should elapse between disk usage checks
 	// run by the daemon. Setting a higher number can result in better IO performance
@@ -59,6 +51,52 @@ type Configuration struct {
 	AuthenticationToken string `yaml:"token"`
 }
 
+// Defines basic system configuration settings.
+type SystemConfiguration struct {
+	// Directory where the server data is stored at.
+	Data string
+
+	// The user that should own all of the server files, and be used for containers.
+	User string
+
+	// The path to the system's timezone file that will be mounted into running Docker containers.
+	TimezonePath string `yaml:"timezone_path"`
+
+	// Determines if permissions for a server should be set automatically on
+	// daemon boot. This can take a long time on systems with many servers, or on
+	// systems with servers containing thousands of files.
+	SetPermissionsOnBoot bool `yaml:"set_permissions_on_boot"`
+}
+
+// Defines the docker configuration used by the daemon when interacting with
+// containers and networks on the system.
+type DockerConfiguration struct {
+	// Network configuration that should be used when creating a new network
+	// for containers run through the daemon.
+	Network struct {
+		// The interface that should be used to create the network. Must not conflict
+		// with any other interfaces in use by Docker or on the system.
+		Interface string
+
+		// The name of the network to use. If this network already exists it will not
+		// be created. If it is not found, a new network will be created using the interface
+		// defined.
+		Name string
+	}
+
+	// If true, container images will be updated when a server starts if there
+	// is an update available. If false the daemon will not attempt updates and will
+	// defer to the host system to manage image updates.
+	UpdateImages bool `yaml:"update_images"`
+
+	// The location of the Docker socket.
+	Socket string
+
+	// Defines the location of the timezone file on the host system that should
+	// be mounted into the created containers so that they all use the same time.
+	TimezonePath string `yaml:"timezone_path"`
+}
+
 // Defines the configuration for the internal API that is exposed by the
 // daemon webserver.
 type ApiConfiguration struct {
@@ -85,8 +123,10 @@ type ApiConfiguration struct {
 // of the places in the code using them will need to be doing checks, which is
 // a tedious thing to have to do.
 func (c *Configuration) SetDefaults() {
-	// Set the default data directory.
-	c.Data = "/srv/daemon-data"
+	c.System = &SystemConfiguration{
+		Data: "/srv/daemon-data",
+		TimezonePath:"/etc/timezone",
+	}
 
 	// By default the internal webserver should bind to all interfaces and
 	// be served on port 8080.
@@ -102,7 +142,7 @@ func (c *Configuration) SetDefaults() {
 	// In production and heavy use environments where boot speed is essential,
 	// this should be set to false as servers will self-correct permissions on
 	// boot anyways.
-	c.SetPermissionsOnBoot = true
+	c.System.SetPermissionsOnBoot = true
 
 	// Configure the default throttler implementation. This should work fine
 	// for 99% of people running servers on the platform. The occasional host
@@ -114,7 +154,7 @@ func (c *Configuration) SetDefaults() {
 	c.Throttles.CheckInterval = 100
 
 	// Configure the defaults for Docker connection and networks.
-	c.Docker = &server.DockerConfiguration{}
+	c.Docker = &DockerConfiguration{}
 	c.Docker.UpdateImages = true
 	c.Docker.Socket = "/var/run/docker.sock"
 	c.Docker.Network.Name = "pterodactyl_nw"
@@ -141,4 +181,19 @@ func ReadConfiguration(path string) (*Configuration, error) {
 	}
 
 	return c, nil
+}
+
+// Ensures that the Pterodactyl core user exists on the system. This user will be the
+// owner of all data in the root data directory and is used as the user within containers.
+//
+// If files are not owned by this user there will be issues with permissions on Docker
+// mount points.
+func (c *Configuration) EnsurePterodactylUser() error {
+	return nil
+}
+
+// Ensures that the configured data directory has the correct permissions assigned to
+// all of the files and folders within.
+func (c *Configuration) EnsureFilePermissions() error {
+	return nil
 }

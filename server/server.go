@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
@@ -107,7 +108,7 @@ type Allocations struct {
 
 // Iterates over a given directory and loads all of the servers listed before returning
 // them to the calling function.
-func LoadDirectory(dir string, cfg DockerConfiguration) ([]*Server, error) {
+func LoadDirectory(dir string, cfg *config.SystemConfiguration) ([]*Server, error) {
 	// We could theoretically use a standard wait group here, however doing
 	// that introduces the potential to crash the program due to too many
 	// open files. This wouldn't happen on a small setup, but once the daemon is
@@ -162,19 +163,24 @@ func LoadDirectory(dir string, cfg DockerConfiguration) ([]*Server, error) {
 // Initalizes a server using a data byte array. This will be marshaled into the
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
-func FromConfiguration(data []byte, cfg DockerConfiguration) (*Server, error) {
+func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, error) {
 	s := &Server{}
 
 	if err := yaml.Unmarshal(data, s); err != nil {
 		return nil, err
 	}
 
+	withConfiguration := func (e *DockerEnvironment) {
+		e.User = cfg.User
+		e.TimezonePath = cfg.TimezonePath
+		e.Server = s
+	}
+
 	// Right now we only support a Docker based environment, so I'm going to hard code
 	// this logic in. When we're ready to support other environment we'll need to make
 	// some modifications here obviously.
 	var env Environment
-	if t, err := NewDockerEnvironment(cfg); err == nil {
-		t.Server = s
+	if t, err := NewDockerEnvironment(withConfiguration); err == nil {
 		env = t
 	} else {
 		return nil, err
@@ -183,8 +189,7 @@ func FromConfiguration(data []byte, cfg DockerConfiguration) (*Server, error) {
 	s.environment = env
 
 	s.fs = &Filesystem{
-		// @todo adjust this to be configuration provided!
-		Root:   "/srv/daemon-data",
+		Root:   cfg.Data,
 		Server: s,
 	}
 

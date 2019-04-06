@@ -20,62 +20,37 @@ import (
 	"time"
 )
 
-// Defines the docker configuration used by the daemon when interacting with
-// containers and networks on the system.
-type DockerConfiguration struct {
-	Container struct {
-		User string
-	}
-
-	// Network configuration that should be used when creating a new network
-	// for containers run through the daemon.
-	Network struct {
-		// The interface that should be used to create the network. Must not conflict
-		// with any other interfaces in use by Docker or on the system.
-		Interface string
-
-		// The name of the network to use. If this network already exists it will not
-		// be created. If it is not found, a new network will be created using the interface
-		// defined.
-		Name string
-	}
-
-	// If true, container images will be updated when a server starts if there
-	// is an update available. If false the daemon will not attempt updates and will
-	// defer to the host system to manage image updates.
-	UpdateImages bool `yaml:"update_images"`
-
-	// The location of the Docker socket.
-	Socket string
-
-	// Defines the location of the timezone file on the host system that should
-	// be mounted into the created containers so that they all use the same time.
-	TimezonePath string `yaml:"timezone_path"`
-}
-
 // Defines the base environment for Docker instances running through Wings.
 type DockerEnvironment struct {
 	Server *Server
 
+	// The user that containers should be running as.
+	User string
+
 	// Defines the configuration for the Docker instance that will allow us to connect
 	// and create and modify containers.
-	Configuration DockerConfiguration
+	TimezonePath string
 
 	// The Docker client being used for this instance.
 	Client *client.Client
 }
 
 // Creates a new base Docker environment. A server must still be attached to it.
-func NewDockerEnvironment(cfg DockerConfiguration) (*DockerEnvironment, error) {
+func NewDockerEnvironment(opts ...func(*DockerEnvironment)) (*DockerEnvironment, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return nil, err
 	}
 
-	return &DockerEnvironment{
-		Configuration: cfg,
-		Client:        cli,
-	}, nil
+	env := &DockerEnvironment{
+		Client: cli,
+	}
+
+	for _, opt := range opts {
+		opt(env)
+	}
+
+	return env, nil
 }
 
 // Ensure that the Docker environment is always implementing all of the methods
@@ -182,7 +157,7 @@ func (d *DockerEnvironment) Create() error {
 
 	conf := &container.Config{
 		Hostname:     "container",
-		User:         d.Configuration.Container.User,
+		User:         d.User,
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -214,8 +189,8 @@ func (d *DockerEnvironment) Create() error {
 				ReadOnly: false,
 			},
 			{
-				Target:   d.Configuration.TimezonePath,
-				Source:   d.Configuration.TimezonePath,
+				Target:   d.TimezonePath,
+				Source:   d.TimezonePath,
 				Type:     mount.TypeBind,
 				ReadOnly: true,
 			},
