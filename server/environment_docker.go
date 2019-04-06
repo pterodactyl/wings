@@ -355,6 +355,9 @@ func (d *DockerEnvironment) parseLogToStrings(b []byte) ([]string, error) {
 func (d *DockerEnvironment) environmentVariables() []string {
 	var out = []string{
 		fmt.Sprintf("STARTUP=%s", d.Server.Invocation),
+		fmt.Sprintf("SERVER_MEMORY=%d", d.Server.Build.MemoryLimit),
+		fmt.Sprintf("SERVER_IP=%s", d.Server.Allocations.DefaultMapping.Ip),
+		fmt.Sprintf("SERVER_PORT=%d", d.Server.Allocations.DefaultMapping.Port),
 	}
 
 	for k, v := range d.Server.EnvVars {
