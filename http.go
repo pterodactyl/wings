@@ -86,7 +86,7 @@ func (rt *Router) routeServerPower(w http.ResponseWriter, r *http.Request, ps ht
 	if err := dec.Decode(&action); err != nil {
 		// Don't flood the logs with error messages if someone sends through bad
 		// JSON data. We don't really care.
-		if err != io.EOF {
+		if err != io.EOF && err != io.ErrUnexpectedEOF {
 			zap.S().Errorw("failed to decode power action", zap.Error(err))
 		}
 
