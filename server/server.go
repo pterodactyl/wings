@@ -191,6 +191,10 @@ func FromConfiguration(data []byte, cfg DockerConfiguration) (*Server, error) {
 	return s, nil
 }
 
+func (s *Server) Environment() Environment {
+	return s.environment
+}
+
 func (s *Server) Filesystem() *Filesystem {
 	return s.fs
 }
