@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/patrickmn/go-cache"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
@@ -12,6 +13,16 @@ import (
 	"strings"
 	"time"
 )
+
+// Defines states that identify if the server is running or not.
+const (
+	StateOffline = "off"
+	StateStarting = "starting"
+	StateRunning = "running"
+	StateStopping = "stopping"
+)
+
+type ProcessState string
 
 // High level definition for a server instance being controlled by Wings.
 type Server struct {
@@ -25,7 +36,7 @@ type Server struct {
 	Suspended bool `json:"suspended"`
 
 	// The power state of the server.
-	State int `json:"state"`
+	State ProcessState `json:"state"`
 
 	// The command that should be used when booting up the server instance.
 	Invocation string `json:"invocation"`
@@ -217,6 +228,22 @@ func (s *Server) Filesystem() *Filesystem {
 
 func (s *Server) Cache() *cache.Cache {
 	return s.cache
+}
+
+// Sets the state of the server process.
+func (s *Server) SetState(state ProcessState) error {
+	switch state {
+	case StateOffline:
+	case StateRunning:
+	case StateStarting:
+	case StateStopping:
+		s.State = state
+		break
+	default:
+		return errors.New("invalid state provided")
+	}
+
+	return nil
 }
 
 // Determine if the server is bootable in it's current state or not. This will not
