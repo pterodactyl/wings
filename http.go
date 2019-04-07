@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"github.com/julienschmidt/httprouter"
@@ -189,6 +190,48 @@ func (rt *Router) routeServerLogs(w http.ResponseWriter, r *http.Request, ps htt
 	json.NewEncoder(w).Encode(struct{Data []string `json:"data"`}{Data: out })
 }
 
+// Handle a request to get the contents of a file on the server.
+func (rt *Router) routeServerFileRead(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.Servers.Get(ps.ByName("server"))
+
+	cleaned, err := s.Filesystem().SafePath(ps.ByName("path"))
+	if err != nil {
+		http.Error(w, "could not determine path", http.StatusInternalServerError)
+		return
+	}
+
+	st, err := os.Stat(cleaned)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			zap.S().Errorw("failed to stat file for reading", zap.String("path", ps.ByName("path")), zap.String("server", s.Uuid), zap.Error(err))
+		}
+
+		http.Error(w, "failed to stat file", http.StatusInternalServerError)
+		return
+	}
+
+	f, err := os.OpenFile(cleaned, os.O_RDONLY, 0)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			zap.S().Errorw("failed to open file for reading", zap.String("path", ps.ByName("path")), zap.String("server", s.Uuid), zap.Error(err))
+		}
+
+		http.Error(w, "failed to open file", http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	// If a download parameter is included in the URL go ahead and attach the necessary headers
+	// so that the file can be downloaded.
+	if r.URL.Query().Get("download") != "" {
+		w.Header().Set("Content-Disposition", "attachment; filename=" + st.Name())
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Length", strconv.Itoa(int(st.Size())))
+	}
+
+	bufio.NewReader(f).WriteTo(w)
+}
+
 // Configures the router and all of the associated routes.
 func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router := httprouter.New()
@@ -197,6 +240,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/api/servers", rt.AuthenticateToken("i:servers", rt.routeAllServers))
 	router.GET("/api/servers/:server", rt.AuthenticateToken("s:view", rt.AuthenticateServer(rt.routeServer)))
 	router.GET("/api/servers/:server/logs", rt.AuthenticateToken("s:logs", rt.AuthenticateServer(rt.routeServerLogs)))
+	router.GET("/api/servers/:server/files/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileRead)))
 
 	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))
 

@@ -1,8 +1,10 @@
 package server
 
 import (
+	"bytes"
 	"errors"
 	"go.uber.org/zap"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -167,4 +169,21 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 	wg.Wait()
 
 	return size, nil
+}
+
+// Reads a file on the system and returns it as a byte representation in a file
+// reader. This is not the most memory efficient usage since it will be reading the
+// entirety of the file into memory.
+func (fs *Filesystem) Readfile(p string) (io.Reader, error) {
+	cleaned, err := fs.SafePath(p)
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := ioutil.ReadFile(cleaned)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes.NewReader(b), nil
 }
