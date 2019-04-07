@@ -232,6 +232,24 @@ func (rt *Router) routeServerFileRead(w http.ResponseWriter, r *http.Request, ps
 	bufio.NewReader(f).WriteTo(w)
 }
 
+// Lists the contents of a directory.
+func (rt *Router) routeServerFileList(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.Servers.Get(ps.ByName("server"))
+
+	stats, err := s.Filesystem().ListDirectory(ps.ByName("path"))
+	if os.IsNotExist(err) {
+		http.NotFound(w, r)
+		return
+	} else if err != nil {
+		zap.S().Errorw("failed to list contents of directory", zap.String("server", s.Uuid), zap.String("path", ps.ByName("path")), zap.Error(err))
+
+		http.Error(w, "failed to list directory", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(stats)
+}
+
 // Configures the router and all of the associated routes.
 func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router := httprouter.New()
@@ -240,7 +258,8 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/api/servers", rt.AuthenticateToken("i:servers", rt.routeAllServers))
 	router.GET("/api/servers/:server", rt.AuthenticateToken("s:view", rt.AuthenticateServer(rt.routeServer)))
 	router.GET("/api/servers/:server/logs", rt.AuthenticateToken("s:logs", rt.AuthenticateServer(rt.routeServerLogs)))
-	router.GET("/api/servers/:server/files/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileRead)))
+	router.GET("/api/servers/:server/files/read/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileRead)))
+	router.GET("/api/servers/:server/files/list/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileList)))
 
 	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))
 

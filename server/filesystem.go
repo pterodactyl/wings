@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"github.com/gabriel-vasile/mimetype"
 	"go.uber.org/zap"
@@ -9,6 +10,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -122,7 +124,7 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 		if size, err := fs.DirectorySize("/"); err != nil {
 			zap.S().Warnw("failed to determine directory size", zap.String("server", fs.Server.Uuid), zap.Error(err))
 		} else {
-			fs.Server.Cache().Set("disk_used", size, time.Minute * 5)
+			fs.Server.Cache().Set("disk_used", size, time.Minute*5)
 		}
 	}
 
@@ -202,8 +204,32 @@ func (fs *Filesystem) DeleteFile(p string) error {
 
 // Defines the stat struct object.
 type Stat struct {
-	Info *os.FileInfo
+	Info     os.FileInfo
 	Mimetype string
+}
+
+func (s *Stat) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Name      string
+		Created   string
+		Modified  string
+		Mode      string
+		Size      int64
+		Directory bool
+		File      bool
+		Symlink   bool
+		Mime      string
+	}{
+		Name:      s.Info.Name(),
+		Created:   s.CTime().String(),
+		Modified:  s.Info.ModTime().String(),
+		Mode:      s.Info.Mode().String(),
+		Size:      s.Info.Size(),
+		Directory: s.Info.IsDir(),
+		File:      !s.Info.IsDir(),
+		Symlink:   s.Info.Mode().Perm()&os.ModeSymlink != 0,
+		Mime:      s.Mimetype,
+	})
 }
 
 // Stats a file or folder and returns the base stat object from go along with the
@@ -228,9 +254,66 @@ func (fs *Filesystem) Stat(p string) (*Stat, error) {
 	}
 
 	st := &Stat{
-		Info: &s,
+		Info:     s,
 		Mimetype: m,
 	}
 
 	return st, nil
+}
+
+// Lists the contents of a given directory and returns stat information about each
+// file and folder within it.
+func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
+	cleaned, err := fs.SafePath(p)
+	if err != nil {
+		return nil, err
+	}
+
+	files, err := ioutil.ReadDir(cleaned)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []*Stat
+	var wg sync.WaitGroup
+
+	// Iterate over all of the files and directories returned and perform an async process
+	// to get the mime-type for them all.
+	for _, file := range files {
+		wg.Add(1)
+
+		go func(f os.FileInfo) {
+			defer wg.Done()
+
+			var m = "inode/directory"
+			if !f.IsDir() {
+				m, _, _ = mimetype.DetectFile(filepath.Join(cleaned, f.Name()))
+			}
+
+			out = append(out, &Stat{
+				Info:     f,
+				Mimetype: m,
+			})
+		}(file)
+	}
+
+	wg.Wait()
+
+	// Sort the output alphabetically to begin with since we've run the output
+	// through an asynchronous process and the order is gonna be very random.
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Info.Name() == out[j].Info.Name() || out[i].Info.Name() < out[j].Info.Name() {
+			return true
+		}
+
+		return false
+	})
+
+	// Then, sort it so that directories are listed first in the output. Everything
+	// will continue to be alphabetized at this point.
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].Info.IsDir()
+	})
+
+	return out, nil
 }
