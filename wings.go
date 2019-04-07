@@ -73,6 +73,16 @@ func main() {
 		token: c.AuthenticationToken,
 	}
 
+	if sock, err := r.ConfigureWebsocket(); err != nil {
+		zap.S().Fatalw("failed to configure websocket", zap.Error(err))
+		return
+	} else {
+		r.Socketio = sock
+	}
+
+	defer r.Socketio.Close()
+	go r.Socketio.Serve()
+
 	router := r.ConfigureRouter()
 	zap.S().Infow("configuring webserver", zap.String("host", c.Api.Host), zap.Int("port", c.Api.Port))
 	if err := http.ListenAndServe(fmt.Sprintf("%s:%d", c.Api.Host, c.Api.Port), router); err != nil {

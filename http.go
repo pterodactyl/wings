@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/googollee/go-socket.io"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
@@ -29,6 +30,8 @@ func (sc *ServerCollection) Get(uuid string) *server.Server {
 
 type Router struct {
 	Servers ServerCollection
+
+	Socketio *socketio.Server
 
 	// The authentication token defined in the config.yml file that allows
 	// a request to perform any action aganist the daemon.
@@ -262,6 +265,8 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/api/servers/:server/files/list/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileList)))
 
 	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))
+
+	router.GET("/api/ws/:server", rt.AuthenticateServer(rt.routeWebsocket))
 
 	return router
 }
