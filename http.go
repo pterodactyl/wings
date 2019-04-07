@@ -266,7 +266,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 
 	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))
 
-	router.GET("/api/ws/:server", rt.AuthenticateServer(rt.routeWebsocket))
+	router.Handler("GET", "/socket.io/", rt.Socketio)
 
 	return router
 }
