@@ -210,15 +210,15 @@ type Stat struct {
 
 func (s *Stat) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Name      string
-		Created   string
-		Modified  string
-		Mode      string
-		Size      int64
-		Directory bool
-		File      bool
-		Symlink   bool
-		Mime      string
+		Name      string `json:"name"`
+		Created   string `json:"created"`
+		Modified  string `json:"modified"`
+		Mode      string `json:"mode"`
+		Size      int64  `json:"size"`
+		Directory bool   `json:"directory"`
+		File      bool   `json:"file"`
+		Symlink   bool   `json:"symlink"`
+		Mime      string `json:"mime"`
 	}{
 		Name:      s.Info.Name(),
 		Created:   s.CTime().String(),
