@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"errors"
+	"github.com/gabriel-vasile/mimetype"
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
@@ -186,4 +187,50 @@ func (fs *Filesystem) Readfile(p string) (io.Reader, error) {
 	}
 
 	return bytes.NewReader(b), nil
+}
+
+// Delete a file or folder from the system. If a folder location is passed in the
+// folder and all of its contents are deleted.
+func (fs *Filesystem) DeleteFile(p string) error {
+	cleaned, err := fs.SafePath(p)
+	if err != nil {
+		return err
+	}
+
+	return os.RemoveAll(cleaned)
+}
+
+// Defines the stat struct object.
+type Stat struct {
+	Info *os.FileInfo
+	Mimetype string
+}
+
+// Stats a file or folder and returns the base stat object from go along with the
+// MIME data that can be used for editing files.
+func (fs *Filesystem) Stat(p string) (*Stat, error) {
+	cleaned, err := fs.SafePath(p)
+	if err != nil {
+		return nil, err
+	}
+
+	s, err := os.Stat(cleaned)
+	if err != nil {
+		return nil, err
+	}
+
+	var m = "inode/directory"
+	if !s.IsDir() {
+		m, _, err = mimetype.DetectFile(cleaned)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	st := &Stat{
+		Info: &s,
+		Mimetype: m,
+	}
+
+	return st, nil
 }

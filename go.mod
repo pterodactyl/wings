@@ -12,6 +12,7 @@ require (
 	github.com/docker/docker v0.0.0-20180422163414-57142e89befe
 	github.com/docker/go-connections v0.4.0
 	github.com/docker/go-units v0.3.3 // indirect
+	github.com/gabriel-vasile/mimetype v0.1.4 // indirect
 	github.com/gogo/protobuf v1.0.0 // indirect
 	github.com/google/go-cmp v0.2.0 // indirect
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
