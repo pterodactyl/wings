@@ -1,3 +1,6 @@
+# Alpha Project
+Please refrain from opening PRs or Issues at this time. This project is still under heavy development, and until we have a solid foundation and plan for how everything will connect, we will not be accepting PRs or feature suggestions.
+
 # Pterodactyl wings [![travis](https://img.shields.io/travis/pterodactyl/wings.svg?style=flat-square)](https://travis-ci.org/pterodactyl/wings) [![codacy quality](https://img.shields.io/codacy/grade/27a1576bda86450f853b1052b12fa570.svg?style=flat-square)](https://www.codacy.com/app/schrej/wings/dashboard) [![codacy coverage](https://img.shields.io/codacy/coverage/27a1576bda86450f853b1052b12fa570.svg?style=flat-square)](https://www.codacy.com/app/schrej/wings/files)
 
 ```
@@ -10,8 +13,4 @@ __ Pterodactyl _____/___/_______ _______ ______
 ```
 
 A new generation of the Pterodactyl daemon, written in go.
-
-## This project is currently in a very early stage. Do not use in production.
-
-We are not accepting pull requests at this point of development. You are welcome to open issues with general feature requests and improvments compared to the current pterodactyl daemon. Please check if a similar issue, wether open or closed, exists already!
 
