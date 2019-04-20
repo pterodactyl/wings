@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
@@ -71,17 +72,14 @@ func main() {
 	r := &Router{
 		Servers: servers,
 		token: c.AuthenticationToken,
+		upgrader: websocket.Upgrader{
+			// Ensure that the websocket request is originating from the Panel itself,
+			// and not some other location.
+			CheckOrigin: func(r *http.Request) bool {
+				return r.Header.Get("Origin") == c.PanelLocation
+			},
+		},
 	}
-
-	if sock, err := r.ConfigureWebsocket(); err != nil {
-		zap.S().Fatalw("failed to configure websocket", zap.Error(err))
-		return
-	} else {
-		r.Socketio = sock
-	}
-
-	defer r.Socketio.Close()
-	go r.Socketio.Serve()
 
 	router := r.ConfigureRouter()
 	zap.S().Infow("configuring webserver", zap.String("host", c.Api.Host), zap.Int("port", c.Api.Port))

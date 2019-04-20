@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"github.com/googollee/go-socket.io"
+	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
@@ -31,7 +31,7 @@ func (sc *ServerCollection) Get(uuid string) *server.Server {
 type Router struct {
 	Servers ServerCollection
 
-	Socketio *socketio.Server
+	upgrader websocket.Upgrader
 
 	// The authentication token defined in the config.yml file that allows
 	// a request to perform any action aganist the daemon.
@@ -58,7 +58,15 @@ func (rt *Router) AuthenticateToken(permission string, h httprouter.Handle) http
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		t := strings.Split(permission, ":")[0]
 
+		// Adds support for using this middleware on the websocket routes for servers. Those
+		// routes don't support Authorization headers, per the spec, so we abuse the socket
+		// protocol header and use that to pass the authorization token along to Wings without
+		// exposing the token in the URL directly. Neat. 📸
 		auth := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
+		if r.Header.Get("Sec-WebSocket-Protocol") != "" {
+			auth = []string{"Bearer", r.Header.Get("Sec-WebSocket-Protocol")}
+		}
+
 		if len(auth) != 2 || auth[0] != "Bearer" {
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(w, "authorization failed", http.StatusUnauthorized)
@@ -85,6 +93,7 @@ func (rt *Router) AuthenticateToken(permission string, h httprouter.Handle) http
 			}
 		}
 
+		// Happens because we don't have any of the server handling code here.
 		http.Error(w, "not implemented", http.StatusNotImplemented)
 		return
 	}
@@ -266,7 +275,6 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 
 	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))
 
-	router.Handler("GET", "/socket.io/", rt.Socketio)
-
+	router.GET("/api/servers/:server/ws", rt.AuthenticateToken("s:websocket", rt.AuthenticateServer(rt.routeWebsocket)))
 	return router
 }
