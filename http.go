@@ -162,19 +162,19 @@ func (rt *Router) routeServerPower(w http.ResponseWriter, r *http.Request, ps ht
 	go func(a string, s *server.Server) {
 		switch a {
 		case "start":
-			if err := s.Environment().Start(); err != nil {
+			if err := s.Environment.Start(); err != nil {
 				zap.S().Error(err, zap.String("server", s.Uuid), zap.String("action", "start"))
 			}
 			break
 		case "stop":
-			if err := s.Environment().Stop(); err != nil {
+			if err := s.Environment.Stop(); err != nil {
 				zap.S().Error(err, zap.String("server", s.Uuid), zap.String("action", "stop"))
 			}
 			break
 		case "restart":
 			break
 		case "kill":
-			if err := s.Environment().Terminate(os.Kill); err != nil {
+			if err := s.Environment.Terminate(os.Kill); err != nil {
 				zap.S().Error(err, zap.String("server", s.Uuid), zap.String("action", "kill"))
 			}
 		}
@@ -206,7 +206,7 @@ func (rt *Router) routeServerLogs(w http.ResponseWriter, r *http.Request, ps htt
 func (rt *Router) routeServerFileRead(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	s := rt.Servers.Get(ps.ByName("server"))
 
-	cleaned, err := s.Filesystem().SafePath(ps.ByName("path"))
+	cleaned, err := s.Filesystem.SafePath(ps.ByName("path"))
 	if err != nil {
 		http.Error(w, "could not determine path", http.StatusInternalServerError)
 		return
@@ -248,7 +248,7 @@ func (rt *Router) routeServerFileRead(w http.ResponseWriter, r *http.Request, ps
 func (rt *Router) routeServerFileList(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	s := rt.Servers.Get(ps.ByName("server"))
 
-	stats, err := s.Filesystem().ListDirectory(ps.ByName("path"))
+	stats, err := s.Filesystem.ListDirectory(ps.ByName("path"))
 	if os.IsNotExist(err) {
 		http.NotFound(w, r)
 		return

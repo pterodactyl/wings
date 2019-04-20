@@ -288,7 +288,7 @@ func (d *DockerEnvironment) Create() error {
 		Mounts: []mount.Mount{
 			{
 				Target:   "/home/container",
-				Source:   d.Server.Filesystem().Path(),
+				Source:   d.Server.Filesystem.Path(),
 				Type:     mount.TypeBind,
 				ReadOnly: false,
 			},

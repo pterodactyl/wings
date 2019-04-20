@@ -78,13 +78,13 @@ func (wsm *WebsocketMessage) HandleInbound(c *websocket.Conn) error {
 			var err error
 			switch strings.Join(wsm.Args, "") {
 			case "start":
-				err = wsm.server.Environment().Start()
+				err = wsm.server.Environment.Start()
 				break
 			case "stop":
-				err = wsm.server.Environment().Stop()
+				err = wsm.server.Environment.Stop()
 				break
 			case "restart":
-				err = wsm.server.Environment().Terminate(os.Kill)
+				err = wsm.server.Environment.Terminate(os.Kill)
 				break
 			}
 
@@ -94,7 +94,7 @@ func (wsm *WebsocketMessage) HandleInbound(c *websocket.Conn) error {
 		}
 	case "send logs":
 		{
-			logs, err := wsm.server.Environment().Readlog(1024 * 5)
+			logs, err := wsm.server.Environment.Readlog(1024 * 5)
 			if err != nil {
 				return err
 			}
@@ -110,7 +110,7 @@ func (wsm *WebsocketMessage) HandleInbound(c *websocket.Conn) error {
 		}
 	case "send command":
 		{
-			return wsm.server.Environment().SendCommand(strings.Join(wsm.Args, ""))
+			return wsm.server.Environment.SendCommand(strings.Join(wsm.Args, ""))
 		}
 	}
 

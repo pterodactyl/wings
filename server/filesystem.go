@@ -112,7 +112,7 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 	}
 
 	var size int64
-	if x, exists := fs.Server.Cache().Get("disk_used"); exists {
+	if x, exists := fs.Server.Cache.Get("disk_used"); exists {
 		size = x.(int64)
 	}
 
@@ -124,7 +124,7 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 		if size, err := fs.DirectorySize("/"); err != nil {
 			zap.S().Warnw("failed to determine directory size", zap.String("server", fs.Server.Uuid), zap.Error(err))
 		} else {
-			fs.Server.Cache().Set("disk_used", size, time.Minute*5)
+			fs.Server.Cache.Set("disk_used", size, time.Minute*5)
 		}
 	}
 

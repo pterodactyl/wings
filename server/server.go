@@ -54,15 +54,15 @@ type Server struct {
 		Image string `json:"image,omitempty"`
 	} `json:"container,omitempty"`
 
-	environment Environment
+	Environment Environment `json:"-"`
 
-	fs *Filesystem
+	Filesystem *Filesystem `json:"-"`
 
 	// Server cache used to store frequently requested information in memory and make
 	// certain long operations return faster. For example, FS disk space usage.
-	cache *cache.Cache
+	Cache *cache.Cache `json:"-"`
 
-	emitter *emitter.Emitter
+	Emitter *emitter.Emitter `json:"-"`
 }
 
 // The build settings for a given server that impact docker container creation and
@@ -206,9 +206,10 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 		return nil, err
 	}
 
-	s.environment = env
-	s.cache = cache.New(time.Minute * 10, time.Minute * 15)
-	s.fs = &Filesystem{
+	s.Emitter = &emitter.Emitter{}
+	s.Environment = env
+	s.Cache = cache.New(time.Minute * 10, time.Minute * 15)
+	s.Filesystem = &Filesystem{
 		Root:   cfg.Data,
 		Server: s,
 	}
@@ -218,19 +219,7 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 
 // Reads the log file for a server up to a specified number of bytes.
 func (s *Server) ReadLogfile(len int64) ([]string, error) {
-	return s.Environment().Readlog(len)
-}
-
-func (s *Server) Environment() Environment {
-	return s.environment
-}
-
-func (s *Server) Filesystem() *Filesystem {
-	return s.fs
-}
-
-func (s *Server) Cache() *cache.Cache {
-	return s.cache
+	return s.Environment.Readlog(len)
 }
 
 // Sets the state of the server process.
@@ -252,7 +241,7 @@ func (s *Server) SetState(state ProcessState) error {
 // Determine if the server is bootable in it's current state or not. This will not
 // indicate why a server is not bootable, only if it is.
 func (s *Server) IsBootable() bool {
-	exists, _ := s.environment.Exists()
+	exists, _ := s.Environment.Exists()
 
 	return exists
 }
@@ -260,15 +249,5 @@ func (s *Server) IsBootable() bool {
 // Initalizes a server instance. This will run through and ensure that the environment
 // for the server is setup, and that all of the necessary files are created.
 func (s *Server) CreateEnvironment() error {
-	return s.environment.Create()
-}
-
-// Returns the server event emitter instance. If one has not been setup yet, a new instance
-// will be created.
-func (s *Server) Emitter() *emitter.Emitter {
-	if s.emitter == nil {
-		s.emitter = &emitter.Emitter{}
-	}
-
-	return s.emitter
+	return s.Environment.Create()
 }

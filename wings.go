@@ -64,15 +64,15 @@ func main() {
 		zap.S().Infow("loaded configuration for server", zap.String("server", s.Uuid))
 		zap.S().Infow("ensuring envrionment exists", zap.String("server", s.Uuid))
 
-		if err := s.CreateEnvironment(); err != nil {
+		if err := s.Environment.Create(); err != nil {
 			zap.S().Errorw("failed to create an environment for server", zap.String("server", s.Uuid), zap.Error(err))
 		}
 
-		if r, err := s.Environment().IsRunning(); err != nil {
+		if r, err := s.Environment.IsRunning(); err != nil {
 			zap.S().Errorw("error checking server environment status", zap.String("server", s.Uuid), zap.Error(err))
 		} else if r {
 			zap.S().Infow("detected server is running, re-attaching to process", zap.String("server", s.Uuid))
-			if err := s.Environment().Attach(); err != nil {
+			if err := s.Environment.Attach(); err != nil {
 				zap.S().Errorw("error attaching to server environment", zap.String("server", s.Uuid), zap.Error(err))
 			}
 		}
