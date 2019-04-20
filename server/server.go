@@ -252,7 +252,9 @@ func (s *Server) SetState(state ProcessState) error {
 // Determine if the server is bootable in it's current state or not. This will not
 // indicate why a server is not bootable, only if it is.
 func (s *Server) IsBootable() bool {
-	return s.environment.Exists()
+	exists, _ := s.environment.Exists()
+
+	return exists
 }
 
 // Initalizes a server instance. This will run through and ensure that the environment

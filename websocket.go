@@ -110,7 +110,7 @@ func (wsm *WebsocketMessage) HandleInbound(c *websocket.Conn) error {
 		}
 	case "send command":
 		{
-			return nil
+			return wsm.server.Environment().SendCommand(strings.Join(wsm.Args, ""))
 		}
 	}
 

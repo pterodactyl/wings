@@ -1,7 +1,6 @@
 package server
 
 import (
-	"io"
 	"os"
 )
 
@@ -10,6 +9,10 @@ import (
 type Environment interface {
 	// Returns the name of the environment.
 	Type() string
+
+	// Determines if the environment is currently active and running a server process
+	// for this specific server instance.
+	IsRunning() (bool, error)
 
 	// Starts a server instance. If the server instance is not in a state where it
 	// can be started an error should be returned.
@@ -22,7 +25,7 @@ type Environment interface {
 	// Determines if the server instance exists. For example, in a docker environment
 	// this should confirm that the container is created and in a bootable state. In
 	// a basic CLI environment this can probably just return true right away.
-	Exists() bool
+	Exists() (bool, error)
 
 	// Terminates a running server instance using the provided signal. If the server
 	// is not running no error should be returned.
@@ -34,8 +37,16 @@ type Environment interface {
 	Create() error
 
 	// Attaches to the server console environment and allows piping the output to a
-	// websocket or other internal tool to monitor output.
-	Attach() (io.ReadCloser, error)
+	// websocket or other internal tool to monitor output. Also allows you to later
+	// send data into the environment's stdin.
+	Attach() error
+
+	// Follows the output from the server console and will begin piping the output to
+	// the server's emitter.
+	FollowConsoleOutput() error
+
+	// Sends the provided command to the running server instance.
+	SendCommand(string) error
 
 	// Reads the log file for the process from the end backwards until the provided
 	// number of bytes is met.

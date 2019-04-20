@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/daemon/logger/jsonfilelog"
 	"github.com/docker/go-connections/nat"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"io"
 	"os"
@@ -33,6 +34,15 @@ type DockerEnvironment struct {
 
 	// The Docker client being used for this instance.
 	Client *client.Client
+
+	// Tracks if we are currently attached to the server container. This allows us to attach
+	// once and then just use that attachment to stream logs out of the server and also stream
+	// commands back into it without constantly attaching and detaching.
+	attached bool
+
+	// Controls the hijacked response stream which exists only when we're attached to
+	// the running container instance.
+	stream types.HijackedResponse
 }
 
 // Creates a new base Docker environment. A server must still be attached to it.
@@ -64,10 +74,39 @@ func (d *DockerEnvironment) Type() string {
 }
 
 // Determines if the container exists in this environment.
-func (d *DockerEnvironment) Exists() bool {
+func (d *DockerEnvironment) Exists() (bool, error) {
 	_, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
 
-	return err == nil
+	if err != nil {
+		// If this error is because the container instance wasn't found via Docker we
+		// can safely ignore the error and just return false.
+		if client.IsErrNotFound(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return true, nil
+}
+
+// Determines if the server's docker container is currently running. If there is no container
+// present, an error will be raised (since this shouldn't be a case that ever happens under
+// correctly developed circumstances).
+//
+// You can confirm if the instance wasn't found by using client.IsErrNotFound from the Docker
+// API.
+//
+// @see docker/client/errors.go
+func (d *DockerEnvironment) IsRunning() (bool, error) {
+	ctx := context.Background()
+
+	c, err := d.Client.ContainerInspect(ctx, d.Server.Uuid)
+	if err != nil {
+		return false, err
+	}
+
+	return c.State.Running, nil
 }
 
 // Checks if there is a container that already exists for the server. If so that
@@ -81,12 +120,21 @@ func (d *DockerEnvironment) Start() error {
 
 	// No reason to try starting a container that is already running.
 	if c.State.Running {
+		if !d.attached {
+			return d.Attach()
+		}
+
 		return nil
 	}
 
 	opts := types.ContainerStartOptions{}
 
-	return d.Client.ContainerStart(context.Background(), d.Server.Uuid, opts)
+	if err := d.Client.ContainerStart(context.Background(), d.Server.Uuid, opts); err != nil {
+		return err
+	}
+
+	d.FollowConsoleOutput()
+	return d.Attach()
 }
 
 // Stops the container that the server is running in. This will allow up to 10
@@ -113,17 +161,57 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 	return d.Client.ContainerKill(ctx, d.Server.Uuid, signal.String())
 }
 
-// Contrary to the name, this doesn't actually attach to the Docker container itself,
-// but rather attaches to the log for the container and then pipes that output to
-// a websocket.
-//
-// This avoids us missing cruicial output that happens in the split seconds before the
-// code moves from 'Starting' to 'Attaching' on the process.
-//
-// @todo add throttle code
-func (d *DockerEnvironment) Attach() (io.ReadCloser, error) {
-	if !d.Exists() {
-		return nil, errors.New(fmt.Sprintf("no such container: %s", d.Server.Uuid))
+// Attaches to the docker container itself and ensures that we can pipe data in and out
+// of the process stream. This should not be used for reading console data as you *will*
+// miss important output at the beginning because of the time delay with attaching to the
+// output.
+func (d *DockerEnvironment) Attach() error {
+	if d.attached {
+		return nil
+	}
+
+	ctx := context.Background()
+
+	var err error
+	d.stream, err = d.Client.ContainerAttach(ctx, d.Server.Uuid, types.ContainerAttachOptions{
+		Stdin: true,
+		Stdout: true,
+		Stderr: true,
+		Stream: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	console := Console{
+		Server: d.Server,
+	}
+
+	d.attached = true
+
+	go func() {
+		defer d.stream.Close()
+		defer func() {
+			d.attached = false
+		}()
+
+		io.Copy(console, d.stream.Reader)
+	}()
+
+	return nil
+}
+
+// Attaches to the log for the container. This avoids us missing cruicial output that
+// happens in the split seconds before the code moves from 'Starting' to 'Attaching'
+// on the process.
+func (d *DockerEnvironment) FollowConsoleOutput() error {
+	if exists, err := d.Exists(); !exists {
+		if err != nil {
+			return err
+		}
+
+		return errors.New(fmt.Sprintf("no such container: %s", d.Server.Uuid))
 	}
 
 	ctx := context.Background()
@@ -133,9 +221,22 @@ func (d *DockerEnvironment) Attach() (io.ReadCloser, error) {
 		Follow:     true,
 	}
 
-	r, err := d.Client.ContainerLogs(ctx, d.Server.Uuid, opts)
+	reader, err := d.Client.ContainerLogs(ctx, d.Server.Uuid, opts)
 
-	return r, err
+	go func(r io.ReadCloser) {
+		defer r.Close()
+
+		s := bufio.NewScanner(r)
+		for s.Scan() {
+			fmt.Println(s.Text())
+		}
+
+		if err := s.Err(); err != nil {
+			zap.S().Errorw("error in scanner", zap.Error(err))
+		}
+	}(reader)
+
+	return err
 }
 
 // Creates a new container for the server using all of the data that is currently
@@ -154,6 +255,8 @@ func (d *DockerEnvironment) Create() error {
 	// container anyways.
 	if _, err := cli.ContainerInspect(ctx, d.Server.Uuid); err == nil {
 		return nil
+	} else if !client.IsErrNotFound(err) {
+		return err
 	}
 
 	conf := &container.Config{
@@ -248,6 +351,18 @@ func (d *DockerEnvironment) Create() error {
 	}
 
 	return nil
+}
+
+// Sends the specified command to the stdin of the running container instance. There is no
+// confirmation that this data is sent successfully, only that it gets pushed into the stdin.
+func (d *DockerEnvironment) SendCommand(c string) error {
+	if !d.attached {
+		return errors.New("attempting to send command to non-attached instance")
+	}
+
+	_, err := d.stream.Conn.Write([]byte(c + "\n"))
+
+	return err
 }
 
 // Reads the log file for the server. This does not care if the server is running or not, it will
