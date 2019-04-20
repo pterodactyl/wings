@@ -43,11 +43,18 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 	for {
 		j := WebsocketMessage{server: s, inbound: true}
 
+		if _, _, err := c.ReadMessage(); err != nil {
+			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseServiceRestart) {
+				zap.S().Errorw("error handling websocket message", zap.Error(err))
+			}
+			break
+		}
+
 		// Discard and JSON parse errors into the void and don't continue processing this
 		// specific socket request. If we did a break here the client would get disconnected
 		// from the socket, which is NOT what we want to do.
 		if err := c.ReadJSON(&j); err != nil {
-			break
+			continue
 		}
 
 		fmt.Printf("%s received: %s = %s\n", s.Uuid, j.Event, strings.Join(j.Args, " "))
