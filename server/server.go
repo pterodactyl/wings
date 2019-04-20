@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/olebedev/emitter"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
@@ -60,6 +61,8 @@ type Server struct {
 	// Server cache used to store frequently requested information in memory and make
 	// certain long operations return faster. For example, FS disk space usage.
 	cache *cache.Cache
+
+	emitter *emitter.Emitter
 }
 
 // The build settings for a given server that impact docker container creation and
@@ -256,4 +259,14 @@ func (s *Server) IsBootable() bool {
 // for the server is setup, and that all of the necessary files are created.
 func (s *Server) CreateEnvironment() error {
 	return s.environment.Create()
+}
+
+// Returns the server event emitter instance. If one has not been setup yet, a new instance
+// will be created.
+func (s *Server) Emitter() *emitter.Emitter {
+	if s.emitter == nil {
+		s.emitter = &emitter.Emitter{}
+	}
+
+	return s.emitter
 }
