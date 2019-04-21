@@ -12,6 +12,14 @@ import (
 	"sync"
 )
 
+const (
+	SetStateEvent       = "set state"
+	SendServerLogsEvent = "send logs"
+	SendCommandEvent    = "send command"
+	ConsoleOutputEvent  = "console output"
+	ServerStatusEvent   = "status"
+)
+
 type WebsocketMessage struct {
 	// The event to perform. Should be one of the following that are supported:
 	//
@@ -46,17 +54,27 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 
 	s := rt.Servers.Get(ps.ByName("server"))
 	handler := WebsocketHandler{
-		Server: s,
-		Mutex:  sync.Mutex{},
+		Server:     s,
+		Mutex:      sync.Mutex{},
 		Connection: c,
 	}
 
 	handleOutput := func(data string) {
 		handler.SendJson(&WebsocketMessage{
-			Event: "console output",
+			Event: ConsoleOutputEvent,
 			Args:  []string{data},
 		})
 	}
+
+	handleServerStatus := func(data string) {
+		handler.SendJson(&WebsocketMessage{
+			Event: ServerStatusEvent,
+			Args:  []string{data},
+		})
+	}
+
+	s.AddListener(server.StatusEvent, &handleServerStatus)
+	defer s.RemoveListener(server.StatusEvent, &handleServerStatus)
 
 	s.AddListener(server.ConsoleOutputEvent, &handleOutput)
 	defer s.RemoveListener(server.ConsoleOutputEvent, &handleOutput)
@@ -102,7 +120,7 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 	}
 
 	switch m.Event {
-	case "set state":
+	case SetStateEvent:
 		{
 			var err error
 			switch strings.Join(m.Args, "") {
@@ -121,7 +139,7 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 				return err
 			}
 		}
-	case "send logs":
+	case SendServerLogsEvent:
 		{
 			logs, err := wsh.Server.Environment.Readlog(1024 * 5)
 			if err != nil {
@@ -130,14 +148,14 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 
 			for _, line := range logs {
 				wsh.SendJson(&WebsocketMessage{
-					Event: "console output",
+					Event: ConsoleOutputEvent,
 					Args:  []string{line},
 				})
 			}
 
 			return nil
 		}
-	case "send command":
+	case SendCommandEvent:
 		{
 			return wsh.Server.Environment.SendCommand(strings.Join(m.Args, ""))
 		}

@@ -7,6 +7,7 @@ type EventListenerFunction *func(string)
 // Defines all of the possible output events for a server.
 const (
 	ConsoleOutputEvent = "console"
+	StatusEvent = "status"
 )
 
 // Adds an event listener for the server instance.

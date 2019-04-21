@@ -1,8 +1,9 @@
 package server
 
 import (
+	"errors"
+	"fmt"
 	"github.com/patrickmn/go-cache"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
@@ -13,16 +14,6 @@ import (
 	"strings"
 	"time"
 )
-
-// Defines states that identify if the server is running or not.
-const (
-	StateOffline = "off"
-	StateStarting = "starting"
-	StateRunning = "running"
-	StateStopping = "stopping"
-)
-
-type ProcessState string
 
 // High level definition for a server instance being controlled by Wings.
 type Server struct {
@@ -36,7 +27,7 @@ type Server struct {
 	Suspended bool `json:"suspended"`
 
 	// The power state of the server.
-	State ProcessState `json:"state"`
+	State string `json:"state"`
 
 	// The command that should be used when booting up the server instance.
 	Invocation string `json:"invocation"`
@@ -190,7 +181,7 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 		return nil, err
 	}
 
-	withConfiguration := func (e *DockerEnvironment) {
+	withConfiguration := func(e *DockerEnvironment) {
 		e.User = cfg.User.Uid
 		e.TimezonePath = cfg.TimezonePath
 		e.Server = s
@@ -207,7 +198,7 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	}
 
 	s.Environment = env
-	s.Cache = cache.New(time.Minute * 10, time.Minute * 15)
+	s.Cache = cache.New(time.Minute*10, time.Minute*15)
 	s.Filesystem = &Filesystem{
 		Root:   cfg.Data,
 		Server: s,
@@ -219,22 +210,6 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 // Reads the log file for a server up to a specified number of bytes.
 func (s *Server) ReadLogfile(len int64) ([]string, error) {
 	return s.Environment.Readlog(len)
-}
-
-// Sets the state of the server process.
-func (s *Server) SetState(state ProcessState) error {
-	switch state {
-	case StateOffline:
-	case StateRunning:
-	case StateStarting:
-	case StateStopping:
-		s.State = state
-		break
-	default:
-		return errors.New("invalid state provided")
-	}
-
-	return nil
 }
 
 // Determine if the server is bootable in it's current state or not. This will not
@@ -249,4 +224,35 @@ func (s *Server) IsBootable() bool {
 // for the server is setup, and that all of the necessary files are created.
 func (s *Server) CreateEnvironment() error {
 	return s.Environment.Create()
+}
+
+const (
+	ProcessOfflineState  = "offline"
+	ProcessStartingState = "starting"
+	ProcessRunningState  = "running"
+	ProcessStoppingState = "stopping"
+)
+
+// Sets the state of the server internally. This function handles crash detection as
+// well as reporting to event listeners for the server.
+func (s *Server) SetState(state string) error {
+	switch state {
+	case ProcessOfflineState:
+	case ProcessStartingState:
+	case ProcessRunningState:
+	case ProcessStoppingState:
+		s.State = state
+		break
+	default:
+		return errors.New(fmt.Sprintf("invalid server state received: %s", state))
+	}
+
+	// Emit the event to any listeners that are currently registered.
+	s.Emit(StatusEvent, state)
+
+	// @todo handle a crash event here. Need to port the logic from the Nodejs daemon
+	// into this daemon. I believe its basically just if state != stopping && newState = stopped
+	// then crashed.
+
+	return nil
 }

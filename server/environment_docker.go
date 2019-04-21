@@ -120,6 +120,7 @@ func (d *DockerEnvironment) Start() error {
 
 	// No reason to try starting a container that is already running.
 	if c.State.Running {
+		d.Server.Emit(StatusEvent, ProcessRunningState)
 		if !d.attached {
 			return d.Attach()
 		}
@@ -129,7 +130,9 @@ func (d *DockerEnvironment) Start() error {
 
 	opts := types.ContainerStartOptions{}
 
+	d.Server.Emit(StatusEvent, ProcessStartingState)
 	if err := d.Client.ContainerStart(context.Background(), d.Server.Uuid, opts); err != nil {
+		d.Server.Emit(StatusEvent, ProcessOfflineState)
 		return err
 	}
 
@@ -142,6 +145,7 @@ func (d *DockerEnvironment) Start() error {
 func (d *DockerEnvironment) Stop() error {
 	t := time.Second * 10
 
+	d.Server.Emit(StatusEvent, ProcessStoppingState)
 	return d.Client.ContainerStop(context.Background(), d.Server.Uuid, &t)
 }
 
@@ -158,6 +162,7 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 		return nil
 	}
 
+	d.Server.Emit(StatusEvent, ProcessStoppingState)
 	return d.Client.ContainerKill(ctx, d.Server.Uuid, signal.String())
 }
 
@@ -193,6 +198,7 @@ func (d *DockerEnvironment) Attach() error {
 	go func() {
 		defer d.stream.Close()
 		defer func() {
+			d.Server.Emit(StatusEvent, ProcessOfflineState)
 			d.attached = false
 		}()
 
@@ -232,7 +238,7 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 		}
 
 		if err := s.Err(); err != nil {
-			zap.S().Errorw("error in scanner", zap.Error(err))
+			zap.S().Warnw("error processing scanner line in console output", zap.String("server", d.Server.Uuid), zap.Error(err))
 		}
 	}(reader)
 
