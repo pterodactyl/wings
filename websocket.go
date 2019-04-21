@@ -131,6 +131,8 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 				err = wsh.Server.Environment.Stop()
 				break
 			case "restart":
+				break
+			case "kill":
 				err = wsh.Server.Environment.Terminate(os.Kill)
 				break
 			}

@@ -163,7 +163,7 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 	}
 
 	d.Server.Emit(StatusEvent, ProcessStoppingState)
-	return d.Client.ContainerKill(ctx, d.Server.Uuid, signal.String())
+	return d.Client.ContainerKill(ctx, d.Server.Uuid, "SIGKILL")
 }
 
 // Attaches to the docker container itself and ensures that we can pipe data in and out
