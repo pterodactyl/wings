@@ -228,7 +228,7 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 
 		s := bufio.NewScanner(r)
 		for s.Scan() {
-			fmt.Println(s.Text())
+			d.Server.Emit(ConsoleOutputEvent, s.Text())
 		}
 
 		if err := s.Err(); err != nil {

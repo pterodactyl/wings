@@ -1,7 +1,6 @@
 package server
 
 import (
-	"github.com/olebedev/emitter"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
@@ -62,7 +61,8 @@ type Server struct {
 	// certain long operations return faster. For example, FS disk space usage.
 	Cache *cache.Cache `json:"-"`
 
-	Emitter *emitter.Emitter `json:"-"`
+	// All of the registered event listeners for this server instance.
+	listeners EventListeners
 }
 
 // The build settings for a given server that impact docker container creation and
@@ -206,7 +206,6 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 		return nil, err
 	}
 
-	s.Emitter = &emitter.Emitter{}
 	s.Environment = env
 	s.Cache = cache.New(time.Minute * 10, time.Minute * 15)
 	s.Filesystem = &Filesystem{
