@@ -122,6 +122,11 @@ type PowerActionRequest struct {
 	Action string `json:"action"`
 }
 
+type CreateDirectoryRequest struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
 func (pr *PowerActionRequest) IsValid() bool {
 	return pr.Action == "start" || pr.Action == "stop" || pr.Action == "kill" || pr.Action == "restart"
 }
@@ -262,6 +267,35 @@ func (rt *Router) routeServerFileList(w http.ResponseWriter, r *http.Request, ps
 	json.NewEncoder(w).Encode(stats)
 }
 
+// Creates a new directory for the server.
+func (rt *Router) routeServerCreateDirectory(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.Servers.Get(ps.ByName("server"))
+	defer r.Body.Close()
+
+	dec := json.NewDecoder(r.Body)
+	var data CreateDirectoryRequest
+
+	if err := dec.Decode(&data); err != nil {
+		// Don't flood the logs with error messages if someone sends through bad
+		// JSON data. We don't really care.
+		if err != io.EOF && err != io.ErrUnexpectedEOF {
+			zap.S().Errorw("failed to decode directory creation data", zap.Error(err))
+		}
+
+		http.Error(w, "could not parse data in request", http.StatusUnprocessableEntity)
+		return
+	}
+
+	if err := s.Filesystem.CreateDirectory(data.Name, data.Path); err != nil {
+		zap.S().Errorw("failed to create directory for server", zap.String("server", s.Uuid), zap.Error(err))
+
+		http.Error(w, "an error was encountered while creating the directory", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // Configures the router and all of the associated routes.
 func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router := httprouter.New()
@@ -272,6 +306,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/api/servers/:server/logs", rt.AuthenticateToken("s:logs", rt.AuthenticateServer(rt.routeServerLogs)))
 	router.GET("/api/servers/:server/files/read/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileRead)))
 	router.GET("/api/servers/:server/files/list/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileList)))
+	router.POST("/api/servers/:server/files/create-directory", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerCreateDirectory)))
 
 	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))
 

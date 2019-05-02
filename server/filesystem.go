@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -259,6 +260,16 @@ func (fs *Filesystem) Stat(p string) (*Stat, error) {
 	}
 
 	return st, nil
+}
+
+// Creates a new directory (name) at a specificied path (p) for the server.
+func (fs *Filesystem) CreateDirectory(name string, p string) error {
+	cleaned, err := fs.SafePath(path.Join(p, name))
+	if err != nil {
+		return err
+	}
+
+	return os.MkdirAll(cleaned, 0755)
 }
 
 // Lists the contents of a given directory and returns stat information about each
