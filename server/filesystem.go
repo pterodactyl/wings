@@ -274,8 +274,12 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 		return nil, err
 	}
 
-	var out []*Stat
 	var wg sync.WaitGroup
+
+	// You must initialize the output of this directory as a non-nil value otherwise
+	// when it is marshaled into a JSON object you'll just get 'null' back, which will
+	// break the panel badly.
+	out := make([]*Stat, 0)
 
 	// Iterate over all of the files and directories returned and perform an async process
 	// to get the mime-type for them all.
