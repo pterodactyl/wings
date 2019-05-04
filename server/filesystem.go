@@ -272,6 +272,21 @@ func (fs *Filesystem) CreateDirectory(name string, p string) error {
 	return os.MkdirAll(cleaned, 0755)
 }
 
+// Moves (or renames) a file or directory.
+func (fs *Filesystem) Rename(from string, to string) error {
+	cleanedFrom, err := fs.SafePath(from)
+	if err != nil {
+		return err
+	}
+
+	cleanedTo, err := fs.SafePath(to)
+	if err != nil {
+		return err
+	}
+
+	return os.Rename(cleanedFrom, cleanedTo)
+}
+
 // Lists the contents of a given directory and returns stat information about each
 // file and folder within it.
 func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {

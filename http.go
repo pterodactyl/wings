@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/buger/jsonparser"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pterodactyl/wings/server"
@@ -204,7 +206,7 @@ func (rt *Router) routeServerLogs(w http.ResponseWriter, r *http.Request, ps htt
 		return
 	}
 
-	json.NewEncoder(w).Encode(struct{Data []string `json:"data"`}{Data: out })
+	json.NewEncoder(w).Encode(struct{ Data []string `json:"data"` }{Data: out})
 }
 
 // Handle a request to get the contents of a file on the server.
@@ -241,7 +243,7 @@ func (rt *Router) routeServerFileRead(w http.ResponseWriter, r *http.Request, ps
 	// If a download parameter is included in the URL go ahead and attach the necessary headers
 	// so that the file can be downloaded.
 	if r.URL.Query().Get("download") != "" {
-		w.Header().Set("Content-Disposition", "attachment; filename=" + st.Name())
+		w.Header().Set("Content-Disposition", "attachment; filename="+st.Name())
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Length", strconv.Itoa(int(st.Size())))
 	}
@@ -296,6 +298,36 @@ func (rt *Router) routeServerCreateDirectory(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (rt *Router) routeServerRenameFile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.Servers.Get(ps.ByName("server"))
+	defer r.Body.Close()
+
+	data := rt.ReaderToBytes(r.Body)
+	oldPath, _ := jsonparser.GetString(data, "rename_from")
+	newPath, _ := jsonparser.GetString(data, "rename_to")
+
+	if oldPath == "" || newPath == "" {
+		http.Error(w, "invalid paths provided; did you forget to provide an old path and new path?", http.StatusUnprocessableEntity)
+		return
+	}
+
+	if err := s.Filesystem.Rename(oldPath, newPath); err != nil {
+		zap.S().Errorw("failed to rename file on server", zap.String("server", s.Uuid), zap.Error(err))
+
+		http.Error(w, "an error occurred while renaming the file", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (rt *Router) ReaderToBytes(r io.Reader) []byte {
+	buf := bytes.Buffer{}
+	buf.ReadFrom(r)
+
+	return buf.Bytes()
+}
+
 // Configures the router and all of the associated routes.
 func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router := httprouter.New()
@@ -306,6 +338,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/api/servers/:server/logs", rt.AuthenticateToken("s:logs", rt.AuthenticateServer(rt.routeServerLogs)))
 	router.GET("/api/servers/:server/files/read/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileRead)))
 	router.GET("/api/servers/:server/files/list/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileList)))
+	router.PUT("/api/servers/:server/files/rename", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerRenameFile)))
 	router.POST("/api/servers/:server/files/create-directory", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerCreateDirectory)))
 
 	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))
