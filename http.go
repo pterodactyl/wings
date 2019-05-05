@@ -321,6 +321,23 @@ func (rt *Router) routeServerRenameFile(w http.ResponseWriter, r *http.Request, 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (rt *Router) routeServerCopyFile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.Servers.Get(ps.ByName("server"))
+	defer r.Body.Close()
+
+	data := rt.ReaderToBytes(r.Body)
+	copyLocation, _ := jsonparser.GetString(data, "file_location")
+
+	if err := s.Filesystem.Copy(copyLocation); err != nil {
+		zap.S().Errorw("error copying file for server", zap.String("server", s.Uuid), zap.Error(err))
+
+		http.Error(w, "an error occurred while copying the file", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (rt *Router) ReaderToBytes(r io.Reader) []byte {
 	buf := bytes.Buffer{}
 	buf.ReadFrom(r)
@@ -339,6 +356,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/api/servers/:server/files/read/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileRead)))
 	router.GET("/api/servers/:server/files/list/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileList)))
 	router.PUT("/api/servers/:server/files/rename", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerRenameFile)))
+	router.POST("/api/servers/:server/files/copy", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerCopyFile)))
 	router.POST("/api/servers/:server/files/create-directory", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerCreateDirectory)))
 
 	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/gabriel-vasile/mimetype"
 	"go.uber.org/zap"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -285,6 +287,87 @@ func (fs *Filesystem) Rename(from string, to string) error {
 	}
 
 	return os.Rename(cleanedFrom, cleanedTo)
+}
+
+// Copies a given file to the same location and appends a suffix to the file to indicate that
+// it has been copied.
+//
+// @todo need to get an exclusive lock on the file.
+func (fs *Filesystem) Copy(p string) error {
+	cleaned, err := fs.SafePath(p)
+	if err != nil {
+		return err
+	}
+
+	if s, err := os.Stat(cleaned); (err != nil && os.IsNotExist(err)) || s.IsDir() || !s.Mode().IsRegular() {
+		// For now I think I am okay just returning a nil response if the thing
+		// we're trying to copy doesn't exist. Probably will want to come back and
+		// re-evaluate if this is a smart decision (I'm guessing not).
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	base := filepath.Base(cleaned)
+	relative := strings.TrimSuffix(strings.TrimPrefix(cleaned, fs.Path()), base)
+	extension := filepath.Ext(base)
+	name := strings.TrimSuffix(base, filepath.Ext(base))
+
+	// Begin looping up to 50 times to try and create a unique copy file name. This will take
+	// an input of "file.txt" and generate "file copy.txt". If that name is already taken, it will
+	// then try to write "file copy 2.txt" and so on, until reaching 50 loops. At that point we
+	// won't waste anymore time, just use the current timestamp and make that copy.
+	//
+	// Could probably make this more efficient by checking if there are any files matching the copy
+	// pattern, and trying to find the highest number and then incrementing it by one rather than
+	// looping endlessly.
+	var i int
+	copySuffix := " copy"
+	for i = 0; i < 51; i++ {
+		if i > 0 {
+			copySuffix = " copy " + strconv.Itoa(i)
+		}
+
+		tryName := fmt.Sprintf("%s%s%s", name, copySuffix, extension)
+		tryLocation, err := fs.SafePath(path.Join(relative, tryName))
+		if err != nil {
+			return err
+		}
+
+		// If the file exists, continue to the next loop, otherwise we're good to start a copy.
+		if _, err := os.Stat(tryLocation); err != nil && !os.IsNotExist(err) {
+			return err
+		} else if os.IsNotExist(err) {
+			break
+		}
+
+		if i == 50 {
+			copySuffix = "." + time.Now().Format(time.RFC3339)
+		}
+	}
+
+	finalPath, err := fs.SafePath(path.Join(relative, fmt.Sprintf("%s%s%s", name, copySuffix, extension)))
+	if err != nil {
+		return err
+	}
+
+	source, err := os.Open(cleaned)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	dest, err := os.Create(finalPath)
+	if err != nil {
+		return err
+	}
+	defer dest.Close()
+
+	if _, err := io.Copy(dest, source); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Lists the contents of a given directory and returns stat information about each
