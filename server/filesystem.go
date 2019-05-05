@@ -194,17 +194,6 @@ func (fs *Filesystem) Readfile(p string) (io.Reader, error) {
 	return bytes.NewReader(b), nil
 }
 
-// Delete a file or folder from the system. If a folder location is passed in the
-// folder and all of its contents are deleted.
-func (fs *Filesystem) DeleteFile(p string) error {
-	cleaned, err := fs.SafePath(p)
-	if err != nil {
-		return err
-	}
-
-	return os.RemoveAll(cleaned)
-}
-
 // Defines the stat struct object.
 type Stat struct {
 	Info     os.FileInfo
@@ -368,6 +357,22 @@ func (fs *Filesystem) Copy(p string) error {
 	}
 
 	return nil
+}
+
+// Deletes a file or folder from the system. Prevents the user from accidentally
+// (or maliciously) removing their root server data directory.
+func (fs *Filesystem) Delete(p string) error {
+	cleaned, err := fs.SafePath(p)
+	if err != nil {
+		return err
+	}
+
+	// Block any whoopsies.
+	if cleaned == fs.Path() {
+		return errors.New("cannot delete root server directory")
+	}
+
+	return os.RemoveAll(cleaned)
 }
 
 // Lists the contents of a given directory and returns stat information about each

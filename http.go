@@ -326,12 +326,29 @@ func (rt *Router) routeServerCopyFile(w http.ResponseWriter, r *http.Request, ps
 	defer r.Body.Close()
 
 	data := rt.ReaderToBytes(r.Body)
-	copyLocation, _ := jsonparser.GetString(data, "file_location")
+	loc, _ := jsonparser.GetString(data, "location")
 
-	if err := s.Filesystem.Copy(copyLocation); err != nil {
+	if err := s.Filesystem.Copy(loc); err != nil {
 		zap.S().Errorw("error copying file for server", zap.String("server", s.Uuid), zap.Error(err))
 
 		http.Error(w, "an error occurred while copying the file", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (rt *Router) routeServerDeleteFile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.Servers.Get(ps.ByName("server"))
+	defer r.Body.Close()
+
+	data := rt.ReaderToBytes(r.Body)
+	loc, _ := jsonparser.GetString(data, "location")
+
+	if err := s.Filesystem.Delete(loc); err != nil {
+		zap.S().Errorw("failed to delete a file or directory for server", zap.String("server", s.Uuid), zap.Error(err))
+
+		http.Error(w, "an error occurred while trying to delete a file or directory", http.StatusInternalServerError)
 		return
 	}
 
@@ -358,7 +375,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.PUT("/api/servers/:server/files/rename", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerRenameFile)))
 	router.POST("/api/servers/:server/files/copy", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerCopyFile)))
 	router.POST("/api/servers/:server/files/create-directory", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerCreateDirectory)))
-
+	router.POST("/api/servers/:server/files/delete", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerDeleteFile)))
 	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))
 
 	router.GET("/api/servers/:server/ws", rt.AuthenticateToken("s:websocket", rt.AuthenticateServer(rt.routeWebsocket)))
