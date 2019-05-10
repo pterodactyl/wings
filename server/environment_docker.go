@@ -128,7 +128,11 @@ func (d *DockerEnvironment) Start() error {
 		return nil
 	}
 
-	opts := types.ContainerStartOptions{}
+	// Truncate the log file so we don't end up outputting a bunch of useless log information
+	// to the websocket and whatnot.
+	if err := os.Truncate(c.LogPath, 0); err != nil {
+		return err
+	}
 
 	d.Server.Emit(StatusEvent, ProcessStartingState)
 
@@ -139,6 +143,7 @@ func (d *DockerEnvironment) Start() error {
 		return err
 	}
 
+	opts := types.ContainerStartOptions{}
 	if err := d.Client.ContainerStart(context.Background(), d.Server.Uuid, opts); err != nil {
 		d.Server.Emit(StatusEvent, ProcessOfflineState)
 		return err
