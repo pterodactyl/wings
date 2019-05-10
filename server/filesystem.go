@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
@@ -23,17 +24,15 @@ import (
 var InvalidPathResolution = errors.New("invalid path resolution")
 
 type Filesystem struct {
-	// The root directory where all of the server data is contained. By default
-	// this is going to be /srv/daemon-data but can vary depending on the system.
-	Root string
-
 	// The server object associated with this Filesystem.
 	Server *Server
+
+	Configuration *config.SystemConfiguration
 }
 
 // Returns the root path that contains all of a server's data.
 func (fs *Filesystem) Path() string {
-	return filepath.Join(fs.Root, fs.Server.Uuid)
+	return filepath.Join(fs.Configuration.Data, fs.Server.Uuid)
 }
 
 // Normalizes a directory being passed in to ensure the user is not able to escape
@@ -47,7 +46,10 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 
 	// Calling filpath.Clean on the joined directory will resolve it to the absolute path,
 	// removing any ../ type of resolution arguments, and leaving us with a direct path link.
-	r := filepath.Clean(filepath.Join(fs.Path(), p))
+	//
+	// This will also trim the existing root path off the beginning of the path passed to
+	// the function since that can get a bit messy.
+	r := filepath.Clean(filepath.Join(fs.Path(), strings.TrimPrefix(p, fs.Path())))
 
 	// At the same time, evaluate the symlink status and determine where this file or folder
 	// is truly pointing to.
@@ -276,6 +278,57 @@ func (fs *Filesystem) Rename(from string, to string) error {
 	}
 
 	return os.Rename(cleanedFrom, cleanedTo)
+}
+
+// Recursively iterates over a directory and sets the permissions on all of the
+// underlying files.
+func (fs *Filesystem) Chown(path string) error {
+	cleaned, err := fs.SafePath(path)
+	if err != nil {
+		return err
+	}
+
+	if s, err := os.Stat(cleaned); err != nil {
+		return err
+	} else if !s.IsDir() {
+		return os.Chown(cleaned, fs.Configuration.User.Uid, fs.Configuration.User.Gid)
+	}
+
+	return fs.chownDirectory(cleaned)
+}
+
+// Iterate over all of the files and directories. If it is a file just go ahead and perform
+// the chown operation. Otherwise dig deeper into the directory until we've run out of
+// directories to dig into.
+func (fs *Filesystem) chownDirectory(path string) error {
+	var wg sync.WaitGroup
+
+	cleaned, err := fs.SafePath(path)
+	if err != nil {
+		return err
+	}
+
+	files, err := ioutil.ReadDir(cleaned)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range files {
+		if f.IsDir() {
+			wg.Add(1)
+
+			go func(p string) {
+				defer wg.Done()
+				fs.chownDirectory(p)
+			}(filepath.Join(cleaned, f.Name()))
+		} else {
+			os.Chown(filepath.Join(cleaned, f.Name()), fs.Configuration.User.Uid, fs.Configuration.User.Gid)
+		}
+	}
+
+	wg.Wait()
+
+	return nil
 }
 
 // Copies a given file to the same location and appends a suffix to the file to indicate that

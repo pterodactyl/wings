@@ -200,7 +200,7 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	s.Environment = env
 	s.Cache = cache.New(time.Minute*10, time.Minute*15)
 	s.Filesystem = &Filesystem{
-		Root:   cfg.Data,
+		Configuration: cfg,
 		Server: s,
 	}
 

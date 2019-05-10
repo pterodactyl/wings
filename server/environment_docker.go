@@ -53,7 +53,7 @@ func NewDockerEnvironment(opts ...func(*DockerEnvironment)) (*DockerEnvironment,
 	}
 
 	env := &DockerEnvironment{
-		User: 1000,
+		User:   1000,
 		Client: cli,
 	}
 
@@ -131,6 +131,14 @@ func (d *DockerEnvironment) Start() error {
 	opts := types.ContainerStartOptions{}
 
 	d.Server.Emit(StatusEvent, ProcessStartingState)
+
+	// Reset the permissions on files for the server before actually trying
+	// to start it.
+	if err := d.Server.Filesystem.Chown("/"); err != nil {
+		d.Server.Emit(StatusEvent, ProcessOfflineState)
+		return err
+	}
+
 	if err := d.Client.ContainerStart(context.Background(), d.Server.Uuid, opts); err != nil {
 		d.Server.Emit(StatusEvent, ProcessOfflineState)
 		return err
@@ -179,7 +187,7 @@ func (d *DockerEnvironment) Attach() error {
 
 	var err error
 	d.stream, err = d.Client.ContainerAttach(ctx, d.Server.Uuid, types.ContainerAttachOptions{
-		Stdin: true,
+		Stdin:  true,
 		Stdout: true,
 		Stderr: true,
 		Stream: true,
@@ -416,7 +424,7 @@ func (d *DockerEnvironment) Readlog(len int64) ([]string, error) {
 }
 
 type dockerLogLine struct {
-	Log    string `json:"log"`
+	Log string `json:"log"`
 }
 
 // Docker stores the logs for server output in a JSON format. This function will iterate over the JSON
