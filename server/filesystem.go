@@ -473,7 +473,7 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 	// Sort the output alphabetically to begin with since we've run the output
 	// through an asynchronous process and the order is gonna be very random.
 	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Info.Name() == out[j].Info.Name() || out[i].Info.Name() < out[j].Info.Name() {
+		if out[i].Info.Name() == out[j].Info.Name() || out[i].Info.Name() > out[j].Info.Name() {
 			return true
 		}
 
