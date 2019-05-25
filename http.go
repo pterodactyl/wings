@@ -213,9 +213,9 @@ func (rt *Router) routeServerLogs(w http.ResponseWriter, r *http.Request, ps htt
 func (rt *Router) routeServerFileRead(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	s := rt.Servers.Get(ps.ByName("server"))
 
-	cleaned, err := s.Filesystem.SafePath(ps.ByName("path"))
+	cleaned, err := s.Filesystem.SafePath(r.URL.Query().Get("file"))
 	if err != nil {
-		http.Error(w, "could not determine path", http.StatusInternalServerError)
+		http.NotFound(w, r)
 		return
 	}
 
@@ -252,10 +252,10 @@ func (rt *Router) routeServerFileRead(w http.ResponseWriter, r *http.Request, ps
 }
 
 // Lists the contents of a directory.
-func (rt *Router) routeServerFileList(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (rt *Router) routeServerListDirectory(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	s := rt.Servers.Get(ps.ByName("server"))
 
-	stats, err := s.Filesystem.ListDirectory(ps.ByName("path"))
+	stats, err := s.Filesystem.ListDirectory(r.URL.Query().Get("directory"))
 	if os.IsNotExist(err) {
 		http.NotFound(w, r)
 		return
@@ -370,8 +370,8 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/api/servers", rt.AuthenticateToken("i:servers", rt.routeAllServers))
 	router.GET("/api/servers/:server", rt.AuthenticateToken("s:view", rt.AuthenticateServer(rt.routeServer)))
 	router.GET("/api/servers/:server/logs", rt.AuthenticateToken("s:logs", rt.AuthenticateServer(rt.routeServerLogs)))
-	router.GET("/api/servers/:server/files/read/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileRead)))
-	router.GET("/api/servers/:server/files/list/*path", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileList)))
+	router.GET("/api/servers/:server/files/contents", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileRead)))
+	router.GET("/api/servers/:server/files/list-directory", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerListDirectory)))
 	router.PUT("/api/servers/:server/files/rename", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerRenameFile)))
 	router.POST("/api/servers/:server/files/copy", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerCopyFile)))
 	router.POST("/api/servers/:server/files/create-directory", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerCreateDirectory)))
