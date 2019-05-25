@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -194,6 +195,68 @@ func (fs *Filesystem) Readfile(p string) (io.Reader, error) {
 	}
 
 	return bytes.NewReader(b), nil
+}
+
+// Writes a file to the system. If the file does not already exist one will be created.
+//
+// @todo should probably have a write lock here so we don't write twice at once.
+func (fs *Filesystem) Writefile(p string, r io.Reader) error {
+	cleaned, err := fs.SafePath(p)
+	if err != nil {
+		return err
+	}
+
+	// If the file does not exist on the system already go ahead and create the pathway
+	// to it and an empty file. We'll then write to it later on after this completes.
+	if stat, err := os.Stat(cleaned); err != nil && os.IsNotExist(err) {
+		if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
+			return err
+		}
+
+		if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	} else if stat.IsDir() {
+		return errors.New("cannot use a directory as a file for writing")
+	}
+
+	// This will either create the file if it does not already exist, or open and
+	// truncate the existing file.
+	file, err := os.OpenFile(cleaned, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Create a new buffered writer that will write to the file we just opened
+	// and stream in the contents from the reader.
+	w := bufio.NewWriter(file)
+
+	buf := make([]byte, 1024)
+	for {
+		n, err := r.Read(buf)
+		if err != nil && err != io.EOF {
+			return err
+		}
+
+		if n == 0 {
+			break
+		}
+
+		if _, err := w.Write(buf[:n]); err != nil {
+			return err
+		}
+	}
+
+	if err := w.Flush(); err != nil {
+		return err
+	}
+
+	// Finally, chown the file to ensure the permissions don't end up out-of-whack
+	// if we had just created it.
+	return fs.Chown(p)
 }
 
 // Defines the stat struct object.

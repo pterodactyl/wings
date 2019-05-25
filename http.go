@@ -269,6 +269,24 @@ func (rt *Router) routeServerListDirectory(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(stats)
 }
 
+// Writes a file to the system for the server.
+func (rt *Router) routeServerWriteFile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.Servers.Get(ps.ByName("server"))
+
+	p := r.URL.Query().Get("file")
+	defer r.Body.Close()
+	err := s.Filesystem.Writefile(p, r.Body)
+
+	if err != nil {
+		zap.S().Errorw("failed to write file to directory", zap.String("server", s.Uuid), zap.String("path", p), zap.Error(err))
+
+		http.Error(w, "failed to write file to directory", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // Creates a new directory for the server.
 func (rt *Router) routeServerCreateDirectory(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	s := rt.Servers.Get(ps.ByName("server"))
@@ -374,6 +392,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/api/servers/:server/files/list-directory", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerListDirectory)))
 	router.PUT("/api/servers/:server/files/rename", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerRenameFile)))
 	router.POST("/api/servers/:server/files/copy", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerCopyFile)))
+	router.POST("/api/servers/:server/files/write", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerWriteFile)))
 	router.POST("/api/servers/:server/files/create-directory", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerCreateDirectory)))
 	router.POST("/api/servers/:server/files/delete", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerDeleteFile)))
 	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))
