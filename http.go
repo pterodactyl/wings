@@ -219,13 +219,16 @@ func (rt *Router) routeServerFileRead(w http.ResponseWriter, r *http.Request, ps
 		return
 	}
 
-	st, err := os.Stat(cleaned)
+	st, err := s.Filesystem.Stat(cleaned)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			zap.S().Errorw("failed to stat file for reading", zap.String("path", ps.ByName("path")), zap.String("server", s.Uuid), zap.Error(err))
+
+			http.Error(w, "failed to stat file", http.StatusInternalServerError)
+			return
 		}
 
-		http.Error(w, "failed to stat file", http.StatusInternalServerError)
+		http.NotFound(w, r)
 		return
 	}
 
@@ -240,12 +243,14 @@ func (rt *Router) routeServerFileRead(w http.ResponseWriter, r *http.Request, ps
 	}
 	defer f.Close()
 
+	w.Header().Set("X-Mime-Type", st.Mimetype)
+	w.Header().Set("Content-Length", strconv.Itoa(int(st.Info.Size())))
+
 	// If a download parameter is included in the URL go ahead and attach the necessary headers
 	// so that the file can be downloaded.
 	if r.URL.Query().Get("download") != "" {
-		w.Header().Set("Content-Disposition", "attachment; filename="+st.Name())
+		w.Header().Set("Content-Disposition", "attachment; filename="+st.Info.Name())
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Length", strconv.Itoa(int(st.Size())))
 	}
 
 	bufio.NewReader(f).WriteTo(w)
