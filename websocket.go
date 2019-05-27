@@ -16,8 +16,6 @@ const (
 	SetStateEvent       = "set state"
 	SendServerLogsEvent = "send logs"
 	SendCommandEvent    = "send command"
-	ConsoleOutputEvent  = "console output"
-	ServerStatusEvent   = "status"
 )
 
 type WebsocketMessage struct {
@@ -61,14 +59,14 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 
 	handleOutput := func(data string) {
 		handler.SendJson(&WebsocketMessage{
-			Event: ConsoleOutputEvent,
+			Event: server.ConsoleOutputEvent,
 			Args:  []string{data},
 		})
 	}
 
 	handleServerStatus := func(data string) {
 		handler.SendJson(&WebsocketMessage{
-			Event: ServerStatusEvent,
+			Event: server.StatusEvent,
 			Args:  []string{data},
 		})
 	}
@@ -78,6 +76,8 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 
 	s.AddListener(server.ConsoleOutputEvent, &handleOutput)
 	defer s.RemoveListener(server.ConsoleOutputEvent, &handleOutput)
+
+	s.Emit(server.StatusEvent, s.State)
 
 	for {
 		j := WebsocketMessage{inbound: true}
@@ -150,7 +150,7 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 
 			for _, line := range logs {
 				wsh.SendJson(&WebsocketMessage{
-					Event: ConsoleOutputEvent,
+					Event: server.ConsoleOutputEvent,
 					Args:  []string{line},
 				})
 			}
