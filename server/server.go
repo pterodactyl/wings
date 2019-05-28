@@ -201,7 +201,7 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	s.Cache = cache.New(time.Minute*10, time.Minute*15)
 	s.Filesystem = &Filesystem{
 		Configuration: cfg,
-		Server: s,
+		Server:        s,
 	}
 
 	return s, nil
@@ -236,19 +236,14 @@ const (
 // Sets the state of the server internally. This function handles crash detection as
 // well as reporting to event listeners for the server.
 func (s *Server) SetState(state string) error {
-	switch state {
-	case ProcessOfflineState:
-	case ProcessStartingState:
-	case ProcessRunningState:
-	case ProcessStoppingState:
-		s.State = state
-		break
-	default:
+	if state != ProcessOfflineState && state != ProcessStartingState && state != ProcessRunningState && state != ProcessStoppingState {
 		return errors.New(fmt.Sprintf("invalid server state received: %s", state))
 	}
 
+	s.State = state
+
 	// Emit the event to any listeners that are currently registered.
-	s.Emit(StatusEvent, state)
+	s.Emit(StatusEvent, s.State)
 
 	// @todo handle a crash event here. Need to port the logic from the Nodejs daemon
 	// into this daemon. I believe its basically just if state != stopping && newState = stopped

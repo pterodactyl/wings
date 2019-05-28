@@ -120,7 +120,7 @@ func (d *DockerEnvironment) Start() error {
 
 	// No reason to try starting a container that is already running.
 	if c.State.Running {
-		d.Server.Emit(StatusEvent, ProcessRunningState)
+		d.Server.SetState(ProcessRunningState)
 		if !d.attached {
 			return d.Attach()
 		}
@@ -134,18 +134,18 @@ func (d *DockerEnvironment) Start() error {
 		return err
 	}
 
-	d.Server.Emit(StatusEvent, ProcessStartingState)
+	d.Server.SetState(ProcessStartingState)
 
 	// Reset the permissions on files for the server before actually trying
 	// to start it.
 	if err := d.Server.Filesystem.Chown("/"); err != nil {
-		d.Server.Emit(StatusEvent, ProcessOfflineState)
+		d.Server.SetState(ProcessOfflineState)
 		return err
 	}
 
 	opts := types.ContainerStartOptions{}
 	if err := d.Client.ContainerStart(context.Background(), d.Server.Uuid, opts); err != nil {
-		d.Server.Emit(StatusEvent, ProcessOfflineState)
+		d.Server.SetState(ProcessOfflineState)
 		return err
 	}
 
@@ -158,7 +158,7 @@ func (d *DockerEnvironment) Start() error {
 func (d *DockerEnvironment) Stop() error {
 	t := time.Second * 10
 
-	d.Server.Emit(StatusEvent, ProcessStoppingState)
+	d.Server.SetState(ProcessStoppingState)
 	return d.Client.ContainerStop(context.Background(), d.Server.Uuid, &t)
 }
 
@@ -175,7 +175,7 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 		return nil
 	}
 
-	d.Server.Emit(StatusEvent, ProcessStoppingState)
+	d.Server.SetState(ProcessStoppingState)
 	return d.Client.ContainerKill(ctx, d.Server.Uuid, "SIGKILL")
 }
 
@@ -211,7 +211,7 @@ func (d *DockerEnvironment) Attach() error {
 	go func() {
 		defer d.stream.Close()
 		defer func() {
-			d.Server.Emit(StatusEvent, ProcessOfflineState)
+			d.Server.SetState(ProcessOfflineState)
 			d.attached = false
 		}()
 
