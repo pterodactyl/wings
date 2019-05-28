@@ -5,6 +5,7 @@ type EventListeners map[string][]EventListenerFunction
 type EventListenerFunction *func(string)
 
 // Defines all of the possible output events for a server.
+// noinspection GoNameStartsWithPackageName
 const (
 	ConsoleOutputEvent = "console output"
 	StatusEvent = "status"

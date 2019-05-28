@@ -78,6 +78,9 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 	defer s.RemoveListener(server.ConsoleOutputEvent, &handleOutput)
 
 	s.Emit(server.StatusEvent, s.State)
+	if s.State != server.ProcessOfflineState {
+		handler.HandleInbound(WebsocketMessage{inbound: true, Event: SendServerLogsEvent})
+	}
 
 	for {
 		j := WebsocketMessage{inbound: true}
@@ -99,6 +102,8 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		if err := handler.HandleInbound(j); err != nil {
 			zap.S().Warnw("error handling inbound websocket request", zap.Error(err))
 			break
+		} else {
+			zap.S().Debugw("handled event", zap.String("event", j.Event), zap.Strings("args", j.Args))
 		}
 	}
 }
@@ -143,7 +148,7 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 		}
 	case SendServerLogsEvent:
 		{
-			logs, err := wsh.Server.Environment.Readlog(1024 * 5)
+			logs, err := wsh.Server.Environment.Readlog(1024 * 16)
 			if err != nil {
 				return err
 			}
