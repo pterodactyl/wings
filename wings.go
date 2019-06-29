@@ -80,7 +80,7 @@ func main() {
 
 	r := &Router{
 		Servers: servers,
-		token: c.AuthenticationToken,
+		token:   c.AuthenticationToken,
 		upgrader: websocket.Upgrader{
 			// Ensure that the websocket request is originating from the Panel itself,
 			// and not some other location.
@@ -91,9 +91,17 @@ func main() {
 	}
 
 	router := r.ConfigureRouter()
-	zap.S().Infow("configuring webserver", zap.String("host", c.Api.Host), zap.Int("port", c.Api.Port))
-	if err := http.ListenAndServe(fmt.Sprintf("%s:%d", c.Api.Host, c.Api.Port), router); err != nil {
-		zap.S().Fatalw("failed to configure HTTP server", zap.Error(err))
+	zap.S().Infow("configuring webserver", zap.Bool("ssl", c.Api.Ssl.Enabled), zap.String("host", c.Api.Host), zap.Int("port", c.Api.Port))
+
+	addr := fmt.Sprintf("%s:%d", c.Api.Host, c.Api.Port)
+	if c.Api.Ssl.Enabled {
+		if err := http.ListenAndServeTLS(addr, c.Api.Ssl.CertificateFile, c.Api.Ssl.KeyFile, router); err != nil {
+			zap.S().Fatalw("failed to configure HTTPS server", zap.Error(err))
+		}
+	} else {
+		if err := http.ListenAndServe(addr, router); err != nil {
+			zap.S().Fatalw("failed to configure HTTP server", zap.Error(err))
+		}
 	}
 }
 
