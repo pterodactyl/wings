@@ -74,6 +74,8 @@ func main() {
 			zap.S().Infow("detected server is running, re-attaching to process", zap.String("server", s.Uuid))
 			if err := s.Environment.Attach(); err != nil {
 				zap.S().Errorw("error attaching to server environment", zap.String("server", s.Uuid), zap.Error(err))
+			} else {
+				s.SetState(server.ProcessRunningState)
 			}
 		}
 	}

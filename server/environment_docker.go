@@ -149,7 +149,6 @@ func (d *DockerEnvironment) Start() error {
 		return err
 	}
 
-	d.FollowConsoleOutput()
 	return d.Attach()
 }
 
@@ -186,6 +185,10 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 func (d *DockerEnvironment) Attach() error {
 	if d.attached {
 		return nil
+	}
+
+	if err := d.FollowConsoleOutput(); err != nil {
+		return err
 	}
 
 	ctx := context.Background()

@@ -78,9 +78,6 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 	defer s.RemoveListener(server.ConsoleOutputEvent, &handleOutput)
 
 	s.Emit(server.StatusEvent, s.State)
-	if s.State != server.ProcessOfflineState {
-		handler.HandleInbound(WebsocketMessage{inbound: true, Event: SendServerLogsEvent})
-	}
 
 	for {
 		j := WebsocketMessage{inbound: true}
