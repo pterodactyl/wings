@@ -278,8 +278,8 @@ func (s *Stat) MarshalJSON() ([]byte, error) {
 		Mime      string `json:"mime"`
 	}{
 		Name:      s.Info.Name(),
-		Created:   s.CTime().String(),
-		Modified:  s.Info.ModTime().String(),
+		Created:   s.CTime().Format(time.RFC3339),
+		Modified:  s.Info.ModTime().Format(time.RFC3339),
 		Mode:      s.Info.Mode().String(),
 		Size:      s.Info.Size(),
 		Directory: s.Info.IsDir(),
