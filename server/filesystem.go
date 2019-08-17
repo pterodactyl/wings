@@ -130,13 +130,15 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 		if size, err := fs.DirectorySize("/"); err != nil {
 			zap.S().Warnw("failed to determine directory size", zap.String("server", fs.Server.Uuid), zap.Error(err))
 		} else {
-			fs.Server.Cache.Set("disk_used", size, time.Minute*5)
+			fs.Server.Cache.Set("disk_used", size, time.Second * 60)
 		}
 	}
 
 	// Determine if their folder size, in bytes, is smaller than the amount of space they've
 	// been allocated.
-	return (size / 1024.0 / 1024.0) <= space
+	fs.Server.Resources.Disk = size
+
+	return (size / 1000.0 / 1000.0) <= space
 }
 
 // Determines the directory size of a given location by running parallel tasks to iterate

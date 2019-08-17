@@ -289,7 +289,7 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 		pCpu := 0.0
 		pSystem := 0.0
 
-		for  {
+		for {
 			var v *types.StatsJSON
 
 			if err := dec.Decode(&v); err != nil {
@@ -308,7 +308,10 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 			s.Resources.CpuAbsolute = s.Resources.CalculateAbsoluteCpu(pCpu, pSystem, &v.CPUStats)
 			s.Resources.Memory = v.MemoryStats.Usage
 			s.Resources.MemoryLimit = v.MemoryStats.Limit
-			s.Resources.Disk = 0
+
+			// Why you ask? This already has the logic for caching disk space in use and then
+			// also handles pushing that value to the resources object automatically.
+			s.Filesystem.HasSpaceAvailable()
 
 			for _, nw := range v.Networks {
 				s.Resources.Network.RxBytes += nw.RxBytes
@@ -326,7 +329,14 @@ func (d *DockerEnvironment) DisableResourcePolling() error {
 		return nil
 	}
 
-	return d.stats.Close()
+	err := d.stats.Close()
+
+	d.Server.Resources.CpuAbsolute = 0
+	d.Server.Resources.Memory = 0
+	d.Server.Resources.Network.TxBytes = 0
+	d.Server.Resources.Network.RxBytes = 0
+
+	return err
 }
 
 // Creates a new container for the server using all of the data that is currently

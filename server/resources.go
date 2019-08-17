@@ -20,7 +20,7 @@ type ResourceUsage struct {
 	CpuAbsolute float64 `json:"cpu_absolute"`
 	// The current disk space being used by the server. This is cached to prevent slow lookup
 	// issues on frequent refreshes.
-	Disk uint64 `json:"disk_bytes"`
+	Disk int64 `json:"disk_bytes"`
 	// Current network transmit in & out for a container.
 	Network struct {
 		RxBytes uint64 `json:"rx_bytes"`
@@ -47,5 +47,5 @@ func (ru *ResourceUsage) CalculateAbsoluteCpu(previousCpu, previousSystem float6
 		percent = (cpuDelta / systemDelta) * cpus * 100.0
 	}
 
-	return math.Round(percent * 1000) / 1000
+	return math.Round(percent*1000) / 1000
 }
