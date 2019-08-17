@@ -43,6 +43,10 @@ type DockerEnvironment struct {
 	// Controls the hijacked response stream which exists only when we're attached to
 	// the running container instance.
 	stream types.HijackedResponse
+
+	// Holds the stats stream used by the polling commands so that we can easily close
+	// it out.
+	stats io.ReadCloser
 }
 
 // Creates a new base Docker environment. A server must still be attached to it.
@@ -209,6 +213,7 @@ func (d *DockerEnvironment) Attach() error {
 		Server: d.Server,
 	}
 
+	d.EnableResourcePolling()
 	d.attached = true
 
 	go func() {
@@ -259,6 +264,69 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 	}(reader)
 
 	return err
+}
+
+// Enables resource polling on the docker instance. Except we aren't actually polling Docker for this
+// information, instead just sit there with an async process that lets Docker stream all of this data
+// to us automatically.
+func (d *DockerEnvironment) EnableResourcePolling() error {
+	fmt.Println("called")
+	if d.Server.State == ProcessOfflineState {
+		fmt.Println("not running")
+		return errors.New("cannot enable resource polling on a server that is not running")
+	}
+
+	ctx := context.Background()
+
+	stats, err := d.Client.ContainerStats(ctx, d.Server.Uuid, true)
+	if err != nil {
+		return err
+	}
+	d.stats = stats.Body
+
+	dec := json.NewDecoder(d.stats)
+	go func(s *Server) {
+		pCpu := 0.0
+		pSystem := 0.0
+
+		for  {
+			var v *types.StatsJSON
+
+			if err := dec.Decode(&v); err != nil {
+				zap.S().Warnw("encountered error processing server stats; stopping collection", zap.Error(err))
+				d.DisableResourcePolling()
+				return
+			}
+
+			// Disable collection if the server is in an offline state and this process is
+			// still running.
+			if s.State == ProcessOfflineState {
+				d.DisableResourcePolling()
+				return
+			}
+
+			s.Resources.CpuAbsolute = s.Resources.CalculateAbsoluteCpu(pCpu, pSystem, &v.CPUStats)
+			s.Resources.Memory = v.MemoryStats.Usage
+			s.Resources.MemoryLimit = v.MemoryStats.Limit
+			s.Resources.Disk = 0
+
+			for _, nw := range v.Networks {
+				s.Resources.Network.RxBytes += nw.RxBytes
+				s.Resources.Network.TxBytes += nw.TxBytes
+			}
+		}
+	}(d.Server)
+
+	return nil
+}
+
+// Closes the stats stream for a server process.
+func (d *DockerEnvironment) DisableResourcePolling() error {
+	if d.stats == nil {
+		return nil
+	}
+
+	return d.stats.Close()
 }
 
 // Creates a new container for the server using all of the data that is currently

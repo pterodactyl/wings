@@ -48,6 +48,8 @@ type Server struct {
 
 	Filesystem *Filesystem `json:"-"`
 
+	Resources *ResourceUsage `json:"resources"`
+
 	// Server cache used to store frequently requested information in memory and make
 	// certain long operations return faster. For example, FS disk space usage.
 	Cache *cache.Cache `json:"-"`
@@ -203,6 +205,7 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 		Configuration: cfg,
 		Server:        s,
 	}
+	s.Resources = &ResourceUsage{}
 
 	return s, nil
 }

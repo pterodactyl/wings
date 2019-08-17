@@ -51,4 +51,12 @@ type Environment interface {
 	// Reads the log file for the process from the end backwards until the provided
 	// number of bytes is met.
 	Readlog(int64) ([]string, error)
+
+	// Polls the given environment for resource usage of the server when the process
+	// is running.
+	EnableResourcePolling() error
+
+	// Disables the polling operation for resource usage and sets the required values
+	// to 0 in the server resource usage struct.
+	DisableResourcePolling() error
 }
