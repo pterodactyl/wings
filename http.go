@@ -40,6 +40,10 @@ type Router struct {
 	token string
 }
 
+func (rt *Router) AuthenticateRequest(h httprouter.Handle) httprouter.Handle {
+	return rt.AuthenticateToken(rt.AuthenticateServer(h))
+}
+
 // Middleware to protect server specific routes. This will ensure that the server exists and
 // is in a state that allows it to be exposed to the API.
 func (rt *Router) AuthenticateServer(h httprouter.Handle) httprouter.Handle {
@@ -56,10 +60,8 @@ func (rt *Router) AuthenticateServer(h httprouter.Handle) httprouter.Handle {
 // Authenticates the request token aganist the given permission string, ensuring that
 // if it is a server permission, the token has control over that server. If it is a global
 // token, this will ensure that the request is using a properly signed global token.
-func (rt *Router) AuthenticateToken(permission string, h httprouter.Handle) httprouter.Handle {
+func (rt *Router) AuthenticateToken(h httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		t := strings.Split(permission, ":")[0]
-
 		// Adds support for using this middleware on the websocket routes for servers. Those
 		// routes don't support Authorization headers, per the spec, so we abuse the socket
 		// protocol header and use that to pass the authorization token along to Wings without
@@ -75,24 +77,12 @@ func (rt *Router) AuthenticateToken(permission string, h httprouter.Handle) http
 			return
 		}
 
-		if t != "i" && t != "s" {
-			zap.S().Warnw("could not match a permission string", zap.String("permission", permission), zap.String("route", r.URL.String()))
-
-			// If for whatever reason we didn't match a permission string just
-			// return a 404. This should only ever happen because of developer error.
-			http.NotFound(w, r)
-
-			return
-		}
-
 		// Try to match the request aganist the global token for the Daemon, regardless
 		// of the permission type. If nothing is matched we will fall through to the Panel
 		// API to try and validate permissions for a server.
-		if t == "s" || t == "i" {
-			if auth[1] == rt.token {
-				h(w, r, ps)
-				return
-			}
+		if auth[1] == rt.token {
+			h(w, r, ps)
+			return
 		}
 
 		// Happens because we don't have any of the server handling code here.
@@ -378,6 +368,32 @@ func (rt *Router) routeServerDeleteFile(w http.ResponseWriter, r *http.Request, 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (rt *Router) routeServerSendCommand(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.Servers.Get(ps.ByName("server"))
+	defer r.Body.Close()
+
+	if running, err := s.Environment.IsRunning(); !running || err != nil {
+		http.Error(w, "cannot send commands to a stopped instance", http.StatusBadGateway)
+		return
+	}
+
+	data := rt.ReaderToBytes(r.Body)
+	commands, dt, _, _ := jsonparser.Get(data, "commands")
+	if dt != jsonparser.Array {
+		http.Error(w, "commands must be an array of strings", http.StatusUnprocessableEntity)
+		return
+	}
+
+	for _, command := range commands {
+		if err := s.Environment.SendCommand(string(command)); err != nil {
+			zap.S().Warnw("failed to send command to server", zap.Any("command", command), zap.Error(err))
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (rt *Router) ReaderToBytes(r io.Reader) []byte {
 	buf := bytes.Buffer{}
 	buf.ReadFrom(r)
@@ -390,18 +406,19 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router := httprouter.New()
 
 	router.GET("/", rt.routeIndex)
-	router.GET("/api/servers", rt.AuthenticateToken("i:servers", rt.routeAllServers))
-	router.GET("/api/servers/:server", rt.AuthenticateToken("s:view", rt.AuthenticateServer(rt.routeServer)))
-	router.GET("/api/servers/:server/logs", rt.AuthenticateToken("s:logs", rt.AuthenticateServer(rt.routeServerLogs)))
-	router.GET("/api/servers/:server/files/contents", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerFileRead)))
-	router.GET("/api/servers/:server/files/list-directory", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerListDirectory)))
-	router.PUT("/api/servers/:server/files/rename", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerRenameFile)))
-	router.POST("/api/servers/:server/files/copy", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerCopyFile)))
-	router.POST("/api/servers/:server/files/write", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerWriteFile)))
-	router.POST("/api/servers/:server/files/create-directory", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerCreateDirectory)))
-	router.POST("/api/servers/:server/files/delete", rt.AuthenticateToken("s:files", rt.AuthenticateServer(rt.routeServerDeleteFile)))
-	router.POST("/api/servers/:server/power", rt.AuthenticateToken("s:power", rt.AuthenticateServer(rt.routeServerPower)))
+	router.GET("/api/servers", rt.AuthenticateToken(rt.routeAllServers))
+	router.GET("/api/servers/:server", rt.AuthenticateRequest(rt.routeServer))
+	router.GET("/api/servers/:server/ws", rt.AuthenticateRequest(rt.routeWebsocket))
+	router.GET("/api/servers/:server/logs", rt.AuthenticateRequest(rt.routeServerLogs))
+	router.GET("/api/servers/:server/files/contents", rt.AuthenticateRequest(rt.routeServerFileRead))
+	router.GET("/api/servers/:server/files/list-directory", rt.AuthenticateRequest(rt.routeServerListDirectory))
+	router.PUT("/api/servers/:server/files/rename", rt.AuthenticateRequest(rt.routeServerRenameFile))
+	router.POST("/api/servers/:server/files/copy", rt.AuthenticateRequest(rt.routeServerCopyFile))
+	router.POST("/api/servers/:server/files/write", rt.AuthenticateRequest(rt.routeServerWriteFile))
+	router.POST("/api/servers/:server/files/create-directory", rt.AuthenticateRequest(rt.routeServerCreateDirectory))
+	router.POST("/api/servers/:server/files/delete", rt.AuthenticateRequest(rt.routeServerDeleteFile))
+	router.POST("/api/servers/:server/power", rt.AuthenticateRequest(rt.routeServerPower))
+	router.POST("/api/servers/:server/commands", rt.AuthenticateRequest(rt.routeServerSendCommand))
 
-	router.GET("/api/servers/:server/ws", rt.AuthenticateToken("s:websocket", rt.AuthenticateServer(rt.routeWebsocket)))
 	return router
 }
