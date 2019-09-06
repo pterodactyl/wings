@@ -155,6 +155,10 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 		}
 	case SendServerLogsEvent:
 		{
+			if running, _ := wsh.Server.Environment.IsRunning(); !running {
+				return nil
+			}
+
 			logs, err := wsh.Server.Environment.Readlog(1024 * 16)
 			if err != nil {
 				return err
