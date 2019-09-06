@@ -9,6 +9,7 @@ type EventListenerFunction *func(string)
 const (
 	ConsoleOutputEvent = "console output"
 	StatusEvent = "status"
+	StatsEvent = "stats"
 )
 
 // Adds an event listener for the server instance.

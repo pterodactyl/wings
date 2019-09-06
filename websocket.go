@@ -71,11 +71,21 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		})
 	}
 
+	handleResourceUse := func(data string) {
+		handler.SendJson(&WebsocketMessage{
+			Event: server.StatsEvent,
+			Args: []string{data},
+		})
+	}
+
 	s.AddListener(server.StatusEvent, &handleServerStatus)
 	defer s.RemoveListener(server.StatusEvent, &handleServerStatus)
 
 	s.AddListener(server.ConsoleOutputEvent, &handleOutput)
 	defer s.RemoveListener(server.ConsoleOutputEvent, &handleOutput)
+
+	s.AddListener(server.StatsEvent, &handleResourceUse)
+	defer s.RemoveListener(server.StatsEvent, &handleResourceUse)
 
 	s.Emit(server.StatusEvent, s.State)
 

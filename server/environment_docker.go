@@ -317,6 +317,9 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 				s.Resources.Network.RxBytes += nw.RxBytes
 				s.Resources.Network.TxBytes += nw.TxBytes
 			}
+
+			b, _ := json.Marshal(s.Resources)
+			s.Emit(StatsEvent, string(b))
 		}
 	}(d.Server)
 
