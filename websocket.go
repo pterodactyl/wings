@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pterodactyl/wings/config"
@@ -82,9 +81,6 @@ func (rt *Router) AuthenticateWebsocket(h httprouter.Handle) httprouter.Handle {
 
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusNoContent {
-			b, _ := ioutil.ReadAll(resp.Body)
-
-			zap.S().Warnw("failed to validate token with server", zap.String("response", string(b)))
 			http.Error(w, "failed to validate token with server", resp.StatusCode)
 			return
 		}
@@ -102,8 +98,6 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		return
 	}
 	defer c.Close()
-
-	fmt.Println("running websocket route")
 
 	s := rt.Servers.Get(ps.ByName("server"))
 	handler := WebsocketHandler{
@@ -146,7 +140,6 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 
 	for {
 		j := WebsocketMessage{inbound: true}
-		fmt.Println("running for{} loop...")
 
 		if _, _, err := c.ReadMessage(); err != nil {
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived, websocket.CloseServiceRestart) {
@@ -159,18 +152,13 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		// specific socket request. If we did a break here the client would get disconnected
 		// from the socket, which is NOT what we want to do.
 		if err := c.ReadJSON(&j); err != nil {
-			fmt.Println("ReadJSON() error")
 			continue
 		}
 
 		if err := handler.HandleInbound(j); err != nil {
 			zap.S().Warnw("error handling inbound websocket request", zap.Error(err))
 			break
-		} else {
-			zap.S().Debugw("handled event", zap.String("event", j.Event), zap.Strings("args", j.Args))
 		}
-
-		fmt.Println("finished looping...")
 	}
 }
 
