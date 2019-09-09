@@ -9,7 +9,6 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -141,7 +140,8 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 	for {
 		j := WebsocketMessage{inbound: true}
 
-		if _, _, err := c.ReadMessage(); err != nil {
+		_, p, err := c.ReadMessage()
+		if err != nil {
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived, websocket.CloseServiceRestart) {
 				zap.S().Errorw("error handling websocket message", zap.Error(err))
 			}
@@ -151,7 +151,7 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		// Discard and JSON parse errors into the void and don't continue processing this
 		// specific socket request. If we did a break here the client would get disconnected
 		// from the socket, which is NOT what we want to do.
-		if err := c.ReadJSON(&j); err != nil {
+		if err := json.Unmarshal(p, &j); err != nil {
 			continue
 		}
 
