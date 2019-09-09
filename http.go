@@ -67,9 +67,6 @@ func (rt *Router) AuthenticateToken(h httprouter.Handle) httprouter.Handle {
 		// protocol header and use that to pass the authorization token along to Wings without
 		// exposing the token in the URL directly. Neat. 📸
 		auth := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
-		if r.Header.Get("Sec-WebSocket-Protocol") != "" {
-			auth = []string{"Bearer", r.Header.Get("Sec-WebSocket-Protocol")}
-		}
 
 		if len(auth) != 2 || auth[0] != "Bearer" {
 			w.Header().Set("WWW-Authenticate", "Bearer")
@@ -408,7 +405,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/", rt.routeIndex)
 	router.GET("/api/servers", rt.AuthenticateToken(rt.routeAllServers))
 	router.GET("/api/servers/:server", rt.AuthenticateRequest(rt.routeServer))
-	router.GET("/api/servers/:server/ws", rt.AuthenticateRequest(rt.routeWebsocket))
+	router.GET("/api/servers/:server/ws/:token", rt.AuthenticateServer(rt.AuthenticateWebsocket(rt.routeWebsocket)))
 	router.GET("/api/servers/:server/logs", rt.AuthenticateRequest(rt.routeServerLogs))
 	router.GET("/api/servers/:server/files/contents", rt.AuthenticateRequest(rt.routeServerFileRead))
 	router.GET("/api/servers/:server/files/list-directory", rt.AuthenticateRequest(rt.routeServerListDirectory))

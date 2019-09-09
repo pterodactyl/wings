@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -40,6 +45,54 @@ type WebsocketHandler struct {
 	Connection *websocket.Conn
 }
 
+type socketCredentials struct {
+	ServerUuid string `json:"server_uuid"`
+}
+
+func (rt *Router) AuthenticateWebsocket(h httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		s := rt.Servers.Get(ps.ByName("server"))
+
+		j, err := json.Marshal(socketCredentials{ServerUuid: s.Uuid})
+		if err != nil {
+			zap.S().Errorw("failed to marshal json", zap.Error(err))
+			http.Error(w, "failed to marshal json", http.StatusInternalServerError)
+			return
+		}
+
+		url := strings.TrimRight(config.Get().PanelLocation, "/") + "/api/remote/websocket/" + ps.ByName("token")
+		req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(j))
+		if err != nil {
+			zap.S().Errorw("failed to generate a new HTTP request when validating websocket credentials", zap.Error(err))
+			http.Error(w, "failed to generate HTTP request", http.StatusInternalServerError)
+			return
+		}
+
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+config.Get().AuthenticationToken)
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			zap.S().Errorw("failed to perform client HTTP request", zap.Error(err))
+			http.Error(w, "failed to perform client HTTP request", http.StatusInternalServerError)
+			return
+		}
+
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNoContent {
+			b, _ := ioutil.ReadAll(resp.Body)
+
+			zap.S().Warnw("failed to validate token with server", zap.String("response", string(b)))
+			http.Error(w, "failed to validate token with server", resp.StatusCode)
+			return
+		}
+
+		h(w, r, ps)
+	}
+}
+
 // Handle a request for a specific server websocket. This will handle inbound requests as well
 // as ensure that any console output is also passed down the wire on the socket.
 func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -49,6 +102,8 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		return
 	}
 	defer c.Close()
+
+	fmt.Println("running websocket route")
 
 	s := rt.Servers.Get(ps.ByName("server"))
 	handler := WebsocketHandler{
@@ -74,7 +129,7 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 	handleResourceUse := func(data string) {
 		handler.SendJson(&WebsocketMessage{
 			Event: server.StatsEvent,
-			Args: []string{data},
+			Args:  []string{data},
 		})
 	}
 
@@ -91,6 +146,7 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 
 	for {
 		j := WebsocketMessage{inbound: true}
+		fmt.Println("running for{} loop...")
 
 		if _, _, err := c.ReadMessage(); err != nil {
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived, websocket.CloseServiceRestart) {
@@ -103,6 +159,7 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		// specific socket request. If we did a break here the client would get disconnected
 		// from the socket, which is NOT what we want to do.
 		if err := c.ReadJSON(&j); err != nil {
+			fmt.Println("ReadJSON() error")
 			continue
 		}
 
@@ -112,6 +169,8 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		} else {
 			zap.S().Debugw("handled event", zap.String("event", j.Event), zap.Strings("args", j.Args))
 		}
+
+		fmt.Println("finished looping...")
 	}
 }
 

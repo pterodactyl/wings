@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"github.com/gorilla/websocket"
@@ -37,7 +38,14 @@ func main() {
 
 	if c.Debug {
 		zap.S().Debugw("running in debug mode")
+		zap.S().Infow("certificate checking is disabled")
+
+		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
 	}
+
+	config.Set(c)
 
 	zap.S().Infof("checking for pterodactyl system user \"%s\"", c.System.User)
 	if su, err := c.EnsurePterodactylUser(); err != nil {

@@ -200,6 +200,18 @@ func ReadConfiguration(path string) (*Configuration, error) {
 	return c, nil
 }
 
+var _config *Configuration
+
+// Set the global configuration instance.
+func Set(c *Configuration) {
+	_config = c
+}
+
+// Get the global configuration instance.
+func Get() *Configuration {
+	return _config
+}
+
 // Ensures that the Pterodactyl core user exists on the system. This user will be the
 // owner of all data in the root data directory and is used as the user within containers.
 //
