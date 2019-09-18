@@ -286,9 +286,6 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 
 	dec := json.NewDecoder(d.stats)
 	go func(s *Server) {
-		pCpu := 0.0
-		pSystem := 0.0
-
 		for {
 			var v *types.StatsJSON
 
@@ -305,7 +302,7 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 				return
 			}
 
-			s.Resources.CpuAbsolute = s.Resources.CalculateAbsoluteCpu(pCpu, pSystem, &v.CPUStats)
+			s.Resources.CpuAbsolute = s.Resources.CalculateAbsoluteCpu(&v.PreCPUStats, &v.CPUStats)
 			s.Resources.Memory = v.MemoryStats.Usage
 			s.Resources.MemoryLimit = v.MemoryStats.Limit
 

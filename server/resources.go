@@ -32,15 +32,18 @@ type ResourceUsage struct {
 // by the defined CPU limits on the container.
 //
 // @see https://github.com/docker/cli/blob/aa097cf1aa19099da70930460250797c8920b709/cli/command/container/stats_helpers.go#L166
-func (ru *ResourceUsage) CalculateAbsoluteCpu(previousCpu, previousSystem float64, stats *types.CPUStats) float64 {
+func (ru *ResourceUsage) CalculateAbsoluteCpu(pStats *types.CPUStats, stats *types.CPUStats) float64 {
 	// Calculate the change in CPU usage between the current and previous reading.
-	cpuDelta := float64(stats.CPUUsage.TotalUsage) - float64(previousCpu)
+	cpuDelta := float64(stats.CPUUsage.TotalUsage) - float64(pStats.CPUUsage.TotalUsage)
 
 	// Calculate the change for the entire system's CPU usage between current and previous reading.
-	systemDelta := float64(stats.SystemUsage) - float64(previousSystem)
+	systemDelta := float64(stats.SystemUsage) - float64(pStats.SystemUsage)
 
 	// Calculate the total number of CPU cores being used.
-	cpus := float64(len(stats.CPUUsage.PercpuUsage))
+	cpus := float64(stats.OnlineCPUs)
+	if cpus == 0.0 {
+		cpus = float64(len(stats.CPUUsage.PercpuUsage))
+	}
 
 	percent := 0.0
 	if systemDelta > 0.0 && cpuDelta > 0.0 {
