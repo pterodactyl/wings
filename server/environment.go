@@ -14,6 +14,10 @@ type Environment interface {
 	// for this specific server instance.
 	IsRunning() (bool, error)
 
+	// Runs before the environment is started. If an error is returned starting will
+	// not occur, otherwise proceeds as normal.
+	OnBeforeStart() error
+
 	// Starts a server instance. If the server instance is not in a state where it
 	// can be started an error should be returned.
 	Start() error

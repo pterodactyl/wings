@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/patrickmn/go-cache"
+	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
@@ -56,6 +57,11 @@ type Server struct {
 
 	// All of the registered event listeners for this server instance.
 	listeners EventListeners
+
+	// Defines the process configuration for the server instance. This is dynamically
+	// fetched from the Pterodactyl Server instance each time the server process is
+	// started, and then cached here.
+	processConfiguration *api.ServerConfiguration
 }
 
 // The build settings for a given server that impact docker container creation and
@@ -183,6 +189,8 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 		return nil, err
 	}
 
+	s.AddEventListeners()
+
 	withConfiguration := func(e *DockerEnvironment) {
 		e.User = cfg.User.Uid
 		e.TimezonePath = cfg.TimezonePath
@@ -206,6 +214,11 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 		Server:        s,
 	}
 	s.Resources = &ResourceUsage{}
+
+	// This is also done when the server is booted, however we need to account for instances
+	// where the server is already running and the Daemon reboots. In those cases this will
+	// allow us to you know, stop servers.
+	s.GetProcessConfiguration()
 
 	return s, nil
 }
@@ -245,6 +258,8 @@ func (s *Server) SetState(state string) error {
 
 	s.State = state
 
+	zap.S().Debugw("saw server status change event", zap.String("server", s.Uuid), zap.String("status", state))
+
 	// Emit the event to any listeners that are currently registered.
 	s.Emit(StatusEvent, s.State)
 
@@ -253,4 +268,9 @@ func (s *Server) SetState(state string) error {
 	// then crashed.
 
 	return nil
+}
+
+// Gets the process configuration data for the server.
+func (s *Server) GetProcessConfiguration() (*api.ServerConfiguration, error) {
+	return api.NewRequester().GetServerConfiguration(s.Uuid)
 }

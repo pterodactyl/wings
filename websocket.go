@@ -142,7 +142,14 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 
 		_, p, err := c.ReadMessage()
 		if err != nil {
-			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived, websocket.CloseServiceRestart) {
+			if !websocket.IsCloseError(
+				err,
+				websocket.CloseNormalClosure,
+				websocket.CloseGoingAway,
+				websocket.CloseNoStatusReceived,
+				websocket.CloseServiceRestart,
+				websocket.CloseAbnormalClosure,
+			) {
 				zap.S().Errorw("error handling websocket message", zap.Error(err))
 			}
 			break

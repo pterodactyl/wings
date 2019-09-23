@@ -113,12 +113,35 @@ func (d *DockerEnvironment) IsRunning() (bool, error) {
 	return c.State.Running, nil
 }
 
+// Run before the container starts and get the process configuration from the Panel.
+// This is important since we use this to check configuration files as well as ensure
+// we always have the latest version of an egg available for server processes.
+func (d *DockerEnvironment) OnBeforeStart() error {
+	c, err := d.Server.GetProcessConfiguration()
+	if err != nil {
+		return err
+	}
+
+	d.Server.processConfiguration = c
+
+	return nil
+}
+
 // Checks if there is a container that already exists for the server. If so that
 // container is started. If there is no container, one is created and then started.
 func (d *DockerEnvironment) Start() error {
+	sawError := false
+	// If sawError is set to true there was an error somewhere in the pipeline that
+	// got passed up, but we also want to ensure we set the server to be offline at
+	// that point.
+	defer func () {
+		if sawError {
+			d.Server.SetState(ProcessOfflineState)
+		}
+	}()
+
 	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
 	if err != nil {
-		// @todo what?
 		return err
 	}
 
@@ -132,26 +155,35 @@ func (d *DockerEnvironment) Start() error {
 		return nil
 	}
 
+	d.Server.SetState(ProcessStartingState)
+	// Set this to true for now, we will set it to false once we reach the
+	// end of this chain.
+	sawError = true
+
+	// Run the before start function and wait for it to finish.
+	if err := d.OnBeforeStart(); err != nil {
+		return err
+	}
+
 	// Truncate the log file so we don't end up outputting a bunch of useless log information
 	// to the websocket and whatnot.
 	if err := os.Truncate(c.LogPath, 0); err != nil {
 		return err
 	}
 
-	d.Server.SetState(ProcessStartingState)
-
 	// Reset the permissions on files for the server before actually trying
 	// to start it.
 	if err := d.Server.Filesystem.Chown("/"); err != nil {
-		d.Server.SetState(ProcessOfflineState)
 		return err
 	}
 
 	opts := types.ContainerStartOptions{}
 	if err := d.Client.ContainerStart(context.Background(), d.Server.Uuid, opts); err != nil {
-		d.Server.SetState(ProcessOfflineState)
 		return err
 	}
+
+	// No errors, good to continue through.
+	sawError = false
 
 	return d.Attach()
 }
@@ -246,6 +278,7 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 		ShowStderr: true,
 		ShowStdout: true,
 		Follow:     true,
+		Since:      time.Now().Format(time.RFC3339),
 	}
 
 	reader, err := d.Client.ContainerLogs(ctx, d.Server.Uuid, opts)
@@ -270,9 +303,7 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 // information, instead just sit there with an async process that lets Docker stream all of this data
 // to us automatically.
 func (d *DockerEnvironment) EnableResourcePolling() error {
-	fmt.Println("called")
 	if d.Server.State == ProcessOfflineState {
-		fmt.Println("not running")
 		return errors.New("cannot enable resource polling on a server that is not running")
 	}
 
