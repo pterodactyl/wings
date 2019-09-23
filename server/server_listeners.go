@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/pterodactyl/wings/api"
 	"go.uber.org/zap"
 	"strings"
 )
@@ -27,6 +28,15 @@ func (s *Server) onConsoleOutput() *func(string) {
 				)
 
 				s.SetState(ProcessRunningState)
+			}
+
+			// If the command sent to the server is one that should stop the server we will need to
+			// set the server to be in a stopping state, otherwise crash detection will kick in and
+			// cause the server to unexpectedly restart on the user.
+			if s.State == ProcessStartingState || s.State == ProcessRunningState {
+				if s.processConfiguration.Stop.Type == api.ProcessStopCommand && data == s.processConfiguration.Stop.Value {
+					s.SetState(ProcessStoppingState)
+				}
 			}
 		}
 	}
