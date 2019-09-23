@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/daemon/logger/jsonfilelog"
 	"github.com/docker/go-connections/nat"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/api"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"io"
@@ -134,7 +135,7 @@ func (d *DockerEnvironment) Start() error {
 	// If sawError is set to true there was an error somewhere in the pipeline that
 	// got passed up, but we also want to ensure we set the server to be offline at
 	// that point.
-	defer func () {
+	defer func() {
 		if sawError {
 			d.Server.SetState(ProcessOfflineState)
 		}
@@ -191,9 +192,18 @@ func (d *DockerEnvironment) Start() error {
 // Stops the container that the server is running in. This will allow up to 10
 // seconds to pass before a failure occurs.
 func (d *DockerEnvironment) Stop() error {
-	t := time.Second * 10
+	stop := d.Server.processConfiguration.Stop
+	if stop.Type == api.ProcessStopSignal {
+		return d.Terminate(os.Kill)
+	}
 
 	d.Server.SetState(ProcessStoppingState)
+	if stop.Type == api.ProcessStopCommand {
+		return d.SendCommand(stop.Value)
+	}
+
+	t := time.Second * 10
+
 	return d.Client.ContainerStop(context.Background(), d.Server.Uuid, &t)
 }
 
@@ -211,7 +221,10 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 	}
 
 	d.Server.SetState(ProcessStoppingState)
-	return d.Client.ContainerKill(ctx, d.Server.Uuid, "SIGKILL")
+
+	return d.Client.ContainerKill(
+		ctx, d.Server.Uuid, strings.TrimPrefix("signal ", signal.String()),
+	)
 }
 
 // Attaches to the docker container itself and ensures that we can pipe data in and out

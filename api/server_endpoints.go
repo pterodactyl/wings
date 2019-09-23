@@ -8,10 +8,16 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	ProcessStopCommand = "command"
+	ProcessStopSignal = "signal"
+	ProcessStopNativeStop = "stop"
+)
+
 // Defines a single find/replace instance for a given server configuration file.
 type ConfigurationFileReplacement struct {
-	Match string `json:"match"`
-	Value string `json:"value"`
+	Match     string               `json:"match"`
+	Value     string               `json:"value"`
 	ValueType jsonparser.ValueType `json:"-"`
 }
 

@@ -218,7 +218,11 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	// This is also done when the server is booted, however we need to account for instances
 	// where the server is already running and the Daemon reboots. In those cases this will
 	// allow us to you know, stop servers.
-	s.GetProcessConfiguration()
+	if cfg, err := s.GetProcessConfiguration(); err != nil {
+		return nil, err
+	} else {
+		s.processConfiguration = cfg
+	}
 
 	return s, nil
 }
