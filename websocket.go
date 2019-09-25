@@ -35,11 +35,6 @@ type WebsocketMessage struct {
 	// should either omit the field or pass an empty value as it is ignored.
 	Args []string `json:"args,omitempty"`
 
-	// The authentication JWT passed along with every call to the websocket that
-	// should be used to validate the user's authenticity and ability to perform
-	// whatever action they're doing.
-	Token string `json:"token,omitempty"`
-
 	// Is set to true when the request is originating from outside of the Daemon,
 	// otherwise set to false for outbound.
 	inbound bool
