@@ -17,6 +17,8 @@ import (
 )
 
 const (
+	TokenExpiringEvent  = "token expiring"
+	TokenExpiredEvent   = "token expired"
 	SetStateEvent       = "set state"
 	SendServerLogsEvent = "send logs"
 	SendCommandEvent    = "send command"
@@ -91,14 +93,14 @@ func ParseJWT(token []byte) (*WebsocketTokenPayload, error) {
 
 	// Check the time of the JWT becoming valid does not exceed more than 15 seconds
 	// compared to the system time. This accounts for clock drift to some degree.
-	if time.Now().Unix() - payload.NotBefore.Unix() <= -15 {
+	if time.Now().Unix()-payload.NotBefore.Unix() <= -15 {
 		return nil, errors.New("jwt violates nbf")
 	}
 
 	// Compare the expiration time of the token to the current system time. Include
 	// up to 15 seconds of clock drift, and if it has expired return an error and
 	// do not process the action.
-	if time.Now().Unix() - payload.ExpirationTime.Unix() > 15 {
+	if time.Now().Unix()-payload.ExpirationTime.Unix() > 15 {
 		return nil, errors.New("jwt violates exp")
 	}
 
@@ -115,7 +117,7 @@ func (wsh *WebsocketHandler) TokenValid() error {
 		return errors.New("no jwt present")
 	}
 
-	if time.Now().Unix() - wsh.JWT.ExpirationTime.Unix() > 15 {
+	if time.Now().Unix()-wsh.JWT.ExpirationTime.Unix() > 15 {
 		return errors.New("jwt violates nbf")
 	}
 
@@ -143,7 +145,19 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		zap.S().Error(err)
 		return
 	}
-	defer c.Close()
+
+	// Make a ticker and completion channel that is used to continuously poll the
+	// JWT stored in the session to send events to the socket when it is expiring.
+	ticker := time.NewTicker(time.Second * 30)
+	done := make(chan bool)
+
+	// Whenever this function is complete, end the ticker, close out the channel,
+	// and then close the websocket connection.
+	defer func() {
+		ticker.Stop()
+		done <- true
+		c.Close()
+	}()
 
 	s := rt.Servers.Get(ps.ByName("server"))
 	handler := WebsocketHandler{
@@ -184,6 +198,29 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 	defer s.RemoveListener(server.StatsEvent, &handleResourceUse)
 
 	s.Emit(server.StatusEvent, s.State)
+
+	// Sit here and check the time to expiration on the JWT every 30 seconds until
+	// the token has expired. If we are within 3 minutes of the token expiring, send
+	// a notice over the socket that it is expiring soon. If it has expired, send that
+	// notice as well.
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				{
+					if handler.JWT != nil {
+						if handler.JWT.ExpirationTime.Unix()-time.Now().Unix() <= 0 {
+							handler.SendJson(&WebsocketMessage{Event: TokenExpiredEvent})
+						} else if handler.JWT.ExpirationTime.Unix()-time.Now().Unix() <= 180 {
+							handler.SendJson(&WebsocketMessage{Event: TokenExpiringEvent})
+						}
+					}
+				}
+			}
+		}
+	}()
 
 	for {
 		j := WebsocketMessage{inbound: true}
