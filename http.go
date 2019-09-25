@@ -405,7 +405,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/", rt.routeIndex)
 	router.GET("/api/servers", rt.AuthenticateToken(rt.routeAllServers))
 	router.GET("/api/servers/:server", rt.AuthenticateRequest(rt.routeServer))
-	router.GET("/api/servers/:server/ws/:token", rt.AuthenticateServer(rt.AuthenticateWebsocket(rt.routeWebsocket)))
+	router.GET("/api/servers/:server/ws", rt.AuthenticateServer(rt.routeWebsocket))
 	router.GET("/api/servers/:server/logs", rt.AuthenticateRequest(rt.routeServerLogs))
 	router.GET("/api/servers/:server/files/contents", rt.AuthenticateRequest(rt.routeServerFileRead))
 	router.GET("/api/servers/:server/files/list-directory", rt.AuthenticateRequest(rt.routeServerListDirectory))

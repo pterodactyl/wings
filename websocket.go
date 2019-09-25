@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/gbrlsnchs/jwt/v3"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pterodactyl/wings/config"
@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -34,6 +35,13 @@ type WebsocketMessage struct {
 	// should either omit the field or pass an empty value as it is ignored.
 	Args []string `json:"args,omitempty"`
 
+	// The authentication JWT passed along with every call to the websocket that
+	// should be used to validate the user's authenticity and ability to perform
+	// whatever action they're doing.
+	Token string `json:"token,omitempty"`
+
+	// Is set to true when the request is originating from outside of the Daemon,
+	// otherwise set to false for outbound.
 	inbound bool
 }
 
@@ -41,56 +49,100 @@ type WebsocketHandler struct {
 	Server     *server.Server
 	Mutex      sync.Mutex
 	Connection *websocket.Conn
+	JWT        *WebsocketTokenPayload
 }
 
-type socketCredentials struct {
-	ServerUuid string `json:"server_uuid"`
+type WebsocketTokenPayload struct {
+	jwt.Payload
+	UserID      json.Number `json:"user_id"`
+	ServerUUID  string      `json:"server_uuid"`
+	Permissions []string    `json:"permissions"`
 }
 
-func (rt *Router) AuthenticateWebsocket(h httprouter.Handle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		s := rt.Servers.Get(ps.ByName("server"))
+const (
+	PermissionConnect     = "connect"
+	PermissionSendCommand = "send-command"
+	PermissionSendPower   = "send-power"
+)
 
-		j, err := json.Marshal(socketCredentials{ServerUuid: s.Uuid})
-		if err != nil {
-			zap.S().Errorw("failed to marshal json", zap.Error(err))
-			http.Error(w, "failed to marshal json", http.StatusInternalServerError)
-			return
+// Checks if the given token payload has a permission string.
+func (wtp *WebsocketTokenPayload) HasPermission(permission string) bool {
+	for _, k := range wtp.Permissions {
+		if k == permission {
+			return true
 		}
-
-		url := strings.TrimRight(config.Get().PanelLocation, "/") + "/api/remote/websocket/" + ps.ByName("token")
-		req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(j))
-		if err != nil {
-			zap.S().Errorw("failed to generate a new HTTP request when validating websocket credentials", zap.Error(err))
-			http.Error(w, "failed to generate HTTP request", http.StatusInternalServerError)
-			return
-		}
-
-		req.Header.Set("Accept", "application/json")
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+config.Get().AuthenticationToken)
-
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		if err != nil {
-			zap.S().Errorw("failed to perform client HTTP request", zap.Error(err))
-			http.Error(w, "failed to perform client HTTP request", http.StatusInternalServerError)
-			return
-		}
-
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusNoContent {
-			http.Error(w, "failed to validate token with server", resp.StatusCode)
-			return
-		}
-
-		h(w, r, ps)
 	}
+
+	return false
+}
+
+var alg *jwt.HMACSHA
+
+// Validates the provided JWT against the known secret for the Daemon and returns the
+// parsed data.
+//
+// This function DOES NOT validate that the token is valid for the connected server, nor
+// does it ensure that the user providing the token is able to actually do things.
+func ParseJWT(token []byte) (*WebsocketTokenPayload, error) {
+	var payload WebsocketTokenPayload
+	if alg == nil {
+		alg = jwt.NewHS256([]byte(config.Get().AuthenticationToken))
+	}
+
+	_, err := jwt.Verify(token, alg, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check the time of the JWT becoming valid does not exceed more than 15 seconds
+	// compared to the system time. This accounts for clock drift to some degree.
+	if time.Now().Unix() - payload.NotBefore.Unix() <= -15 {
+		return nil, errors.New("jwt violates nbf")
+	}
+
+	// Compare the expiration time of the token to the current system time. Include
+	// up to 15 seconds of clock drift, and if it has expired return an error and
+	// do not process the action.
+	if time.Now().Unix() - payload.ExpirationTime.Unix() > 15 {
+		return nil, errors.New("jwt violates exp")
+	}
+
+	if !payload.HasPermission(PermissionConnect) {
+		return nil, errors.New("not authorized to connect to this socket")
+	}
+
+	return &payload, nil
+}
+
+// Checks if the JWT is still valid.
+func (wsh *WebsocketHandler) TokenValid() error {
+	if wsh.JWT == nil {
+		return errors.New("no jwt present")
+	}
+
+	if time.Now().Unix() - wsh.JWT.ExpirationTime.Unix() > 15 {
+		return errors.New("jwt violates nbf")
+	}
+
+	if !wsh.JWT.HasPermission(PermissionConnect) {
+		return errors.New("jwt does not have connect permission")
+	}
+
+	if wsh.Server.Uuid != wsh.JWT.ServerUUID {
+		return errors.New("jwt server uuid mismatch")
+	}
+
+	return nil
 }
 
 // Handle a request for a specific server websocket. This will handle inbound requests as well
 // as ensure that any console output is also passed down the wire on the socket.
 func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	token, err := ParseJWT([]byte(r.URL.Query().Get("token")))
+	if err != nil {
+		return
+	}
+
 	c, err := rt.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		zap.S().Error(err)
@@ -103,6 +155,7 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		Server:     s,
 		Mutex:      sync.Mutex{},
 		Connection: c,
+		JWT:        token,
 	}
 
 	handleOutput := func(data string) {
@@ -185,9 +238,19 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 		return errors.New("cannot handle websocket message, not an inbound connection")
 	}
 
+	if err := wsh.TokenValid(); err != nil {
+		zap.S().Debugw("jwt token is no longer valid", zap.String("message", err.Error()))
+
+		return nil
+	}
+
 	switch m.Event {
 	case SetStateEvent:
 		{
+			if !wsh.JWT.HasPermission(PermissionSendPower) {
+				return nil
+			}
+
 			var err error
 			switch strings.Join(m.Args, "") {
 			case "start":
@@ -229,6 +292,10 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 		}
 	case SendCommandEvent:
 		{
+			if !wsh.JWT.HasPermission(PermissionSendCommand) {
+				return nil
+			}
+
 			return wsh.Server.Environment.SendCommand(strings.Join(m.Args, ""))
 		}
 	}
