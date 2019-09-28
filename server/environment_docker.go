@@ -223,7 +223,7 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 	d.Server.SetState(ProcessStoppingState)
 
 	return d.Client.ContainerKill(
-		ctx, d.Server.Uuid, strings.TrimPrefix("signal ", signal.String()),
+		ctx, d.Server.Uuid, strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed"),
 	)
 }
 
