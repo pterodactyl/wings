@@ -15,6 +15,7 @@ require (
 	github.com/gabriel-vasile/mimetype v0.1.4
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-rc.0
 	github.com/gogo/protobuf v1.2.1 // indirect
+	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.0
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/julienschmidt/httprouter v1.2.0

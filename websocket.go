@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/gbrlsnchs/jwt/v3"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pterodactyl/wings/config"
@@ -19,9 +21,11 @@ import (
 const (
 	TokenExpiringEvent  = "token expiring"
 	TokenExpiredEvent   = "token expired"
+	AuthenticationEvent = "auth"
 	SetStateEvent       = "set state"
 	SendServerLogsEvent = "send logs"
 	SendCommandEvent    = "send command"
+	ErrorEvent          = "daemon error"
 )
 
 type WebsocketMessage struct {
@@ -57,9 +61,10 @@ type WebsocketTokenPayload struct {
 }
 
 const (
-	PermissionConnect     = "connect"
-	PermissionSendCommand = "send-command"
-	PermissionSendPower   = "send-power"
+	PermissionConnect       = "connect"
+	PermissionSendCommand   = "send-command"
+	PermissionSendPower     = "send-power"
+	PermissionReceiveErrors = "receive-errors"
 )
 
 // Checks if the given token payload has a permission string.
@@ -248,8 +253,7 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		}
 
 		if err := handler.HandleInbound(j); err != nil {
-			zap.S().Warnw("error handling inbound websocket request", zap.Error(err))
-			break
+			handler.SendErrorJson(err)
 		}
 	}
 }
@@ -262,6 +266,38 @@ func (wsh *WebsocketHandler) SendJson(v interface{}) error {
 	defer wsh.Mutex.Unlock()
 
 	return wsh.Connection.WriteJSON(v)
+}
+
+// Sends an error back to the connected websocket instance by checking the permissions
+// of the token. If the user has the "receive-errors" grant we will send back the actual
+// error message, otherwise we just send back a standard error message.
+func (wsh *WebsocketHandler) SendErrorJson(err error) error {
+	wsh.Mutex.Lock()
+	defer wsh.Mutex.Unlock()
+
+	message := "an unexpected error was encountered during the websocket lifecycle"
+	if wsh.JWT != nil && wsh.JWT.HasPermission(PermissionReceiveErrors) {
+		message = err.Error()
+	}
+
+	m, u := wsh.GetErrorMessage(message)
+
+	wsm := WebsocketMessage{Event: ErrorEvent}
+	wsm.Args = []string{m}
+
+	zap.S().Warnw("an error was encountered in the websocket process", zap.String("error_identifier", u.String()), zap.Error(err))
+
+	return wsh.Connection.WriteJSON(wsm)
+}
+
+// Converts an error message into a more readable representation and returns a UUID
+// that can be cross-referenced to find the specific error that triggered.
+func (wsh *WebsocketHandler) GetErrorMessage(msg string) (string, uuid.UUID) {
+	u, _ := uuid.NewRandom()
+
+	m := fmt.Sprintf("Error Event [%s]: %s", u.String(), msg)
+
+	return m, u
 }
 
 // Handle the inbound socket request and route it to the proper server action.
@@ -277,6 +313,19 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 	}
 
 	switch m.Event {
+	case AuthenticationEvent:
+		{
+			token, err := ParseJWT([]byte(strings.Join(m.Args, "")))
+			if err != nil {
+				return nil
+			}
+
+			if token.HasPermission(PermissionConnect) {
+				wsh.JWT = token
+			}
+
+			return nil
+		}
 	case SetStateEvent:
 		{
 			if !wsh.JWT.HasPermission(PermissionSendPower) {
@@ -325,6 +374,10 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 	case SendCommandEvent:
 		{
 			if !wsh.JWT.HasPermission(PermissionSendCommand) {
+				return nil
+			}
+
+			if wsh.Server.State == server.ProcessOfflineState {
 				return nil
 			}
 
