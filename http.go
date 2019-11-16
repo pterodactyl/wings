@@ -8,6 +8,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
+	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
 	"io"
@@ -391,6 +392,20 @@ func (rt *Router) routeServerSendCommand(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (rt *Router) routeCreateServer(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	defer r.Body.Close()
+
+	err, inst := installer.New(rt.ReaderToBytes(r.Body))
+
+	if err != nil {
+		zap.S().Warnw("failed to validate the received data", zap.Error(err))
+	}
+
+	inst.Execute()
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
 func (rt *Router) ReaderToBytes(r io.Reader) []byte {
 	buf := bytes.Buffer{}
 	buf.ReadFrom(r)
@@ -410,6 +425,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/api/servers/:server/files/contents", rt.AuthenticateRequest(rt.routeServerFileRead))
 	router.GET("/api/servers/:server/files/list-directory", rt.AuthenticateRequest(rt.routeServerListDirectory))
 	router.PUT("/api/servers/:server/files/rename", rt.AuthenticateRequest(rt.routeServerRenameFile))
+	router.POST("/api/servers", rt.AuthenticateToken(rt.routeCreateServer));
 	router.POST("/api/servers/:server/files/copy", rt.AuthenticateRequest(rt.routeServerCopyFile))
 	router.POST("/api/servers/:server/files/write", rt.AuthenticateRequest(rt.routeServerWriteFile))
 	router.POST("/api/servers/:server/files/create-directory", rt.AuthenticateRequest(rt.routeServerCreateDirectory))
