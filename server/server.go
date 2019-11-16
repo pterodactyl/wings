@@ -35,7 +35,7 @@ type Server struct {
 
 	// An array of environment variables that should be passed along to the running
 	// server process.
-	EnvVars map[string]string `json:"environment" yaml:"env"`
+	EnvVars map[string]string `json:"environment" yaml:"environment"`
 
 	Build       *BuildSettings `json:"build"`
 	Allocations *Allocations   `json:"allocations"`
@@ -45,15 +45,15 @@ type Server struct {
 		Image string `json:"image,omitempty"`
 	} `json:"container,omitempty"`
 
-	Environment Environment `json:"-"`
+	Environment Environment `json:"-" yaml:"-"`
 
-	Filesystem *Filesystem `json:"-"`
+	Filesystem *Filesystem `json:"-" yaml:"-"`
 
 	Resources *ResourceUsage `json:"resources"`
 
 	// Server cache used to store frequently requested information in memory and make
 	// certain long operations return faster. For example, FS disk space usage.
-	Cache *cache.Cache `json:"-"`
+	Cache *cache.Cache `json:"-" yaml:"-"`
 
 	// All of the registered event listeners for this server instance.
 	listeners EventListeners
