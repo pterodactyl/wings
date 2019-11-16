@@ -5,8 +5,11 @@ import (
 	"errors"
 	"github.com/asaskevich/govalidator"
 	"github.com/buger/jsonparser"
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
+	"os"
 )
 
 type Installer struct {
@@ -26,17 +29,17 @@ func New(data []byte) (error, *Installer) {
 	}
 
 	s := &server.Server{
-		Uuid:        getString(data, "uuid"),
-		Suspended:   false,
-		State:       server.ProcessOfflineState,
-		Invocation:  "",
-		EnvVars:     make(map[string]string),
-		Build:       &server.BuildSettings{
+		Uuid:       getString(data, "uuid"),
+		Suspended:  false,
+		State:      server.ProcessOfflineState,
+		Invocation: "",
+		EnvVars:    make(map[string]string),
+		Build: &server.BuildSettings{
 			MemoryLimit: getInt(data, "build", "memory"),
-			Swap: getInt(data, "build", "swap"),
-			IoWeight: uint16(getInt(data, "build", "io")),
-			CpuLimit: getInt(data, "build", "cpu"),
-			DiskSpace: getInt(data, "build", "disk"),
+			Swap:        getInt(data, "build", "swap"),
+			IoWeight:    uint16(getInt(data, "build", "io")),
+			CpuLimit:    getInt(data, "build", "cpu"),
+			DiskSpace:   getInt(data, "build", "disk"),
 		},
 		Allocations: &server.Allocations{
 			Mappings: make(map[string][]int),
@@ -65,8 +68,20 @@ func New(data []byte) (error, *Installer) {
 
 	s.Container.Image = getString(data, "container", "image")
 
+	b, err := WriteConfigurationToDisk(s)
+	if err != nil {
+		return err, nil
+	}
+
+	// Destroy the temporary server instance.
+	s = nil
+
+	// Create a new server instance using the configuration we wrote to the disk
+	// so that everything gets instantiated correctly on the struct.
+	s2, err := server.FromConfiguration(b, config.Get().System)
+
 	return nil, &Installer{
-		server: s,
+		server: s2,
 	}
 }
 
@@ -75,13 +90,44 @@ func (i *Installer) Uuid() string {
 	return i.server.Uuid
 }
 
+// Return the server instance.
+func (i *Installer) Server() *server.Server {
+	return i.server
+}
+
 // Executes the installer process, creating the server and running through the
 // associated installation process based on the parameters passed through for
 // the server instance.
-func (i *Installer) Execute() error {
+func (i *Installer) Execute() {
 	zap.S().Debugw("beginning installation process for server", zap.String("server", i.server.Uuid))
 
-	return nil
+	zap.S().Debugw("creating required environment for server instance", zap.String("server", i.server.Uuid))
+	if err := i.server.Environment.Create(); err != nil {
+		zap.S().Errorw("failed to create environment for server", zap.String("server", i.server.Uuid), zap.Error(err))
+		return
+	}
+}
+
+// Writes the server configuration to the disk and return the byte representation
+// of the configuration object. This allows us to pass it directly into the
+// servers.FromConfiguration() function.
+func WriteConfigurationToDisk(s *server.Server) ([]byte, error) {
+	f, err := os.Create("data/servers/" + s.Uuid + ".yml")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	b, err := yaml.Marshal(&s)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := f.Write(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
 }
 
 // Returns a string value from the JSON data provided.

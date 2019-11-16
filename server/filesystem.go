@@ -553,3 +553,18 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 
 	return out, nil
 }
+
+// Ensures that the data directory for the server instance exists.
+func (fs *Filesystem) EnsureDataDirectory() error {
+	if _, err := os.Stat(fs.Path()); err != nil && !os.IsNotExist(err) {
+		return err
+	} else if err != nil {
+		// Create the server data directory because it does not currently exist
+		// on the system.
+		if err := os.MkdirAll(fs.Path(), 0600); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

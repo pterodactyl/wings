@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/docker/docker/api/types"
@@ -14,7 +15,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
 	"io"
 	"os"
 	"strconv"
@@ -385,6 +385,8 @@ func (d *DockerEnvironment) DisableResourcePolling() error {
 
 // Creates a new container for the server using all of the data that is currently
 // available for it. If the container already exists it will be returned.
+//
+// @todo pull the image being requested if it doesn't exist currently.
 func (d *DockerEnvironment) Create() error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv)
@@ -393,6 +395,11 @@ func (d *DockerEnvironment) Create() error {
 	}
 
 	var oomDisabled = true
+
+	// Ensure the data directory exists before getting too far through this process.
+	if err := d.Server.Filesystem.EnsureDataDirectory(); err != nil {
+		return err
+	}
 
 	// If the container already exists don't hit the user with an error, just return
 	// the current information about it which is what we would do when creating the

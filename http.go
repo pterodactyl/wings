@@ -399,9 +399,19 @@ func (rt *Router) routeCreateServer(w http.ResponseWriter, r *http.Request, ps h
 
 	if err != nil {
 		zap.S().Warnw("failed to validate the received data", zap.Error(err))
+
+		http.Error(w, "failed to validate data", http.StatusUnprocessableEntity)
+		return
 	}
 
-	inst.Execute()
+	// Plop that server instance onto the request so that it can be referenced in
+	// requests from here-on out.
+	rt.Servers = append(rt.Servers, inst.Server())
+
+	// Begin the installation process in the background to not block the request
+	// cycle. If there are any errors they will be logged and communicated back
+	// to the Panel where a reinstall may take place.
+	go inst.Execute()
 
 	w.WriteHeader(http.StatusAccepted)
 }
