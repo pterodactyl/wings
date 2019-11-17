@@ -158,19 +158,34 @@ func (rt *Router) routeServerPower(w http.ResponseWriter, r *http.Request, ps ht
 		switch a {
 		case "start":
 			if err := s.Environment.Start(); err != nil {
-				zap.S().Error(err, zap.String("server", s.Uuid), zap.String("action", "start"))
+				zap.S().Errorw(
+					"encountered unexpected error starting server process",
+					zap.Error(err),
+					zap.String("server", s.Uuid),
+					zap.String("action", "start"),
+				)
 			}
 			break
 		case "stop":
 			if err := s.Environment.Stop(); err != nil {
-				zap.S().Error(err, zap.String("server", s.Uuid), zap.String("action", "stop"))
+				zap.S().Errorw(
+					"encountered unexpected error stopping server process",
+					zap.Error(err),
+					zap.String("server", s.Uuid),
+					zap.String("action", "stop"),
+				)
 			}
 			break
 		case "restart":
 			break
 		case "kill":
 			if err := s.Environment.Terminate(os.Kill); err != nil {
-				zap.S().Error(err, zap.String("server", s.Uuid), zap.String("action", "kill"))
+				zap.S().Errorw(
+					"encountered unexpected error killing server process",
+					zap.Error(err),
+					zap.String("server", s.Uuid),
+					zap.String("action", "kill"),
+				)
 			}
 		}
 	}(action.Action, s)

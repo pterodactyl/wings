@@ -1,9 +1,9 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"github.com/patrickmn/go-cache"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"

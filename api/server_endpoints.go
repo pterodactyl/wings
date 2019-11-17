@@ -2,9 +2,9 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/buger/jsonparser"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 

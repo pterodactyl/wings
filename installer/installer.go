@@ -2,9 +2,9 @@ package installer
 
 import (
 	"encoding/json"
-	"errors"
 	"github.com/asaskevich/govalidator"
 	"github.com/buger/jsonparser"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"

@@ -2,9 +2,9 @@ package api
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"github.com/buger/jsonparser"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
 	"io/ioutil"
