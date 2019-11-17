@@ -275,7 +275,7 @@ func (wsh *WebsocketHandler) SendErrorJson(err error) error {
 	wsh.Mutex.Lock()
 	defer wsh.Mutex.Unlock()
 
-	message := "an unexpected error was encountered during the websocket lifecycle"
+	message := "an unexpected error was encountered while handling this request"
 	if wsh.JWT != nil && wsh.JWT.HasPermission(PermissionReceiveErrors) {
 		message = err.Error()
 	}
@@ -285,7 +285,12 @@ func (wsh *WebsocketHandler) SendErrorJson(err error) error {
 	wsm := WebsocketMessage{Event: ErrorEvent}
 	wsm.Args = []string{m}
 
-	zap.S().Warnw("an error was encountered in the websocket process", zap.String("error_identifier", u.String()), zap.Error(err))
+	zap.S().Errorw(
+		"an error was encountered in the websocket process",
+		zap.String("server", wsh.Server.Uuid),
+		zap.String("error_identifier", u.String()),
+		zap.Error(err),
+	)
 
 	return wsh.Connection.WriteJSON(wsm)
 }
@@ -332,24 +337,18 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 				return nil
 			}
 
-			var err error
 			switch strings.Join(m.Args, "") {
 			case "start":
-				err = wsh.Server.Environment.Start()
-				break
+				return wsh.Server.Environment.Start()
 			case "stop":
-				err = wsh.Server.Environment.Stop()
-				break
+				return wsh.Server.Environment.Stop()
 			case "restart":
-				break
+				return nil
 			case "kill":
-				err = wsh.Server.Environment.Terminate(os.Kill)
-				break
+				return wsh.Server.Environment.Terminate(os.Kill)
 			}
 
-			if err != nil {
-				return err
-			}
+			return nil
 		}
 	case SendServerLogsEvent:
 		{
