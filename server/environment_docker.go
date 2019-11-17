@@ -167,9 +167,12 @@ func (d *DockerEnvironment) Start() error {
 	}
 
 	// Truncate the log file so we don't end up outputting a bunch of useless log information
-	// to the websocket and whatnot.
-	if err := os.Truncate(c.LogPath, 0); err != nil {
-		return err
+	// to the websocket and whatnot. Check first that the path and file exist before trying
+	// to truncate them.
+	if _, err := os.Stat(c.LogPath); err == nil {
+		if err := os.Truncate(c.LogPath, 0); err != nil {
+			return err
+		}
 	}
 
 	// Reset the permissions on files for the server before actually trying
