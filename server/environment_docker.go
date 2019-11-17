@@ -120,7 +120,7 @@ func (d *DockerEnvironment) IsRunning() (bool, error) {
 func (d *DockerEnvironment) OnBeforeStart() error {
 	c, err := d.Server.GetProcessConfiguration()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	d.Server.processConfiguration = c
@@ -143,7 +143,7 @@ func (d *DockerEnvironment) Start() error {
 
 	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// No reason to try starting a container that is already running.
@@ -163,7 +163,7 @@ func (d *DockerEnvironment) Start() error {
 
 	// Run the before start function and wait for it to finish.
 	if err := d.OnBeforeStart(); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// Truncate the log file so we don't end up outputting a bunch of useless log information
@@ -171,19 +171,19 @@ func (d *DockerEnvironment) Start() error {
 	// to truncate them.
 	if _, err := os.Stat(c.LogPath); err == nil {
 		if err := os.Truncate(c.LogPath, 0); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 
 	// Reset the permissions on files for the server before actually trying
 	// to start it.
 	if err := d.Server.Filesystem.Chown("/"); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	opts := types.ContainerStartOptions{}
 	if err := d.Client.ContainerStart(context.Background(), d.Server.Uuid, opts); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// No errors, good to continue through.
@@ -216,7 +216,7 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 
 	c, err := d.Client.ContainerInspect(ctx, d.Server.Uuid)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	if !c.State.Running {
@@ -240,7 +240,7 @@ func (d *DockerEnvironment) Attach() error {
 	}
 
 	if err := d.FollowConsoleOutput(); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	ctx := context.Background()
@@ -254,7 +254,7 @@ func (d *DockerEnvironment) Attach() error {
 	})
 
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	console := Console{
@@ -283,7 +283,7 @@ func (d *DockerEnvironment) Attach() error {
 func (d *DockerEnvironment) FollowConsoleOutput() error {
 	if exists, err := d.Exists(); !exists {
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		return errors.New(fmt.Sprintf("no such container: %s", d.Server.Uuid))
@@ -312,7 +312,7 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 		}
 	}(reader)
 
-	return err
+	return errors.WithStack(err)
 }
 
 // Enables resource polling on the docker instance. Except we aren't actually polling Docker for this
@@ -327,7 +327,7 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 
 	stats, err := d.Client.ContainerStats(ctx, d.Server.Uuid, true)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	d.stats = stats.Body
 
@@ -383,7 +383,7 @@ func (d *DockerEnvironment) DisableResourcePolling() error {
 	d.Server.Resources.Network.TxBytes = 0
 	d.Server.Resources.Network.RxBytes = 0
 
-	return err
+	return errors.WithStack(err)
 }
 
 // Creates a new container for the server using all of the data that is currently
@@ -394,14 +394,14 @@ func (d *DockerEnvironment) Create() error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	var oomDisabled = true
 
 	// Ensure the data directory exists before getting too far through this process.
 	if err := d.Server.Filesystem.EnsureDataDirectory(); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// If the container already exists don't hit the user with an error, just return
@@ -410,7 +410,7 @@ func (d *DockerEnvironment) Create() error {
 	if _, err := cli.ContainerInspect(ctx, d.Server.Uuid); err == nil {
 		return nil
 	} else if !client.IsErrNotFound(err) {
-		return err
+		return errors.WithStack(err)
 	}
 
 	conf := &container.Config{
@@ -501,7 +501,7 @@ func (d *DockerEnvironment) Create() error {
 	}
 
 	if _, err := cli.ContainerCreate(ctx, conf, hostConf, nil, d.Server.Uuid); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -516,7 +516,7 @@ func (d *DockerEnvironment) SendCommand(c string) error {
 
 	_, err := d.stream.Conn.Write([]byte(c + "\n"))
 
-	return err
+	return errors.WithStack(err)
 }
 
 // Reads the log file for the server. This does not care if the server is running or not, it will

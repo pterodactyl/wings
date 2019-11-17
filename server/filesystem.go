@@ -205,21 +205,21 @@ func (fs *Filesystem) Readfile(p string) (io.Reader, error) {
 func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// If the file does not exist on the system already go ahead and create the pathway
 	// to it and an empty file. We'll then write to it later on after this completes.
 	if stat, err := os.Stat(cleaned); err != nil && os.IsNotExist(err) {
 		if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	} else if err != nil {
-		return err
+		return errors.WithStack(err)
 	} else if stat.IsDir() {
 		return errors.New("cannot use a directory as a file for writing")
 	}
@@ -228,7 +228,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	// truncate the existing file.
 	file, err := os.OpenFile(cleaned, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	defer file.Close()
 
@@ -240,7 +240,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	for {
 		n, err := r.Read(buf)
 		if err != nil && err != io.EOF {
-			return err
+			return errors.WithStack(err)
 		}
 
 		if n == 0 {
@@ -248,12 +248,12 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 		}
 
 		if _, err := w.Write(buf[:n]); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 
 	if err := w.Flush(); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// Finally, chown the file to ensure the permissions don't end up out-of-whack
@@ -324,7 +324,7 @@ func (fs *Filesystem) Stat(p string) (*Stat, error) {
 func (fs *Filesystem) CreateDirectory(name string, p string) error {
 	cleaned, err := fs.SafePath(path.Join(p, name))
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	return os.MkdirAll(cleaned, 0755)
@@ -334,12 +334,12 @@ func (fs *Filesystem) CreateDirectory(name string, p string) error {
 func (fs *Filesystem) Rename(from string, to string) error {
 	cleanedFrom, err := fs.SafePath(from)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	cleanedTo, err := fs.SafePath(to)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	return os.Rename(cleanedFrom, cleanedTo)
@@ -350,11 +350,11 @@ func (fs *Filesystem) Rename(from string, to string) error {
 func (fs *Filesystem) Chown(path string) error {
 	cleaned, err := fs.SafePath(path)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	if s, err := os.Stat(cleaned); err != nil {
-		return err
+		return errors.WithStack(err)
 	} else if !s.IsDir() {
 		return os.Chown(cleaned, fs.Configuration.User.Uid, fs.Configuration.User.Gid)
 	}
@@ -370,12 +370,12 @@ func (fs *Filesystem) chownDirectory(path string) error {
 
 	cleaned, err := fs.SafePath(path)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	files, err := ioutil.ReadDir(cleaned)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	for _, f := range files {
@@ -403,7 +403,7 @@ func (fs *Filesystem) chownDirectory(path string) error {
 func (fs *Filesystem) Copy(p string) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	if s, err := os.Stat(cleaned); (err != nil && os.IsNotExist(err)) || s.IsDir() || !s.Mode().IsRegular() {
@@ -412,7 +412,7 @@ func (fs *Filesystem) Copy(p string) error {
 		// re-evaluate if this is a smart decision (I'm guessing not).
 		return nil
 	} else if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	base := filepath.Base(cleaned)
@@ -438,12 +438,12 @@ func (fs *Filesystem) Copy(p string) error {
 		tryName := fmt.Sprintf("%s%s%s", name, copySuffix, extension)
 		tryLocation, err := fs.SafePath(path.Join(relative, tryName))
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		// If the file exists, continue to the next loop, otherwise we're good to start a copy.
 		if _, err := os.Stat(tryLocation); err != nil && !os.IsNotExist(err) {
-			return err
+			return errors.WithStack(err)
 		} else if os.IsNotExist(err) {
 			break
 		}
@@ -455,23 +455,23 @@ func (fs *Filesystem) Copy(p string) error {
 
 	finalPath, err := fs.SafePath(path.Join(relative, fmt.Sprintf("%s%s%s", name, copySuffix, extension)))
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	source, err := os.Open(cleaned)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	defer source.Close()
 
 	dest, err := os.Create(finalPath)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	defer dest.Close()
 
 	if _, err := io.Copy(dest, source); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -482,7 +482,7 @@ func (fs *Filesystem) Copy(p string) error {
 func (fs *Filesystem) Delete(p string) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// Block any whoopsies.
@@ -557,12 +557,12 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 // Ensures that the data directory for the server instance exists.
 func (fs *Filesystem) EnsureDataDirectory() error {
 	if _, err := os.Stat(fs.Path()); err != nil && !os.IsNotExist(err) {
-		return err
+		return errors.WithStack(err)
 	} else if err != nil {
 		// Create the server data directory because it does not currently exist
 		// on the system.
 		if err := os.MkdirAll(fs.Path(), 0600); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 
