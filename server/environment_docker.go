@@ -114,6 +114,35 @@ func (d *DockerEnvironment) IsRunning() (bool, error) {
 	return c.State.Running, nil
 }
 
+// Performs an in-place update of the Docker container's resource limits without actually
+// making any changes to the operational state of the container. This allows memory, cpu,
+// and IO limitations to be adjusted on the fly for individual instances.
+func (d *DockerEnvironment) InSituUpdate() error {
+	if _, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid); err != nil {
+		// If the container doesn't exist for some reason there really isn't anything
+		// we can do to fix that in this process (it doesn't make sense at least). In those
+		// cases just return without doing anything since we still want to save the configuration
+		// to the disk.
+		//
+		// We'll let a boot process make modifications to the container if needed at this point.
+		if client.IsErrNotFound(err) {
+			return nil
+		}
+
+		return errors.WithStack(err)
+	}
+
+	u := container.UpdateConfig{
+		Resources: d.getResourcesForServer(),
+	}
+
+	if _, err := d.Client.ContainerUpdate(context.Background(), d.Server.Uuid, u); err != nil {
+		return errors.WithStack(err)
+	}
+
+	return nil
+}
+
 // Run before the container starts and get the process configuration from the Panel.
 // This is important since we use this to check configuration files as well as ensure
 // we always have the latest version of an egg available for server processes.
@@ -412,8 +441,6 @@ func (d *DockerEnvironment) Create() error {
 		return errors.WithStack(err)
 	}
 
-	var oomDisabled = true
-
 	// Ensure the data directory exists before getting too far through this process.
 	if err := d.Server.Filesystem.EnsureDataDirectory(); err != nil {
 		return errors.WithStack(err)
@@ -477,19 +504,7 @@ func (d *DockerEnvironment) Create() error {
 
 		// Define resource limits for the container based on the data passed through
 		// from the Panel.
-		Resources: container.Resources{
-			// @todo memory limit should be slightly higher than the reservation
-			Memory:            d.Server.Build.MemoryLimit * 1000000,
-			MemoryReservation: d.Server.Build.MemoryLimit * 1000000,
-			MemorySwap:        d.Server.Build.ConvertedSwap(),
-
-			CPUQuota:  d.Server.Build.ConvertedCpuLimit(),
-			CPUPeriod: 100000,
-			CPUShares: 1024,
-
-			BlkioWeight:    d.Server.Build.IoWeight,
-			OomKillDisable: &oomDisabled,
-		},
+		Resources: d.getResourcesForServer(),
 
 		// @todo make this configurable again
 		DNS: []string{"1.1.1.1", "8.8.8.8"},
@@ -676,4 +691,27 @@ func (d *DockerEnvironment) exposedPorts() nat.PortSet {
 	}
 
 	return out
+}
+
+// Formats the resources available to a server instance in such as way that Docker will
+// generate a matching environment in the container.
+func (d *DockerEnvironment) getResourcesForServer() container.Resources {
+	b := true
+	oomDisabled := d.Server.Container.OomDisabled
+
+	if oomDisabled == nil {
+		oomDisabled = &b
+	}
+
+	return container.Resources{
+		// @todo memory limit should be slightly higher than the reservation
+		Memory:            d.Server.Build.MemoryLimit * 1000000,
+		MemoryReservation: d.Server.Build.MemoryLimit * 1000000,
+		MemorySwap:        d.Server.Build.ConvertedSwap(),
+		CPUQuota:  d.Server.Build.ConvertedCpuLimit(),
+		CPUPeriod: 100000,
+		CPUShares: 1024,
+		BlkioWeight:    d.Server.Build.IoWeight,
+		OomKillDisable: oomDisabled,
+	}
 }

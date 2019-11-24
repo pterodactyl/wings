@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -43,6 +44,11 @@ type Server struct {
 	Container struct {
 		// Defines the Docker image that will be used for this server
 		Image string `json:"image,omitempty"`
+		// If set to true, OOM killer will be disabled on the server's Docker container.
+		// If not present (nil) we will default to disabling it.
+		OomDisabled *bool `json:"oom_disabled,omitempty"`
+		// Defines if the container needs to be rebuilt on the next boot.
+		RebuildRequired bool `json:"rebuild_required,omitempty"`
 	} `json:"container,omitempty"`
 
 	Environment Environment `json:"-" yaml:"-"`
@@ -62,6 +68,10 @@ type Server struct {
 	// fetched from the Pterodactyl Server instance each time the server process is
 	// started, and then cached here.
 	processConfiguration *api.ServerConfiguration
+
+	// Internal mutex used to block actions that need to occur sequentially, such as
+	// writing the configuration to the disk.
+	mutex *sync.Mutex
 }
 
 // The build settings for a given server that impact docker container creation and
@@ -179,11 +189,18 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) ([]*Server, erro
 	return servers, nil
 }
 
+// Initializes the default required internal struct components for a Server.
+func (s *Server) Init() {
+	s.listeners = make(map[string][]EventListenerFunction)
+	s.mutex = &sync.Mutex{}
+}
+
 // Initalizes a server using a data byte array. This will be marshaled into the
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
 func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, error) {
 	s := &Server{}
+	s.Init()
 
 	if err := yaml.Unmarshal(data, s); err != nil {
 		return nil, err

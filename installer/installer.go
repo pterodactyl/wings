@@ -8,8 +8,6 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
-	"os"
 )
 
 type Installer struct {
@@ -46,6 +44,8 @@ func New(data []byte) (error, *Installer) {
 		},
 	}
 
+	s.Init()
+
 	s.Allocations.DefaultMapping.Ip = getString(data, "allocations", "default", "ip")
 	s.Allocations.DefaultMapping.Port = int(getInt(data, "allocations", "default", "port"))
 
@@ -68,7 +68,7 @@ func New(data []byte) (error, *Installer) {
 
 	s.Container.Image = getString(data, "container", "image")
 
-	b, err := WriteConfigurationToDisk(s)
+	b, err := s.WriteConfigurationToDisk()
 	if err != nil {
 		return err, nil
 	}
@@ -106,28 +106,6 @@ func (i *Installer) Execute() {
 		zap.S().Errorw("failed to create environment for server", zap.String("server", i.server.Uuid), zap.Error(err))
 		return
 	}
-}
-
-// Writes the server configuration to the disk and return the byte representation
-// of the configuration object. This allows us to pass it directly into the
-// servers.FromConfiguration() function.
-func WriteConfigurationToDisk(s *server.Server) ([]byte, error) {
-	f, err := os.Create("data/servers/" + s.Uuid + ".yml")
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	b, err := yaml.Marshal(&s)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := f.Write(b); err != nil {
-		return nil, err
-	}
-
-	return b, nil
 }
 
 // Returns a string value from the JSON data provided.

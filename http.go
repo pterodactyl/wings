@@ -407,6 +407,21 @@ func (rt *Router) routeServerSendCommand(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (rt *Router) routeServerUpdate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.Servers.Get(ps.ByName("server"))
+	defer r.Body.Close()
+
+	data := rt.ReaderToBytes(r.Body)
+	if err := s.UpdateDataStructure(data); err != nil {
+		zap.S().Errorw("failed to update a server's data structure", zap.String("server", s.Uuid), zap.Error(err))
+
+		http.Error(w, "failed to update data structure", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (rt *Router) routeCreateServer(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	defer r.Body.Close()
 
@@ -457,6 +472,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.POST("/api/servers/:server/files/delete", rt.AuthenticateRequest(rt.routeServerDeleteFile))
 	router.POST("/api/servers/:server/power", rt.AuthenticateRequest(rt.routeServerPower))
 	router.POST("/api/servers/:server/commands", rt.AuthenticateRequest(rt.routeServerSendCommand))
+	router.PATCH("/api/servers/:server", rt.AuthenticateRequest(rt.routeServerUpdate))
 
 	return router
 }

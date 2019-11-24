@@ -14,6 +14,11 @@ type Environment interface {
 	// for this specific server instance.
 	IsRunning() (bool, error)
 
+	// Performs an update of server resource limits without actually stopping the server
+	// process. This only executes if the environment supports it, otherwise it is
+	// a no-op.
+	InSituUpdate() error
+
 	// Runs before the environment is started. If an error is returned starting will
 	// not occur, otherwise proceeds as normal.
 	OnBeforeStart() error
