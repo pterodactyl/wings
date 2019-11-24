@@ -128,8 +128,12 @@ func (d *DockerEnvironment) OnBeforeStart() error {
 	return nil
 }
 
-// Checks if there is a container that already exists for the server. If so that
-// container is started. If there is no container, one is created and then started.
+// Starts the server environment and begins piping output to the event listeners for the
+// console.
+//
+// This process will also confirm that the server environment exists and is in a bootable
+// state. This ensures that unexpected container deletion while Wings is running does
+// not result in the server becoming unbootable.
 func (d *DockerEnvironment) Start() error {
 	sawError := false
 	// If sawError is set to true there was an error somewhere in the pipeline that
@@ -140,6 +144,17 @@ func (d *DockerEnvironment) Start() error {
 			d.Server.SetState(ProcessOfflineState)
 		}
 	}()
+
+	// The Create() function will check if the container exists in the first place, and if
+	// so just silently return without an error. Otherwise, it will try to create the necessary
+	// container and data storage directory.
+	//
+	// This won't actually run an installation process however, it is just here to ensure the
+	// environment gets created properly if it is missing and the server is started. We're making
+	// an assumption that all of the files will still exist at this point.
+	if err := d.Create(); err != nil {
+		return errors.WithStack(err)
+	}
 
 	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
 	if err != nil {
