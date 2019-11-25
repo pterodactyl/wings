@@ -44,6 +44,16 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 		s.Container.OomDisabled = v
 	}
 
+	// Environment and Mappings should be treated as a full update at all times, never a
+	// true patch, otherwise we can't know what we're passing along.
+	if len(src.EnvVars) > 0 {
+		s.EnvVars = src.EnvVars
+	}
+
+	if len(src.Allocations.Mappings) > 0 {
+		s.Allocations.Mappings = src.Allocations.Mappings
+	}
+
 	s.Container.RebuildRequired = true
 	if _, err := s.WriteConfigurationToDisk(); err != nil {
 		return errors.WithStack(err)
