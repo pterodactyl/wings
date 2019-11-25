@@ -425,7 +425,7 @@ func (rt *Router) routeServerUpdate(w http.ResponseWriter, r *http.Request, ps h
 func (rt *Router) routeCreateServer(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	defer r.Body.Close()
 
-	err, inst := installer.New(rt.ReaderToBytes(r.Body))
+	inst, err := installer.New(rt.ReaderToBytes(r.Body))
 
 	if err != nil {
 		zap.S().Warnw("failed to validate the received data", zap.Error(err))

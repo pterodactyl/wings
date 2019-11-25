@@ -17,13 +17,13 @@ type Installer struct {
 // Validates the received data to ensure that all of the required fields
 // have been passed along in the request. This should be manually run before
 // calling Execute().
-func New(data []byte) (error, *Installer) {
+func New(data []byte) (*Installer, error) {
 	if !govalidator.IsUUIDv4(getString(data, "uuid")) {
-		return errors.New("uuid provided was not in a valid format"), nil
+		return nil, errors.New("uuid provided was not in a valid format")
 	}
 
 	if !govalidator.IsUUIDv4(getString(data, "service", "egg")) {
-		return errors.New("service egg provided was not in a valid format"), nil
+		return nil, errors.New("service egg provided was not in a valid format")
 	}
 
 	s := &server.Server{
@@ -49,28 +49,31 @@ func New(data []byte) (error, *Installer) {
 	s.Allocations.DefaultMapping.Ip = getString(data, "allocations", "default", "ip")
 	s.Allocations.DefaultMapping.Port = int(getInt(data, "allocations", "default", "port"))
 
-	jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-		s.EnvVars[string(key)] = string(value)
-
-		return nil
-	}, "environment")
-
-	jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-		var dat map[string][]int
-		if err := json.Unmarshal(value, &dat); err != nil {
-			return
+	// Unmarshal the environment variables from the request into the server struct.
+	if b, _, _, err := jsonparser.Get(data, "environment"); err != nil {
+		return nil, errors.WithStack(err)
+	} else {
+		s.EnvVars = make(map[string]string)
+		if err := json.Unmarshal(b, &s.EnvVars); err != nil {
+			return nil, errors.WithStack(err)
 		}
+	}
 
-		for i, k := range dat {
-			s.Allocations.Mappings[i] = k
+	// Unmarshal the allocation mappings from the request into the server struct.
+	if b, _, _, err := jsonparser.Get(data, "allocations", "mappings"); err != nil {
+		return nil, errors.WithStack(err)
+	} else {
+		s.Allocations.Mappings = make(map[string][]int)
+		if err := json.Unmarshal(b, &s.Allocations.Mappings); err != nil {
+			return nil, errors.WithStack(err)
 		}
-	}, "allocations", "mappings")
+	}
 
 	s.Container.Image = getString(data, "container", "image")
 
 	b, err := s.WriteConfigurationToDisk()
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 
 	// Destroy the temporary server instance.
@@ -80,9 +83,9 @@ func New(data []byte) (error, *Installer) {
 	// so that everything gets instantiated correctly on the struct.
 	s2, err := server.FromConfiguration(b, config.Get().System)
 
-	return nil, &Installer{
+	return &Installer{
 		server: s2,
-	}
+	}, nil
 }
 
 // Returns the UUID associated with this installer instance.
