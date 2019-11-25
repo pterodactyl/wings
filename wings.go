@@ -5,8 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
+	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
 	"net/http"
 )
@@ -68,25 +70,65 @@ func main() {
 		return
 	}
 
+	// Just for some nice log output.
 	for _, s := range servers {
 		zap.S().Infow("loaded configuration for server", zap.String("server", s.Uuid))
-		zap.S().Infow("ensuring envrionment exists", zap.String("server", s.Uuid))
-
-		if err := s.Environment.Create(); err != nil {
-			zap.S().Errorw("failed to create an environment for server", zap.String("server", s.Uuid), zap.Error(err))
-		}
-
-		if r, err := s.Environment.IsRunning(); err != nil {
-			zap.S().Errorw("error checking server environment status", zap.String("server", s.Uuid), zap.Error(err))
-		} else if r {
-			zap.S().Infow("detected server is running, re-attaching to process", zap.String("server", s.Uuid))
-			s.SetState(server.ProcessRunningState)
-			if err := s.Environment.Attach(); err != nil {
-				zap.S().Errorw("error attaching to server environment", zap.String("server", s.Uuid), zap.Error(err))
-				s.SetState(server.ProcessOfflineState)
-			}
-		}
 	}
+
+	// Create a new WaitGroup that limits us to 4 servers being bootstrapped at a time
+	// on Wings. This allows us to ensure the environment exists, write configurations,
+	// and reboot processes without causing a slow-down due to sequential booting.
+	wg := sizedwaitgroup.New(4)
+
+	for _, serv := range servers {
+		go func(s *server.Server) {
+			defer wg.Done()
+
+			// Create a server environment if none exists currently. This allows us to recover from Docker
+			// being reinstalled on the host system for example.
+			zap.S().Infow("ensuring envrionment exists", zap.String("server", s.Uuid))
+			if err := s.Environment.Create(); err != nil {
+				zap.S().Errorw("failed to create an environment for server", zap.String("server", s.Uuid), zap.Error(err))
+			}
+
+			if r, err := s.Environment.IsRunning(); err != nil {
+				zap.S().Errorw("error checking server environment status", zap.String("server", s.Uuid), zap.Error(err))
+			} else if r {
+				// If the server is currently running on Docker, mark the process as being in that state.
+				// We never want to stop an instance that is currently running external from Wings since
+				// that is a good way of keeping things running even if Wings gets in a very corrupted state.
+				zap.S().Infow("detected server is running, re-attaching to process", zap.String("server", s.Uuid))
+				s.SetState(server.ProcessRunningState)
+
+				// If we cannot attach to the environment go ahead and mark the processs as being offline.
+				if err := s.Environment.Attach(); err != nil {
+					zap.S().Warnw("error attaching to server environment", zap.String("server", s.Uuid), zap.Error(err))
+					s.SetState(server.ProcessOfflineState)
+				}
+			} else if !r {
+				// If the server is not in a running state right now but according to the configuration it
+				// should be, we want to go ahead and restart the instance.
+				if s.State == server.ProcessRunningState || s.State == server.ProcessStartingState {
+					if err := s.Environment.Start(); err != nil {
+						zap.S().Warnw(
+							"failed to put server instance back in running state",
+							zap.String("server", s.Uuid),
+							zap.Error(errors.WithStack(err)),
+						)
+					}
+				} else {
+					if s.State == "" {
+						// Addresses potentially invalid data in the stored file that can cause Wings to lose
+						// track of what the actual server state is.
+						s.SetState(server.ProcessOfflineState)
+					}
+				}
+			}
+		}(serv)
+	}
+
+	// Wait until all of the servers are ready to go before we fire up the HTTP server.
+	wg.Wait()
 
 	r := &Router{
 		Servers: servers,

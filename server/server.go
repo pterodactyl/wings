@@ -29,7 +29,7 @@ type Server struct {
 	Suspended bool `json:"suspended"`
 
 	// The power state of the server.
-	State string `json:"state" yaml:"-"`
+	State string `default:"offline" json:"state"`
 
 	// The command that should be used when booting up the server instance.
 	Invocation string `json:"invocation"`
@@ -224,7 +224,6 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 		return nil, err
 	}
 
-	s.State = ProcessOfflineState
 	s.Environment = env
 	s.Cache = cache.New(time.Minute*10, time.Minute*15)
 	s.Filesystem = &Filesystem{
