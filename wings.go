@@ -109,6 +109,11 @@ func main() {
 				// If the server is not in a running state right now but according to the configuration it
 				// should be, we want to go ahead and restart the instance.
 				if s.State == server.ProcessRunningState || s.State == server.ProcessStartingState {
+					zap.S().Infow(
+						"server state does not match last recorded state in configuration, starting instance now",
+						zap.String("server", s.Uuid),
+					)
+
 					if err := s.Environment.Start(); err != nil {
 						zap.S().Warnw(
 							"failed to put server instance back in running state",
