@@ -561,7 +561,7 @@ func (fs *Filesystem) EnsureDataDirectory() error {
 	} else if err != nil {
 		// Create the server data directory because it does not currently exist
 		// on the system.
-		if err := os.MkdirAll(fs.Path(), 0600); err != nil {
+		if err := os.MkdirAll(fs.Path(), 0700); err != nil {
 			return errors.WithStack(err)
 		}
 	}
