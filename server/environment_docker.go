@@ -146,6 +146,10 @@ func (d *DockerEnvironment) InSituUpdate() error {
 // Run before the container starts and get the process configuration from the Panel.
 // This is important since we use this to check configuration files as well as ensure
 // we always have the latest version of an egg available for server processes.
+//
+// This process will also confirm that the server environment exists and is in a bootable
+// state. This ensures that unexpected container deletion while Wings is running does
+// not result in the server becoming unbootable.
 func (d *DockerEnvironment) OnBeforeStart() error {
 	c, err := d.Server.GetProcessConfiguration()
 	if err != nil {
@@ -154,25 +158,34 @@ func (d *DockerEnvironment) OnBeforeStart() error {
 
 	d.Server.processConfiguration = c
 
-	return nil
-}
-
-// Starts the server environment and begins piping output to the event listeners for the
-// console.
-//
-// This process will also confirm that the server environment exists and is in a bootable
-// state. This ensures that unexpected container deletion while Wings is running does
-// not result in the server becoming unbootable.
-func (d *DockerEnvironment) Start() error {
-	sawError := false
-	// If sawError is set to true there was an error somewhere in the pipeline that
-	// got passed up, but we also want to ensure we set the server to be offline at
-	// that point.
-	defer func() {
-		if sawError {
-			d.Server.SetState(ProcessOfflineState)
+	// If the server requires a rebuild, go ahead and delete the container from the system which
+	// will allow the subsequent Create() call to create a new container instance for the server
+	// to run in.
+	if d.Server.Container.RebuildRequired {
+		if err := d.Client.ContainerRemove(context.Background(), d.Server.Uuid, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
+			if !client.IsErrNotFound(err) {
+				return errors.WithStack(err)
+			}
 		}
-	}()
+
+		// Reset and persist the container rebuild status so that we don't continually
+		// try and rebuild the container when the server is booted.
+		d.Server.Container.RebuildRequired = false
+
+		// Write the configuration to the disk in a seperate process so that we can rapidly
+		// move on with booting the server without waiting on an IO operation to complete.
+		go func(serv *Server) {
+			if _, err := serv.WriteConfigurationToDisk(); err != nil {
+				// Don't kill the process if there is an error writing the configuration to the disk
+				// but we do want to go ahead and notify the logger about it.
+				zap.S().Warnw(
+					"failed to write server configuration to disk after setting rebuild_required=false in configuration",
+					zap.String("server", serv.Uuid),
+					zap.Error(err),
+				)
+			}
+		}(d.Server)
+	}
 
 	// The Create() function will check if the container exists in the first place, and if
 	// so just silently return without an error. Otherwise, it will try to create the necessary
@@ -185,8 +198,25 @@ func (d *DockerEnvironment) Start() error {
 		return errors.WithStack(err)
 	}
 
+	return nil
+}
+
+// Starts the server environment and begins piping output to the event listeners for the
+// console. If a container does not exist, or needs to be rebuilt that will happen in the
+// call to OnBeforeStart().
+func (d *DockerEnvironment) Start() error {
+	sawError := false
+	// If sawError is set to true there was an error somewhere in the pipeline that
+	// got passed up, but we also want to ensure we set the server to be offline at
+	// that point.
+	defer func() {
+		if sawError {
+			d.Server.SetState(ProcessOfflineState)
+		}
+	}()
+
 	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
-	if err != nil {
+	if err != nil && !client.IsErrNotFound(err) {
 		return errors.WithStack(err)
 	}
 
@@ -205,7 +235,9 @@ func (d *DockerEnvironment) Start() error {
 	// end of this chain.
 	sawError = true
 
-	// Run the before start function and wait for it to finish.
+	// Run the before start function and wait for it to finish. This will validate that the container
+	// exists on the system, and rebuild the container if that is required for server booting to
+	// occur.
 	if err := d.OnBeforeStart(); err != nil {
 		return errors.WithStack(err)
 	}
@@ -635,7 +667,7 @@ func (d *DockerEnvironment) environmentVariables() []string {
 		fmt.Sprintf("SERVER_PORT=%d", d.Server.Allocations.DefaultMapping.Port),
 	}
 
-	eloop:
+eloop:
 	for k, v := range d.Server.EnvVars {
 		for _, e := range out {
 			if strings.HasPrefix(e, strings.ToUpper(k)) {
