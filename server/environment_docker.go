@@ -696,22 +696,15 @@ func (d *DockerEnvironment) exposedPorts() nat.PortSet {
 // Formats the resources available to a server instance in such as way that Docker will
 // generate a matching environment in the container.
 func (d *DockerEnvironment) getResourcesForServer() container.Resources {
-	b := true
-	oomDisabled := d.Server.Container.OomDisabled
-
-	if oomDisabled == nil {
-		oomDisabled = &b
-	}
-
 	return container.Resources{
 		// @todo memory limit should be slightly higher than the reservation
 		Memory:            d.Server.Build.MemoryLimit * 1000000,
 		MemoryReservation: d.Server.Build.MemoryLimit * 1000000,
 		MemorySwap:        d.Server.Build.ConvertedSwap(),
-		CPUQuota:  d.Server.Build.ConvertedCpuLimit(),
-		CPUPeriod: 100000,
-		CPUShares: 1024,
-		BlkioWeight:    d.Server.Build.IoWeight,
-		OomKillDisable: oomDisabled,
+		CPUQuota:          d.Server.Build.ConvertedCpuLimit(),
+		CPUPeriod:         100000,
+		CPUShares:         1024,
+		BlkioWeight:       d.Server.Build.IoWeight,
+		OomKillDisable:    &d.Server.Container.OomDisabled,
 	}
 }

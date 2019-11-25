@@ -46,16 +46,16 @@ type Server struct {
 		Image string `json:"image,omitempty"`
 		// If set to true, OOM killer will be disabled on the server's Docker container.
 		// If not present (nil) we will default to disabling it.
-		OomDisabled *bool `json:"oom_disabled,omitempty"`
+		OomDisabled bool `default:"false" json:"oom_disabled" yaml:"oom_disabled"`
 		// Defines if the container needs to be rebuilt on the next boot.
-		RebuildRequired bool `json:"rebuild_required,omitempty"`
+		RebuildRequired bool `default:"false" json:"rebuild_required,omitempty" yaml:"rebuild_required"`
 	} `json:"container,omitempty"`
 
 	Environment Environment `json:"-" yaml:"-"`
 
 	Filesystem *Filesystem `json:"-" yaml:"-"`
 
-	Resources *ResourceUsage `json:"resources"`
+	Resources *ResourceUsage `json:"resources" yaml:"-"`
 
 	// Server cache used to store frequently requested information in memory and make
 	// certain long operations return faster. For example, FS disk space usage.
