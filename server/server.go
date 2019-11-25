@@ -279,6 +279,20 @@ func (s *Server) SetState(state string) error {
 
 	s.State = state
 
+	// Persist this change to the disk immediately so that should the Daemon be stopped or
+	// crash we can immediately restore the server state.
+	//
+	// This really only makes a difference if all of the Docker containers are also stopped,
+	// but this was a highly requested feature and isn't hard to work with, so lets do it.
+	//
+	// We also get the benefit of server status changes always propagating corrected configurations
+	// to the disk should we forget to do it elsewhere.
+	go func (serv *Server) {
+		if _, err := serv.WriteConfigurationToDisk(); err != nil {
+			zap.S().Warnw("failed to write server state change to disk", zap.String("server", serv.Uuid), zap.Error(err))
+		}
+	}(s)
+
 	zap.S().Debugw("saw server status change event", zap.String("server", s.Uuid), zap.String("status", state))
 
 	// Emit the event to any listeners that are currently registered.
