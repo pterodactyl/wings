@@ -23,7 +23,7 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 	// Don't allow obviously corrupted data to pass through into this function. If the UUID
 	// doesn't match something has gone wrong and the API is attempting to meld this server
 	// instance into a totally different one, which would be bad.
-	if src.Uuid != s.Uuid {
+	if src.Uuid != "" && src.Uuid != s.Uuid {
 		return errors.New("attempting to merge a data stack with an invalid UUID")
 	}
 
