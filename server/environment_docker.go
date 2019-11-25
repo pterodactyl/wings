@@ -635,9 +635,12 @@ func (d *DockerEnvironment) environmentVariables() []string {
 		fmt.Sprintf("SERVER_PORT=%d", d.Server.Allocations.DefaultMapping.Port),
 	}
 
+	eloop:
 	for k, v := range d.Server.EnvVars {
-		if strings.ToUpper(k) == "STARTUP" {
-			continue
+		for _, e := range out {
+			if strings.HasPrefix(e, strings.ToUpper(k)) {
+				continue eloop
+			}
 		}
 
 		out = append(out, fmt.Sprintf("%s=\"%s\"", strings.ToUpper(k), v))
