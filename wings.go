@@ -81,6 +81,8 @@ func main() {
 	wg := sizedwaitgroup.New(4)
 
 	for _, serv := range servers {
+		wg.Add()
+
 		go func(s *server.Server) {
 			defer wg.Done()
 
