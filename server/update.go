@@ -46,13 +46,22 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 		s.Container.OomDisabled = v
 	}
 
+	// Mergo also cannot handle this boolean value.
+	if v, err := jsonparser.GetBoolean(data, "suspended"); err != nil {
+		if err != jsonparser.KeyPathNotFoundError {
+			return errors.WithStack(err)
+		}
+	} else {
+		s.Suspended = v
+	}
+
 	// Environment and Mappings should be treated as a full update at all times, never a
 	// true patch, otherwise we can't know what we're passing along.
-	if len(src.EnvVars) > 0 {
+	if src.EnvVars != nil && len(src.EnvVars) > 0 {
 		s.EnvVars = src.EnvVars
 	}
 
-	if len(src.Allocations.Mappings) > 0 {
+	if src.Allocations != nil && src.Allocations.Mappings != nil && len(src.Allocations.Mappings) > 0 {
 		s.Allocations.Mappings = src.Allocations.Mappings
 	}
 
@@ -89,6 +98,8 @@ func (s *Server) runBackgroundActions() {
 	// yet, do it immediately.
 	go func(server *Server) {
 		if server.Suspended && server.State != ProcessOfflineState {
+			zap.S().Infow("server suspended with running process state, terminating now", zap.String("server", server.Uuid))
+
 			if err := server.Environment.Terminate(os.Kill); err != nil {
 				zap.S().Warnw(
 					"failed to terminate server environment after seeing suspension",
