@@ -5,6 +5,8 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
+	"os"
 )
 
 // Merges data passed through in JSON form into the existing server object.
@@ -59,5 +61,41 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 		return errors.WithStack(err)
 	}
 
-	return s.Environment.InSituUpdate()
+	s.runBackgroundActions()
+
+	return nil
+}
+
+// Runs through different actions once a server's configuration has been persisted
+// to the disk. This function does not return anything as any failures should be logged
+// but have no effect on actually updating the server itself.
+//
+// These tasks run in independent threads where relevant to speed up any updates
+// that need to happen.
+func (s *Server) runBackgroundActions() {
+	// Update the environment in place, allowing memory and CPU usage to be adjusted
+	// on the fly without the user needing to reboot (theoretically).
+	go func(server *Server) {
+		if err := server.Environment.InSituUpdate(); err != nil {
+			zap.S().Warnw(
+				"failed to perform in-situ update of server environment",
+				zap.String("server", server.Uuid),
+				zap.Error(err),
+			)
+		}
+	}(s)
+
+	// Check if the server is now suspended, and if so and the process is not terminated
+	// yet, do it immediately.
+	go func(server *Server) {
+		if server.Suspended && server.State != ProcessOfflineState {
+			if err := server.Environment.Terminate(os.Kill); err != nil {
+				zap.S().Warnw(
+					"failed to terminate server environment after seeing suspension",
+					zap.String("server", server.Uuid),
+					zap.Error(err),
+				)
+			}
+		}
+	}(s)
 }

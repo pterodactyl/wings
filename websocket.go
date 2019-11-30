@@ -276,8 +276,10 @@ func (wsh *WebsocketHandler) SendErrorJson(err error) error {
 	defer wsh.Mutex.Unlock()
 
 	message := "an unexpected error was encountered while handling this request"
-	if wsh.JWT != nil && wsh.JWT.HasPermission(PermissionReceiveErrors) {
-		message = err.Error()
+	if wsh.JWT != nil {
+		if server.IsSuspendedError(err) || wsh.JWT.HasPermission(PermissionReceiveErrors) {
+			message = err.Error()
+		}
 	}
 
 	m, u := wsh.GetErrorMessage(message)

@@ -152,6 +152,17 @@ func (rt *Router) routeServerPower(w http.ResponseWriter, r *http.Request, ps ht
 		return
 	}
 
+	// Because we route all of the actual bootup process to a seperate thread we need to
+	// check the suspension status here, otherwise the user will hit the endpoint and then
+	// just sit there wondering why it returns a success but nothing actually happens.
+	//
+	// We don't really care about any of the other actions at this point, they'll all result
+	// in the process being stopped, which should have happened anyways if the server is suspended.
+	if action.Action == "start" && s.Suspended {
+		http.Error(w, "server is suspended", http.StatusBadRequest)
+		return
+	}
+
 	// Pass the actual heavy processing off to a seperate thread to handle so that
 	// we can immediately return a response from the server.
 	go func(a string, s *server.Server) {

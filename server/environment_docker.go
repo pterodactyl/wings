@@ -215,6 +215,16 @@ func (d *DockerEnvironment) Start() error {
 		}
 	}()
 
+	// If the server is suspended the user shouldn't be able to boot it, in those cases
+	// return a suspension error and let the calling area handle the issue.
+	//
+	// Theoretically you'd have the Panel handle all of this logic, but we cannot do that
+	// because we allow the websocket to control the server power state as well, so we'll
+	// need to handle that action in here.
+	if d.Server.Suspended {
+		return &suspendedError{}
+	}
+
 	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
 	if err != nil && !client.IsErrNotFound(err) {
 		return errors.WithStack(err)
