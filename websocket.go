@@ -287,12 +287,14 @@ func (wsh *WebsocketHandler) SendErrorJson(err error) error {
 	wsm := WebsocketMessage{Event: ErrorEvent}
 	wsm.Args = []string{m}
 
-	zap.S().Errorw(
-		"an error was encountered in the websocket process",
-		zap.String("server", wsh.Server.Uuid),
-		zap.String("error_identifier", u.String()),
-		zap.Error(err),
-	)
+	if !server.IsSuspendedError(err) {
+		zap.S().Errorw(
+			"an error was encountered in the websocket process",
+			zap.String("server", wsh.Server.Uuid),
+			zap.String("error_identifier", u.String()),
+			zap.Error(err),
+		)
+	}
 
 	return wsh.Connection.WriteJSON(wsm)
 }
