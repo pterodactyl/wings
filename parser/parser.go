@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/beevik/etree"
 	"github.com/buger/jsonparser"
 	"github.com/ghodss/yaml"
 	"github.com/magiconair/properties"
@@ -106,16 +107,98 @@ func (f *ConfigurationFile) Parse(path string) error {
 	case Ini:
 		err = f.parseIniFile(path)
 		break
+	case Xml:
+		err = f.parseXmlFile(path)
+		break
 	}
 
 	return err
+}
+
+// Parses an xml file.
+func (f *ConfigurationFile) parseXmlFile(path string) error {
+	doc := etree.NewDocument()
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer file.Close()
+
+	if _, err := doc.ReadFrom(file); err != nil {
+		return errors.WithStack(err)
+	}
+
+	// If there is no root we should create a basic start to the file. This isn't required though,
+	// and if it doesn't work correctly I'll just remove the code.
+	if doc.Root() == nil {
+		doc.CreateProcInst("xml", `version="1.0" encoding="utf-8"`)
+	}
+
+	for i, replacement := range f.Replace {
+		value, _, err := f.LookupConfigurationValue(replacement)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		// If this is the first item and there is no root element, create that root now and apply
+		// it for future use.
+		if i == 0 && doc.Root() == nil {
+			parts := strings.SplitN(replacement.Match, ".", 2)
+			doc.SetRoot(doc.CreateElement(parts[0]))
+		}
+
+		path := "./" + strings.Replace(replacement.Match, ".", "/", -1)
+
+		// If we're not doing a wildcard replacement go ahead and create the
+		// missing element if we cannot find it yet.
+		if !strings.Contains(path, "*") {
+			parts := strings.Split(replacement.Match, ".")
+
+			// Set the initial element to be the root element, and then work from there.
+			var element = doc.Root()
+
+			// Iterate over the path to create the required structure for the given element's path.
+			// This does not set a value, only ensures that the base structure exists. We start at index
+			// 1 because an XML document can only contain a single root element, and from there we'll
+			// work our way down the chain.
+			for _, tag := range parts[1:] {
+				if e := element.FindElement(tag); e == nil {
+					element = element.CreateElement(tag)
+				} else {
+					element = e
+				}
+			}
+		}
+
+		// Iterate over the elements we found and update their values.
+		for _, element := range doc.FindElements(path) {
+			element.SetText(string(value))
+		}
+	}
+
+	// If you don't truncate the file you'll end up duplicating the data in there (or just appending
+	// to the end of the file. We don't want to do that.
+	if err := file.Truncate(0); err != nil {
+		return errors.WithStack(err)
+	}
+
+	// Move the cursor to the start of the file to avoid weird spacing issues.
+	file.Seek(0, 0)
+
+	// Ensure the XML is indented properly.
+	doc.Indent(2)
+
+	// Write the XML to the file.
+	_, err = doc.WriteTo(file)
+
+	return errors.WithStack(err)
 }
 
 // Parses an ini file.
 func (f *ConfigurationFile) parseIniFile(path string) error {
 	// Ini package can't handle a non-existent file, so handle that automatically here
 	// by creating it if not exists.
-	file, err := os.OpenFile(path, os.O_CREATE | os.O_RDWR, 0644);
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644);
 	if err != nil {
 		return errors.WithStack(err)
 	}
