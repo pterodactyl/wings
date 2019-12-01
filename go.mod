@@ -23,6 +23,7 @@ require (
 	github.com/imdario/mergo v0.3.8
 	github.com/julienschmidt/httprouter v1.2.0
 	github.com/kr/pretty v0.1.0 // indirect
+	github.com/magiconair/properties v1.8.1
 	github.com/mcuadros/go-defaults v1.1.0
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db
 	github.com/olebedev/emitter v0.0.0-20190110104742-e8d1457e6aee

@@ -3,54 +3,15 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/buger/jsonparser"
-	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/parser"
 	"go.uber.org/zap"
 )
 
 const (
-	ProcessStopCommand = "command"
-	ProcessStopSignal = "signal"
+	ProcessStopCommand    = "command"
+	ProcessStopSignal     = "signal"
 	ProcessStopNativeStop = "stop"
 )
-
-// Defines a single find/replace instance for a given server configuration file.
-type ConfigurationFileReplacement struct {
-	Match     string               `json:"match"`
-	Value     string               `json:"value"`
-	ValueType jsonparser.ValueType `json:"-"`
-}
-
-func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
-	if m, err := jsonparser.GetString(data, "match"); err != nil {
-		return err
-	} else {
-		cfr.Match = m
-	}
-
-	if v, dt, _, err := jsonparser.Get(data, "value"); err != nil {
-		return err
-	} else {
-		if dt != jsonparser.String && dt != jsonparser.Number && dt != jsonparser.Boolean {
-			return errors.New(
-				fmt.Sprintf("cannot parse JSON: received unexpected replacement value type: %d", dt),
-			)
-		}
-
-		cfr.Value = string(v)
-		cfr.ValueType = dt
-	}
-
-	return nil
-}
-
-// Defines a configuration file for the server startup. These will be looped over
-// and modified before the server finishes booting.
-type ConfigurationFile struct {
-	FileName string                         `json:"file"`
-	Parser   string                         `json:"parser"`
-	Replace  []ConfigurationFileReplacement `json:"replace"`
-}
 
 // Defines the process configuration for a given server instance. This sets what the
 // daemon is looking for to mark a server as done starting, what to do when stopping,
@@ -64,7 +25,7 @@ type ServerConfiguration struct {
 		Type  string `json:"type"`
 		Value string `json:"value"`
 	} `json:"stop"`
-	ConfigurationFiles []ConfigurationFile `json:"configs"`
+	ConfigurationFiles []parser.ConfigurationFile `json:"configs"`
 }
 
 // Fetches the server configuration and returns the struct for it.
