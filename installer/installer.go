@@ -32,14 +32,14 @@ func New(data []byte) (*Installer, error) {
 		State:      server.ProcessOfflineState,
 		Invocation: "",
 		EnvVars:    make(map[string]string),
-		Build: &server.BuildSettings{
+		Build: server.BuildSettings{
 			MemoryLimit: getInt(data, "build", "memory"),
 			Swap:        getInt(data, "build", "swap"),
 			IoWeight:    uint16(getInt(data, "build", "io")),
 			CpuLimit:    getInt(data, "build", "cpu"),
 			DiskSpace:   getInt(data, "build", "disk"),
 		},
-		Allocations: &server.Allocations{
+		Allocations: server.Allocations{
 			Mappings: make(map[string][]int),
 		},
 	}

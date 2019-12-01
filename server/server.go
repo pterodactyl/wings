@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/mcuadros/go-defaults"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
@@ -38,8 +39,11 @@ type Server struct {
 	// server process.
 	EnvVars map[string]string `json:"environment" yaml:"environment"`
 
-	Build       *BuildSettings `json:"build"`
-	Allocations *Allocations   `json:"allocations"`
+	Build          BuildSettings  `json:"build"`
+	Allocations    Allocations    `json:"allocations"`
+	Environment    Environment    `json:"-" yaml:"-"`
+	Filesystem     Filesystem     `json:"-" yaml:"-"`
+	Resources      ResourceUsage  `json:"resources" yaml:"-"`
 
 	Container struct {
 		// Defines the Docker image that will be used for this server
@@ -50,12 +54,6 @@ type Server struct {
 		// Defines if the container needs to be rebuilt on the next boot.
 		RebuildRequired bool `default:"false" json:"rebuild_required,omitempty" yaml:"rebuild_required"`
 	} `json:"container,omitempty"`
-
-	Environment Environment `json:"-" yaml:"-"`
-
-	Filesystem *Filesystem `json:"-" yaml:"-"`
-
-	Resources *ResourceUsage `json:"resources" yaml:"-"`
 
 	// Server cache used to store frequently requested information in memory and make
 	// certain long operations return faster. For example, FS disk space usage.
@@ -199,7 +197,8 @@ func (s *Server) Init() {
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
 func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, error) {
-	s := &Server{}
+	s := new(Server)
+	defaults.SetDefaults(s)
 	s.Init()
 
 	if err := yaml.Unmarshal(data, s); err != nil {
@@ -226,11 +225,11 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 
 	s.Environment = env
 	s.Cache = cache.New(time.Minute*10, time.Minute*15)
-	s.Filesystem = &Filesystem{
+	s.Filesystem = Filesystem{
 		Configuration: cfg,
 		Server:        s,
 	}
-	s.Resources = &ResourceUsage{}
+	s.Resources = ResourceUsage{}
 
 	// This is also done when the server is booted, however we need to account for instances
 	// where the server is already running and the Daemon reboots. In those cases this will
@@ -277,6 +276,7 @@ func (s *Server) SetState(state string) error {
 		return errors.New(fmt.Sprintf("invalid server state received: %s", state))
 	}
 
+	prevState := s.State
 	s.State = state
 
 	// Persist this change to the disk immediately so that should the Daemon be stopped or

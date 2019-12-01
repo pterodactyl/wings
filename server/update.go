@@ -61,7 +61,7 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 		s.EnvVars = src.EnvVars
 	}
 
-	if src.Allocations != nil && src.Allocations.Mappings != nil && len(src.Allocations.Mappings) > 0 {
+	if src.Allocations.Mappings != nil && len(src.Allocations.Mappings) > 0 {
 		s.Allocations.Mappings = src.Allocations.Mappings
 	}
 
