@@ -121,8 +121,15 @@ func readFileBytes(path string) ([]byte, error) {
 	return ioutil.ReadAll(file)
 }
 
-// Iterate over an unstructured JSON/YAML/etc. interface and set all of the required key/value pairs
-// for the configuration file.
+// Iterate over an unstructured JSON/YAML/etc. interface and set all of the required
+// key/value pairs for the configuration file.
+//
+// We need to support wildcard characters in key searches, this allows you to make
+// modifications to multiple keys at once, especially useful for games with multiple
+// configurations per-world (such as Spigot and Bungeecord) where we'll need to make
+// adjustments to the bind address for the user.
+//
+// This does not currently support nested matches. container.*.foo.*.bar will not work.
 func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error) {
 	parsed, err := gabs.ParseJSON(data)
 	if err != nil {
@@ -135,8 +142,25 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 			return nil, err
 		}
 
-		if _, err = parsed.SetP(value, v.Match); err != nil {
-			return nil, err
+		// Check for a wildcard character, and if found split the key on that value to
+		// begin doing a search and replace in the data.
+		if strings.Contains(v.Match, ".*") {
+			parts := strings.SplitN(v.Match, ".*", 2)
+
+			// Iterate over each matched child and set the remaining path to the value
+			// that is passed through in the loop.
+			//
+			// If the child is a null value, nothing will happen. Seems reasonable as of the
+			// time this code is being written.
+			for _, child := range parsed.Path(strings.Trim(parts[0], ".")).Children() {
+				if _, err := child.SetP(value, strings.Trim(parts[1], ".")); err != nil {
+					return nil, err
+				}
+			}
+		} else {
+			if _, err = parsed.SetP(value, v.Match); err != nil {
+				return nil, err
+			}
 		}
 	}
 
