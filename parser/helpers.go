@@ -25,27 +25,30 @@ func readFileBytes(path string) ([]byte, error) {
 
 // Helper function to set the value of the JSON key item based on the jsonparser value
 // type returned.
-func setPathway(c *gabs.Container, path string, value []byte, dt jsonparser.ValueType) error {
-	var err error
+func setPathway(c *gabs.Container, path string, value []byte, vt jsonparser.ValueType) error {
+	v := getKeyValue(value, vt)
 
-	switch dt {
+	_, err := c.SetP(v, path)
+
+	return err
+}
+
+// Gets the value of a key based on the value type defined.
+func getKeyValue(value []byte, vt jsonparser.ValueType) interface{} {
+	switch vt {
 	case jsonparser.Number:
 		{
 			v, _ := strconv.Atoi(string(value))
-			_, err = c.SetP(v, path)
+			return v
 		}
-		break
 	case jsonparser.Boolean:
 		{
 			v, _ := strconv.ParseBool(string(value))
-			_, err = c.SetP(v, path)
+			return v
 		}
-		break
 	default:
-		_, err = c.SetP(string(value), path)
+		return string(value)
 	}
-
-	return err
 }
 
 // Iterate over an unstructured JSON/YAML/etc. interface and set all of the required

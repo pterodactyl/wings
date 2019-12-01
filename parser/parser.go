@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
+	"gopkg.in/ini.v1"
 	"io/ioutil"
 	"os"
 	"regexp"
@@ -102,12 +103,73 @@ func (f *ConfigurationFile) Parse(path string) error {
 	case Json:
 		err = f.parseJsonFile(path)
 		break
+	case Ini:
+		err = f.parseIniFile(path)
+		break
 	}
 
 	return err
 }
 
-// Prases a json file updating any matching key/value pairs. If a match is not found, the
+// Parses an ini file.
+func (f *ConfigurationFile) parseIniFile(path string) error {
+	// Ini package can't handle a non-existent file, so handle that automatically here
+	// by creating it if not exists.
+	file, err := os.OpenFile(path, os.O_CREATE | os.O_RDWR, 0644);
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer file.Close()
+
+	cfg, err := ini.Load(path)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	for _, replacement := range f.Replace {
+		path := strings.SplitN(replacement.Match, ".", 2)
+
+		value, _, err := f.LookupConfigurationValue(replacement)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		k := path[0]
+		s := cfg.Section("")
+		// Passing a key of foo.bar will look for "bar" in the "[foo]" section of the file.
+		if len(path) == 2 {
+			k = path[1]
+			s = cfg.Section(path[0])
+		}
+
+		// If no section was found, create that new section now and then set the
+		// section value we're using to be the new one.
+		if s == nil {
+			s, err = cfg.NewSection(path[0])
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		}
+
+		// If the key exists in the file go ahead and set the value, otherwise try to
+		// create it in the section.
+		if s.HasKey(k) {
+			s.Key(k).SetValue(string(value))
+		} else {
+			if _, err := s.NewKey(k, string(value)); err != nil {
+				return errors.WithStack(err)
+			}
+		}
+	}
+
+	if _, err := cfg.WriteTo(file); err != nil {
+		return errors.WithStack(err)
+	}
+
+	return nil
+}
+
+// Parses a json file updating any matching key/value pairs. If a match is not found, the
 // value is set regardless in the file. See the commentary in parseYamlFile for more details
 // about what is happening during this process.
 func (f *ConfigurationFile) parseJsonFile(path string) error {
