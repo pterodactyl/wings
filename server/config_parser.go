@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/pterodactyl/wings/parser"
 	"go.uber.org/zap"
 	"sync"
 )
@@ -13,20 +14,20 @@ func (s *Server) UpdateConfigurationFiles() {
 	for _, v := range s.processConfiguration.ConfigurationFiles {
 		wg.Add(1)
 
-		go func(server *Server) {
+		go func(f parser.ConfigurationFile, server *Server) {
 			defer wg.Done()
 
-			p, err := s.Filesystem.SafePath(v.FileName)
+			p, err := s.Filesystem.SafePath(f.FileName)
 			if err != nil {
 				zap.S().Errorw("failed to generate safe path for configuration file", zap.String("server", server.Uuid), zap.Error(err))
 
 				return
 			}
 
-			if err := v.Parse(p); err != nil {
+			if err := f.Parse(p); err != nil {
 				zap.S().Errorw("failed to parse and update server configuration file", zap.String("server", server.Uuid), zap.Error(err))
 			}
-		}(s)
+		}(v, s)
 	}
 
 	wg.Wait()
