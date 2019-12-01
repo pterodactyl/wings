@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/Jeffail/gabs/v2"
 	"github.com/buger/jsonparser"
+	"github.com/ghodss/yaml"
+	"github.com/iancoleman/strcase"
 	"github.com/magiconair/properties"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"regexp"
@@ -43,6 +45,10 @@ type ConfigurationFile struct {
 	FileName string                         `json:"file"`
 	Parser   ConfigurationParser            `json:"parser"`
 	Replace  []ConfigurationFileReplacement `json:"replace"`
+
+	// Tracks Wings' configuration so that we can quickly get values
+	// out of it when variables request it.
+	configuration []byte
 }
 
 // Defines a single find/replace instance for a given server configuration file.
@@ -80,6 +86,9 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 func (f *ConfigurationFile) Parse(path string) error {
 	zap.S().Debugw("parsing configuration file", zap.String("path", path), zap.String("parser", string(f.Parser)))
 
+	mb, _ := json.Marshal(config.Get())
+	f.configuration = mb
+
 	var err error
 
 	switch f.Parser {
@@ -92,71 +101,96 @@ func (f *ConfigurationFile) Parse(path string) error {
 	case Yaml, "yml":
 		err = f.parseYamlFile(path)
 		break
+	case Json:
+		err = f.parseJsonFile(path)
+		break
 	}
 
 	return err
 }
 
-// Parses a yaml file and updates any matching key/value pairs before persisting
-// it back to the disk.
-func (f *ConfigurationFile) parseYamlFile(path string) error {
+// Gets the []byte representation of a configuration file to be passed through to other
+// handler functions. If the file does not currently exist, it will be created.
+func readFileBytes(path string) ([]byte, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, err
 	}
 	defer file.Close()
 
-	b, err := ioutil.ReadAll(file)
+	return ioutil.ReadAll(file)
+}
+
+// Iterate over an unstructured JSON/YAML/etc. interface and set all of the required key/value pairs
+// for the configuration file.
+func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error) {
+	parsed, err := gabs.ParseJSON(data)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, v := range f.Replace {
+		value, err := f.lookupConfigurationValue(v.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err = parsed.SetP(value, v.Match); err != nil {
+			return nil, err
+		}
+	}
+
+	return parsed, nil
+}
+
+// Prases a json file updating any matching key/value pairs. If a match is not found, the
+// value is set regardless in the file. See the commentary in parseYamlFile for more details
+// about what is happening during this process.
+func (f *ConfigurationFile) parseJsonFile(path string) error {
+	b, err := readFileBytes(path)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	var raw interface{}
-	// Unmarshall the yaml data into a raw interface such that we can work with any arbitrary
-	// data structure.
-	if err := yaml.Unmarshal(b, &raw); err != nil {
+	data, err := f.IterateOverJson(b)
+	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	// Create an indexable map that we can use while looping through elements.
-	m := raw.(map[interface{}]interface{})
+	output := []byte(data.StringIndent("", "    "))
+	return ioutil.WriteFile(path, output, 0644)
+}
 
-	for _, v := range f.Replace {
-		value, err := lookupConfigurationValue(v.Value)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		layer := m
-		nest := strings.Split(v.Match, ".")
-
-		// Split the key name on any periods, as we do this, initalize the struct for the yaml
-		// data at that key and then reset the later to point to that newly created layer. If
-		// we have reached the last split item, set the value of the key to the value defined
-		// in the replacement data.
-		for i, key := range nest {
-			if i == (len(nest) - 1) {
-				layer[key] = value
-			} else {
-				// Don't overwrite the key if it exists in the data already. But, if it is missing,
-				// go ahead and create the key otherwise we'll hit a panic when trying to access an
-				// index that does not exist.
-				if m[key] == nil {
-					layer[key] = make(map[interface{}]interface{})
-				}
-
-				layer = m[key].(map[interface{}]interface{})
-			}
-		}
-	}
-
-	file.Close()
-
-	if o, err := yaml.Marshal(m); err != nil {
+// Parses a yaml file and updates any matching key/value pairs before persisting
+// it back to the disk.
+func (f *ConfigurationFile) parseYamlFile(path string) error {
+	b, err := readFileBytes(path)
+	if err != nil {
 		return errors.WithStack(err)
-	} else {
-		return ioutil.WriteFile(path, o, 0644)
 	}
+
+	// Unmarshal the yaml data into a JSON interface such that we can work with
+	// any arbitrary data structure. If we don't do this, I can't use gabs which
+	// makes working with unknown JSON signficiantly easier.
+	jsonBytes, err := yaml.YAMLToJSON(b)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// Now that the data is converted, treat it just like JSON and pass it to the
+	// iterator function to update values as necessary.
+	data, err := f.IterateOverJson(jsonBytes)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// Remarshal the JSON into YAML format before saving it back to the disk.
+	marshaled, err := yaml.JSONToYAML(data.Bytes())
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	return ioutil.WriteFile(path, marshaled, 0644)
 }
 
 // Parses a text file using basic find and replace. This is a highly inefficient method of
@@ -210,7 +244,7 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 	}
 
 	for _, replace := range f.Replace {
-		v, err := lookupConfigurationValue(replace.Value)
+		v, err := f.lookupConfigurationValue(replace.Value)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -231,10 +265,7 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 }
 
 // Looks up a configuration value on the Daemon given a dot-notated syntax.
-func lookupConfigurationValue(value string) (string, error) {
-	// @todo there is probably a much better way to handle this
-	mb, _ := json.Marshal(config.Get())
-
+func (f *ConfigurationFile) lookupConfigurationValue(value string) (string, error) {
 	if !configMatchRegex.Match([]byte(value)) {
 		return value, nil
 	}
@@ -244,7 +275,17 @@ func lookupConfigurationValue(value string) (string, error) {
 	// daemon configuration here.
 	v := configMatchRegex.ReplaceAllString(value, "$1")
 
-	match, err := jsonparser.GetString(mb, strings.Split(v, ".")...)
+	var path []string
+	// The camel casing is important here, the configuration for the Daemon does not use
+	// JSON, and as such all of the keys will be generated in CamelCase format, rather than
+	// the expected snake_case from the old Daemon.
+	for _, value := range strings.Split(v, ".")	{
+		path = append(path, strcase.ToCamel(value))
+	}
+
+	// Look for the key in the configuration file, and if found return that value to the
+	// calling function.
+	match, err := jsonparser.GetString(f.configuration, path...)
 	if err != nil {
 		if err != jsonparser.KeyPathNotFoundError {
 			return "", errors.WithStack(err)
