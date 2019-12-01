@@ -14,7 +14,6 @@ import (
 	"gopkg.in/ini.v1"
 	"io/ioutil"
 	"os"
-	"regexp"
 	"strings"
 )
 
@@ -27,15 +26,6 @@ const (
 	Json       = "json"
 	Xml        = "xml"
 )
-
-// Regex to match anything that has a value matching the format of {{ config.$1 }} which
-// will cause the program to lookup that configuration value from itself and set that
-// value to the configuration one.
-//
-// This allows configurations to reference values that are node dependent, such as the
-// internal IP address used by the daemon, useful in Bungeecord setups for example, where
-// it is common to see variables such as "{{config.docker.interface}}"
-var configMatchRegex = regexp.MustCompile(`^{{\s?config\.([\w.-]+)\s?}}$`)
 
 type ConfigurationParser string
 

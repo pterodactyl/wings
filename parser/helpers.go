@@ -7,9 +7,19 @@ import (
 	"github.com/pkg/errors"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
+
+// Regex to match anything that has a value matching the format of {{ config.$1 }} which
+// will cause the program to lookup that configuration value from itself and set that
+// value to the configuration one.
+//
+// This allows configurations to reference values that are node dependent, such as the
+// internal IP address used by the daemon, useful in Bungeecord setups for example, where
+// it is common to see variables such as "{{config.docker.interface}}"
+var configMatchRegex = regexp.MustCompile(`{{\s?config\.([\w.-]+)\s?}}`)
 
 // Gets the []byte representation of a configuration file to be passed through to other
 // handler functions. If the file does not currently exist, it will be created.
@@ -106,7 +116,9 @@ func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplac
 	// If there is a match, lookup the value in the configuration for the Daemon. If no key
 	// is found, just return the string representation, otherwise use the value from the
 	// daemon configuration here.
-	huntPath := configMatchRegex.ReplaceAllString(cfr.Value, "$1")
+	huntPath := configMatchRegex.ReplaceAllString(
+		configMatchRegex.FindString(cfr.Value), "$1",
+	)
 
 	var path []string
 	// The camel casing is important here, the configuration for the Daemon does not use
@@ -128,6 +140,8 @@ func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplac
 		// is a replace issue at play.
 		return []byte(cfr.Value), cfr.ValueType, nil
 	} else {
-		return match, cfr.ValueType, nil
+		replaced := []byte(configMatchRegex.ReplaceAllString(cfr.Value, string(match)))
+
+		return replaced, cfr.ValueType, nil
 	}
 }
