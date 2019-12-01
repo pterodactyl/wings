@@ -1,5 +1,10 @@
 package server
 
+import (
+	"fmt"
+	"github.com/mitchellh/colorstring"
+)
+
 type EventListeners map[string][]EventListenerFunction
 
 type EventListenerFunction *func(string)
@@ -8,8 +13,8 @@ type EventListenerFunction *func(string)
 // noinspection GoNameStartsWithPackageName
 const (
 	ConsoleOutputEvent = "console output"
-	StatusEvent = "status"
-	StatsEvent = "stats"
+	StatusEvent        = "status"
+	StatsEvent         = "stats"
 )
 
 // Adds an event listener for the server instance.
@@ -41,9 +46,18 @@ func (s *Server) RemoveListener(event string, f EventListenerFunction) {
 func (s *Server) Emit(event string, data string) {
 	if _, ok := s.listeners[event]; ok {
 		for _, handler := range s.listeners[event] {
-			go func (f EventListenerFunction, d string) {
+			go func(f EventListenerFunction, d string) {
 				(*f)(d)
 			}(handler, data)
 		}
 	}
+}
+
+// Sends output to the server console formatted to appear correctly as being sent
+// from Wings.
+func (s *Server) SendConsoleOutputFromDaemon(data string) {
+	s.Emit(
+		ConsoleOutputEvent,
+		colorstring.Color(fmt.Sprintf("[yellow][bold][Pterodactyl Daemon]:[default] %s", data)),
+	)
 }

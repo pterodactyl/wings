@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
@@ -33,8 +34,10 @@ func (s *Server) handleServerCrash() error {
 	// is no reason to do a crash detection event. If the server crash detection is
 	// disabled we want to skip anything after this as well.
 	if s.State != ProcessOfflineState || !s.CrashDetection.Enabled {
-		if s.CrashDetection.Enabled {
+		if !s.CrashDetection.Enabled {
 			zap.S().Debugw("server triggered crash detection but handler is disabled for server process", zap.String("server", s.Uuid))
+
+			s.SendConsoleOutputFromDaemon("Server detected as crashed; crash detection is disabled for this instance.")
 		}
 
 		return nil
@@ -53,10 +56,16 @@ func (s *Server) handleServerCrash() error {
 		return nil
 	}
 
+	s.SendConsoleOutputFromDaemon("---------- Detected server process in a crashed state! ----------")
+	s.SendConsoleOutputFromDaemon(fmt.Sprintf("Exit code: %d", exitCode))
+	s.SendConsoleOutputFromDaemon(fmt.Sprintf("Out of memory: %t", oomKilled))
+
 	c := s.CrashDetection.lastCrash
 	// If the last crash time was within the last 60 seconds we do not want to perform
 	// an automatic reboot of the process. Return an error that can be handled.
 	if !c.IsZero() && c.Add(time.Second * 60).After(time.Now()) {
+		s.SendConsoleOutputFromDaemon("Aborting automatic reboot: last crash occurred less than 60 seconds ago.")
+
 		return &crashTooFrequent{}
 	}
 
