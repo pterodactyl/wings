@@ -39,6 +39,7 @@ type Server struct {
 	// server process.
 	EnvVars map[string]string `json:"environment" yaml:"environment"`
 
+	CrashDetection CrashDetection `json:"crash_detection" yaml:"crash_detection"`
 	Build          BuildSettings  `json:"build"`
 	Allocations    Allocations    `json:"allocations"`
 	Environment    Environment    `json:"-" yaml:"-"`
@@ -287,9 +288,9 @@ func (s *Server) SetState(state string) error {
 	//
 	// We also get the benefit of server status changes always propagating corrected configurations
 	// to the disk should we forget to do it elsewhere.
-	go func (serv *Server) {
-		if _, err := serv.WriteConfigurationToDisk(); err != nil {
-			zap.S().Warnw("failed to write server state change to disk", zap.String("server", serv.Uuid), zap.Error(err))
+	go func(server *Server) {
+		if _, err := server.WriteConfigurationToDisk(); err != nil {
+			zap.S().Warnw("failed to write server state change to disk", zap.String("server", server.Uuid), zap.Error(err))
 		}
 	}(s)
 
@@ -298,9 +299,27 @@ func (s *Server) SetState(state string) error {
 	// Emit the event to any listeners that are currently registered.
 	s.Emit(StatusEvent, s.State)
 
-	// @todo handle a crash event here. Need to port the logic from the Nodejs daemon
-	// into this daemon. I believe its basically just if state != stopping && newState = stopped
-	// then crashed.
+	// If server was in an online state, and is now in an offline state we should handle
+	// that as a crash event. In that scenario, check the last crash time, and the crash
+	// counter.
+	//
+	// In the event that we have passed the thresholds, don't do anything, otherwise
+	// automatically attempt to start the process back up for the user. This is done in a
+	// seperate thread as to not block any actions currently taking place in the flow
+	// that called this function.
+	if (prevState == ProcessStartingState || prevState == ProcessRunningState) && s.State == ProcessOfflineState {
+		zap.S().Infow("detected server as entering a potentially crashed state; running handler", zap.String("server", s.Uuid))
+
+		go func(server *Server) {
+			if err := server.handleServerCrash(); err != nil {
+				if IsTooFrequentCrashError(err) {
+					zap.S().Infow("did not restart server after crash; occurred too soon after last", zap.String("server", server.Uuid))
+				} else {
+					zap.S().Errorw("failed to handle server crash state", zap.String("server", server.Uuid), zap.Error(err))
+				}
+			}
+		}(s)
+	}
 
 	return nil
 }

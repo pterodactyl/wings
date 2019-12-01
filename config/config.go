@@ -82,6 +82,11 @@ type SystemConfiguration struct {
 	// daemon boot. This can take a long time on systems with many servers, or on
 	// systems with servers containing thousands of files.
 	SetPermissionsOnBoot bool `yaml:"set_permissions_on_boot"`
+
+	// Determines if Wings should detect a server that stops with a normal exit code of
+	// "0" as being crashed if the process stopped without any Wings interaction. E.g.
+	// the user did not press the stop button, but the process stopped cleanly.
+	DetectCleanExitAsCrash bool `default:"true" yaml:"detect_clean_exit_as_crash"`
 }
 
 // Defines the docker configuration used by the daemon when interacting with

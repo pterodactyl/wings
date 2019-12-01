@@ -316,6 +316,17 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 	)
 }
 
+// Determine the container exit state and return the exit code and wether or not
+// the container was killed by the OOM killer.
+func (d *DockerEnvironment) ExitState() (uint32, bool, error) {
+	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
+	if err != nil {
+		return 0, false, errors.WithStack(err)
+	}
+
+	return uint32(c.State.ExitCode), c.State.OOMKilled, nil
+}
+
 // Attaches to the docker container itself and ensures that we can pipe data in and out
 // of the process stream. This should not be used for reading console data as you *will*
 // miss important output at the beginning because of the time delay with attaching to the

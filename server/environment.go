@@ -40,6 +40,10 @@ type Environment interface {
 	// is not running no error should be returned.
 	Terminate(signal os.Signal) error
 
+	// Returns the exit state of the process. The first result is the exit code, the second
+	// determines if the process was killed by the system OOM killer.
+	ExitState() (uint32, bool, error)
+
 	// Creates the necessary environment for running the server process. For example,
 	// in the Docker environment create will create a new container instance for the
 	// server.
