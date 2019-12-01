@@ -26,6 +26,8 @@ github.com/gabriel-vasile/mimetype v0.1.4 h1:5mcsq3+DXypREUkW+1juhjeKmE/XnWgs+pa
 github.com/gabriel-vasile/mimetype v0.1.4/go.mod h1:kMJbg3SlWZCsj4R73F1WDzbT9AyGCOVmUtIxxwO5pmI=
 github.com/gbrlsnchs/jwt/v3 v3.0.0-rc.0 h1:7KeiSrO5puFH1+vdAdbpiie2TrNnkvFc/eOQzT60Z2k=
 github.com/gbrlsnchs/jwt/v3 v3.0.0-rc.0/go.mod h1:D1+3UtCYAJ1os1PI+zhTVEj6Tb+IHJvXjXKz83OstmM=
+github.com/ghodss/yaml v1.0.0 h1:wQHKEahhL6wmXdzwWG11gIVCkOv05bNOh+Rxn0yngAk=
+github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/gogo/protobuf v1.2.1 h1:/s5zKNz0uPFCZ5hddgPdo2TK2TVrUNMn0OOX8/aZMTE=
 github.com/gogo/protobuf v1.2.1/go.mod h1:hp+jE20tsWTFYpLwKvXlhS1hjn+gTNwPg2I6zVXpSg4=
 github.com/golang/protobuf v1.2.0 h1:P3YflyNX/ehuJFLhxviNdFxQPkGK5cDcApsge1SqnvM=
