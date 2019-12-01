@@ -21,6 +21,17 @@ import (
 // it is common to see variables such as "{{config.docker.interface}}"
 var configMatchRegex = regexp.MustCompile(`{{\s?config\.([\w.-]+)\s?}}`)
 
+// Regex to support modifying XML inline variable data using the config tools. This means
+// you can pass a replacement of Root.Property='[value="testing"]' to get an XML node
+// matching:
+//
+// <Root>
+//   <Property value="testing"/>
+// </Root>
+//
+// noinspection RegExpRedundantEscape
+var xmlValueMatchRegex = regexp.MustCompile(`^\[([\w]+)='(.*)'\]$`)
+
 // Gets the []byte representation of a configuration file to be passed through to other
 // handler functions. If the file does not currently exist, it will be created.
 func readFileBytes(path string) ([]byte, error) {

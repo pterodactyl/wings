@@ -162,7 +162,14 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 
 		// Iterate over the elements we found and update their values.
 		for _, element := range doc.FindElements(path) {
-			element.SetText(string(value))
+			if xmlValueMatchRegex.Match(value) {
+				k := xmlValueMatchRegex.ReplaceAllString(string(value), "$1")
+				v := xmlValueMatchRegex.ReplaceAllString(string(value), "$2")
+
+				element.CreateAttr(k, v)
+			} else {
+				element.SetText(string(value))
+			}
 		}
 	}
 
