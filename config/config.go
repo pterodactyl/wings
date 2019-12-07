@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/mcuadros/go-defaults"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -87,6 +88,24 @@ type SystemConfiguration struct {
 	// "0" as being crashed if the process stopped without any Wings interaction. E.g.
 	// the user did not press the stop button, but the process stopped cleanly.
 	DetectCleanExitAsCrash bool `default:"true" yaml:"detect_clean_exit_as_crash"`
+
+	Sftp *SftpConfiguration `default:"SftpConfiguration" yaml:"sftp"`
+}
+
+// Defines the configuration of the internal SFTP server.
+type SftpConfiguration struct {
+	// If set to false, the internal SFTP server will not be booted and you will need
+	// to run the SFTP server independent of this program.
+	UseInternalSystem bool `default:"true" yaml:"use_internal"`
+	// If set to true disk checking will not be performed. This will prevent the SFTP
+	// server from checking the total size of a directory when uploading files.
+	DisableDiskChecking bool `default:"false" yaml:"disable_disk_checking"`
+	// The bind address of the SFTP server.
+	Address string `default:"0.0.0.0" yaml:"bind_address"`
+	// The bind port of the SFTP server.
+	Port int `default:"2022" yaml:"bind_port"`
+	// If set to true, no write actions will be allowed on the SFTP server.
+	ReadOnly bool `default:"false" yaml:"read_only"`
 }
 
 // Defines the docker configuration used by the daemon when interacting with
@@ -145,9 +164,9 @@ type ApiConfiguration struct {
 // a tedious thing to have to do.
 func (c *Configuration) SetDefaults() {
 	c.System = &SystemConfiguration{
-		Username: "pterodactyl",
-		Data: "/srv/daemon-data",
-		TimezonePath:"/etc/timezone",
+		Username:     "pterodactyl",
+		Data:         "/srv/daemon-data",
+		TimezonePath: "/etc/timezone",
 	}
 
 	// By default the internal webserver should bind to all interfaces and
@@ -191,8 +210,13 @@ func ReadConfiguration(path string) (*Configuration, error) {
 		return nil, err
 	}
 
-	c := &Configuration{}
-	c.SetDefaults()
+	sftp :=new(SftpConfiguration)
+	defaults.SetDefaults(sftp)
+
+	c := new(Configuration)
+	c.System = new(SystemConfiguration)
+	c.System.Sftp = sftp
+	defaults.SetDefaults(c)
 
 	// Replace environment variables within the configuration file with their
 	// values from the host system.

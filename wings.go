@@ -8,9 +8,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/sftp"
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
 	"net/http"
+	"os"
 )
 
 // Entrypoint for the Wings application. Configures the logger and checks any
@@ -136,6 +138,14 @@ func main() {
 
 	// Wait until all of the servers are ready to go before we fire up the HTTP server.
 	wg.Wait()
+
+	// If the SFTP subsystem should be started, do so now.
+	if c.System.Sftp.UseInternalSystem {
+		if err := sftp.Initialize(c); err != nil {
+			zap.S().Fatalw("failed to initialize SFTP subsystem", zap.Error(errors.WithStack(err)))
+			os.Exit(1)
+		}
+	}
 
 	r := &Router{
 		Servers: servers,
