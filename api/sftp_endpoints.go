@@ -12,7 +12,7 @@ func (r *PanelRequest) ValidateSftpCredentials(request sftp_server.Authenticatio
 		return nil, err
 	}
 
-	resp, err := r.Post("/sftp/auth/login", b)
+	resp, err := r.Post("/sftp/auth", b)
 	if err != nil {
 		return nil, err
 	}
