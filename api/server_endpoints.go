@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/parser"
 	"go.uber.org/zap"
 )
@@ -39,10 +40,9 @@ func (r *PanelRequest) GetServerConfiguration(uuid string) (*ServerConfiguration
 	r.Response = resp
 
 	if r.HasError() {
-		e, err := r.Error()
-		zap.S().Warnw("got error", zap.String("message", e), zap.Error(err))
+		zap.S().Warnw("got error", zap.String("message", r.Error()))
 
-		return nil, err
+		return nil, errors.WithStack(errors.New(r.Error()))
 	}
 
 	res := &ServerConfiguration{}

@@ -24,6 +24,12 @@ type PanelRequest struct {
 	Response *http.Response
 }
 
+func IsRequestError (err error) bool {
+	_, ok := err.(*PanelRequest)
+
+	return ok
+}
+
 // Builds the base request instance that can be used with the HTTP client.
 func (r *PanelRequest) GetClient() *http.Client {
 	return &http.Client{Timeout: time.Second * 30}
@@ -60,6 +66,21 @@ func (r *PanelRequest) Get(url string) (*http.Response, error) {
 	return c.Do(req)
 }
 
+func (r *PanelRequest) Post(url string, data []byte) (*http.Response, error) {
+	c := r.GetClient()
+
+	req, err := http.NewRequest(http.MethodPost, r.GetEndpoint(url), bytes.NewBuffer(data))
+	req = r.SetHeaders(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	zap.S().Debugw("POST request to endpoint", zap.String("endpoint", r.GetEndpoint(url)), zap.Any("headers", req.Header))
+
+	return c.Do(req)
+}
+
 // Determines if the API call encountered an error. If no request has been made
 // the response will be false.
 func (r *PanelRequest) HasError() bool {
@@ -67,7 +88,7 @@ func (r *PanelRequest) HasError() bool {
 		return false
 	}
 
-	return r.Response.StatusCode >= 300 || r.Response.StatusCode < 200;
+	return r.Response.StatusCode >= 300 || r.Response.StatusCode < 200
 }
 
 // Reads the body from the response and returns it, then replaces it on the response
@@ -86,29 +107,38 @@ func (r *PanelRequest) ReadBody() ([]byte, error) {
 
 	return b, nil
 }
+
+func (r *PanelRequest) HttpResponseCode() int {
+	if r.Response == nil {
+		return 0
+	}
+
+	return r.Response.StatusCode
+}
+
 // Returns the error message from the API call as a string. The error message will be formatted
 // similar to the below example:
 //
 // HttpNotFoundException: The requested resource does not exist. (HTTP/404)
-func (r *PanelRequest) Error() (string, error) {
+func (r *PanelRequest) Error() string {
 	body, err := r.ReadBody()
 	if err != nil {
-		return "", err
+		return err.Error()
 	}
 
 	zap.S().Debugw("got body", zap.ByteString("b", body))
 	_, valueType, _, err := jsonparser.Get(body, "errors")
 	if err != nil {
-		return "", err
+		return err.Error()
 	}
 
 	if valueType != jsonparser.Object {
-		return "no error object present on response", nil
+		return "no error object present on response"
 	}
 
 	code, _ := jsonparser.GetString(body, "errors.0.code")
 	status, _ := jsonparser.GetString(body, "errors.0.status")
 	detail, _ := jsonparser.GetString(body, "errors.0.detail")
 
-	return fmt.Sprintf("%s: %s (HTTP/%s)", code, detail, status), nil
+	return fmt.Sprintf("%s: %s (HTTP/%s)", code, detail, status)
 }

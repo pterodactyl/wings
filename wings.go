@@ -12,7 +12,6 @@ import (
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
 	"net/http"
-	"os"
 )
 
 // Entrypoint for the Wings application. Configures the logger and checks any
@@ -141,10 +140,7 @@ func main() {
 
 	// If the SFTP subsystem should be started, do so now.
 	if c.System.Sftp.UseInternalSystem {
-		if err := sftp.Initialize(c); err != nil {
-			zap.S().Fatalw("failed to initialize SFTP subsystem", zap.Error(errors.WithStack(err)))
-			os.Exit(1)
-		}
+		sftp.Initialize(c)
 	}
 
 	r := &Router{

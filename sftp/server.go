@@ -1,22 +1,21 @@
 package sftp
 
 import (
-	"github.com/patrickmn/go-cache"
-	sftpserver "github.com/pterodactyl/sftp-server/src/server"
+	"github.com/pkg/errors"
+	"github.com/pterodactyl/sftp-server"
+	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
+	"go.uber.org/zap"
 	"path"
-	"time"
 )
 
 func Initialize(config *config.Configuration) error {
-	c := sftpserver.Configuration{
-		Data:  []byte("{}"),
-		Cache: cache.New(5*time.Minute, 10*time.Minute),
-		User: sftpserver.SftpUser{
+	c := &sftp_server.Server{
+		User: sftp_server.SftpUser{
 			Uid: config.System.User.Uid,
 			Gid: config.System.User.Gid,
 		},
-		Settings: sftpserver.Settings{
+		Settings: sftp_server.Settings{
 			BasePath:         config.System.Data,
 			ReadOnly:         config.System.Sftp.ReadOnly,
 			BindAddress:      config.System.Sftp.Address,
@@ -24,7 +23,30 @@ func Initialize(config *config.Configuration) error {
 			ServerDataFolder: path.Join(config.System.Data, "/servers"),
 			DisableDiskCheck: config.System.Sftp.DisableDiskChecking,
 		},
+		CredentialValidator: validateCredentials,
 	}
 
-	return c.Initalize()
+	if err := sftp_server.New(c); err != nil {
+		return err
+	}
+
+	c.ConfigureLogger(func() *zap.SugaredLogger {
+		return zap.S().Named("sftp")
+	})
+
+	// Initialize the SFTP server in a background thread since this is
+	// a long running operation.
+	go func(instance *sftp_server.Server) {
+		if err := c.Initalize(); err != nil {
+			zap.S().Named("sftp").Errorw("failed to initialize SFTP subsystem", zap.Error(errors.WithStack(err)))
+		}
+	}(c)
+
+	return nil
+}
+
+// Validates a set of credentials for a SFTP login aganist Pterodactyl Panel and returns
+// the server's UUID if the credentials were valid.
+func validateCredentials(c sftp_server.AuthenticationRequest) (*sftp_server.AuthenticationResponse, error) {
+	return api.NewRequester().ValidateSftpCredentials(c)
 }
