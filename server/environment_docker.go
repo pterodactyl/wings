@@ -490,6 +490,32 @@ func (d *DockerEnvironment) DisableResourcePolling() error {
 	return errors.WithStack(err)
 }
 
+// Pulls the image from Docker.
+//
+// @todo handle authorization & local images
+func (d *DockerEnvironment) ensureImageExists(c *client.Client) error {
+	out, err := c.ImagePull(context.Background(), d.Server.Container.Image, types.ImagePullOptions{All: false})
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	zap.S().Debugw("pulling docker image... this could take a bit of time", zap.String("image", d.Server.Container.Image))
+
+	// I'm not sure what the best approach here is, but this will block execution until the image
+	// is done being pulled, which is what we need.
+	scanner := bufio.NewScanner(out)
+	for scanner.Scan() {
+		continue
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Creates a new container for the server using all of the data that is currently
 // available for it. If the container already exists it will be returned.
 //
@@ -512,6 +538,11 @@ func (d *DockerEnvironment) Create() error {
 	if _, err := cli.ContainerInspect(ctx, d.Server.Uuid); err == nil {
 		return nil
 	} else if !client.IsErrNotFound(err) {
+		return errors.WithStack(err)
+	}
+
+	// Try to pull the requested image before creating the container.
+	if err := d.ensureImageExists(cli); err != nil {
 		return errors.WithStack(err)
 	}
 
