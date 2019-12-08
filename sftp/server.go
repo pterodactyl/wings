@@ -5,6 +5,7 @@ import (
 	"github.com/pterodactyl/sftp-server"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
 	"path"
 )
@@ -48,15 +49,44 @@ func Initialize(config *config.Configuration) error {
 }
 
 func validatePath(fs sftp_server.FileSystem, p string) (string, error) {
-	return p, nil
+	s := server.GetServers().Find(func(server *server.Server) bool {
+		return server.Uuid == fs.UUID
+	})
+
+	if s == nil {
+		return "", errors.New("no server found with that UUID")
+	}
+
+	return s.Filesystem.SafePath(p)
 }
 
 func validateDiskSpace(fs sftp_server.FileSystem) bool {
-	return true
+	s := server.GetServers().Find(func(server *server.Server) bool {
+		return server.Uuid == fs.UUID
+	})
+
+	if s == nil {
+		return false
+	}
+
+	return s.Filesystem.HasSpaceAvailable()
 }
 
 // Validates a set of credentials for a SFTP login aganist Pterodactyl Panel and returns
 // the server's UUID if the credentials were valid.
 func validateCredentials(c sftp_server.AuthenticationRequest) (*sftp_server.AuthenticationResponse, error) {
-	return api.NewRequester().ValidateSftpCredentials(c)
+	resp, err := api.NewRequester().ValidateSftpCredentials(c)
+	if err != nil {
+		return resp, err
+	}
+
+	s := server.GetServers().Find(func(server *server.Server) bool {
+		return server.Uuid == resp.Server
+	})
+
+	if s == nil {
+		return resp, errors.New("no server found with that UUID")
+	}
+
+	return resp, err
 }
