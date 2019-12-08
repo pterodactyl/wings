@@ -12,6 +12,7 @@ import (
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
 	"net/http"
+	"os"
 )
 
 // Entrypoint for the Wings application. Configures the logger and checks any
@@ -68,6 +69,15 @@ func main() {
 	if err := server.LoadDirectory("data/servers", c.System); err != nil {
 		zap.S().Fatalw("failed to load server configurations", zap.Error(err))
 		return
+	}
+
+	if err := ConfigureDockerEnvironment(c.Docker); err != nil {
+		zap.S().Fatalw("failed to configure docker environment", zap.Error(errors.WithStack(err)))
+		os.Exit(1)
+	}
+
+	if err := c.WriteToDisk(); err != nil {
+		zap.S().Errorw("failed to save configuration to disk", zap.Error(errors.WithStack(err)))
 	}
 
 	// Just for some nice log output.
@@ -143,7 +153,7 @@ func main() {
 	}
 
 	r := &Router{
-		token:   c.AuthenticationToken,
+		token: c.AuthenticationToken,
 		upgrader: websocket.Upgrader{
 			// Ensure that the websocket request is originating from the Panel itself,
 			// and not some other location.

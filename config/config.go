@@ -108,29 +108,48 @@ type SftpConfiguration struct {
 	ReadOnly bool `default:"false" yaml:"read_only"`
 }
 
+type dockerNetworkInterfaces struct {
+	V4 struct {
+		Subnet  string `default:"172.18.0.0/16"`
+		Gateway string `default:"172.18.0.1"`
+	}
+
+	V6 struct {
+		Subnet  string `default:"fdba:17c8:6c94::/64"`
+		Gateway string `default:"fdba:17c8:6c94::1011"`
+	}
+}
+
+type DockerNetworkConfiguration struct {
+	// The interface that should be used to create the network. Must not conflict
+	// with any other interfaces in use by Docker or on the system.
+	Interface string `default:"172.18.0.1"`
+
+	// The name of the network to use. If this network already exists it will not
+	// be created. If it is not found, a new network will be created using the interface
+	// defined.
+	Name       string `default:"pterodactyl_nw"`
+	ISPN       bool   `default:"false" yaml:"ispn"`
+	Driver     string `default:"bridge"`
+	IsInternal bool   `default:"false" yaml:"is_internal"`
+	EnableICC  bool   `default:"true" yaml:"enable_icc"`
+	Interfaces *dockerNetworkInterfaces `yaml:"interfaces"`
+}
+
 // Defines the docker configuration used by the daemon when interacting with
 // containers and networks on the system.
 type DockerConfiguration struct {
 	// Network configuration that should be used when creating a new network
 	// for containers run through the daemon.
-	Network struct {
-		// The interface that should be used to create the network. Must not conflict
-		// with any other interfaces in use by Docker or on the system.
-		Interface string
-
-		// The name of the network to use. If this network already exists it will not
-		// be created. If it is not found, a new network will be created using the interface
-		// defined.
-		Name string
-	}
+	Network *DockerNetworkConfiguration `yaml:"network"`
 
 	// If true, container images will be updated when a server starts if there
 	// is an update available. If false the daemon will not attempt updates and will
 	// defer to the host system to manage image updates.
-	UpdateImages bool `yaml:"update_images"`
+	UpdateImages bool `default:"true" yaml:"update_images"`
 
 	// The location of the Docker socket.
-	Socket string
+	Socket string `default:"/var/run/docker.sock"`
 
 	// Defines the location of the timezone file on the host system that should
 	// be mounted into the created containers so that they all use the same time.
@@ -167,7 +186,10 @@ func (c *Configuration) SetDefaults() {
 		Username:     "pterodactyl",
 		Data:         "/srv/daemon-data",
 		TimezonePath: "/etc/timezone",
+		Sftp:         &SftpConfiguration{},
 	}
+
+	defaults.SetDefaults(c.System.Sftp)
 
 	// By default the internal webserver should bind to all interfaces and
 	// be served on port 8080.
@@ -195,11 +217,14 @@ func (c *Configuration) SetDefaults() {
 	c.Throttles.CheckInterval = 100
 
 	// Configure the defaults for Docker connection and networks.
-	c.Docker = &DockerConfiguration{}
-	c.Docker.UpdateImages = true
-	c.Docker.Socket = "/var/run/docker.sock"
-	c.Docker.Network.Name = "pterodactyl_nw"
-	c.Docker.Network.Interface = "172.18.0.1"
+	c.Docker = &DockerConfiguration{
+		Network: &DockerNetworkConfiguration{
+			Interfaces: &dockerNetworkInterfaces{},
+		},
+	}
+	defaults.SetDefaults(c.Docker)
+	defaults.SetDefaults(c.Docker.Network)
+	defaults.SetDefaults(c.Docker.Network.Interfaces)
 }
 
 // Reads the configuration from the provided file and returns the configuration
@@ -210,13 +235,8 @@ func ReadConfiguration(path string) (*Configuration, error) {
 		return nil, err
 	}
 
-	sftp :=new(SftpConfiguration)
-	defaults.SetDefaults(sftp)
-
 	c := new(Configuration)
-	c.System = new(SystemConfiguration)
-	c.System.Sftp = sftp
-	defaults.SetDefaults(c)
+	c.SetDefaults()
 
 	// Replace environment variables within the configuration file with their
 	// values from the host system.
