@@ -65,14 +65,13 @@ func main() {
 		zap.S().Infow("finished ensuring file permissions")
 	}
 
-	servers, err := server.LoadDirectory("data/servers", c.System)
-	if err != nil {
+	if err := server.LoadDirectory("data/servers", c.System); err != nil {
 		zap.S().Fatalw("failed to load server configurations", zap.Error(err))
 		return
 	}
 
 	// Just for some nice log output.
-	for _, s := range servers {
+	for _, s := range server.GetServers().All() {
 		zap.S().Infow("loaded configuration for server", zap.String("server", s.Uuid))
 	}
 
@@ -81,7 +80,7 @@ func main() {
 	// and reboot processes without causing a slow-down due to sequential booting.
 	wg := sizedwaitgroup.New(4)
 
-	for _, serv := range servers {
+	for _, serv := range server.GetServers().All() {
 		wg.Add()
 
 		go func(s *server.Server) {
@@ -144,7 +143,6 @@ func main() {
 	}
 
 	r := &Router{
-		Servers: servers,
 		token:   c.AuthenticationToken,
 		upgrader: websocket.Upgrader{
 			// Ensure that the websocket request is originating from the Panel itself,

@@ -18,22 +18,14 @@ import (
 	"strings"
 )
 
-type ServerCollection []*server.Server
-
 // Retrieves a server out of the collection by UUID.
-func (sc *ServerCollection) Get(uuid string) *server.Server {
-	for _, s := range *sc {
-		if s.Uuid == uuid {
-			return s
-		}
-	}
-
-	return nil
+func (rt *Router) GetServer(uuid string) *server.Server {
+	return server.GetServers().Find(func(i *server.Server) bool {
+		return i.Uuid == uuid
+	})
 }
 
 type Router struct {
-	Servers ServerCollection
-
 	upgrader websocket.Upgrader
 
 	// The authentication token defined in the config.yml file that allows
@@ -49,7 +41,7 @@ func (rt *Router) AuthenticateRequest(h httprouter.Handle) httprouter.Handle {
 // is in a state that allows it to be exposed to the API.
 func (rt *Router) AuthenticateServer(h httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		if rt.Servers.Get(ps.ByName("server")) != nil {
+		if rt.GetServer(ps.ByName("server")) != nil {
 			h(w, r, ps)
 			return
 		}
@@ -98,12 +90,12 @@ func (rt *Router) routeIndex(w http.ResponseWriter, _ *http.Request, _ httproute
 // requests that include an administrative control key, otherwise a 404 is returned. This
 // authentication is handled by a middleware.
 func (rt *Router) routeAllServers(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	json.NewEncoder(w).Encode(rt.Servers)
+	json.NewEncoder(w).Encode(server.GetServers().All())
 }
 
 // Returns basic information about a single server found on the Daemon.
 func (rt *Router) routeServer(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 
 	json.NewEncoder(w).Encode(s)
 }
@@ -130,7 +122,7 @@ func (pr *PowerActionRequest) IsValid() bool {
 // things are happening, so theres no reason to sit and wait for a request to finish. We'll
 // just see over the socket if something isn't working correctly.
 func (rt *Router) routeServerPower(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 	defer r.Body.Close()
 
 	dec := json.NewDecoder(r.Body)
@@ -206,7 +198,7 @@ func (rt *Router) routeServerPower(w http.ResponseWriter, r *http.Request, ps ht
 
 // Return the last 1Kb of the server log file.
 func (rt *Router) routeServerLogs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 
 	l, _ := strconv.ParseInt(r.URL.Query().Get("size"), 10, 64)
 	if l <= 0 {
@@ -225,7 +217,7 @@ func (rt *Router) routeServerLogs(w http.ResponseWriter, r *http.Request, ps htt
 
 // Handle a request to get the contents of a file on the server.
 func (rt *Router) routeServerFileRead(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 
 	cleaned, err := s.Filesystem.SafePath(r.URL.Query().Get("file"))
 	if err != nil {
@@ -272,7 +264,7 @@ func (rt *Router) routeServerFileRead(w http.ResponseWriter, r *http.Request, ps
 
 // Lists the contents of a directory.
 func (rt *Router) routeServerListDirectory(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 
 	stats, err := s.Filesystem.ListDirectory(r.URL.Query().Get("directory"))
 	if os.IsNotExist(err) {
@@ -290,7 +282,7 @@ func (rt *Router) routeServerListDirectory(w http.ResponseWriter, r *http.Reques
 
 // Writes a file to the system for the server.
 func (rt *Router) routeServerWriteFile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 
 	p := r.URL.Query().Get("file")
 	defer r.Body.Close()
@@ -308,7 +300,7 @@ func (rt *Router) routeServerWriteFile(w http.ResponseWriter, r *http.Request, p
 
 // Creates a new directory for the server.
 func (rt *Router) routeServerCreateDirectory(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 	defer r.Body.Close()
 
 	dec := json.NewDecoder(r.Body)
@@ -336,7 +328,7 @@ func (rt *Router) routeServerCreateDirectory(w http.ResponseWriter, r *http.Requ
 }
 
 func (rt *Router) routeServerRenameFile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 	defer r.Body.Close()
 
 	data := rt.ReaderToBytes(r.Body)
@@ -359,7 +351,7 @@ func (rt *Router) routeServerRenameFile(w http.ResponseWriter, r *http.Request, 
 }
 
 func (rt *Router) routeServerCopyFile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 	defer r.Body.Close()
 
 	data := rt.ReaderToBytes(r.Body)
@@ -376,7 +368,7 @@ func (rt *Router) routeServerCopyFile(w http.ResponseWriter, r *http.Request, ps
 }
 
 func (rt *Router) routeServerDeleteFile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 	defer r.Body.Close()
 
 	data := rt.ReaderToBytes(r.Body)
@@ -393,7 +385,7 @@ func (rt *Router) routeServerDeleteFile(w http.ResponseWriter, r *http.Request, 
 }
 
 func (rt *Router) routeServerSendCommand(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 	defer r.Body.Close()
 
 	if running, err := s.Environment.IsRunning(); !running || err != nil {
@@ -419,7 +411,7 @@ func (rt *Router) routeServerSendCommand(w http.ResponseWriter, r *http.Request,
 }
 
 func (rt *Router) routeServerUpdate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 	defer r.Body.Close()
 
 	data := rt.ReaderToBytes(r.Body)
@@ -447,7 +439,7 @@ func (rt *Router) routeCreateServer(w http.ResponseWriter, r *http.Request, ps h
 
 	// Plop that server instance onto the request so that it can be referenced in
 	// requests from here-on out.
-	rt.Servers = append(rt.Servers, inst.Server())
+	server.GetServers().Add(inst.Server())
 
 	// Begin the installation process in the background to not block the request
 	// cycle. If there are any errors they will be logged and communicated back

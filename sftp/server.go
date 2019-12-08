@@ -24,6 +24,8 @@ func Initialize(config *config.Configuration) error {
 			DisableDiskCheck: config.System.Sftp.DisableDiskChecking,
 		},
 		CredentialValidator: validateCredentials,
+		PathValidator: validatePath,
+		DiskSpaceValidator: validateDiskSpace,
 	}
 
 	if err := sftp_server.New(c); err != nil {
@@ -43,6 +45,14 @@ func Initialize(config *config.Configuration) error {
 	}(c)
 
 	return nil
+}
+
+func validatePath(fs sftp_server.FileSystem, p string) (string, error) {
+	return p, nil
+}
+
+func validateDiskSpace(fs sftp_server.FileSystem) bool {
+	return true
 }
 
 // Validates a set of credentials for a SFTP login aganist Pterodactyl Panel and returns

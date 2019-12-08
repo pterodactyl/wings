@@ -18,6 +18,12 @@ import (
 	"time"
 )
 
+var servers *Collection
+
+func GetServers() *Collection {
+	return servers
+}
+
 // High level definition for a server instance being controlled by Wings.
 type Server struct {
 	// The unique identifier for the server that should be used when referencing
@@ -136,7 +142,7 @@ type Allocations struct {
 
 // Iterates over a given directory and loads all of the servers listed before returning
 // them to the calling function.
-func LoadDirectory(dir string, cfg *config.SystemConfiguration) ([]*Server, error) {
+func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 	// We could theoretically use a standard wait group here, however doing
 	// that introduces the potential to crash the program due to too many
 	// open files. This wouldn't happen on a small setup, but once the daemon is
@@ -149,10 +155,10 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) ([]*Server, erro
 
 	f, err := ioutil.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var servers []*Server
+	servers = new(Collection)
 
 	for _, file := range f {
 		if !strings.HasSuffix(file.Name(), ".yml") || file.IsDir() {
@@ -177,7 +183,7 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) ([]*Server, erro
 				return
 			}
 
-			servers = append(servers, s)
+			servers.Add(s)
 		}(file)
 	}
 
@@ -185,7 +191,7 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) ([]*Server, erro
 	// before continuing.
 	wg.Wait()
 
-	return servers, nil
+	return nil
 }
 
 // Initializes the default required internal struct components for a Server.

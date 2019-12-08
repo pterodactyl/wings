@@ -164,7 +164,7 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		c.Close()
 	}()
 
-	s := rt.Servers.Get(ps.ByName("server"))
+	s := rt.GetServer(ps.ByName("server"))
 	handler := WebsocketHandler{
 		Server:     s,
 		Mutex:      sync.Mutex{},
