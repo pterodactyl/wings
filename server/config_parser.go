@@ -24,7 +24,7 @@ func (s *Server) UpdateConfigurationFiles() {
 				return
 			}
 
-			if err := f.Parse(p); err != nil {
+			if err := f.Parse(p, false); err != nil {
 				zap.S().Errorw("failed to parse and update server configuration file", zap.String("server", server.Uuid), zap.Error(err))
 			}
 		}(v, s)

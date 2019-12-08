@@ -73,7 +73,7 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 
 // Parses a given configuration file and updates all of the values within as defined
 // in the API response from the Panel.
-func (f *ConfigurationFile) Parse(path string) error {
+func (f *ConfigurationFile) Parse(path string, internal bool) error {
 	zap.S().Debugw("parsing configuration file", zap.String("path", path), zap.String("parser", string(f.Parser)))
 
 	mb, _ := json.Marshal(config.Get())
@@ -102,7 +102,21 @@ func (f *ConfigurationFile) Parse(path string) error {
 		break
 	}
 
-	return err
+	if os.IsNotExist(err) {
+		// File doesn't exist, we tried creating it, and same error is returned? Pretty
+		// sure this pathway is impossible, but if not, abort here.
+		if internal {
+			return nil
+		}
+
+		if _, err := os.Create(path); err != nil {
+			return errors.WithStack(err)
+		}
+
+		return f.Parse(path, true)
+	}
+
+	return errors.WithStack(err)
 }
 
 // Parses an xml file.
@@ -110,12 +124,12 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 	doc := etree.NewDocument()
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 	defer file.Close()
 
 	if _, err := doc.ReadFrom(file); err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	// If there is no root we should create a basic start to the file. This isn't required though,
@@ -127,7 +141,7 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 	for i, replacement := range f.Replace {
 		value, _, err := f.LookupConfigurationValue(replacement)
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 
 		// If this is the first item and there is no root element, create that root now and apply
@@ -176,7 +190,7 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 	// If you don't truncate the file you'll end up duplicating the data in there (or just appending
 	// to the end of the file. We don't want to do that.
 	if err := file.Truncate(0); err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	// Move the cursor to the start of the file to avoid weird spacing issues.
@@ -188,7 +202,7 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 	// Write the XML to the file.
 	_, err = doc.WriteTo(file)
 
-	return errors.WithStack(err)
+	return err
 }
 
 // Parses an ini file.
@@ -197,13 +211,13 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 	// by creating it if not exists.
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644);
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 	defer file.Close()
 
 	cfg, err := ini.Load(path)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	for _, replacement := range f.Replace {
@@ -211,7 +225,7 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 
 		value, _, err := f.LookupConfigurationValue(replacement)
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 
 		k := path[0]
@@ -227,7 +241,7 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 		if s == nil {
 			s, err = cfg.NewSection(path[0])
 			if err != nil {
-				return errors.WithStack(err)
+				return err
 			}
 		}
 
@@ -237,13 +251,13 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 			s.Key(k).SetValue(string(value))
 		} else {
 			if _, err := s.NewKey(k, string(value)); err != nil {
-				return errors.WithStack(err)
+				return err
 			}
 		}
 	}
 
 	if _, err := cfg.WriteTo(file); err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	return nil
@@ -255,12 +269,12 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 func (f *ConfigurationFile) parseJsonFile(path string) error {
 	b, err := readFileBytes(path)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	data, err := f.IterateOverJson(b)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	output := []byte(data.StringIndent("", "    "))
@@ -272,7 +286,7 @@ func (f *ConfigurationFile) parseJsonFile(path string) error {
 func (f *ConfigurationFile) parseYamlFile(path string) error {
 	b, err := readFileBytes(path)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	// Unmarshal the yaml data into a JSON interface such that we can work with
@@ -280,20 +294,20 @@ func (f *ConfigurationFile) parseYamlFile(path string) error {
 	// makes working with unknown JSON signficiantly easier.
 	jsonBytes, err := yaml.YAMLToJSON(b)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	// Now that the data is converted, treat it just like JSON and pass it to the
 	// iterator function to update values as necessary.
 	data, err := f.IterateOverJson(jsonBytes)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	// Remarshal the JSON into YAML format before saving it back to the disk.
 	marshaled, err := yaml.JSONToYAML(data.Bytes())
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	return ioutil.WriteFile(path, marshaled, 0644)
@@ -305,7 +319,7 @@ func (f *ConfigurationFile) parseYamlFile(path string) error {
 func (f *ConfigurationFile) parseTextFile(path string) error {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 	defer file.Close()
 
@@ -329,13 +343,13 @@ func (f *ConfigurationFile) parseTextFile(path string) error {
 		// immediately to write that modified content to the disk.
 		if hasReplaced {
 			if _, err := file.WriteAt([]byte(t), int64(len(scanner.Bytes()))); err != nil {
-				return errors.WithStack(err)
+				return err
 			}
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	return nil
@@ -346,23 +360,23 @@ func (f *ConfigurationFile) parseTextFile(path string) error {
 func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 	p, err := properties.LoadFile(path, properties.UTF8)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	for _, replace := range f.Replace {
 		data, _, err := f.LookupConfigurationValue(replace)
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 
 		if _, _, err := p.Set(replace.Match, string(data)); err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 	}
 
 	w, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	_, err = p.Write(w, properties.UTF8)
