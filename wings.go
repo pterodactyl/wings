@@ -23,8 +23,6 @@ func main() {
 
 	flag.Parse()
 
-	zap.S().Infof("using configuration file: %s", configPath)
-
 	c, err := config.ReadConfiguration(configPath)
 	if err != nil {
 		panic(err)
@@ -40,6 +38,7 @@ func main() {
 		panic(err)
 	}
 
+	zap.S().Infof("using configuration from path: %s", configPath)
 	if c.Debug {
 		zap.S().Debugw("running in debug mode")
 		zap.S().Infow("certificate checking is disabled")

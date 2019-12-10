@@ -8,6 +8,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
@@ -449,6 +450,20 @@ func (rt *Router) routeCreateServer(w http.ResponseWriter, r *http.Request, ps h
 	w.WriteHeader(http.StatusAccepted)
 }
 
+func (rt *Router) routeSystemInformation(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	defer r.Body.Close()
+
+	s, err := GetSystemInformation()
+	if err != nil {
+		zap.S().Errorw("failed to retrieve system information", zap.Error(errors.WithStack(err)))
+
+		http.Error(w, "failed to retrieve information", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(s)
+}
+
 func (rt *Router) ReaderToBytes(r io.Reader) []byte {
 	buf := bytes.Buffer{}
 	buf.ReadFrom(r)
@@ -461,6 +476,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router := httprouter.New()
 
 	router.GET("/", rt.routeIndex)
+	router.GET("/api/system", rt.AuthenticateToken(rt.routeSystemInformation))
 	router.GET("/api/servers", rt.AuthenticateToken(rt.routeAllServers))
 	router.GET("/api/servers/:server", rt.AuthenticateRequest(rt.routeServer))
 	router.GET("/api/servers/:server/ws", rt.AuthenticateServer(rt.routeWebsocket))
