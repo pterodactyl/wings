@@ -210,7 +210,12 @@ func (s *Server) Init() {
 // for a server.
 func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, error) {
 	s := new(Server)
+
 	defaults.SetDefaults(s)
+	s.CrashDetection = CrashDetection{
+		Enabled: true,
+	}
+
 	s.Init()
 
 	if err := yaml.Unmarshal(data, s); err != nil {
