@@ -25,7 +25,7 @@ func (r *PanelRequest) ValidateSftpCredentials(request sftp_server.Authenticatio
 			return nil, sftp_server.InvalidCredentialsError{}
 		}
 
-		return nil, errors.WithStack(errors.New(r.Error()))
+		return nil, errors.WithStack(errors.New(r.Error().String()))
 	}
 
 	response := new(sftp_server.AuthenticationResponse)

@@ -2,8 +2,8 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
@@ -24,12 +24,6 @@ type PanelRequest struct {
 	Response *http.Response
 }
 
-func IsRequestError (err error) bool {
-	_, ok := err.(*PanelRequest)
-
-	return ok
-}
-
 // Builds the base request instance that can be used with the HTTP client.
 func (r *PanelRequest) GetClient() *http.Client {
 	return &http.Client{Timeout: time.Second * 30}
@@ -38,7 +32,7 @@ func (r *PanelRequest) GetClient() *http.Client {
 func (r *PanelRequest) SetHeaders(req *http.Request) *http.Request {
 	req.Header.Set("Accept", "application/vnd.pterodactyl.v1+json")
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer " + config.Get().AuthenticationToken)
+	req.Header.Set("Authorization", "Bearer "+config.Get().AuthenticationToken)
 
 	return req
 }
@@ -116,29 +110,34 @@ func (r *PanelRequest) HttpResponseCode() int {
 	return r.Response.StatusCode
 }
 
+type RequestError struct {
+	Code   string `json:"code"`
+	Status string `json:"status"`
+	Detail string `json:"detail"`
+}
+
+// Returns the error response in a string form that can be more easily consumed.
+func (re *RequestError) String() string {
+	return fmt.Sprintf("%s: %s (HTTP/%s)", re.Code, re.Detail, re.Status)
+}
+
+type RequestErrorBag struct {
+	Errors []RequestError `json:"errors"`
+}
+
 // Returns the error message from the API call as a string. The error message will be formatted
 // similar to the below example:
 //
 // HttpNotFoundException: The requested resource does not exist. (HTTP/404)
-func (r *PanelRequest) Error() string {
-	body, err := r.ReadBody()
-	if err != nil {
-		return err.Error()
+func (r *PanelRequest) Error() *RequestError {
+	body, _ := r.ReadBody()
+
+	bag := RequestErrorBag{}
+	json.Unmarshal(body, &bag)
+
+	if len(bag.Errors) == 0 {
+		return new(RequestError)
 	}
 
-	zap.S().Debugw("got body", zap.ByteString("b", body))
-	_, valueType, _, err := jsonparser.Get(body, "errors")
-	if err != nil {
-		return err.Error()
-	}
-
-	if valueType != jsonparser.Object {
-		return "no error object present on response"
-	}
-
-	code, _ := jsonparser.GetString(body, "errors.0.code")
-	status, _ := jsonparser.GetString(body, "errors.0.status")
-	detail, _ := jsonparser.GetString(body, "errors.0.detail")
-
-	return fmt.Sprintf("%s: %s (HTTP/%s)", code, detail, status)
+	return &bag.Errors[0]
 }

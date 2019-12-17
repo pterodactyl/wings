@@ -173,13 +173,13 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 
 			b, err := ioutil.ReadFile(path.Join(dir, file.Name()))
 			if err != nil {
-				zap.S().Errorw("failed to read server configuration file, skipping...", zap.Error(err))
+				zap.S().Errorw("failed to read server configuration file, skipping...", zap.String("server", file.Name()), zap.Error(err))
 				return
 			}
 
 			s, err := FromConfiguration(b, cfg)
 			if err != nil {
-				zap.S().Errorw("failed to parse server configuration, skipping...", zap.Error(err))
+				zap.S().Errorw("failed to parse server configuration, skipping...", zap.String("server", file.Name()), zap.Error(err))
 				return
 			}
 

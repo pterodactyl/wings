@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/parser"
-	"go.uber.org/zap"
 )
 
 const (
@@ -40,9 +39,7 @@ func (r *PanelRequest) GetServerConfiguration(uuid string) (*ServerConfiguration
 	r.Response = resp
 
 	if r.HasError() {
-		zap.S().Warnw("got error", zap.String("message", r.Error()))
-
-		return nil, errors.WithStack(errors.New(r.Error()))
+		return nil, errors.WithStack(errors.New(r.Error().String()))
 	}
 
 	res := &ServerConfiguration{}
