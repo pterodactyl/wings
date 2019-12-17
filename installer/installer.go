@@ -85,7 +85,7 @@ func New(data []byte) (*Installer, error) {
 
 	return &Installer{
 		server: s2,
-	}, nil
+	}, err
 }
 
 // Returns the UUID associated with this installer instance.
