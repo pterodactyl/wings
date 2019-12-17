@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
@@ -51,6 +52,14 @@ func (rt *Router) AuthenticateServer(h httprouter.Handle) httprouter.Handle {
 	}
 }
 
+// Attaches required access control headers to all of the requests.
+func (rt *Router) AttachAccessControlHeaders(w http.ResponseWriter, r *http.Request, ps httprouter.Params) (http.ResponseWriter, *http.Request, httprouter.Params) {
+	w.Header().Set("Access-Control-Allow-Origin", config.Get().PanelLocation)
+	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+
+	return w, r, ps
+}
+
 // Authenticates the request token aganist the given permission string, ensuring that
 // if it is a server permission, the token has control over that server. If it is a global
 // token, this will ensure that the request is using a properly signed global token.
@@ -72,7 +81,7 @@ func (rt *Router) AuthenticateToken(h httprouter.Handle) httprouter.Handle {
 		// of the permission type. If nothing is matched we will fall through to the Panel
 		// API to try and validate permissions for a server.
 		if auth[1] == rt.token {
-			h(w, r, ps)
+			h(rt.AttachAccessControlHeaders(w, r, ps))
 			return
 		}
 
@@ -474,6 +483,10 @@ func (rt *Router) ReaderToBytes(r io.Reader) []byte {
 // Configures the router and all of the associated routes.
 func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router := httprouter.New()
+
+	router.OPTIONS("/api/system", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		rt.AttachAccessControlHeaders(w, r, ps)
+	})
 
 	router.GET("/", rt.routeIndex)
 	router.GET("/api/system", rt.AuthenticateToken(rt.routeSystemInformation))
