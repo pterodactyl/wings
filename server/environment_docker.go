@@ -151,9 +151,11 @@ func (d *DockerEnvironment) InSituUpdate() error {
 // state. This ensures that unexpected container deletion while Wings is running does
 // not result in the server becoming unbootable.
 func (d *DockerEnvironment) OnBeforeStart() error {
-	c, err := d.Server.GetProcessConfiguration()
+	c, rerr, err := d.Server.GetProcessConfiguration()
 	if err != nil {
-		return errors.WithStack(err)
+		return err
+	} else if rerr != nil {
+		return errors.New(rerr.String())
 	}
 
 	d.Server.processConfiguration = c
@@ -164,7 +166,7 @@ func (d *DockerEnvironment) OnBeforeStart() error {
 	if d.Server.Container.RebuildRequired {
 		if err := d.Client.ContainerRemove(context.Background(), d.Server.Uuid, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
 			if !client.IsErrNotFound(err) {
-				return errors.WithStack(err)
+				return err
 			}
 		}
 
@@ -181,7 +183,7 @@ func (d *DockerEnvironment) OnBeforeStart() error {
 				zap.S().Warnw(
 					"failed to write server configuration to disk after setting rebuild_required=false in configuration",
 					zap.String("server", serv.Uuid),
-					zap.Error(err),
+					zap.Error(errors.WithStack(err)),
 				)
 			}
 		}(d.Server)
@@ -195,7 +197,7 @@ func (d *DockerEnvironment) OnBeforeStart() error {
 	// environment gets created properly if it is missing and the server is started. We're making
 	// an assumption that all of the files will still exist at this point.
 	if err := d.Create(); err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	return nil

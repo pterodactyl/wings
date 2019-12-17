@@ -179,7 +179,12 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 
 			s, err := FromConfiguration(b, cfg)
 			if err != nil {
-				zap.S().Errorw("failed to parse server configuration, skipping...", zap.String("server", file.Name()), zap.Error(err))
+				if IsServerDoesNotExistError(err) {
+					zap.S().Infow("server does not exist on remote system", zap.String("server", file.Name()))
+				} else {
+					zap.S().Errorw("failed to parse server configuration, skipping...", zap.String("server", file.Name()), zap.Error(err))
+				}
+
 				return
 			}
 
@@ -241,8 +246,16 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	// This is also done when the server is booted, however we need to account for instances
 	// where the server is already running and the Daemon reboots. In those cases this will
 	// allow us to you know, stop servers.
-	if cfg, err := s.GetProcessConfiguration(); err != nil {
+	if cfg, rerr, err := s.GetProcessConfiguration(); err != nil {
 		return nil, err
+	} else if rerr != nil {
+		// If the response error is because a server does not exist on the Panel return
+		// that so that we can handle that in the future.
+		if rerr.Status == "404" {
+			return nil, &serverDoesNotExist{}
+		}
+
+		return nil, errors.New(rerr.String())
 	} else {
 		s.processConfiguration = cfg
 	}
@@ -331,6 +344,6 @@ func (s *Server) SetState(state string) error {
 }
 
 // Gets the process configuration data for the server.
-func (s *Server) GetProcessConfiguration() (*api.ServerConfiguration, error) {
+func (s *Server) GetProcessConfiguration() (*api.ServerConfiguration, *api.RequestError, error) {
 	return api.NewRequester().GetServerConfiguration(s.Uuid)
 }

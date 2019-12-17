@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/parser"
 )
 
@@ -29,25 +28,25 @@ type ServerConfiguration struct {
 }
 
 // Fetches the server configuration and returns the struct for it.
-func (r *PanelRequest) GetServerConfiguration(uuid string) (*ServerConfiguration, error) {
+func (r *PanelRequest) GetServerConfiguration(uuid string) (*ServerConfiguration, *RequestError, error) {
 	resp, err := r.Get(fmt.Sprintf("/servers/%s/configuration", uuid))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 
 	r.Response = resp
 
 	if r.HasError() {
-		return nil, errors.WithStack(errors.New(r.Error().String()))
+		return nil, r.Error(), nil
 	}
 
 	res := &ServerConfiguration{}
 	b, _ := r.ReadBody()
 
 	if err := json.Unmarshal(b, res); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return res, nil
+	return res, nil, nil
 }

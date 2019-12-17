@@ -25,3 +25,16 @@ func IsTooFrequentCrashError(err error) bool {
 
 	return ok
 }
+
+type serverDoesNotExist struct {
+}
+
+func (e *serverDoesNotExist) Error() string {
+	return "server does not exist on remote system"
+}
+
+func IsServerDoesNotExistError(err error) bool {
+	_, ok := err.(*serverDoesNotExist)
+
+	return ok
+}
