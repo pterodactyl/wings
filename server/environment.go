@@ -40,6 +40,10 @@ type Environment interface {
 	// is not running no error should be returned.
 	Terminate(signal os.Signal) error
 
+	// Destroys the environment removing any containers that were created (in Docker
+	// environments at least).
+	Destroy() error
+
 	// Returns the exit state of the process. The first result is the exit code, the second
 	// determines if the process was killed by the system OOM killer.
 	ExitState() (uint32, bool, error)

@@ -158,7 +158,7 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 		return err
 	}
 
-	servers = new(Collection)
+	servers = NewCollection(nil)
 
 	for _, file := range f {
 		if !strings.HasSuffix(file.Name(), ".yml") || file.IsDir() {

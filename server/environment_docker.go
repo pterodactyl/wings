@@ -325,6 +325,18 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 	)
 }
 
+// Remove the Docker container from the machine. If the container is currently running
+// it will be forcibly stopped by Docker.
+func (d *DockerEnvironment) Destroy() error {
+	ctx := context.Background()
+
+	return d.Client.ContainerRemove(ctx, d.Server.Uuid, types.ContainerRemoveOptions{
+		RemoveVolumes: true,
+		RemoveLinks:   false,
+		Force:         true,
+	})
+}
+
 // Determine the container exit state and return the exit code and wether or not
 // the container was killed by the OOM killer.
 func (d *DockerEnvironment) ExitState() (uint32, bool, error) {

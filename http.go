@@ -474,6 +474,53 @@ func (rt *Router) routeSystemInformation(w http.ResponseWriter, r *http.Request,
 	json.NewEncoder(w).Encode(s)
 }
 
+func (rt *Router) routeServerDelete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.GetServer(ps.ByName("server"))
+	defer r.Body.Close()
+
+	// Immediately suspend the server to prevent a user from attempting
+	// to start it while this process is running.
+	s.Suspended = true
+
+	// Destroy the environment; in Docker this will handle a running container and
+	// forcibly terminate it before removing the container, so we do not need to handle
+	// that here.
+	if err := s.Environment.Destroy(); err != nil {
+		zap.S().Errorw("failed to destroy server environment", zap.Error(errors.WithStack(err)))
+
+		http.Error(w, "failed to destroy server environment", http.StatusInternalServerError)
+		return
+	}
+
+	// Once the environment is terminated, remove the server files from the system. This is
+	// done in a seperate process since failure is not the end of the world and can be
+	// manually cleaned up after the fact.
+	//
+	// In addition, servers with large amounts of files can take some time to finish deleting
+	// so we don't want to block the HTTP call while waiting on this.
+	go func(p string) {
+		if err := os.RemoveAll(p); err != nil {
+			zap.S().Warnw("failed to remove server files on deletion", zap.String("path", p), zap.Error(errors.WithStack(err)))
+		}
+	}(s.Filesystem.Path())
+
+	var uuid = s.Uuid
+	server.GetServers().Remove(func(s2 *server.Server) bool {
+		return s2.Uuid == uuid
+	})
+
+	s = nil
+
+	// Remove the configuration file stored on the Daemon for this server.
+	go func(u string) {
+		if err := os.Remove("data/servers/" + u + ".yml"); err != nil {
+			zap.S().Warnw("failed to delete server configuration file on deletion", zap.String("server", u), zap.Error(errors.WithStack(err)))
+		}
+	}(uuid)
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
 func (rt *Router) ReaderToBytes(r io.Reader) []byte {
 	buf := bytes.Buffer{}
 	buf.ReadFrom(r)
@@ -506,6 +553,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.POST("/api/servers/:server/power", rt.AuthenticateRequest(rt.routeServerPower))
 	router.POST("/api/servers/:server/commands", rt.AuthenticateRequest(rt.routeServerSendCommand))
 	router.PATCH("/api/servers/:server", rt.AuthenticateRequest(rt.routeServerUpdate))
+	router.DELETE("/api/servers/:server", rt.AuthenticateRequest(rt.routeServerDelete))
 
 	return router
 }
