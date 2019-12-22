@@ -454,6 +454,7 @@ func (rt *Router) routeCreateServer(w http.ResponseWriter, r *http.Request, ps h
 	// Begin the installation process in the background to not block the request
 	// cycle. If there are any errors they will be logged and communicated back
 	// to the Panel where a reinstall may take place.
+	zap.S().Infow("beginning installation process for server", zap.String("server", inst.Uuid()))
 	go inst.Execute()
 
 	w.WriteHeader(http.StatusAccepted)

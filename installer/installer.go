@@ -102,13 +102,13 @@ func (i *Installer) Server() *server.Server {
 // associated installation process based on the parameters passed through for
 // the server instance.
 func (i *Installer) Execute() {
-	zap.S().Debugw("beginning installation process for server", zap.String("server", i.server.Uuid))
-
-	zap.S().Debugw("creating required environment for server instance", zap.String("server", i.server.Uuid))
+	zap.S().Debugw("creating required environment for server instance", zap.String("server", i.Uuid()))
 	if err := i.server.Environment.Create(); err != nil {
-		zap.S().Errorw("failed to create environment for server", zap.String("server", i.server.Uuid), zap.Error(err))
+		zap.S().Errorw("failed to create environment for server", zap.String("server", i.Uuid()), zap.Error(err))
 		return
 	}
+
+	zap.S().Debugw("created environment for server during install process", zap.String("server", i.Uuid()))
 }
 
 // Returns a string value from the JSON data provided.
