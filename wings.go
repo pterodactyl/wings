@@ -15,11 +15,14 @@ import (
 	"os"
 )
 
+var configPath = "config.yml"
+var debug = false
+
 // Entrypoint for the Wings application. Configures the logger and checks any
 // flags that were passed through in the boot arguments.
 func main() {
-	var configPath = *flag.String("config", "config.yml", "set the location for the configuration file")
-	var debug = *flag.Bool("debug", false, "pass in order to run wings in debug mode")
+	flag.StringVar(&configPath, "config", "config.yml", "set the location for the configuration file")
+	flag.BoolVar(&debug, "debug", false, "pass in order to run wings in debug mode")
 
 	flag.Parse()
 
@@ -49,6 +52,7 @@ func main() {
 	}
 
 	config.Set(c)
+	config.SetDebugViaFlag(debug)
 
 	zap.S().Infof("checking for pterodactyl system user \"%s\"", c.System.User)
 	if su, err := c.EnsurePterodactylUser(); err != nil {

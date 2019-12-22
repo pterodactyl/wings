@@ -250,10 +250,15 @@ func ReadConfiguration(path string) (*Configuration, error) {
 }
 
 var _config *Configuration
+var _debugViaFlag bool
 
 // Set the global configuration instance.
 func Set(c *Configuration) {
 	_config = c
+}
+
+func SetDebugViaFlag(d bool) {
+	_debugViaFlag = d
 }
 
 // Get the global configuration instance.
@@ -383,7 +388,14 @@ func (c *Configuration) WriteToDisk() error {
 	}
 	defer f.Close()
 
-	b, err := yaml.Marshal(&c)
+	ccopy := *c
+	// If debugging is set with the flag, don't save that to the configuration file, otherwise
+	// you'll always end up in debug mode.
+	if _debugViaFlag {
+		ccopy.Debug = false
+	}
+
+	b, err := yaml.Marshal(&ccopy)
 	if err != nil {
 		return err
 	}
