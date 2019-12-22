@@ -30,7 +30,7 @@ func New(data []byte) (*Installer, error) {
 		Uuid:       getString(data, "uuid"),
 		Suspended:  false,
 		State:      server.ProcessOfflineState,
-		Invocation: "",
+		Invocation: getString(data, "invocation"),
 		EnvVars:    make(map[string]string),
 		Build: server.BuildSettings{
 			MemoryLimit: getInt(data, "build", "memory"),

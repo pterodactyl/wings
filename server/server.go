@@ -2,7 +2,7 @@ package server
 
 import (
 	"fmt"
-	"github.com/mcuadros/go-defaults"
+	"github.com/creasty/defaults"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
@@ -211,9 +211,8 @@ func (s *Server) Init() {
 func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, error) {
 	s := new(Server)
 
-	defaults.SetDefaults(s)
-	s.CrashDetection = CrashDetection{
-		Enabled: true,
+	if err := defaults.Set(s); err != nil {
+		return nil, err
 	}
 
 	s.Init()

@@ -2,7 +2,8 @@ package config
 
 import (
 	"fmt"
-	"github.com/mcuadros/go-defaults"
+	"github.com/creasty/defaults"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -189,8 +190,6 @@ func (c *Configuration) SetDefaults() {
 		Sftp:         &SftpConfiguration{},
 	}
 
-	defaults.SetDefaults(c.System.Sftp)
-
 	// By default the internal webserver should bind to all interfaces and
 	// be served on port 8080.
 	c.Api = &ApiConfiguration{
@@ -222,9 +221,10 @@ func (c *Configuration) SetDefaults() {
 			Interfaces: &dockerNetworkInterfaces{},
 		},
 	}
-	defaults.SetDefaults(c.Docker)
-	defaults.SetDefaults(c.Docker.Network)
-	defaults.SetDefaults(c.Docker.Network.Interfaces)
+
+	if err := defaults.Set(c); err != nil {
+		zap.S().Warnw("error setting defaults for configuration", zap.Error(errors.WithStack(err)))
+	}
 }
 
 // Reads the configuration from the provided file and returns the configuration
