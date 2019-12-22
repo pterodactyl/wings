@@ -69,12 +69,12 @@ func main() {
 		zap.S().Infow("finished ensuring file permissions")
 	}
 
-	if err := server.LoadDirectory("data/servers", c.System); err != nil {
+	if err := server.LoadDirectory("data/servers",&c.System); err != nil {
 		zap.S().Fatalw("failed to load server configurations", zap.Error(err))
 		return
 	}
 
-	if err := ConfigureDockerEnvironment(c.Docker); err != nil {
+	if err := ConfigureDockerEnvironment(&c.Docker); err != nil {
 		zap.S().Fatalw("failed to configure docker environment", zap.Error(errors.WithStack(err)))
 		os.Exit(1)
 	}
@@ -113,12 +113,16 @@ func main() {
 				// We never want to stop an instance that is currently running external from Wings since
 				// that is a good way of keeping things running even if Wings gets in a very corrupted state.
 				zap.S().Infow("detected server is running, re-attaching to process", zap.String("server", s.Uuid))
-				s.SetState(server.ProcessRunningState)
+				if err := s.Sync(); err != nil {
+					zap.S().Errorw("failed to sync server state, cannot mark as running", zap.String("server", s.Uuid), zap.Error(errors.WithStack(err)))
+				} else {
+					s.SetState(server.ProcessRunningState)
 
-				// If we cannot attach to the environment go ahead and mark the processs as being offline.
-				if err := s.Environment.Attach(); err != nil {
-					zap.S().Warnw("error attaching to server environment", zap.String("server", s.Uuid), zap.Error(err))
-					s.SetState(server.ProcessOfflineState)
+					// If we cannot attach to the environment go ahead and mark the processs as being offline.
+					if err := s.Environment.Attach(); err != nil {
+						zap.S().Warnw("error attaching to server environment", zap.String("server", s.Uuid), zap.Error(err))
+						s.SetState(server.ProcessOfflineState)
+					}
 				}
 			} else if !r {
 				// If the server is not in a running state right now but according to the configuration it

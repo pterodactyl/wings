@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"github.com/creasty/defaults"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -22,9 +21,9 @@ type Configuration struct {
 	// if the debug flag is passed through the command line arguments.
 	Debug bool
 
-	Api    *ApiConfiguration
-	System *SystemConfiguration
-	Docker *DockerConfiguration
+	Api    ApiConfiguration
+	System SystemConfiguration
+	Docker DockerConfiguration
 
 	// The amount of time in seconds that should elapse between disk usage checks
 	// run by the daemon. Setting a higher number can result in better IO performance
@@ -37,20 +36,20 @@ type Configuration struct {
 	Throttles struct {
 		// The number of data overage warnings (inclusive) that can accumulate
 		// before a process is terminated.
-		KillAtCount int `yaml:"kill_at_count"`
+		KillAtCount int `default:"5" yaml:"kill_at_count"`
 
 		// The number of seconds that must elapse before the internal counter
 		// begins decrementing warnings assigned to a process that is outputting
 		// too much data.
-		DecaySeconds int `yaml:"decay"`
+		DecaySeconds int `default:"10" yaml:"decay"`
 
 		// The total number of bytes allowed to be output by a server process
 		// per interval.
-		BytesPerInterval int `yaml:"bytes"`
+		BytesPerInterval int `default:"4096" yaml:"bytes"`
 
 		// The amount of time that should lapse between data output throttle
 		// checks. This should be defined in milliseconds.
-		CheckInterval int `yaml:"check_interval"`
+		CheckInterval int `defauly:"100" yaml:"check_interval"`
 	}
 
 	// The location where the panel is running that this daemon should connect to
@@ -65,10 +64,10 @@ type Configuration struct {
 // Defines basic system configuration settings.
 type SystemConfiguration struct {
 	// Directory where the server data is stored at.
-	Data string
+	Data string `default:"/srv/daemon-data" yaml:"data"`
 
 	// The user that should own all of the server files, and be used for containers.
-	Username string
+	Username string `default:"pterodactyl" yaml:"username"`
 
 	// Definitions for the user that gets created to ensure that we can quickly access
 	// this information without constantly having to do a system lookup.
@@ -77,20 +76,33 @@ type SystemConfiguration struct {
 		Gid int
 	}
 
+	// Determines wether or not server data should be synced when the Daemon is started.
+	// If set to false, data will only be synced when a server process is started, or
+	// detected as started when booting.
+	SyncServersOnBoot bool `default:"true" yaml:"sync_servers_on_boot"`
+
 	// The path to the system's timezone file that will be mounted into running Docker containers.
 	TimezonePath string `yaml:"timezone_path"`
 
 	// Determines if permissions for a server should be set automatically on
 	// daemon boot. This can take a long time on systems with many servers, or on
 	// systems with servers containing thousands of files.
-	SetPermissionsOnBoot bool `yaml:"set_permissions_on_boot"`
+	//
+	// Setting this to true by default helps us avoid a lot of support requests
+	// from people that keep trying to move files around as a root user leading
+	// to server permission issues.
+	//
+	// In production and heavy use environments where boot speed is essential,
+	// this should be set to false as servers will self-correct permissions on
+	// boot anyways.
+	SetPermissionsOnBoot bool `default:"true" yaml:"set_permissions_on_boot"`
 
 	// Determines if Wings should detect a server that stops with a normal exit code of
 	// "0" as being crashed if the process stopped without any Wings interaction. E.g.
 	// the user did not press the stop button, but the process stopped cleanly.
 	DetectCleanExitAsCrash bool `default:"true" yaml:"detect_clean_exit_as_crash"`
 
-	Sftp *SftpConfiguration `default:"SftpConfiguration" yaml:"sftp"`
+	Sftp *SftpConfiguration `yaml:"sftp"`
 }
 
 // Defines the configuration of the internal SFTP server.
@@ -129,12 +141,12 @@ type DockerNetworkConfiguration struct {
 	// The name of the network to use. If this network already exists it will not
 	// be created. If it is not found, a new network will be created using the interface
 	// defined.
-	Name       string `default:"pterodactyl_nw"`
-	ISPN       bool   `default:"false" yaml:"ispn"`
-	Driver     string `default:"bridge"`
-	IsInternal bool   `default:"false" yaml:"is_internal"`
-	EnableICC  bool   `default:"true" yaml:"enable_icc"`
-	Interfaces *dockerNetworkInterfaces `yaml:"interfaces"`
+	Name       string                  `default:"pterodactyl_nw"`
+	ISPN       bool                    `default:"false" yaml:"ispn"`
+	Driver     string                  `default:"bridge"`
+	IsInternal bool                    `default:"false" yaml:"is_internal"`
+	EnableICC  bool                    `default:"true" yaml:"enable_icc"`
+	Interfaces dockerNetworkInterfaces `yaml:"interfaces"`
 }
 
 // Defines the docker configuration used by the daemon when interacting with
@@ -142,7 +154,7 @@ type DockerNetworkConfiguration struct {
 type DockerConfiguration struct {
 	// Network configuration that should be used when creating a new network
 	// for containers run through the daemon.
-	Network *DockerNetworkConfiguration `yaml:"network"`
+	Network DockerNetworkConfiguration `yaml:"network"`
 
 	// If true, container images will be updated when a server starts if there
 	// is an update available. If false the daemon will not attempt updates and will
@@ -161,70 +173,20 @@ type DockerConfiguration struct {
 // daemon webserver.
 type ApiConfiguration struct {
 	// The interface that the internal webserver should bind to.
-	Host string
+	Host string `default:"0.0.0.0" yaml:"host"`
 
 	// The port that the internal webserver should bind to.
-	Port int
+	Port int `default:"8080" yaml:"port"`
 
 	// SSL configuration for the daemon.
 	Ssl struct {
-		Enabled         bool
+		Enabled         bool   `default:"false"`
 		CertificateFile string `yaml:"cert"`
 		KeyFile         string `yaml:"key"`
 	}
 
 	// The maximum size for files uploaded through the Panel in bytes.
-	UploadLimit int `yaml:"upload_limit"`
-}
-
-// Configures the default values for many of the configuration options present
-// in the structs. If these values are set in the configuration file they will
-// be overridden. However, if they don't exist and we don't set these here, all
-// of the places in the code using them will need to be doing checks, which is
-// a tedious thing to have to do.
-func (c *Configuration) SetDefaults() {
-	c.System = &SystemConfiguration{
-		Username:     "pterodactyl",
-		Data:         "/srv/daemon-data",
-		TimezonePath: "/etc/timezone",
-		Sftp:         &SftpConfiguration{},
-	}
-
-	// By default the internal webserver should bind to all interfaces and
-	// be served on port 8080.
-	c.Api = &ApiConfiguration{
-		Host: "0.0.0.0",
-		Port: 8080,
-	}
-
-	// Setting this to true by default helps us avoid a lot of support requests
-	// from people that keep trying to move files around as a root user leading
-	// to server permission issues.
-	//
-	// In production and heavy use environments where boot speed is essential,
-	// this should be set to false as servers will self-correct permissions on
-	// boot anyways.
-	c.System.SetPermissionsOnBoot = true
-
-	// Configure the default throttler implementation. This should work fine
-	// for 99% of people running servers on the platform. The occasional host
-	// might need to tweak them to be less restrictive depending on their hardware
-	// and target audience.
-	c.Throttles.KillAtCount = 5
-	c.Throttles.DecaySeconds = 10
-	c.Throttles.BytesPerInterval = 4096
-	c.Throttles.CheckInterval = 100
-
-	// Configure the defaults for Docker connection and networks.
-	c.Docker = &DockerConfiguration{
-		Network: &DockerNetworkConfiguration{
-			Interfaces: &dockerNetworkInterfaces{},
-		},
-	}
-
-	if err := defaults.Set(c); err != nil {
-		zap.S().Warnw("error setting defaults for configuration", zap.Error(errors.WithStack(err)))
-	}
+	UploadLimit int `default:"100" yaml:"upload_limit"`
 }
 
 // Reads the configuration from the provided file and returns the configuration
@@ -236,7 +198,12 @@ func ReadConfiguration(path string) (*Configuration, error) {
 	}
 
 	c := new(Configuration)
-	c.SetDefaults()
+	// Configures the default values for many of the configuration options present
+	// in the structs. Valkues set in the configuration file take priority over the
+	// default values.
+	if err := defaults.Set(c); err != nil {
+		return nil, err
+	}
 
 	// Replace environment variables within the configuration file with their
 	// values from the host system.
