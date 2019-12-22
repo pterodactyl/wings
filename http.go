@@ -425,7 +425,7 @@ func (rt *Router) routeServerUpdate(w http.ResponseWriter, r *http.Request, ps h
 	defer r.Body.Close()
 
 	data := rt.ReaderToBytes(r.Body)
-	if err := s.UpdateDataStructure(data); err != nil {
+	if err := s.UpdateDataStructure(data, true); err != nil {
 		zap.S().Errorw("failed to update a server's data structure", zap.String("server", s.Uuid), zap.Error(err))
 
 		http.Error(w, "failed to update data structure", http.StatusInternalServerError)

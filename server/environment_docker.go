@@ -151,14 +151,10 @@ func (d *DockerEnvironment) InSituUpdate() error {
 // state. This ensures that unexpected container deletion while Wings is running does
 // not result in the server becoming unbootable.
 func (d *DockerEnvironment) OnBeforeStart() error {
-	c, rerr, err := d.Server.GetProcessConfiguration()
-	if err != nil {
+	zap.S().Infow("syncing server configuration with Panel", zap.String("server", d.Server.Uuid))
+	if err := d.Server.Sync(); err != nil {
 		return err
-	} else if rerr != nil {
-		return errors.New(rerr.String())
 	}
-
-	d.Server.processConfiguration = c
 
 	// If the server requires a rebuild, go ahead and delete the container from the system which
 	// will allow the subsequent Create() call to create a new container instance for the server

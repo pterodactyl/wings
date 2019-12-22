@@ -72,7 +72,7 @@ type Server struct {
 	// Defines the process configuration for the server instance. This is dynamically
 	// fetched from the Pterodactyl Server instance each time the server process is
 	// started, and then cached here.
-	processConfiguration *api.ServerConfiguration
+	processConfiguration *api.ProcessConfiguration
 
 	// Internal mutex used to block actions that need to occur sequentially, such as
 	// writing the configuration to the disk.
@@ -250,21 +250,43 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	// This is also done when the server is booted, however we need to account for instances
 	// where the server is already running and the Daemon reboots. In those cases this will
 	// allow us to you know, stop servers.
-	if cfg, rerr, err := s.GetProcessConfiguration(); err != nil {
-		return nil, err
-	} else if rerr != nil {
-		// If the response error is because a server does not exist on the Panel return
-		// that so that we can handle that in the future.
-		if rerr.Status == "404" {
-			return nil, &serverDoesNotExist{}
+	if cfg.SyncServersOnBoot {
+		if err := s.Sync(); err != nil {
+			return nil, err
 		}
-
-		return nil, errors.New(rerr.String())
-	} else {
-		s.processConfiguration = cfg
 	}
 
 	return s, nil
+}
+
+// Syncs the state of the server on the Panel with Wings. This ensures that we're always
+// using the state of the server from the Panel and allows us to not require successful
+// API calls to Wings to do things.
+//
+// This also means mass actions can be performed against servers on the Panel and they
+// will automatically sync with Wings when the server is started.
+func (s *Server) Sync() error {
+	cfg, rerr, err := s.GetProcessConfiguration()
+	if err != nil || rerr != nil {
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		if rerr.Status == "404" {
+			return &serverDoesNotExist{}
+		}
+
+		return errors.New(rerr.String())
+	}
+
+	// Update the data structure and persist it to the disk.
+	if err:= s.UpdateDataStructure(cfg.Settings, false); err != nil {
+		return errors.WithStack(err)
+	}
+
+	s.processConfiguration = cfg.ProcessConfiguration
+
+	return nil
 }
 
 // Reads the log file for a server up to a specified number of bytes.
@@ -348,6 +370,6 @@ func (s *Server) SetState(state string) error {
 }
 
 // Gets the process configuration data for the server.
-func (s *Server) GetProcessConfiguration() (*api.ServerConfiguration, *api.RequestError, error) {
+func (s *Server) GetProcessConfiguration() (*api.ServerConfigurationResponse, *api.RequestError, error) {
 	return api.NewRequester().GetServerConfiguration(s.Uuid)
 }

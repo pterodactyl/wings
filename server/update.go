@@ -17,9 +17,9 @@ import (
 // The server will be marked as requiring a rebuild on the next boot sequence,
 // it is up to the specific environment to determine what needs to happen when
 // that is the case.
-func (s *Server) UpdateDataStructure(data []byte) error {
-	src := Server{}
-	if err := json.Unmarshal(data, &src); err != nil {
+func (s *Server) UpdateDataStructure(data []byte, background bool) error {
+	src := new(Server)
+	if err := json.Unmarshal(data, src); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -31,8 +31,8 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 	}
 
 	// Set the default values in the interface that we unmarshaled into.
-	if err := defaults.Set(&src); err != nil {
-		return err
+	if err := defaults.Set(src); err != nil {
+		return errors.WithStack(err)
 	}
 
 	// Merge the new data object that we have received with the existing server data object
@@ -76,7 +76,9 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 		return errors.WithStack(err)
 	}
 
-	s.runBackgroundActions()
+	if background {
+		s.runBackgroundActions()
+	}
 
 	return nil
 }
