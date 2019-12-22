@@ -71,7 +71,6 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 		s.Allocations.Mappings = src.Allocations.Mappings
 	}
 
-	s.Container.RebuildRequired = true
 	if _, err := s.WriteConfigurationToDisk(); err != nil {
 		return errors.WithStack(err)
 	}

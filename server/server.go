@@ -58,8 +58,6 @@ type Server struct {
 		// If set to true, OOM killer will be disabled on the server's Docker container.
 		// If not present (nil) we will default to disabling it.
 		OomDisabled bool `default:"true" json:"oom_disabled" yaml:"oom_disabled"`
-		// Defines if the container needs to be rebuilt on the next boot.
-		RebuildRequired bool `default:"false" json:"rebuild_required,omitempty" yaml:"rebuild_required"`
 	} `json:"container,omitempty"`
 
 	// Server cache used to store frequently requested information in memory and make

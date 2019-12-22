@@ -156,33 +156,12 @@ func (d *DockerEnvironment) OnBeforeStart() error {
 		return err
 	}
 
-	// If the server requires a rebuild, go ahead and delete the container from the system which
-	// will allow the subsequent Create() call to create a new container instance for the server
-	// to run in.
-	if d.Server.Container.RebuildRequired {
-		if err := d.Client.ContainerRemove(context.Background(), d.Server.Uuid, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
-			if !client.IsErrNotFound(err) {
-				return err
-			}
+	// Always destroy and re-create the server container to ensure that synced data from
+	// the Panel is used.
+	if err := d.Client.ContainerRemove(context.Background(), d.Server.Uuid, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
+		if !client.IsErrNotFound(err) {
+			return err
 		}
-
-		// Reset and persist the container rebuild status so that we don't continually
-		// try and rebuild the container when the server is booted.
-		d.Server.Container.RebuildRequired = false
-
-		// Write the configuration to the disk in a seperate process so that we can rapidly
-		// move on with booting the server without waiting on an IO operation to complete.
-		go func(serv *Server) {
-			if _, err := serv.WriteConfigurationToDisk(); err != nil {
-				// Don't kill the process if there is an error writing the configuration to the disk
-				// but we do want to go ahead and notify the logger about it.
-				zap.S().Warnw(
-					"failed to write server configuration to disk after setting rebuild_required=false in configuration",
-					zap.String("server", serv.Uuid),
-					zap.Error(errors.WithStack(err)),
-				)
-			}
-		}(d.Server)
 	}
 
 	// The Create() function will check if the container exists in the first place, and if
