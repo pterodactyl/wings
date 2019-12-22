@@ -69,8 +69,8 @@ func main() {
 		zap.S().Infow("finished ensuring file permissions")
 	}
 
-	if err := server.LoadDirectory("data/servers",&c.System); err != nil {
-		zap.S().Fatalw("failed to load server configurations", zap.Error(err))
+	if err := server.LoadDirectory("data/servers", &c.System); err != nil {
+		zap.S().Fatalw("failed to load server configurations", zap.Error(errors.WithStack(err)))
 		return
 	}
 
