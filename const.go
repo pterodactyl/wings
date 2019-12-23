@@ -3,7 +3,7 @@ package main
 import "os"
 
 const (
-	Version = "0.0.1"
+	Version = "1.0.0-alpha.1"
 
 	// DefaultFilePerms are the file perms used for created files.
 	DefaultFilePerms os.FileMode = 0644
