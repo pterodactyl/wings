@@ -8,6 +8,8 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
+	"os"
+	"path"
 )
 
 type Installer struct {
@@ -102,6 +104,18 @@ func (i *Installer) Server() *server.Server {
 // associated installation process based on the parameters passed through for
 // the server instance.
 func (i *Installer) Execute() {
+	zap.S().Debugw("creating required server data directory", zap.String("server", i.Uuid()))
+	if err := os.MkdirAll(path.Join(config.Get().System.Data, i.Uuid()), 0755); err != nil {
+		zap.S().Errorw("failed to create server data directory", zap.String("server", i.Uuid()), zap.Error(errors.WithStack(err)))
+		return
+	}
+
+	if err := os.Chown(path.Join(config.Get().System.Data, i.Uuid()), config.Get().System.User.Uid, config.Get().System.User.Gid); err != nil {
+		zap.S().Errorw("failed to chown server data directory", zap.String("server", i.Uuid()), zap.Error(errors.WithStack(err)))
+		return
+	}
+
+
 	zap.S().Debugw("creating required environment for server instance", zap.String("server", i.Uuid()))
 	if err := i.server.Environment.Create(); err != nil {
 		zap.S().Errorw("failed to create environment for server", zap.String("server", i.Uuid()), zap.Error(err))
