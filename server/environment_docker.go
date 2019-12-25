@@ -554,21 +554,13 @@ func (d *DockerEnvironment) Create() error {
 		PortBindings: d.portBindings(),
 
 		// Configure the mounts for this container. First mount the server data directory
-		// into the container as a r/w bind. Additionally mount the host timezone data into
-		// the container as a readonly bind so that software running in the container uses
-		// the same time as the host system.
+		// into the container as a r/w bind.
 		Mounts: []mount.Mount{
 			{
 				Target:   "/home/container",
 				Source:   d.Server.Filesystem.Path(),
 				Type:     mount.TypeBind,
 				ReadOnly: false,
-			},
-			{
-				Target:   config.Get().System.TimezonePath,
-				Source:   config.Get().System.TimezonePath,
-				Type:     mount.TypeBind,
-				ReadOnly: true,
 			},
 		},
 
@@ -606,9 +598,41 @@ func (d *DockerEnvironment) Create() error {
 		NetworkMode: "pterodactyl_nw",
 	}
 
+	if err := mountTimezoneData(hostConf); err != nil {
+		if os.IsNotExist(err) {
+			zap.S().Warnw("the timezone data path configured does not exist on the system", zap.Error(errors.WithStack(err)))
+		} else {
+			zap.S().Warnw("failed to mount timezone data into container", zap.Error(errors.WithStack(err)))
+		}
+	}
+
 	if _, err := cli.ContainerCreate(ctx, conf, hostConf, nil, d.Server.Uuid); err != nil {
 		return errors.WithStack(err)
 	}
+
+	return nil
+}
+
+// Given a host configuration mount, also mount the timezone data into it.
+func mountTimezoneData(c *container.HostConfig) error {
+	p := config.Get().System.TimezonePath
+
+	// Check for the timezone file, if it exists use it assuming it isn't also a directory,
+	// otherwise bubble the error back up the stack.
+	if s, err := os.Stat(p); err != nil {
+		return err
+	} else {
+		if s.IsDir() {
+			return errors.New("attempting to mount directory as timezone file")
+		}
+	}
+
+	c.Mounts = append(c.Mounts, mount.Mount{
+		Target:   p,
+		Source:   p,
+		Type:     mount.TypeBind,
+		ReadOnly: true,
+	})
 
 	return nil
 }

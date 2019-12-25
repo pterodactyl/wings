@@ -166,7 +166,7 @@ type DockerConfiguration struct {
 
 	// Defines the location of the timezone file on the host system that should
 	// be mounted into the created containers so that they all use the same time.
-	TimezonePath string `yaml:"timezone_path"`
+	TimezonePath string `default:"/etc/localtime" yaml:"timezone_path"`
 }
 
 // Defines the configuration for the internal API that is exposed by the
