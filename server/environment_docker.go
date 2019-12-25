@@ -246,8 +246,6 @@ func (d *DockerEnvironment) Start() error {
 	// No errors, good to continue through.
 	sawError = false
 
-	zap.S().Debugw("right before start attach")
-
 	return d.Attach()
 }
 
@@ -598,13 +596,16 @@ func (d *DockerEnvironment) Create() error {
 		NetworkMode: "pterodactyl_nw",
 	}
 
-	if err := mountTimezoneData(hostConf); err != nil {
-		if os.IsNotExist(err) {
-			zap.S().Warnw("the timezone data path configured does not exist on the system", zap.Error(errors.WithStack(err)))
-		} else {
-			zap.S().Warnw("failed to mount timezone data into container", zap.Error(errors.WithStack(err)))
-		}
-	}
+	// Pretty sure TZ=X in the environment variables negates the need for this
+	// to happen. Leaving it until I can confirm that works for everything.
+	//
+	// if err := mountTimezoneData(hostConf); err != nil {
+	// 	if os.IsNotExist(err) {
+	// 		zap.S().Warnw("the timezone data path configured does not exist on the system", zap.Error(errors.WithStack(err)))
+	// 	} else {
+	// 		zap.S().Warnw("failed to mount timezone data into container", zap.Error(errors.WithStack(err)))
+	// 	}
+	// }
 
 	if _, err := cli.ContainerCreate(ctx, conf, hostConf, nil, d.Server.Uuid); err != nil {
 		return errors.WithStack(err)
@@ -728,7 +729,10 @@ func (d *DockerEnvironment) parseLogToStrings(b []byte) ([]string, error) {
 
 // Returns the environment variables for a server in KEY="VALUE" form.
 func (d *DockerEnvironment) environmentVariables() []string {
+	zone, _ := time.Now().In(time.Local).Zone()
+
 	var out = []string{
+		fmt.Sprintf("TZ=%s", zone),
 		fmt.Sprintf("STARTUP=%s", d.Server.Invocation),
 		fmt.Sprintf("SERVER_MEMORY=%d", d.Server.Build.MemoryLimit),
 		fmt.Sprintf("SERVER_IP=%s", d.Server.Allocations.DefaultMapping.Ip),
