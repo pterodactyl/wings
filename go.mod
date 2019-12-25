@@ -44,7 +44,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.8.1
 	github.com/pkg/sftp v1.10.1 // indirect
-	github.com/pterodactyl/sftp-server v1.1.0
+	github.com/pterodactyl/sftp-server v1.1.1
 	github.com/remeh/sizedwaitgroup v0.0.0-20180822144253-5e7302b12cce
 	github.com/sirupsen/logrus v1.0.5 // indirect
 	go.uber.org/atomic v1.5.1 // indirect

@@ -102,6 +102,8 @@ github.com/pterodactyl/sftp-server v1.0.4 h1:hPUaUQvA6U/R8/bybQFDMBDcZaqqj+kufGB
 github.com/pterodactyl/sftp-server v1.0.4/go.mod h1:0LKDl+f1qY2TH9+B5jxdROktW0+10UM1qJ472iWbyvQ=
 github.com/pterodactyl/sftp-server v1.1.0 h1:NcYh+UqEH8pfvFsee6yt7eb08RLLidw6q+cNOCdh/V0=
 github.com/pterodactyl/sftp-server v1.1.0/go.mod h1:b1VVWYv0RF9rxSZQqaD/rYXriiRMNPsbV//CKMXR4ag=
+github.com/pterodactyl/sftp-server v1.1.1 h1:IjuOy21BNZxfejKnXG1RgLxXAYylDqBVpbKZ6+fG5FQ=
+github.com/pterodactyl/sftp-server v1.1.1/go.mod h1:b1VVWYv0RF9rxSZQqaD/rYXriiRMNPsbV//CKMXR4ag=
 github.com/remeh/sizedwaitgroup v0.0.0-20180822144253-5e7302b12cce h1:aP+C+YbHZfOQlutA4p4soHi7rVUqHQdWEVMSkHfDTqY=
 github.com/remeh/sizedwaitgroup v0.0.0-20180822144253-5e7302b12cce/go.mod h1:3j2R4OIe/SeS6YDhICBy22RWjJC5eNCJ1V+9+NVNYlo=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
