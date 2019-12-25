@@ -14,6 +14,7 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
 	"io"
 	"os"
@@ -25,13 +26,6 @@ import (
 // Defines the base environment for Docker instances running through Wings.
 type DockerEnvironment struct {
 	Server *Server
-
-	// The user ID that containers should be running as.
-	User int
-
-	// Defines the configuration for the Docker instance that will allow us to connect
-	// and create and modify containers.
-	TimezonePath string
 
 	// The Docker client being used for this instance.
 	Client *client.Client
@@ -51,22 +45,18 @@ type DockerEnvironment struct {
 }
 
 // Creates a new base Docker environment. A server must still be attached to it.
-func NewDockerEnvironment(opts ...func(*DockerEnvironment)) (*DockerEnvironment, error) {
+func NewDockerEnvironment(server *Server) error {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	env := &DockerEnvironment{
-		User:   1000,
-		Client: cli,
+	server.Environment = &DockerEnvironment{
+		Server:       server,
+		Client:       cli,
 	}
 
-	for _, opt := range opts {
-		opt(env)
-	}
-
-	return env, nil
+	return nil
 }
 
 // Ensure that the Docker environment is always implementing all of the methods
@@ -210,11 +200,8 @@ func (d *DockerEnvironment) Start() error {
 	// No reason to try starting a container that is already running.
 	if c.State.Running {
 		d.Server.SetState(ProcessRunningState)
-		if !d.attached {
-			return d.Attach()
-		}
 
-		return nil
+		return d.Attach()
 	}
 
 	d.Server.SetState(ProcessStartingState)
@@ -258,6 +245,8 @@ func (d *DockerEnvironment) Start() error {
 
 	// No errors, good to continue through.
 	sawError = false
+
+	zap.S().Debugw("right before start attach")
 
 	return d.Attach()
 }
@@ -354,8 +343,12 @@ func (d *DockerEnvironment) Attach() error {
 		Server: d.Server,
 	}
 
-	d.EnableResourcePolling()
 	d.attached = true
+	go func() {
+		if err := d.EnableResourcePolling(); err != nil {
+			zap.S().Warnw("failed to enabled resource polling on server", zap.String("server", d.Server.Uuid), zap.Error(errors.WithStack(err)))
+		}
+	}()
 
 	go func() {
 		defer d.stream.Close()
@@ -430,7 +423,10 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 			var v *types.StatsJSON
 
 			if err := dec.Decode(&v); err != nil {
-				zap.S().Warnw("encountered error processing server stats; stopping collection", zap.Error(err))
+				if err != io.EOF {
+					zap.S().Warnw("encountered error processing server stats; stopping collection", zap.Error(err))
+				}
+
 				d.DisableResourcePolling()
 				return
 			}
@@ -537,7 +533,7 @@ func (d *DockerEnvironment) Create() error {
 
 	conf := &container.Config{
 		Hostname:     "container",
-		User:         strconv.Itoa(d.User),
+		User:         strconv.Itoa(config.Get().System.User.Uid),
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -569,8 +565,8 @@ func (d *DockerEnvironment) Create() error {
 				ReadOnly: false,
 			},
 			{
-				Target:   d.TimezonePath,
-				Source:   d.TimezonePath,
+				Target:   config.Get().System.TimezonePath,
+				Source:   config.Get().System.TimezonePath,
 				Type:     mount.TypeBind,
 				ReadOnly: true,
 			},

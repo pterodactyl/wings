@@ -221,23 +221,13 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 
 	s.AddEventListeners()
 
-	withConfiguration := func(e *DockerEnvironment) {
-		e.User = cfg.User.Uid
-		e.TimezonePath = cfg.TimezonePath
-		e.Server = s
-	}
-
 	// Right now we only support a Docker based environment, so I'm going to hard code
 	// this logic in. When we're ready to support other environment we'll need to make
 	// some modifications here obviously.
-	var env Environment
-	if t, err := NewDockerEnvironment(withConfiguration); err == nil {
-		env = t
-	} else {
+	if err := NewDockerEnvironment(s); err != nil {
 		return nil, err
 	}
 
-	s.Environment = env
 	s.Cache = cache.New(time.Minute*10, time.Minute*15)
 	s.Filesystem = Filesystem{
 		Configuration: cfg,
@@ -337,7 +327,7 @@ func (s *Server) SetState(state string) error {
 		}
 	}(s)
 
-	zap.S().Debugw("saw server status change event", zap.String("server", s.Uuid), zap.String("status", state))
+	zap.S().Debugw("saw server status change event", zap.String("server", s.Uuid), zap.String("status", s.State))
 
 	// Emit the event to any listeners that are currently registered.
 	s.Emit(StatusEvent, s.State)

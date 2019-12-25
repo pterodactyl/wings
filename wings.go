@@ -106,48 +106,33 @@ func main() {
 				zap.S().Errorw("failed to create an environment for server", zap.String("server", s.Uuid), zap.Error(err))
 			}
 
-			if r, err := s.Environment.IsRunning(); err != nil {
+			r, err := s.Environment.IsRunning()
+			if err != nil {
 				zap.S().Errorw("error checking server environment status", zap.String("server", s.Uuid), zap.Error(err))
-			} else if r {
-				// If the server is currently running on Docker, mark the process as being in that state.
-				// We never want to stop an instance that is currently running external from Wings since
-				// that is a good way of keeping things running even if Wings gets in a very corrupted state.
-				zap.S().Infow("detected server is running, re-attaching to process", zap.String("server", s.Uuid))
-				if err := s.Sync(); err != nil {
-					zap.S().Errorw("failed to sync server state, cannot mark as running", zap.String("server", s.Uuid), zap.Error(errors.WithStack(err)))
-				} else {
-					s.SetState(server.ProcessRunningState)
-
-					// If we cannot attach to the environment go ahead and mark the processs as being offline.
-					if err := s.Environment.Attach(); err != nil {
-						zap.S().Warnw("error attaching to server environment", zap.String("server", s.Uuid), zap.Error(err))
-						s.SetState(server.ProcessOfflineState)
-					}
-				}
-			} else if !r {
-				// If the server is not in a running state right now but according to the configuration it
-				// should be, we want to go ahead and restart the instance.
-				if s.State == server.ProcessRunningState || s.State == server.ProcessStartingState {
-					zap.S().Infow(
-						"server state does not match last recorded state in configuration, starting instance now",
-						zap.String("server", s.Uuid),
-					)
-
-					if err := s.Environment.Start(); err != nil {
-						zap.S().Warnw(
-							"failed to put server instance back in running state",
-							zap.String("server", s.Uuid),
-							zap.Error(errors.WithStack(err)),
-						)
-					}
-				} else {
-					if s.State == "" {
-						// Addresses potentially invalid data in the stored file that can cause Wings to lose
-						// track of what the actual server state is.
-						s.SetState(server.ProcessOfflineState)
-					}
-				}
 			}
+
+			// If the server is currently running on Docker, mark the process as being in that state.
+			// We never want to stop an instance that is currently running external from Wings since
+			// that is a good way of keeping things running even if Wings gets in a very corrupted state.
+			//
+			// This will also validate that a server process is running if the last tracked state we have
+			// is that it was running, but we see that the container process is not currently running.
+			if r || (!r && (s.State == server.ProcessRunningState || s.State == server.ProcessStartingState)) {
+				zap.S().Infow("detected server is running, re-attaching to process", zap.String("server", s.Uuid))
+				if err := s.Environment.Start(); err != nil {
+					zap.S().Warnw(
+						"failed to properly start server detected as already running",
+						zap.String("server", s.Uuid),
+						zap.Error(errors.WithStack(err)),
+					)
+				}
+
+				return
+			}
+
+			// Addresses potentially invalid data in the stored file that can cause Wings to lose
+			// track of what the actual server state is.
+			s.SetState(server.ProcessOfflineState)
 		}(serv)
 	}
 
