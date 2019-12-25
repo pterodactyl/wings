@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"github.com/buger/jsonparser"
-	"github.com/creasty/defaults"
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -28,11 +27,6 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 	// instance into a totally different one, which would be bad.
 	if src.Uuid != "" && src.Uuid != s.Uuid {
 		return errors.New("attempting to merge a data stack with an invalid UUID")
-	}
-
-	// Set the default values in the interface that we unmarshaled into.
-	if err := defaults.Set(src); err != nil {
-		return errors.WithStack(err)
 	}
 
 	// Merge the new data object that we have received with the existing server data object
