@@ -247,6 +247,33 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	return s, nil
 }
 
+// Returns all of the environment variables that should be assigned to a running
+// server instance.
+func (s *Server) GetEnvironmentVariables() []string {
+	zone, _ := time.Now().In(time.Local).Zone()
+
+	var out = []string{
+		fmt.Sprintf("TZ=%s", zone),
+		fmt.Sprintf("STARTUP=%s", s.Invocation),
+		fmt.Sprintf("SERVER_MEMORY=%d", s.Build.MemoryLimit),
+		fmt.Sprintf("SERVER_IP=%s", s.Allocations.DefaultMapping.Ip),
+		fmt.Sprintf("SERVER_PORT=%d", s.Allocations.DefaultMapping.Port),
+	}
+
+eloop:
+	for k, v := range s.EnvVars {
+		for _, e := range out {
+			if strings.HasPrefix(e, strings.ToUpper(k)) {
+				continue eloop
+			}
+		}
+
+		out = append(out, fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
+	}
+
+	return out
+}
+
 // Syncs the state of the server on the Panel with Wings. This ensures that we're always
 // using the state of the server from the Panel and allows us to not require successful
 // API calls to Wings to do things.

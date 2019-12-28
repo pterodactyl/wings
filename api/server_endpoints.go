@@ -41,6 +41,14 @@ type ProcessConfiguration struct {
 	ConfigurationFiles []parser.ConfigurationFile `json:"configs"`
 }
 
+// Defines installation script information for a server process. This is used when
+// a server is installed for the first time, and when a server is marked for re-installation.
+type InstallationScript struct {
+	ContainerImage string `json:"container_image"`
+	Entrypoint     string `json:"entrypoint"`
+	Script         string `json:"script"`
+}
+
 // Fetches the server configuration and returns the struct for it.
 func (r *PanelRequest) GetServerConfiguration(uuid string) (*ServerConfigurationResponse, *RequestError, error) {
 	resp, err := r.Get(fmt.Sprintf("/servers/%s", uuid))
@@ -60,6 +68,31 @@ func (r *PanelRequest) GetServerConfiguration(uuid string) (*ServerConfiguration
 
 	if err := json.Unmarshal(b, res); err != nil {
 		return nil, nil, errors.WithStack(err)
+	}
+
+	return res, nil, nil
+}
+
+// Fetches installation information for the server process.
+func (r *PanelRequest) GetInstallationScript(uuid string) (InstallationScript, *RequestError, error) {
+	res := InstallationScript{}
+
+	resp, err := r.Get(fmt.Sprintf("/servers/%s/install", uuid))
+	if err != nil {
+		return res, nil, errors.WithStack(err)
+	}
+	defer resp.Body.Close()
+
+	r.Response = resp
+
+	if r.HasError() {
+		return res, r.Error(), nil
+	}
+
+	b, _ := r.ReadBody()
+
+	if err := json.Unmarshal(b, &res); err != nil {
+		return res, nil, errors.WithStack(err)
 	}
 
 	return res, nil, nil

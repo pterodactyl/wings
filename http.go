@@ -420,6 +420,20 @@ func (rt *Router) routeServerSendCommand(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (rt *Router) routeServerInstall(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.GetServer(ps.ByName("server"))
+	defer r.Body.Close()
+
+	if err := s.Install(); err != nil {
+		zap.S().Errorw("failed to install server", zap.String("server", s.Uuid), zap.Error(err))
+
+		http.Error(w, "failed to install server", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (rt *Router) routeServerUpdate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	s := rt.GetServer(ps.ByName("server"))
 	defer r.Body.Close()
@@ -545,7 +559,8 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.GET("/api/servers/:server/files/contents", rt.AuthenticateRequest(rt.routeServerFileRead))
 	router.GET("/api/servers/:server/files/list-directory", rt.AuthenticateRequest(rt.routeServerListDirectory))
 	router.PUT("/api/servers/:server/files/rename", rt.AuthenticateRequest(rt.routeServerRenameFile))
-	router.POST("/api/servers", rt.AuthenticateToken(rt.routeCreateServer));
+	router.POST("/api/servers", rt.AuthenticateToken(rt.routeCreateServer))
+	router.POST("/api/servers/:server/install", rt.AuthenticateRequest(rt.routeServerInstall))
 	router.POST("/api/servers/:server/files/copy", rt.AuthenticateRequest(rt.routeServerCopyFile))
 	router.POST("/api/servers/:server/files/write", rt.AuthenticateRequest(rt.routeServerWriteFile))
 	router.POST("/api/servers/:server/files/create-directory", rt.AuthenticateRequest(rt.routeServerCreateDirectory))

@@ -545,6 +545,7 @@ func (d *DockerEnvironment) Create() error {
 
 		Labels: map[string]string{
 			"Service": "Pterodactyl",
+			"ContainerType": "server_process",
 		},
 	}
 
