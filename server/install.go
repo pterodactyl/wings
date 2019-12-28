@@ -33,7 +33,28 @@ func (s *Server) Install() error {
 		return errors.WithStack(err)
 	}
 
-	return p.Execute()
+	go func(proc *InstallationProcess) {
+		installPath, err := proc.BeforeExecute()
+		if err != nil {
+			zap.S().Errorw(
+				"failed to complete BeforeExecute step of installation process",
+				zap.String("server", proc.Server.Uuid),
+				zap.Error(errors.WithStack(err)),
+			)
+
+			return
+		}
+
+		if err := proc.Execute(installPath); err != nil {
+			zap.S().Errorw(
+				"failed to complete Execute step of installation process",
+				zap.String("server", proc.Server.Uuid),
+				zap.Error(errors.WithStack(err)),
+			)
+		}
+	}(p)
+
+	return nil
 }
 
 type InstallationProcess struct {
@@ -80,7 +101,7 @@ func (ip *InstallationProcess) writeScriptToDisk() (string, error) {
 
 	scanner := bufio.NewScanner(bytes.NewReader([]byte(ip.Script.Script)))
 	for scanner.Scan() {
-		w.WriteString(scanner.Text()+"\n")
+		w.WriteString(scanner.Text() + "\n")
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -111,7 +132,7 @@ func (ip *InstallationProcess) pullInstallationImage() error {
 // Runs before the container is executed. This pulls down the required docker container image
 // as well as writes the installation script to the disk. This process is executed in an async
 // manner, if either one fails the error is returned.
-func (ip *InstallationProcess) beforeExecute() (string, error) {
+func (ip *InstallationProcess) BeforeExecute() (string, error) {
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 
@@ -163,18 +184,13 @@ func (ip *InstallationProcess) beforeExecute() (string, error) {
 }
 
 // Executes the installation process inside a specially created docker container.
-func (ip *InstallationProcess) Execute() error {
-	installScriptPath, err := ip.beforeExecute()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
+func (ip *InstallationProcess) Execute(installPath string) error {
 	ctx := context.Background()
 
 	zap.S().Debugw(
 		"creating server installer container",
 		zap.String("server", ip.Server.Uuid),
-		zap.String("script_path", installScriptPath+"/install.sh"),
+		zap.String("script_path", installPath+"/install.sh"),
 	)
 
 	conf := &container.Config{
@@ -203,7 +219,7 @@ func (ip *InstallationProcess) Execute() error {
 			},
 			{
 				Target:   "/mnt/install",
-				Source:   installScriptPath,
+				Source:   installPath,
 				Type:     mount.TypeBind,
 				ReadOnly: false,
 			},
@@ -235,27 +251,14 @@ func (ip *InstallationProcess) Execute() error {
 		return err
 	}
 
-	stream, err := ip.client.ContainerAttach(ctx, r.ID, types.ContainerAttachOptions{
-		Stdout: true,
-		Stderr: true,
-		Stream: true,
-	})
-
-	if err != nil {
-		return errors.WithStack(err)
+	sChann, eChann := ip.client.ContainerWait(ctx, r.ID, container.WaitConditionNotRunning)
+	select {
+	case err := <-eChann:
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	case <-sChann:
 	}
-
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-
-	go func() {
-		defer stream.Close()
-		defer wg.Done()
-
-		io.Copy(os.Stdout, stream.Reader)
-	}()
-
-	wg.Wait()
 
 	zap.S().Infow("completed installation process", zap.String("server", ip.Server.Uuid))
 

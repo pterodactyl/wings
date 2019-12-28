@@ -431,7 +431,7 @@ func (rt *Router) routeServerInstall(w http.ResponseWriter, r *http.Request, ps 
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (rt *Router) routeServerUpdate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
