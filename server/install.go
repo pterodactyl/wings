@@ -11,7 +11,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"go.uber.org/zap"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -120,9 +119,13 @@ func (ip *InstallationProcess) pullInstallationImage() error {
 		return errors.WithStack(err)
 	}
 
-	// Copy to stdout until we hit an EOF or other fatal error which would
-	// require exiting.
-	if _, err := io.Copy(os.Stdout, r); err != nil && err != io.EOF {
+	// Block continuation until the image has been pulled successfully.
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		zap.S().Debugw(scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
 		return errors.WithStack(err)
 	}
 
