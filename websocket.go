@@ -92,22 +92,15 @@ func ParseJWT(token []byte) (*WebsocketTokenPayload, error) {
 		alg = jwt.NewHS256([]byte(config.Get().AuthenticationToken))
 	}
 
-	_, err := jwt.Verify(token, alg, &payload)
+	now := time.Now()
+	verifyOptions := jwt.ValidatePayload(
+		&payload.Payload,
+		jwt.ExpirationTimeValidator(now),
+	)
+
+	_, err := jwt.Verify(token, alg, &payload, verifyOptions)
 	if err != nil {
 		return nil, err
-	}
-
-	// Check the time of the JWT becoming valid does not exceed more than 15 seconds
-	// compared to the system time. This accounts for clock drift to some degree.
-	if time.Now().Unix()-payload.NotBefore.Unix() <= -15 {
-		return nil, errors.New("jwt violates nbf")
-	}
-
-	// Compare the expiration time of the token to the current system time. Include
-	// up to 15 seconds of clock drift, and if it has expired return an error and
-	// do not process the action.
-	if time.Now().Unix()-payload.ExpirationTime.Unix() > 15 {
-		return nil, errors.New("jwt violates exp")
 	}
 
 	if !payload.HasPermission(PermissionConnect) {
@@ -123,8 +116,8 @@ func (wsh *WebsocketHandler) TokenValid() error {
 		return errors.New("no jwt present")
 	}
 
-	if time.Now().Unix()-wsh.JWT.ExpirationTime.Unix() > 15 {
-		return errors.New("jwt violates nbf")
+	if err := jwt.ExpirationTimeValidator(time.Now())(&wsh.JWT.Payload); err != nil {
+		return err
 	}
 
 	if !wsh.JWT.HasPermission(PermissionConnect) {
