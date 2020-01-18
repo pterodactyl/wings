@@ -52,8 +52,8 @@ func NewDockerEnvironment(server *Server) error {
 	}
 
 	server.Environment = &DockerEnvironment{
-		Server:       server,
-		Client:       cli,
+		Server: server,
+		Client: cli,
 	}
 
 	return nil
@@ -544,7 +544,7 @@ func (d *DockerEnvironment) Create() error {
 		Env:   d.environmentVariables(),
 
 		Labels: map[string]string{
-			"Service": "Pterodactyl",
+			"Service":       "Pterodactyl",
 			"ContainerType": "server_process",
 		},
 	}

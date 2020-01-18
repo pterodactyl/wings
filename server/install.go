@@ -32,26 +32,7 @@ func (s *Server) Install() error {
 		return errors.WithStack(err)
 	}
 
-	go func(proc *InstallationProcess) {
-		installPath, err := proc.BeforeExecute()
-		if err != nil {
-			zap.S().Errorw(
-				"failed to complete BeforeExecute step of installation process",
-				zap.String("server", proc.Server.Uuid),
-				zap.Error(errors.WithStack(err)),
-			)
-
-			return
-		}
-
-		if err := proc.Execute(installPath); err != nil {
-			zap.S().Errorw(
-				"failed to complete Execute step of installation process",
-				zap.String("server", proc.Server.Uuid),
-				zap.Error(errors.WithStack(err)),
-			)
-		}
-	}(p)
+	go p.Run()
 
 	return nil
 }
@@ -80,6 +61,34 @@ func NewInstallationProcess(s *Server, script *api.InstallationScript) (*Install
 	}
 
 	return proc, nil
+}
+
+// Runs the installation process, this is done as a backgrounded thread. This will configure
+// the required environment, and then spin up the installation container.
+//
+// Once the container finishes installing the results will be stored in an installation
+// log in the server's configuration directory.
+func (ip *InstallationProcess) Run() {
+	installPath, err := ip.BeforeExecute()
+	if err != nil {
+		zap.S().Errorw(
+			"failed to complete BeforeExecute step of installation process",
+			zap.String("server", ip.Server.Uuid),
+			zap.Error(errors.WithStack(err)),
+		)
+
+		return
+	}
+
+	if _, err := ip.Execute(installPath); err != nil {
+		zap.S().Errorw(
+			"failed to complete Execute step of installation process",
+			zap.String("server", ip.Server.Uuid),
+			zap.Error(errors.WithStack(err)),
+		)
+	}
+
+	zap.S().Infow("completed installation process for server", zap.String("server", ip.Server.Uuid))
 }
 
 // Writes the installation script to a temporary file on the host machine so that it
@@ -187,7 +196,7 @@ func (ip *InstallationProcess) BeforeExecute() (string, error) {
 }
 
 // Executes the installation process inside a specially created docker container.
-func (ip *InstallationProcess) Execute(installPath string) error {
+func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 	ctx := context.Background()
 
 	zap.S().Debugw(
@@ -234,7 +243,7 @@ func (ip *InstallationProcess) Execute(installPath string) error {
 		LogConfig: container.LogConfig{
 			Type: "local",
 			Config: map[string]string{
-				"max-size": "20m",
+				"max-size": "5m",
 				"max-file": "1",
 				"compress": "false",
 			},
@@ -246,24 +255,71 @@ func (ip *InstallationProcess) Execute(installPath string) error {
 	zap.S().Infow("creating installer container for server process", zap.String("server", ip.Server.Uuid))
 	r, err := ip.client.ContainerCreate(ctx, conf, hostConf, nil, ip.Server.Uuid+"_installer")
 	if err != nil {
-		return errors.WithStack(err)
+		return "", errors.WithStack(err)
 	}
 
-	zap.S().Infow("running installation process for server", zap.String("server", ip.Server.Uuid))
+	zap.S().Infow(
+		"running installation process for server...",
+		zap.String("server", ip.Server.Uuid),
+		zap.String("container_id", r.ID),
+	)
 	if err := ip.client.ContainerStart(ctx, r.ID, types.ContainerStartOptions{}); err != nil {
-		return err
+		return "", err
 	}
+
+	go func(id string) {
+		ip.Server.Emit(DaemonMessageEvent, "Starting installation process, this could take a few minutes...")
+		if err := ip.StreamOutput(id); err != nil {
+			zap.S().Errorw(
+				"error handling streaming output for server install process",
+				zap.String("container_id", id),
+				zap.Error(err),
+			)
+		}
+		ip.Server.Emit(DaemonMessageEvent, "Installation process completed.")
+	}(r.ID)
 
 	sChann, eChann := ip.client.ContainerWait(ctx, r.ID, container.WaitConditionNotRunning)
 	select {
 	case err := <-eChann:
 		if err != nil {
-			return errors.WithStack(err)
+			return "", errors.WithStack(err)
 		}
 	case <-sChann:
 	}
 
-	zap.S().Infow("completed installation process", zap.String("server", ip.Server.Uuid))
+	return r.ID, nil
+}
+
+// Streams the output of the installation process to a log file in the server configuration
+// directory, as well as to a websocket listener so that the process can be viewed in
+// the panel by administrators.
+func (ip *InstallationProcess) StreamOutput(id string) error {
+	reader, err := ip.client.ContainerLogs(context.Background(), id, types.ContainerLogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     true,
+	})
+
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	defer reader.Close()
+
+	s := bufio.NewScanner(reader)
+	for s.Scan() {
+		ip.Server.Emit(InstallOutputEvent, s.Text())
+	}
+
+	if err := s.Err(); err != nil {
+		zap.S().Warnw(
+			"error processing scanner line in installation output for server",
+			zap.String("server", ip.Server.Uuid),
+			zap.String("container_id", id),
+			zap.Error(errors.WithStack(err)),
+		)
+	}
 
 	return nil
 }

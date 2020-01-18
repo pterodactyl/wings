@@ -62,10 +62,11 @@ type WebsocketTokenPayload struct {
 }
 
 const (
-	PermissionConnect       = "connect"
-	PermissionSendCommand   = "send-command"
-	PermissionSendPower     = "send-power"
-	PermissionReceiveErrors = "receive-errors"
+	PermissionConnect        = "connect"
+	PermissionSendCommand    = "send-command"
+	PermissionSendPower      = "send-power"
+	PermissionReceiveErrors  = "receive-errors"
+	PermissionReceiveInstall = "receive-install"
 )
 
 // Checks if the given token payload has a permission string.
@@ -163,35 +164,35 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		JWT:        nil,
 	}
 
-	handleOutput := func(data string) {
-		handler.SendJson(&WebsocketMessage{
-			Event: server.ConsoleOutputEvent,
-			Args:  []string{data},
-		})
+	// Register all of the event handlers.
+	events := []string{
+		server.StatsEvent,
+		server.StatusEvent,
+		server.ConsoleOutputEvent,
+		server.InstallOutputEvent,
+		server.DaemonMessageEvent,
 	}
 
-	handleServerStatus := func(data string) {
-		handler.SendJson(&WebsocketMessage{
-			Event: server.StatusEvent,
-			Args:  []string{data},
-		})
+	var eventFuncs = make(map[string]*func(string))
+	for _, event := range events {
+		var e = event
+		var fn = func(data string) {
+			handler.SendJson(&WebsocketMessage{
+				Event: e,
+				Args:  []string{data},
+			})
+		}
+
+		eventFuncs[event] = &fn
+		s.AddListener(event, &fn)
 	}
 
-	handleResourceUse := func(data string) {
-		handler.SendJson(&WebsocketMessage{
-			Event: server.StatsEvent,
-			Args:  []string{data},
-		})
-	}
-
-	s.AddListener(server.StatusEvent, &handleServerStatus)
-	defer s.RemoveListener(server.StatusEvent, &handleServerStatus)
-
-	s.AddListener(server.ConsoleOutputEvent, &handleOutput)
-	defer s.RemoveListener(server.ConsoleOutputEvent, &handleOutput)
-
-	s.AddListener(server.StatsEvent, &handleResourceUse)
-	defer s.RemoveListener(server.StatsEvent, &handleResourceUse)
+	// When done with the socket, remove all of the event handlers we had registered.
+	defer func() {
+		for event, action := range eventFuncs {
+			s.RemoveListener(event, action)
+		}
+	}()
 
 	// Sit here and check the time to expiration on the JWT every 30 seconds until
 	// the token has expired. If we are within 3 minutes of the token expiring, send
@@ -250,11 +251,20 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 // Perform a blocking send operation on the websocket since we want to avoid any
 // concurrent writes to the connection, which would cause a runtime panic and cause
 // the program to crash out.
-func (wsh *WebsocketHandler) SendJson(v interface{}) error {
+func (wsh *WebsocketHandler) SendJson(v *WebsocketMessage) error {
 	// Do not send JSON down the line if the JWT on the connection is not
 	// valid!
 	if err := wsh.TokenValid(); err != nil {
 		return nil
+	}
+
+	// If we're sending installation output but the user does not have the required
+	// permissions to see the output, don't send it down the line.
+	if v.Event == server.InstallOutputEvent {
+		zap.S().Debugf("%+v", v.Args)
+		if wsh.JWT != nil && !wsh.JWT.HasPermission(PermissionReceiveInstall) {
+			return nil
+		}
 	}
 
 	return wsh.unsafeSendJson(v)
