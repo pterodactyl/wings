@@ -64,8 +64,8 @@ type Server struct {
 	// certain long operations return faster. For example, FS disk space usage.
 	Cache *cache.Cache `json:"-" yaml:"-"`
 
-	// All of the registered event listeners for this server instance.
-	listeners EventListeners
+	// Events emitted by the server instance.
+	emitter *EventBus
 
 	// Defines the process configuration for the server instance. This is dynamically
 	// fetched from the Pterodactyl Server instance each time the server process is
@@ -199,7 +199,6 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 
 // Initializes the default required internal struct components for a Server.
 func (s *Server) Init() {
-	s.listeners = make(map[string][]EventListenerFunction)
 	s.mutex = &sync.Mutex{}
 }
 
@@ -357,7 +356,7 @@ func (s *Server) SetState(state string) error {
 	zap.S().Debugw("saw server status change event", zap.String("server", s.Uuid), zap.String("status", s.State))
 
 	// Emit the event to any listeners that are currently registered.
-	s.Emit(StatusEvent, s.State)
+	s.Events().Publish(StatusEvent, s.State)
 
 	// If server was in an online state, and is now in an offline state we should handle
 	// that as a crash event. In that scenario, check the last crash time, and the crash

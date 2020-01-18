@@ -164,7 +164,6 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		JWT:        nil,
 	}
 
-	// Register all of the event handlers.
 	events := []string{
 		server.StatsEvent,
 		server.StatusEvent,
@@ -173,24 +172,29 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 		server.DaemonMessageEvent,
 	}
 
-	var eventFuncs = make(map[string]*func(string))
+	eventChannel := make(chan server.Event)
 	for _, event := range events {
-		var e = event
-		var fn = func(data string) {
-			handler.SendJson(&WebsocketMessage{
-				Event: e,
-				Args:  []string{data},
-			})
-		}
-
-		eventFuncs[event] = &fn
-		s.AddListener(event, &fn)
+		s.Events().Subscribe(event, eventChannel)
 	}
 
-	// When done with the socket, remove all of the event handlers we had registered.
 	defer func() {
-		for event, action := range eventFuncs {
-			s.RemoveListener(event, action)
+		for _, event := range events {
+			s.Events().Unsubscribe(event, eventChannel)
+		}
+
+		close(eventChannel)
+	}()
+
+	// Listen for different events emitted by the server and respond to them appropriately.
+	go func() {
+		for {
+			select {
+			case d := <-eventChannel:
+				handler.SendJson(&WebsocketMessage{
+					Event: d.Topic,
+					Args:  []string{d.Data},
+				})
+			}
 		}
 	}()
 
@@ -354,7 +358,7 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 
 			// On every authentication event, send the current server status back
 			// to the client. :)
-			wsh.Server.Emit(server.StatusEvent, wsh.Server.State)
+			wsh.Server.Events().Publish(server.StatusEvent, wsh.Server.State)
 
 			wsh.unsafeSendJson(WebsocketMessage{
 				Event: AuthenticationSuccessEvent,

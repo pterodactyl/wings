@@ -268,7 +268,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 	}
 
 	go func(id string) {
-		ip.Server.Emit(DaemonMessageEvent, "Starting installation process, this could take a few minutes...")
+		ip.Server.Events().Publish(DaemonMessageEvent, "Starting installation process, this could take a few minutes...")
 		if err := ip.StreamOutput(id); err != nil {
 			zap.S().Errorw(
 				"error handling streaming output for server install process",
@@ -276,7 +276,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 				zap.Error(err),
 			)
 		}
-		ip.Server.Emit(DaemonMessageEvent, "Installation process completed.")
+		ip.Server.Events().Publish(DaemonMessageEvent, "Installation process completed.")
 	}(r.ID)
 
 	sChann, eChann := ip.client.ContainerWait(ctx, r.ID, container.WaitConditionNotRunning)
@@ -309,7 +309,7 @@ func (ip *InstallationProcess) StreamOutput(id string) error {
 
 	s := bufio.NewScanner(reader)
 	for s.Scan() {
-		ip.Server.Emit(InstallOutputEvent, s.Text())
+		ip.Server.Events().Publish(InstallOutputEvent, s.Text())
 	}
 
 	if err := s.Err(); err != nil {

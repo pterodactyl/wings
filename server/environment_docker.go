@@ -388,7 +388,7 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 
 		s := bufio.NewScanner(r)
 		for s.Scan() {
-			d.Server.Emit(ConsoleOutputEvent, s.Text())
+			d.Server.Events().Publish(ConsoleOutputEvent, s.Text())
 		}
 
 		if err := s.Err(); err != nil {
@@ -450,7 +450,7 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 			}
 
 			b, _ := json.Marshal(s.Resources)
-			s.Emit(StatsEvent, string(b))
+			s.Events().Publish(StatsEvent, string(b))
 		}
 	}(d.Server)
 
