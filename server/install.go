@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"go.uber.org/zap"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -32,7 +33,15 @@ func (s *Server) Install() error {
 		return errors.WithStack(err)
 	}
 
-	go p.Run()
+	go func() {
+		zap.S().Infow("beginning installation process for server", zap.String("server", s.Uuid))
+
+		if err := p.Run(); err != nil {
+			zap.S().Errorw("failed to complete installation process for server", zap.String("server", s.Uuid), zap.Error(err))
+		}
+
+		zap.S().Infow("completed installation process for server", zap.String("server", s.Uuid))
+	}()
 
 	return nil
 }
@@ -68,27 +77,24 @@ func NewInstallationProcess(s *Server, script *api.InstallationScript) (*Install
 //
 // Once the container finishes installing the results will be stored in an installation
 // log in the server's configuration directory.
-func (ip *InstallationProcess) Run() {
+func (ip *InstallationProcess) Run() error {
 	installPath, err := ip.BeforeExecute()
 	if err != nil {
-		zap.S().Errorw(
-			"failed to complete BeforeExecute step of installation process",
-			zap.String("server", ip.Server.Uuid),
-			zap.Error(errors.WithStack(err)),
-		)
-
-		return
+		return err
 	}
 
-	if _, err := ip.Execute(installPath); err != nil {
-		zap.S().Errorw(
-			"failed to complete Execute step of installation process",
-			zap.String("server", ip.Server.Uuid),
-			zap.Error(errors.WithStack(err)),
-		)
+	cid, err := ip.Execute(installPath)
+	if err != nil {
+		return err
 	}
 
-	zap.S().Infow("completed installation process for server", zap.String("server", ip.Server.Uuid))
+	// If this step fails, log a warning but don't exit out of the process. This is completely
+	// internal to the daemon's functionality, and does not affect the status of the server itself.
+	if err := ip.AfterExecute(cid); err != nil {
+		zap.S().Warnw("failed to complete after-execute step of installation process", zap.String("server", ip.Server.Uuid), zap.Error(err))
+	}
+
+	return nil
 }
 
 // Writes the installation script to a temporary file on the host machine so that it
@@ -195,6 +201,49 @@ func (ip *InstallationProcess) BeforeExecute() (string, error) {
 	return fileName, nil
 }
 
+// Cleans up after the execution of the installation process. This grabs the logs from the
+// process to store in the server configuration directory, and then destroys the associated
+// installation container.
+func (ip *InstallationProcess) AfterExecute(containerId string) error {
+	ctx := context.Background()
+
+	zap.S().Debugw("pulling installation logs for server", zap.String("server", ip.Server.Uuid), zap.String("container_id", containerId))
+	reader, err := ip.client.ContainerLogs(ctx, containerId, types.ContainerLogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     false,
+	})
+
+	if err != nil && !client.IsErrNotFound(err) {
+		return errors.WithStack(err)
+	}
+
+	f, err := os.OpenFile(filepath.Join("data/install_logs/", ip.Server.Uuid+".log"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer f.Close()
+
+	// We write the contents of the container output to a more "permanent" file so that they
+	// can be referenced after this container is deleted.
+	if _, err := io.Copy(f, reader); err != nil {
+		return errors.WithStack(err)
+	}
+
+	zap.S().Debugw("removing server installation container", zap.String("server", ip.Server.Uuid), zap.String("container_id", containerId))
+	rErr := ip.client.ContainerRemove(ctx, containerId, types.ContainerRemoveOptions{
+		RemoveVolumes: true,
+		RemoveLinks:   false,
+		Force:         true,
+	})
+
+	if rErr != nil && !client.IsErrNotFound(rErr) {
+		return errors.WithStack(rErr)
+	}
+
+	return nil
+}
+
 // Executes the installation process inside a specially created docker container.
 func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 	ctx := context.Background()
@@ -259,7 +308,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 	}
 
 	zap.S().Infow(
-		"running installation process for server...",
+		"running installation script for server in container",
 		zap.String("server", ip.Server.Uuid),
 		zap.String("container_id", r.ID),
 	)

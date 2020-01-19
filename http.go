@@ -465,11 +465,17 @@ func (rt *Router) routeCreateServer(w http.ResponseWriter, r *http.Request, ps h
 	// requests from here-on out.
 	server.GetServers().Add(inst.Server())
 
+	zap.S().Infow("beginning installation process for server", zap.String("server", inst.Uuid()))
 	// Begin the installation process in the background to not block the request
 	// cycle. If there are any errors they will be logged and communicated back
 	// to the Panel where a reinstall may take place.
-	zap.S().Infow("beginning installation process for server", zap.String("server", inst.Uuid()))
-	go inst.Execute()
+	go func(i *installer.Installer) {
+		i.Execute()
+
+		if err := i.Server().Install(); err != nil {
+			zap.S().Errorw("failed to run install process for server", zap.String("server", i.Uuid()), zap.Error(err))
+		}
+	}(inst)
 
 	w.WriteHeader(http.StatusAccepted)
 }
