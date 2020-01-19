@@ -424,12 +424,11 @@ func (rt *Router) routeServerInstall(w http.ResponseWriter, r *http.Request, ps 
 	s := rt.GetServer(ps.ByName("server"))
 	defer r.Body.Close()
 
-	if err := s.Install(); err != nil {
-		zap.S().Errorw("failed to install server", zap.String("server", s.Uuid), zap.Error(err))
-
-		http.Error(w, "failed to install server", http.StatusInternalServerError)
-		return
-	}
+	go func (serv *server.Server) {
+		if err := serv.Install(); err != nil {
+			zap.S().Errorw("failed to execute server installation process", zap.String("server", s.Uuid), zap.Error(err))
+		}
+	}(s)
 
 	w.WriteHeader(http.StatusAccepted)
 }

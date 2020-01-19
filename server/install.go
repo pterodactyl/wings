@@ -18,7 +18,26 @@ import (
 	"sync"
 )
 
+// Executes the installation stack for a server process. Bubbles any errors up to the calling
+// function which should handle contacting the panel to notify it of the server state.
 func (s *Server) Install() error {
+	err := s.internalInstall()
+
+	zap.S().Debugw("notifying panel of server install state", zap.String("server", s.Uuid))
+	if serr := s.SyncInstallState(err == nil); serr != nil {
+		zap.S().Warnw(
+			"failed to notify panel of server install state",
+			zap.String("server", s.Uuid),
+			zap.Bool("was_successful", err == nil),
+			zap.Error(serr),
+		)
+	}
+
+	return err
+}
+
+// Internal installation function used to simplify reporting back to the Panel.
+func (s *Server) internalInstall() error {
 	script, rerr, err := api.NewRequester().GetInstallationScript(s.Uuid)
 	if err != nil || rerr != nil {
 		if err != nil {
@@ -33,15 +52,13 @@ func (s *Server) Install() error {
 		return errors.WithStack(err)
 	}
 
-	go func() {
-		zap.S().Infow("beginning installation process for server", zap.String("server", s.Uuid))
+	zap.S().Infow("beginning installation process for server", zap.String("server", s.Uuid))
 
-		if err := p.Run(); err != nil {
-			zap.S().Errorw("failed to complete installation process for server", zap.String("server", s.Uuid), zap.Error(err))
-		}
+	if err := p.Run(); err != nil {
+		return err
+	}
 
-		zap.S().Infow("completed installation process for server", zap.String("server", s.Uuid))
-	}()
+	zap.S().Infow("completed installation process for server", zap.String("server", s.Uuid))
 
 	return nil
 }
@@ -368,6 +385,25 @@ func (ip *InstallationProcess) StreamOutput(id string) error {
 			zap.String("container_id", id),
 			zap.Error(errors.WithStack(err)),
 		)
+	}
+
+	return nil
+}
+
+// Makes a HTTP request to the Panel instance notifying it that the server has
+// completed the installation process, and what the state of the server is. A boolean
+// value of "true" means everything was successful, "false" means something went
+// wrong and the server must be deleted and re-created.
+func (s *Server) SyncInstallState(successful bool) error {
+	r := api.NewRequester()
+
+	rerr, err := r.SendInstallationStatus(s.Uuid, successful)
+	if rerr != nil || err != nil {
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		return errors.New(rerr.String())
 	}
 
 	return nil

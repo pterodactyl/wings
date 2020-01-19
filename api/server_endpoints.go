@@ -97,3 +97,28 @@ func (r *PanelRequest) GetInstallationScript(uuid string) (InstallationScript, *
 
 	return res, nil, nil
 }
+
+type installRequest struct {
+	Successful bool `json:"successful"`
+}
+
+// Marks a server as being installed successfully or unsuccessfully on the panel.
+func (r *PanelRequest) SendInstallationStatus(uuid string, successful bool) (*RequestError, error) {
+	b, err := json.Marshal(installRequest{Successful: successful})
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	resp, err := r.Post(fmt.Sprintf("/servers/%s/install", uuid), b)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer resp.Body.Close()
+
+	r.Response = resp
+	if r.HasError() {
+		return r.Error(), nil
+	}
+
+	return nil, nil
+}
