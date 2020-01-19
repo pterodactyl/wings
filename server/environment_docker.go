@@ -292,6 +292,9 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 func (d *DockerEnvironment) Destroy() error {
 	ctx := context.Background()
 
+	// Avoid crash detection firing off.
+	d.Server.SetState(ProcessStoppingState)
+
 	return d.Client.ContainerRemove(ctx, d.Server.Uuid, types.ContainerRemoveOptions{
 		RemoveVolumes: true,
 		RemoveLinks:   false,
