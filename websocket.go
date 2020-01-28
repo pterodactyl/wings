@@ -187,17 +187,13 @@ func (rt *Router) routeWebsocket(w http.ResponseWriter, r *http.Request, ps http
 
 	// Listen for different events emitted by the server and respond to them appropriately.
 	go func() {
-		for {
-			select {
-			case d := <-eventChannel:
-				handler.SendJson(&WebsocketMessage{
-					Event: d.Topic,
-					Args:  []string{d.Data},
-				})
-			}
+		for d := range eventChannel {
+			handler.SendJson(&WebsocketMessage{
+				Event: d.Topic,
+				Args:  []string{d.Data},
+			})
 		}
 	}()
-
 	// Sit here and check the time to expiration on the JWT every 30 seconds until
 	// the token has expired. If we are within 3 minutes of the token expiring, send
 	// a notice over the socket that it is expiring soon. If it has expired, send that
