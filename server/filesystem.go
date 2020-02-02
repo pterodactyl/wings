@@ -66,7 +66,7 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 		// Range over all of the path parts and form directory pathings from the end
 		// moving up until we have a valid resolution or we run out of paths to try.
 		for k := range parts {
-			try = strings.Join(parts[:(len(parts)-k)], "/")
+			try = strings.Join(parts[:(len(parts) - k)], "/")
 
 			if !strings.HasPrefix(try, fs.Path()) {
 				break
@@ -87,7 +87,7 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 			return "", InvalidPathResolution
 		}
 
-		// If the nonExistentPathResoltion variable is not empty then the initial path requested
+		// If the nonExistentPathResolution variable is not empty then the initial path requested
 		// did not exist and we looped through the pathway until we found a match. At this point
 		// we've confirmed the first matched pathway exists in the root server directory, so we
 		// can go ahead and just return the path that was requested initially.
@@ -130,7 +130,7 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 		if size, err := fs.DirectorySize("/"); err != nil {
 			zap.S().Warnw("failed to determine directory size", zap.String("server", fs.Server.Uuid), zap.Error(err))
 		} else {
-			fs.Server.Cache.Set("disk_used", size, time.Second*60)
+			fs.Server.Cache.Set("disk_used", size, time.Second * 60)
 		}
 	}
 
