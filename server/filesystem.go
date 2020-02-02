@@ -66,7 +66,7 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 		// Range over all of the path parts and form directory pathings from the end
 		// moving up until we have a valid resolution or we run out of paths to try.
 		for k := range parts {
-			try = strings.Join(parts[:(len(parts) - k)], "/")
+			try = strings.Join(parts[:(len(parts)-k)], "/")
 
 			if !strings.HasPrefix(try, fs.Path()) {
 				break
@@ -130,7 +130,7 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 		if size, err := fs.DirectorySize("/"); err != nil {
 			zap.S().Warnw("failed to determine directory size", zap.String("server", fs.Server.Uuid), zap.Error(err))
 		} else {
-			fs.Server.Cache.Set("disk_used", size, time.Second * 60)
+			fs.Server.Cache.Set("disk_used", size, time.Second*60)
 		}
 	}
 
@@ -373,6 +373,9 @@ func (fs *Filesystem) chownDirectory(path string) error {
 		return errors.WithStack(err)
 	}
 
+	// Chown the directory itself.
+	os.Chown(cleaned, config.Get().System.User.Uid, config.Get().System.User.Gid)
+
 	files, err := ioutil.ReadDir(cleaned)
 	if err != nil {
 		return errors.WithStack(err)
@@ -387,6 +390,7 @@ func (fs *Filesystem) chownDirectory(path string) error {
 				fs.chownDirectory(p)
 			}(filepath.Join(cleaned, f.Name()))
 		} else {
+			// Chown the file.
 			os.Chown(filepath.Join(cleaned, f.Name()), fs.Configuration.User.Uid, fs.Configuration.User.Gid)
 		}
 	}
