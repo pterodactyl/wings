@@ -87,7 +87,7 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 			return "", InvalidPathResolution
 		}
 
-		// If the nonExistentPathResoltion variable is not empty then the initial path requested
+		// If the nonExistentPathResolution variable is not empty then the initial path requested
 		// did not exist and we looped through the pathway until we found a match. At this point
 		// we've confirmed the first matched pathway exists in the root server directory, so we
 		// can go ahead and just return the path that was requested initially.
@@ -373,6 +373,9 @@ func (fs *Filesystem) chownDirectory(path string) error {
 		return errors.WithStack(err)
 	}
 
+	// Chown the directory itself.
+	os.Chown(cleaned, config.Get().System.User.Uid, config.Get().System.User.Gid)
+
 	files, err := ioutil.ReadDir(cleaned)
 	if err != nil {
 		return errors.WithStack(err)
@@ -387,6 +390,7 @@ func (fs *Filesystem) chownDirectory(path string) error {
 				fs.chownDirectory(p)
 			}(filepath.Join(cleaned, f.Name()))
 		} else {
+			// Chown the file.
 			os.Chown(filepath.Join(cleaned, f.Name()), fs.Configuration.User.Uid, fs.Configuration.User.Gid)
 		}
 	}
