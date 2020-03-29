@@ -98,6 +98,9 @@ type BuildSettings struct {
 
 	// The amount of disk space in megabytes that a server is allowed to use.
 	DiskSpace int64 `json:"disk_space" yaml:"disk"`
+
+	// Sets which CPU threads can be used by the docker instance.
+	Threads string `json:"threads" yaml:"threads"`
 }
 
 // Converts the CPU limit for a server build into a number that can be better understood
@@ -294,7 +297,7 @@ func (s *Server) Sync() error {
 	}
 
 	// Update the data structure and persist it to the disk.
-	if err:= s.UpdateDataStructure(cfg.Settings, false); err != nil {
+	if err := s.UpdateDataStructure(cfg.Settings, false); err != nil {
 		return errors.WithStack(err)
 	}
 

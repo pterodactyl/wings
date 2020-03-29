@@ -40,6 +40,7 @@ func New(data []byte) (*Installer, error) {
 			IoWeight:    uint16(getInt(data, "build", "io")),
 			CpuLimit:    getInt(data, "build", "cpu"),
 			DiskSpace:   getInt(data, "build", "disk"),
+			Threads:     getString(data, "build", "threads"),
 		},
 		Allocations: server.Allocations{
 			Mappings: make(map[string][]int),
@@ -114,7 +115,6 @@ func (i *Installer) Execute() {
 		zap.S().Errorw("failed to chown server data directory", zap.String("server", i.Uuid()), zap.Error(errors.WithStack(err)))
 		return
 	}
-
 
 	zap.S().Debugw("creating required environment for server instance", zap.String("server", i.Uuid()))
 	if err := i.server.Environment.Create(); err != nil {

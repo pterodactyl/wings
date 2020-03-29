@@ -817,5 +817,6 @@ func (d *DockerEnvironment) getResourcesForServer() container.Resources {
 		CPUShares:         1024,
 		BlkioWeight:       d.Server.Build.IoWeight,
 		OomKillDisable:    &d.Server.Container.OomDisabled,
+		CpusetCpus:        d.Server.Build.Threads,
 	}
 }
