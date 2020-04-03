@@ -375,7 +375,13 @@ func (wsh *WebsocketHandler) HandleInbound(m WebsocketMessage) error {
 			case "stop":
 				return wsh.Server.Environment.Stop()
 			case "restart":
-				return nil
+				{
+					if err := wsh.Server.Environment.WaitForStop(60, false); err != nil {
+						return err
+					}
+
+					return wsh.Server.Environment.Start()
+				}
 			case "kill":
 				return wsh.Server.Environment.Terminate(os.Kill)
 			}
