@@ -267,6 +267,44 @@ func (d *DockerEnvironment) Stop() error {
 	return d.Client.ContainerStop(context.Background(), d.Server.Uuid, &t)
 }
 
+// Attempts to gracefully stop a server using the defined stop command. If the server
+// does not stop after seconds have passed, an error will be returned, or the instance
+// will be terminated forcefully depending on the value of the second argument.
+func (d *DockerEnvironment) WaitForStop(seconds int, terminate bool) error {
+	if d.Server.State == ProcessOfflineState {
+		return nil
+	}
+
+	if err := d.Stop(); err != nil {
+		return errors.WithStack(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(seconds)*time.Second)
+	defer cancel()
+
+	// Block the return of this function until the container as been marked as no
+	// longer running. If this wait does not end by the time seconds have passed,
+	// attempt to terminate the container, or return an error.
+	ok, errChan := d.Client.ContainerWait(ctx, d.Server.Uuid, container.WaitConditionNotRunning)
+	select {
+	case <-ctx.Done():
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			if terminate {
+				return d.Terminate(os.Kill)
+			}
+
+			return errors.WithStack(ctxErr)
+		}
+	case err := <-errChan:
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	case <-ok:
+	}
+
+	return nil
+}
+
 // Forcefully terminates the container using the signal passed through.
 func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 	ctx := context.Background()

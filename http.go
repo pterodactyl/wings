@@ -424,7 +424,7 @@ func (rt *Router) routeServerInstall(w http.ResponseWriter, r *http.Request, ps 
 	s := rt.GetServer(ps.ByName("server"))
 	defer r.Body.Close()
 
-	go func (serv *server.Server) {
+	go func(serv *server.Server) {
 		if err := serv.Install(); err != nil {
 			zap.S().Errorw("failed to execute server installation process", zap.String("server", s.Uuid), zap.Error(err))
 		}
@@ -475,6 +475,20 @@ func (rt *Router) routeCreateServer(w http.ResponseWriter, r *http.Request, ps h
 			zap.S().Errorw("failed to run install process for server", zap.String("server", i.Uuid()), zap.Error(err))
 		}
 	}(inst)
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (rt *Router) routeServerReinstall(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.GetServer(ps.ByName("server"))
+	defer r.Body.Close()
+
+	zap.S().Infow("beginning reinstall process for server", zap.String("server", s.Uuid))
+	go func(server *server.Server) {
+		if err := server.Reinstall(); err != nil {
+			zap.S().Errorw("failed to complete server reinstall process", zap.String("server", server.Uuid), zap.Error(err))
+		}
+	}(s)
 
 	w.WriteHeader(http.StatusAccepted)
 }
@@ -573,6 +587,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.POST("/api/servers/:server/files/delete", rt.AuthenticateRequest(rt.routeServerDeleteFile))
 	router.POST("/api/servers/:server/power", rt.AuthenticateRequest(rt.routeServerPower))
 	router.POST("/api/servers/:server/commands", rt.AuthenticateRequest(rt.routeServerSendCommand))
+	router.POST("/api/servers/:server/reinstall", rt.AuthenticateRequest(rt.routeServerReinstall))
 	router.PATCH("/api/servers/:server", rt.AuthenticateRequest(rt.routeServerUpdate))
 	router.DELETE("/api/servers/:server", rt.AuthenticateRequest(rt.routeServerDelete))
 

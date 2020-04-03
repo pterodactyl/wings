@@ -31,6 +31,11 @@ type Environment interface {
 	// not be returned.
 	Stop() error
 
+	// Waits for a server instance to stop gracefully. If the server is still detected
+	// as running after seconds, an error will be returned, or the server will be terminated
+	// depending on the value of the second argument.
+	WaitForStop(seconds int, terminate bool) error
+
 	// Determines if the server instance exists. For example, in a docker environment
 	// this should confirm that the container is created and in a bootable state. In
 	// a basic CLI environment this can probably just return true right away.

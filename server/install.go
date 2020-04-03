@@ -36,6 +36,19 @@ func (s *Server) Install() error {
 	return err
 }
 
+// Reinstalls a server's software by utilizing the install script for the server egg. This
+// does not touch any existing files for the server, other than what the script modifies.
+func (s *Server) Reinstall() error {
+	if s.State != ProcessOfflineState {
+		zap.S().Debugw("waiting for server instance to enter a stopped state", zap.String("server", s.Uuid))
+		if err := s.Environment.WaitForStop(10, true); err != nil {
+			return err
+		}
+	}
+
+	return s.Install()
+}
+
 // Internal installation function used to simplify reporting back to the Panel.
 func (s *Server) internalInstall() error {
 	script, rerr, err := api.NewRequester().GetInstallationScript(s.Uuid)
