@@ -518,7 +518,57 @@ func (rt *Router) routeServerReinstall(w http.ResponseWriter, r *http.Request, p
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (rt *Router) routeSystemInformation(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (rt *Router) routeServerBackup(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.GetServer(ps.ByName("server"))
+	defer r.Body.Close()
+
+	data := rt.ReaderToBytes(r.Body)
+	b, err := s.NewBackup(data)
+	if err != nil {
+		zap.S().Errorw("failed to create backup struct for server", zap.String("server", s.Uuid), zap.Error(err))
+
+		http.Error(w, "failed to update data structure", http.StatusInternalServerError)
+		return
+	}
+
+	zap.S().Infow("starting backup process for server", zap.String("server", s.Uuid), zap.String("backup", b.Uuid))
+	go func(bk *server.Backup) {
+		if err := bk.BackupAndNotify(); err != nil {
+			zap.S().Errorw("failed to generate backup for server", zap.Error(err))
+		} else {
+			zap.S().Infow("completed backup process for server", zap.String("backup", b.Uuid))
+		}
+	}(b)
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (rt *Router) routeServerBackup(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.GetServer(ps.ByName("server"))
+	defer r.Body.Close()
+
+	data := rt.ReaderToBytes(r.Body)
+	b, err := s.NewBackup(data)
+	if err != nil {
+		zap.S().Errorw("failed to create backup struct for server", zap.String("server", s.Uuid), zap.Error(err))
+
+		http.Error(w, "failed to update data structure", http.StatusInternalServerError)
+		return
+	}
+
+	zap.S().Infow("starting backup process for server", zap.String("server", s.Uuid), zap.String("backup", b.Uuid))
+	go func(bk *server.Backup) {
+		if err := bk.BackupAndNotify(); err != nil {
+			zap.S().Errorw("failed to generate backup for server", zap.Error(err))
+		} else {
+			zap.S().Infow("completed backup process for server", zap.String("backup", b.Uuid))
+		}
+	}(b)
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (rt *Router) routeSystemInformation(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	defer r.Body.Close()
 
 	s, err := GetSystemInformation()
@@ -841,6 +891,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.POST("/api/servers/:server/power", rt.AuthenticateRequest(rt.routeServerPower))
 	router.POST("/api/servers/:server/commands", rt.AuthenticateRequest(rt.routeServerSendCommand))
 	router.POST("/api/servers/:server/reinstall", rt.AuthenticateRequest(rt.routeServerReinstall))
+	router.POST("/api/servers/:server/backup", rt.AuthenticateRequest(rt.routeServerBackup))
 	router.PATCH("/api/servers/:server", rt.AuthenticateRequest(rt.routeServerUpdate))
 	router.DELETE("/api/servers/:server", rt.AuthenticateRequest(rt.routeServerDelete))
 

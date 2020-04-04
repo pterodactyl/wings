@@ -176,3 +176,29 @@ func (r *PanelRequest) SendTransferSuccess(uuid string) (*RequestError, error) {
 
 	return nil, nil
 }
+
+type BackupRequest struct {
+	Successful bool `json:"successful"`
+	Sha256Hash string `json:"sha256_hash"`
+	FileSize int64 `json:"file_size"`
+}
+
+func (r *PanelRequest) SendBackupStatus(uuid string, backup string, data BackupRequest) (*RequestError, error) {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	resp, err := r.Post(fmt.Sprintf("/servers/%s/backup/%s", uuid, backup), b)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer resp.Body.Close()
+
+	r.Response = resp
+	if r.HasError() {
+		return r.Error(), nil
+	}
+
+	return nil, nil
+}

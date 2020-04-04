@@ -69,6 +69,9 @@ type SystemConfiguration struct {
 	// Directory where server archives for transferring will be stored.
 	ArchiveDirectory string `default:"/srv/daemon-data/.archives" yaml:"archive_directory"`
 
+	// Directory where local backups will be stored on the machine.
+	BackupDirectory string `default:"/srv/daemon-data/.backups" yaml:"backup_directory"`
+
 	// The user that should own all of the server files, and be used for containers.
 	Username string `default:"pterodactyl" yaml:"username"`
 
