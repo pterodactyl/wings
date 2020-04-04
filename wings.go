@@ -144,6 +144,11 @@ func main() {
 		sftp.Initialize(c)
 	}
 
+	// Ensure the archive directory exists.
+	if err := os.MkdirAll(c.System.ArchiveDirectory, 0755); err != nil {
+		zap.S().Errorw("failed to create archive directory", zap.Error(err))
+	}
+
 	r := &Router{
 		token: c.AuthenticationToken,
 		upgrader: websocket.Upgrader{

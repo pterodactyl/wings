@@ -18,7 +18,7 @@ type Archiver struct {
 
 // ArchivePath returns the path to the server's archive.
 func (a *Archiver) ArchivePath() string {
-	return filepath.Join(config.Get().System.Data, ".archives", a.ArchiveName())
+	return filepath.Join(config.Get().System.ArchiveDirectory, a.ArchiveName())
 }
 
 // ArchiveName returns the name of the server's archive.
@@ -35,12 +35,12 @@ func (a *Archiver) Exists() bool {
 	return true
 }
 
-// Stat .
+// Stat stats the archive file.
 func (a *Archiver) Stat() (*Stat, error) {
 	return a.Server.Filesystem.unsafeStat(a.ArchivePath())
 }
 
-// Archive creates an archive of the server.
+// Archive creates an archive of the server and deletes the previous one.
 func (a *Archiver) Archive() error {
 	path := a.Server.Filesystem.Path()
 
@@ -53,6 +53,18 @@ func (a *Archiver) Archive() error {
 
 	for _, file := range fileInfo {
 		files = append(files, filepath.Join(path, file.Name()))
+	}
+
+	stat, err := a.Stat()
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// Check if the file exists.
+	if stat != nil {
+		if err := os.Remove(a.ArchivePath()); err != nil {
+			return err
+		}
 	}
 
 	return archiver.NewTarGz().Archive(files, a.ArchivePath())
