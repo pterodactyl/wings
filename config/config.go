@@ -66,6 +66,9 @@ type SystemConfiguration struct {
 	// Directory where the server data is stored at.
 	Data string `default:"/srv/daemon-data" yaml:"data"`
 
+	// Directory where local backups will be stored on the machine.
+	BackupDirectory string `default:"/srv/daemon-data/.backups" yaml:"backup_directory"`
+
 	// The user that should own all of the server files, and be used for containers.
 	Username string `default:"pterodactyl" yaml:"username"`
 
