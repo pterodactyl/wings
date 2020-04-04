@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/buger/jsonparser"
@@ -15,8 +17,10 @@ import (
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -546,7 +550,7 @@ func (rt *Router) routeServerDelete(w http.ResponseWriter, r *http.Request, ps h
 	}
 
 	// Once the environment is terminated, remove the server files from the system. This is
-	// done in a seperate process since failure is not the end of the world and can be
+	// done in a separate process since failure is not the end of the world and can be
 	// manually cleaned up after the fact.
 	//
 	// In addition, servers with large amounts of files can take some time to finish deleting
@@ -667,7 +671,88 @@ func (rt *Router) routeGetServerArchive(w http.ResponseWriter, r *http.Request, 
 }
 
 func (rt *Router) routeIncomingTransfer(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	w.WriteHeader(204)
+	zap.S().Debug("incoming transfer from panel!")
+	defer r.Body.Close()
+
+	go func(data []byte) {
+		serverID, _ := jsonparser.GetString(data, "server_id")
+		url, _ := jsonparser.GetString(data, "url")
+		token, _ := jsonparser.GetString(data, "token")
+
+		// Create an http client with no timeout.
+		client := &http.Client{Timeout: 0}
+
+		// Make a new GET request to the URL the panel gave us.
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			zap.S().Errorw("failed to create http request", zap.Error(err))
+			return
+		}
+
+		// Add the authorization header.
+		req.Header.Set("Authorization", token)
+
+		// Execute the http request.
+		res, err := client.Do(req)
+		if err != nil {
+			zap.S().Errorw("failed to send http request", zap.Error(err))
+			return
+		}
+		defer res.Body.Close()
+
+		if res.StatusCode != 200 {
+			body, err := ioutil.ReadAll(res.Body)
+			if err != nil {
+				zap.S().Errorw("failed to read response body", zap.Int("status", res.StatusCode), zap.Error(err))
+				return
+			}
+
+			zap.S().Errorw("failed to request server archive", zap.Int("status", res.StatusCode), zap.String("body", string(body)))
+			return
+		}
+
+		archivePath := filepath.Join(config.Get().System.ArchiveDirectory, serverID + ".tar.gz")
+
+		// Create the file
+		file, err := os.Create(archivePath)
+		if err != nil {
+			zap.S().Errorw("failed to open file on disk", zap.Error(err))
+			return
+		}
+
+		_, err = io.Copy(file, res.Body)
+		if err != nil {
+			zap.S().Errorw("failed to copy file to disk", zap.Error(err))
+			return
+		}
+
+		if err := file.Close(); err != nil {
+			zap.S().Errorw("failed to close archive file", zap.Error(err))
+			return
+		}
+
+		file, err = os.Open(archivePath)
+		if err != nil {
+			zap.S().Errorw("failed to open file on disk", zap.Error(err))
+			return
+		}
+		defer file.Close()
+
+		hash := sha256.New()
+		if _, err := io.Copy(hash, file); err != nil {
+			zap.S().Errorw("failed to copy file for checksum verification", zap.Error(err))
+			return
+		}
+
+		if hex.EncodeToString(hash.Sum(nil)) != res.Header.Get("X-Checksum") {
+			zap.S().Errorw("checksum failed verification")
+			return
+		}
+
+		zap.S().Infow("server archive transfer was successful", zap.String("server", serverID))
+	}(rt.ReaderToBytes(r.Body))
+
+	w.WriteHeader(202)
 }
 
 func (rt *Router) ReaderToBytes(r io.Reader) []byte {

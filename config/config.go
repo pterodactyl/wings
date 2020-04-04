@@ -57,7 +57,7 @@ type Configuration struct {
 	PanelLocation string `yaml:"remote"`
 
 	// The token used when performing operations. Requests to this instance must
-	// validate aganist it.
+	// validate against it.
 	AuthenticationToken string `yaml:"token"`
 }
 
