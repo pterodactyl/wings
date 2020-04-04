@@ -33,7 +33,7 @@ type Router struct {
 	upgrader websocket.Upgrader
 
 	// The authentication token defined in the config.yml file that allows
-	// a request to perform any action aganist the daemon.
+	// a request to perform any action against the daemon.
 	token string
 }
 
@@ -79,7 +79,7 @@ func (rt *Router) AuthenticateToken(h httprouter.Handle) httprouter.Handle {
 			return
 		}
 
-		// Try to match the request aganist the global token for the Daemon, regardless
+		// Try to match the request against the global token for the Daemon, regardless
 		// of the permission type. If nothing is matched we will fall through to the Panel
 		// API to try and validate permissions for a server.
 		if auth[1] == rt.token {
@@ -156,7 +156,7 @@ func (rt *Router) routeServerPower(w http.ResponseWriter, r *http.Request, ps ht
 		return
 	}
 
-	// Because we route all of the actual bootup process to a seperate thread we need to
+	// Because we route all of the actual bootup process to a separate thread we need to
 	// check the suspension status here, otherwise the user will hit the endpoint and then
 	// just sit there wondering why it returns a success but nothing actually happens.
 	//
@@ -606,6 +606,25 @@ func (rt *Router) routeRequestServerArchive(w http.ResponseWriter, _ *http.Reque
 }
 
 func (rt *Router) routeGetServerArchive(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	auth := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
+
+	if len(auth) != 2 || auth[0] != "Bearer" {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		http.Error(w, "authorization failed", http.StatusUnauthorized)
+		return
+	}
+
+	token, err := ParseArchiveJWT([]byte(auth[1]))
+	if err != nil {
+		http.Error(w, "authorization failed", http.StatusUnauthorized)
+		return
+	}
+
+	if token.Subject != ps.ByName("server") {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	s := rt.GetServer(ps.ByName("server"))
 
 	st, err := s.Archiver.Stat()
@@ -647,6 +666,10 @@ func (rt *Router) routeGetServerArchive(w http.ResponseWriter, r *http.Request, 
 	bufio.NewReader(file).WriteTo(w)
 }
 
+func (rt *Router) routeIncomingTransfer(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.WriteHeader(204)
+}
+
 func (rt *Router) ReaderToBytes(r io.Reader) []byte {
 	buf := bytes.Buffer{}
 	buf.ReadFrom(r)
@@ -684,7 +707,9 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.DELETE("/api/servers/:server", rt.AuthenticateRequest(rt.routeServerDelete))
 
 	router.POST("/api/servers/:server/archive", rt.AuthenticateRequest(rt.routeRequestServerArchive))
-	router.GET("/api/servers/:server/archive", rt.AuthenticateRequest(rt.routeGetServerArchive))
+	router.GET("/api/servers/:server/archive", rt.AuthenticateServer(rt.routeGetServerArchive))
+
+	router.POST("/api/transfer", rt.AuthenticateToken(rt.routeIncomingTransfer))
 
 	return router
 }
