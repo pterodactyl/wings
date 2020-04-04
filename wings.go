@@ -54,7 +54,7 @@ func main() {
 	config.Set(c)
 	config.SetDebugViaFlag(debug)
 
-	zap.S().Infof("checking for pterodactyl system user \"%s\"", c.System.User)
+	zap.S().Infof("checking for pterodactyl system user \"%s\"", c.System.Username)
 	if su, err := c.EnsurePterodactylUser(); err != nil {
 		zap.S().Panicw("failed to create pterodactyl system user", zap.Error(err))
 		return

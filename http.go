@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/server"
@@ -18,6 +19,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Retrieves a server out of the collection by UUID.
@@ -60,7 +62,7 @@ func (rt *Router) AttachAccessControlHeaders(w http.ResponseWriter, r *http.Requ
 	return w, r, ps
 }
 
-// Authenticates the request token aganist the given permission string, ensuring that
+// Authenticates the request token against the given permission string, ensuring that
 // if it is a server permission, the token has control over that server. If it is a global
 // token, this will ensure that the request is using a properly signed global token.
 func (rt *Router) AuthenticateToken(h httprouter.Handle) httprouter.Handle {
@@ -207,7 +209,7 @@ func (rt *Router) routeServerPower(w http.ResponseWriter, r *http.Request, ps ht
 					zap.String("action", "restart"),
 				)
 			}
-			break;
+			break
 		case "kill":
 			if err := s.Environment.Terminate(os.Kill); err != nil {
 				zap.S().Errorw(
@@ -265,7 +267,7 @@ func (rt *Router) routeServerFileRead(w http.ResponseWriter, r *http.Request, ps
 		return
 	}
 
-	f, err := os.OpenFile(cleaned, os.O_RDONLY, 0)
+	f, err := os.Open(cleaned)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			zap.S().Errorw("failed to open file for reading", zap.String("path", ps.ByName("path")), zap.String("server", s.Uuid), zap.Error(err))
@@ -465,7 +467,7 @@ func (rt *Router) routeServerUpdate(w http.ResponseWriter, r *http.Request, ps h
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (rt *Router) routeCreateServer(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (rt *Router) routeCreateServer(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	defer r.Body.Close()
 
 	inst, err := installer.New(rt.ReaderToBytes(r.Body))
@@ -510,7 +512,7 @@ func (rt *Router) routeServerReinstall(w http.ResponseWriter, r *http.Request, p
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (rt *Router) routeSystemInformation(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (rt *Router) routeSystemInformation(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	defer r.Body.Close()
 
 	s, err := GetSystemInformation()
@@ -572,6 +574,79 @@ func (rt *Router) routeServerDelete(w http.ResponseWriter, r *http.Request, ps h
 	w.WriteHeader(http.StatusAccepted)
 }
 
+func (rt *Router) routeRequestServerArchive(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
+	s := rt.GetServer(ps.ByName("server"))
+
+	go func() {
+		start := time.Now()
+
+		if err := s.Archiver.Archive(); err != nil {
+			zap.S().Errorw("failed to get archive for server", zap.String("server", s.Uuid), zap.Error(err))
+			return
+		}
+
+		zap.S().Debugw("successfully created archive for server", zap.String("server", s.Uuid), zap.Duration("time", time.Now().Sub(start).Round(time.Microsecond)))
+
+		r := api.NewRequester()
+		rerr, err := r.SendArchiveStatus(s.Uuid, true)
+		if rerr != nil || err != nil {
+			if err != nil {
+				zap.S().Errorw("failed to notify panel with archive status", zap.String("server", s.Uuid), zap.Error(err))
+				return
+			}
+
+			zap.S().Errorw("panel returned an error when sending the archive status", zap.String("server", s.Uuid), zap.Error(errors.New(rerr.String())))
+			return
+		}
+
+		zap.S().Debugw("successfully notified panel about archive status", zap.String("server", s.Uuid))
+	}()
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (rt *Router) routeGetServerArchive(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	s := rt.GetServer(ps.ByName("server"))
+
+	st, err := s.Archiver.Stat()
+	if err != nil {
+		if !os.IsNotExist(err) {
+			zap.S().Errorw("failed to stat archive for reading", zap.String("server", s.Uuid), zap.Error(err))
+			http.Error(w, "failed to stat archive", http.StatusInternalServerError)
+			return
+		}
+
+		http.NotFound(w, r)
+		return
+	}
+
+	checksum, err := s.Archiver.Checksum()
+	if err != nil {
+		zap.S().Errorw("failed to calculate checksum", zap.String("server", s.Uuid), zap.Error(err))
+		http.Error(w, "failed to calculate checksum", http.StatusInternalServerError)
+		return
+	}
+
+	file, err := os.Open(s.Archiver.ArchivePath())
+	if err != nil {
+		if !os.IsNotExist(err) {
+			zap.S().Errorw("failed to open archive for reading", zap.String("server", s.Uuid), zap.Error(err))
+		}
+
+		http.Error(w, "failed to open archive", http.StatusInternalServerError)
+		return
+	}
+	defer file.Close()
+
+	w.Header().Set("X-Checksum", checksum)
+	w.Header().Set("X-Mime-Type", st.Mimetype)
+	w.Header().Set("Content-Length", strconv.Itoa(int(st.Info.Size())))
+	w.Header().Set("Content-Disposition", "attachment; filename="+s.Archiver.ArchiveName())
+	w.Header().Set("Content-Type", "application/octet-stream")
+
+	bufio.NewReader(file).WriteTo(w)
+}
+
 func (rt *Router) ReaderToBytes(r io.Reader) []byte {
 	buf := bytes.Buffer{}
 	buf.ReadFrom(r)
@@ -607,6 +682,9 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router.POST("/api/servers/:server/reinstall", rt.AuthenticateRequest(rt.routeServerReinstall))
 	router.PATCH("/api/servers/:server", rt.AuthenticateRequest(rt.routeServerUpdate))
 	router.DELETE("/api/servers/:server", rt.AuthenticateRequest(rt.routeServerDelete))
+
+	router.POST("/api/servers/:server/archive", rt.AuthenticateRequest(rt.routeRequestServerArchive))
+	router.GET("/api/servers/:server/archive", rt.AuthenticateRequest(rt.routeGetServerArchive))
 
 	return router
 }

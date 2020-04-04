@@ -27,11 +27,11 @@ func GetServers() *Collection {
 // High level definition for a server instance being controlled by Wings.
 type Server struct {
 	// The unique identifier for the server that should be used when referencing
-	// it aganist the Panel API (and internally). This will be used when naming
+	// it against the Panel API (and internally). This will be used when naming
 	// docker containers as well as in log output.
 	Uuid string `json:"uuid"`
 
-	// Wether or not the server is in a suspended state. Suspended servers cannot
+	// Whether or not the server is in a suspended state. Suspended servers cannot
 	// be started or modified except in certain scenarios by an admin user.
 	Suspended bool `json:"suspended"`
 
@@ -45,6 +45,7 @@ type Server struct {
 	// server process.
 	EnvVars map[string]string `json:"environment" yaml:"environment"`
 
+	Archiver       Archiver       `json:"-" yaml:"-"`
 	CrashDetection CrashDetection `json:"crash_detection" yaml:"crash_detection"`
 	Build          BuildSettings  `json:"build"`
 	Allocations    Allocations    `json:"allocations"`
@@ -205,7 +206,7 @@ func (s *Server) Init() {
 	s.mutex = &sync.Mutex{}
 }
 
-// Initalizes a server using a data byte array. This will be marshaled into the
+// Initializes a server using a data byte array. This will be marshaled into the
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
 func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, error) {
@@ -231,6 +232,9 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	}
 
 	s.Cache = cache.New(time.Minute*10, time.Minute*15)
+	s.Archiver = Archiver{
+		Server: s,
+	}
 	s.Filesystem = Filesystem{
 		Configuration: cfg,
 		Server:        s,

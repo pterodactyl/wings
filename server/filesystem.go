@@ -299,14 +299,18 @@ func (fs *Filesystem) Stat(p string) (*Stat, error) {
 		return nil, err
 	}
 
-	s, err := os.Stat(cleaned)
+	return fs.unsafeStat(cleaned)
+}
+
+func (fs *Filesystem) unsafeStat(p string) (*Stat, error) {
+	s, err := os.Stat(p)
 	if err != nil {
 		return nil, err
 	}
 
 	var m = "inode/directory"
 	if !s.IsDir() {
-		m, _, err = mimetype.DetectFile(cleaned)
+		m, _, err = mimetype.DetectFile(p)
 		if err != nil {
 			return nil, err
 		}
