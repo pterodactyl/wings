@@ -10,6 +10,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
+	"github.com/mholt/archiver/v3"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
@@ -468,6 +469,7 @@ func (rt *Router) routeServerUpdate(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
+	zap.S().Debugw("updated server's data structure", zap.String("server", s.Uuid))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -700,6 +702,7 @@ func (rt *Router) routeIncomingTransfer(w http.ResponseWriter, r *http.Request, 
 		}
 		defer res.Body.Close()
 
+		// Handle non-200 status codes.
 		if res.StatusCode != 200 {
 			body, err := ioutil.ReadAll(res.Body)
 			if err != nil {
@@ -711,45 +714,95 @@ func (rt *Router) routeIncomingTransfer(w http.ResponseWriter, r *http.Request, 
 			return
 		}
 
+		// Get the path to the archive.
 		archivePath := filepath.Join(config.Get().System.ArchiveDirectory, serverID + ".tar.gz")
 
-		// Create the file
+		// Create the file.
 		file, err := os.Create(archivePath)
 		if err != nil {
 			zap.S().Errorw("failed to open file on disk", zap.Error(err))
 			return
 		}
 
+		// Copy the file.
 		_, err = io.Copy(file, res.Body)
 		if err != nil {
 			zap.S().Errorw("failed to copy file to disk", zap.Error(err))
 			return
 		}
 
+		// Close the file so it can be opened to verify the checksum.
 		if err := file.Close(); err != nil {
 			zap.S().Errorw("failed to close archive file", zap.Error(err))
 			return
 		}
+		zap.S().Debug("server archive has been downloaded, computing checksum..", zap.String("server", serverID))
 
+		// Open the archive file for computing a checksum.
 		file, err = os.Open(archivePath)
 		if err != nil {
 			zap.S().Errorw("failed to open file on disk", zap.Error(err))
 			return
 		}
-		defer file.Close()
 
+		// Compute the sha256 checksum of the file.
 		hash := sha256.New()
 		if _, err := io.Copy(hash, file); err != nil {
 			zap.S().Errorw("failed to copy file for checksum verification", zap.Error(err))
 			return
 		}
 
+		// Verify the two checksums.
 		if hex.EncodeToString(hash.Sum(nil)) != res.Header.Get("X-Checksum") {
 			zap.S().Errorw("checksum failed verification")
 			return
 		}
 
+		// Close the file.
+		if err := file.Close(); err != nil {
+			zap.S().Errorw("failed to close archive file", zap.Error(err))
+			return
+		}
+
 		zap.S().Infow("server archive transfer was successful", zap.String("server", serverID))
+
+		// Get the server data from the request.
+		serverData, t, _, _ := jsonparser.Get(data, "server")
+		if t != jsonparser.Object {
+			zap.S().Errorw("invalid server data passed in request")
+			return
+		}
+
+		zap.S().Debug(string(serverData))
+
+		// Create a new server installer (note this does not execute the install script)
+		i, err := installer.New(serverData)
+		if err != nil {
+			zap.S().Warnw("failed to validate the received server data", zap.Error(err))
+			return
+		}
+
+		// Add the server to the collection.
+		server.GetServers().Add(i.Server())
+
+		// Create the server's environment (note this does not execute the install script)
+		i.Execute()
+
+		// Un-archive the archive. That sounds weird..
+		archiver.NewTarGz().Unarchive(archivePath, i.Server().Filesystem.Path())
+
+		rerr, err := api.NewRequester().SendTransferSuccess(serverID)
+		if rerr != nil || err != nil {
+			if err != nil {
+				zap.S().Errorw("failed to notify panel with archive status", zap.String("server", serverID), zap.Error(err))
+				return
+			}
+
+			zap.S().Errorw("panel returned an error when sending the archive status", zap.String("server", serverID), zap.Error(errors.New(rerr.String())))
+			return
+		}
+
+		zap.S().Debugw("successfully notified panel about transfer success", zap.String("server", serverID))
 	}(rt.ReaderToBytes(r.Body))
 
 	w.WriteHeader(202)

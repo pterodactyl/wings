@@ -146,3 +146,33 @@ func (r *PanelRequest) SendArchiveStatus(uuid string, successful bool) (*Request
 
 	return nil, nil
 }
+
+func (r *PanelRequest) SendTransferFailure(uuid string) (*RequestError, error) {
+	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/failure", uuid))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer resp.Body.Close()
+
+	r.Response = resp
+	if r.HasError() {
+		return r.Error(), nil
+	}
+
+	return nil, nil
+}
+
+func (r *PanelRequest) SendTransferSuccess(uuid string) (*RequestError, error) {
+	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/success", uuid))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer resp.Body.Close()
+
+	r.Response = resp
+	if r.HasError() {
+		return r.Error(), nil
+	}
+
+	return nil, nil
+}

@@ -371,7 +371,7 @@ func (s *Server) SetState(state string) error {
 	//
 	// In the event that we have passed the thresholds, don't do anything, otherwise
 	// automatically attempt to start the process back up for the user. This is done in a
-	// seperate thread as to not block any actions currently taking place in the flow
+	// separate thread as to not block any actions currently taking place in the flow
 	// that called this function.
 	if (prevState == ProcessStartingState || prevState == ProcessRunningState) && s.State == ProcessOfflineState {
 		zap.S().Infow("detected server as entering a potentially crashed state; running handler", zap.String("server", s.Uuid))
