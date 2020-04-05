@@ -565,6 +565,12 @@ func (rt *Router) routeServerDelete(w http.ResponseWriter, r *http.Request, ps h
 	// to start it while this process is running.
 	s.Suspended = true
 
+	// Delete the server's archive if it exists.
+	if err := s.Archiver.DeleteIfExists(); err != nil {
+		zap.S().Errorw("failed to delete server's archive", zap.String("server", s.Uuid), zap.Error(err))
+		// We intentionally don't return here, if the archive fails to delete, the server can still be removed.
+	}
+
 	zap.S().Infow("processing server deletion request", zap.String("server", s.Uuid))
 	// Destroy the environment; in Docker this will handle a running container and
 	// forcibly terminate it before removing the container, so we do not need to handle

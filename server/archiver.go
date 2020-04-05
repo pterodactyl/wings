@@ -70,6 +70,23 @@ func (a *Archiver) Archive() error {
 	return archiver.NewTarGz().Archive(files, a.ArchivePath())
 }
 
+// DeleteIfExists deletes the archive if it exists.
+func (a *Archiver) DeleteIfExists() error {
+	stat, err := a.Stat()
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// Check if the file exists.
+	if stat != nil {
+		if err := os.Remove(a.ArchivePath()); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Checksum computes a SHA256 checksum of the server's archive.
 func (a *Archiver) Checksum() (string, error) {
 	file, err := os.Open(a.ArchivePath())
