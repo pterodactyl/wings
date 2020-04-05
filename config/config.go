@@ -57,7 +57,7 @@ type Configuration struct {
 	PanelLocation string `yaml:"remote"`
 
 	// The token used when performing operations. Requests to this instance must
-	// validate aganist it.
+	// validate against it.
 	AuthenticationToken string `yaml:"token"`
 }
 
@@ -65,6 +65,9 @@ type Configuration struct {
 type SystemConfiguration struct {
 	// Directory where the server data is stored at.
 	Data string `default:"/srv/daemon-data" yaml:"data"`
+
+	// Directory where server archives for transferring will be stored.
+	ArchiveDirectory string `default:"/srv/daemon-data/.archives" yaml:"archive_directory"`
 
 	// Directory where local backups will be stored on the machine.
 	BackupDirectory string `default:"/srv/daemon-data/.backups" yaml:"backup_directory"`

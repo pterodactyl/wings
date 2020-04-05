@@ -54,7 +54,7 @@ func main() {
 	config.Set(c)
 	config.SetDebugViaFlag(debug)
 
-	zap.S().Infof("checking for pterodactyl system user \"%s\"", c.System.User)
+	zap.S().Infof("checking for pterodactyl system user \"%s\"", c.System.Username)
 	if su, err := c.EnsurePterodactylUser(); err != nil {
 		zap.S().Panicw("failed to create pterodactyl system user", zap.Error(err))
 		return
@@ -142,6 +142,11 @@ func main() {
 	// If the SFTP subsystem should be started, do so now.
 	if c.System.Sftp.UseInternalSystem {
 		sftp.Initialize(c)
+	}
+
+	// Ensure the archive directory exists.
+	if err := os.MkdirAll(c.System.ArchiveDirectory, 0755); err != nil {
+		zap.S().Errorw("failed to create archive directory", zap.Error(err))
 	}
 
 	r := &Router{

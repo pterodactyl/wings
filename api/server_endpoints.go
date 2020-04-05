@@ -123,6 +123,60 @@ func (r *PanelRequest) SendInstallationStatus(uuid string, successful bool) (*Re
 	return nil, nil
 }
 
+type archiveRequest struct {
+	Successful bool `json:"successful"`
+}
+
+func (r *PanelRequest) SendArchiveStatus(uuid string, successful bool) (*RequestError, error) {
+	b, err := json.Marshal(archiveRequest{Successful: successful})
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	resp, err := r.Post(fmt.Sprintf("/servers/%s/archive", uuid), b)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer resp.Body.Close()
+
+	r.Response = resp
+	if r.HasError() {
+		return r.Error(), nil
+	}
+
+	return nil, nil
+}
+
+func (r *PanelRequest) SendTransferFailure(uuid string) (*RequestError, error) {
+	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/failure", uuid))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer resp.Body.Close()
+
+	r.Response = resp
+	if r.HasError() {
+		return r.Error(), nil
+	}
+
+	return nil, nil
+}
+
+func (r *PanelRequest) SendTransferSuccess(uuid string) (*RequestError, error) {
+	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/success", uuid))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer resp.Body.Close()
+
+	r.Response = resp
+	if r.HasError() {
+		return r.Error(), nil
+	}
+
+	return nil, nil
+}
+
 type BackupRequest struct {
 	Successful bool `json:"successful"`
 	Sha256Hash string `json:"sha256_hash"`

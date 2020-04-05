@@ -6,7 +6,6 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"os"
 )
 
 // Merges data passed through in JSON form into the existing server object.
@@ -53,6 +52,11 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 		}
 	} else {
 		s.Suspended = v
+		if s.Suspended {
+			zap.S().Debugw("server has been suspended", zap.String("server", s.Uuid))
+		} else {
+			zap.S().Debugw("server has been unsuspended", zap.String("server", s.Uuid))
+		}
 	}
 
 	// Environment and Mappings should be treated as a full update at all times, never a
@@ -101,9 +105,17 @@ func (s *Server) runBackgroundActions() {
 		if server.Suspended && server.State != ProcessOfflineState {
 			zap.S().Infow("server suspended with running process state, terminating now", zap.String("server", server.Uuid))
 
-			if err := server.Environment.Terminate(os.Kill); err != nil {
+			/*if err := server.Environment.Terminate(os.Kill); err != nil {
 				zap.S().Warnw(
 					"failed to terminate server environment after seeing suspension",
+					zap.String("server", server.Uuid),
+					zap.Error(err),
+				)
+			}*/
+
+			if err := server.Environment.WaitForStop(10, true); err != nil {
+				zap.S().Warnw(
+					"failed to stop server environment after seeing suspension",
 					zap.String("server", server.Uuid),
 					zap.Error(err),
 				)
