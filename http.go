@@ -709,6 +709,27 @@ func (rt *Router) routeIncomingTransfer(w http.ResponseWriter, r *http.Request, 
 		// Create an http client with no timeout.
 		client := &http.Client{Timeout: 0}
 
+		hasError := true
+		defer func() {
+			if !hasError {
+				return
+			}
+
+			zap.S().Errorw("server transfer has failed", zap.String("server", serverID))
+			rerr, err := api.NewRequester().SendTransferFailure(serverID)
+			if rerr != nil || err != nil {
+				if err != nil {
+					zap.S().Errorw("failed to notify panel with transfer failure", zap.String("server", serverID), zap.Error(err))
+					return
+				}
+
+				zap.S().Errorw("panel returned an error when notifying of a transfer failure", zap.String("server", serverID), zap.Error(errors.New(rerr.String())))
+				return
+			}
+
+			zap.S().Debugw("successfully notified panel about transfer failure", zap.String("server", serverID))
+		}()
+
 		// Make a new GET request to the URL the panel gave us.
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
@@ -741,6 +762,20 @@ func (rt *Router) routeIncomingTransfer(w http.ResponseWriter, r *http.Request, 
 
 		// Get the path to the archive.
 		archivePath := filepath.Join(config.Get().System.ArchiveDirectory, serverID + ".tar.gz")
+
+		// Check if the archive already exists and delete it if it does.
+		_, err = os.Stat(archivePath)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				zap.S().Errorw("failed to stat file", zap.Error(err))
+				return
+			}
+		} else {
+			if err := os.Remove(archivePath); err != nil {
+				zap.S().Errorw("failed to delete old file", zap.Error(err))
+				return
+			}
+		}
 
 		// Create the file.
 		file, err := os.Create(archivePath)
@@ -819,15 +854,16 @@ func (rt *Router) routeIncomingTransfer(w http.ResponseWriter, r *http.Request, 
 		rerr, err := api.NewRequester().SendTransferSuccess(serverID)
 		if rerr != nil || err != nil {
 			if err != nil {
-				zap.S().Errorw("failed to notify panel with archive status", zap.String("server", serverID), zap.Error(err))
+				zap.S().Errorw("failed to notify panel with transfer success", zap.String("server", serverID), zap.Error(err))
 				return
 			}
 
-			zap.S().Errorw("panel returned an error when sending the archive status", zap.String("server", serverID), zap.Error(errors.New(rerr.String())))
+			zap.S().Errorw("panel returned an error when notifying of a transfer success", zap.String("server", serverID), zap.Error(errors.New(rerr.String())))
 			return
 		}
 
 		zap.S().Debugw("successfully notified panel about transfer success", zap.String("server", serverID))
+		hasError = false
 	}(rt.ReaderToBytes(r.Body))
 
 	w.WriteHeader(202)
