@@ -37,6 +37,23 @@ func (s *Server) NewBackup(data []byte) (*Backup, error) {
 	return backup, nil
 }
 
+// Locates the backup for a server and returns the local path. This will obviously only
+// work if the backup was created as a local backup.
+func (s *Server) LocateBackup(uuid string) (string, os.FileInfo, error) {
+	p := path.Join(config.Get().System.BackupDirectory, s.Uuid, uuid + ".tar.gz")
+
+	st, err := os.Stat(p)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if st.IsDir() {
+		return "", nil, errors.New("invalid archive found; is directory")
+	}
+
+	return p, st, nil
+}
+
 // Ensures that the local backup destination for files exists.
 func (b *Backup) ensureLocalBackupLocation() error {
 	if _, err := os.Stat(b.localDirectory); err != nil {

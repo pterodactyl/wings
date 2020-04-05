@@ -613,6 +613,7 @@ func (rt *Router) ConfigureRouter() *httprouter.Router {
 	})
 
 	router.GET("/", rt.routeIndex)
+	router.GET("/download/backup", rt.routeDownloadBackup)
 	router.GET("/api/system", rt.AuthenticateToken(rt.routeSystemInformation))
 	router.GET("/api/servers", rt.AuthenticateToken(rt.routeAllServers))
 	router.GET("/api/servers/:server", rt.AuthenticateRequest(rt.routeServer))
