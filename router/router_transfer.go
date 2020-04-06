@@ -44,7 +44,7 @@ func getServerArchive(c *gin.Context) {
 
 	if token.Subject != c.Param("server") {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"error": "( ..•˘___˘• .. )",
+			"error": "( .. •˘___˘• .. )",
 		})
 		return
 	}
