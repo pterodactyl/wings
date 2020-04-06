@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // Retrieves a server out of the collection by UUID.
@@ -94,62 +93,6 @@ func (rt *Router) AuthenticateToken(h httprouter.Handle) httprouter.Handle {
 		http.Error(w, "not implemented", http.StatusNotImplemented)
 		return
 	}
-}
-
-func (rt *Router) routeServerBackup(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	s := rt.GetServer(ps.ByName("server"))
-	defer r.Body.Close()
-
-	data := rt.ReaderToBytes(r.Body)
-	b, err := s.NewBackup(data)
-	if err != nil {
-		zap.S().Errorw("failed to create backup struct for server", zap.String("server", s.Uuid), zap.Error(err))
-
-		http.Error(w, "failed to update data structure", http.StatusInternalServerError)
-		return
-	}
-
-	zap.S().Infow("starting backup process for server", zap.String("server", s.Uuid), zap.String("backup", b.Uuid))
-	go func(bk *server.Backup) {
-		if err := bk.BackupAndNotify(); err != nil {
-			zap.S().Errorw("failed to generate backup for server", zap.Error(err))
-		} else {
-			zap.S().Infow("completed backup process for server", zap.String("backup", b.Uuid))
-		}
-	}(b)
-
-	w.WriteHeader(http.StatusAccepted)
-}
-
-func (rt *Router) routeRequestServerArchive(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
-	s := rt.GetServer(ps.ByName("server"))
-
-	go func() {
-		start := time.Now()
-
-		if err := s.Archiver.Archive(); err != nil {
-			zap.S().Errorw("failed to get archive for server", zap.String("server", s.Uuid), zap.Error(err))
-			return
-		}
-
-		zap.S().Debugw("successfully created archive for server", zap.String("server", s.Uuid), zap.Duration("time", time.Now().Sub(start).Round(time.Microsecond)))
-
-		r := api.NewRequester()
-		rerr, err := r.SendArchiveStatus(s.Uuid, true)
-		if rerr != nil || err != nil {
-			if err != nil {
-				zap.S().Errorw("failed to notify panel with archive status", zap.String("server", s.Uuid), zap.Error(err))
-				return
-			}
-
-			zap.S().Errorw("panel returned an error when sending the archive status", zap.String("server", s.Uuid), zap.Error(errors.New(rerr.String())))
-			return
-		}
-
-		zap.S().Debugw("successfully notified panel about archive status", zap.String("server", s.Uuid))
-	}()
-
-	w.WriteHeader(http.StatusAccepted)
 }
 
 func (rt *Router) routeGetServerArchive(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -396,9 +339,6 @@ func (rt *Router) ReaderToBytes(r io.Reader) []byte {
 func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router := httprouter.New()
 
-	router.POST("/api/servers/:server/backup", rt.AuthenticateRequest(rt.routeServerBackup))
-
-	router.POST("/api/servers/:server/archive", rt.AuthenticateRequest(rt.routeRequestServerArchive))
 	router.GET("/api/servers/:server/archive", rt.AuthenticateServer(rt.routeGetServerArchive))
 
 	router.POST("/api/transfer", rt.AuthenticateToken(rt.routeIncomingTransfer))

@@ -36,6 +36,10 @@ func Configure() *gin.Engine {
 		server.POST("/commands", postServerCommands)
 		server.POST("/install", postServerInstall)
 		server.POST("/reinstall", postServerReinstall)
+		server.POST("/backup", postServerBackup)
+
+		server.GET("/archive", getServerArchive)
+		server.POST("/archive", postServerArchive)
 
 		files := server.Group("/files")
 		{

@@ -3,7 +3,6 @@ package server
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"github.com/mholt/archiver/v3"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
@@ -24,23 +23,19 @@ type Backup struct {
 }
 
 // Create a new Backup struct from data passed through in a request.
-func (s *Server) NewBackup(data []byte) (*Backup, error) {
-	backup := &Backup{}
-
-	if err := json.Unmarshal(data, backup); err != nil {
-		return nil, errors.WithStack(err)
+func (s *Server) NewBackup(uuid string, ignore []string) *Backup {
+	return &Backup{
+		Uuid:           uuid,
+		IgnoredFiles:   ignore,
+		server:         s,
+		localDirectory: path.Join(config.Get().System.BackupDirectory, s.Uuid),
 	}
-
-	backup.server = s
-	backup.localDirectory = path.Join(config.Get().System.BackupDirectory, s.Uuid)
-
-	return backup, nil
 }
 
 // Locates the backup for a server and returns the local path. This will obviously only
 // work if the backup was created as a local backup.
 func (s *Server) LocateBackup(uuid string) (string, os.FileInfo, error) {
-	p := path.Join(config.Get().System.BackupDirectory, s.Uuid, uuid + ".tar.gz")
+	p := path.Join(config.Get().System.BackupDirectory, s.Uuid, uuid+".tar.gz")
 
 	st, err := os.Stat(p)
 	if err != nil {
