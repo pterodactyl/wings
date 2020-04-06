@@ -394,3 +394,24 @@ func (s *Server) SetState(state string) error {
 func (s *Server) GetProcessConfiguration() (*api.ServerConfigurationResponse, *api.RequestError, error) {
 	return api.NewRequester().GetServerConfiguration(s.Uuid)
 }
+
+// Helper function that can receieve a power action and then process the
+// actions that need to occur for it.
+func (s *Server) HandlePowerAction(action PowerAction) error {
+	switch action.Action {
+	case "start":
+		return s.Environment.Start()
+	case "restart":
+		if err := s.Environment.WaitForStop(60, false); err != nil {
+			return err
+		}
+
+		return s.Environment.Start()
+	case "stop":
+		return s.Environment.Stop()
+	case "kill":
+		return s.Environment.Terminate(os.Kill)
+	default:
+		return errors.New("an invalid power action was provided")
+	}
+}

@@ -4,11 +4,12 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/router"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/sftp"
+	"github.com/pterodactyl/wings/system"
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
 	"net/http"
@@ -149,30 +150,31 @@ func main() {
 		zap.S().Errorw("failed to create archive directory", zap.Error(err))
 	}
 
-	r := &Router{
-		token: c.AuthenticationToken,
-		upgrader: websocket.Upgrader{
-			// Ensure that the websocket request is originating from the Panel itself,
-			// and not some other location.
-			CheckOrigin: func(r *http.Request) bool {
-				return r.Header.Get("Origin") == c.PanelLocation
-			},
-		},
-	}
-
-	router := r.ConfigureRouter()
 	zap.S().Infow("configuring webserver", zap.Bool("ssl", c.Api.Ssl.Enabled), zap.String("host", c.Api.Host), zap.Int("port", c.Api.Port))
 
+	r := router.Configure()
 	addr := fmt.Sprintf("%s:%d", c.Api.Host, c.Api.Port)
+
 	if c.Api.Ssl.Enabled {
-		if err := http.ListenAndServeTLS(addr, c.Api.Ssl.CertificateFile, c.Api.Ssl.KeyFile, router); err != nil {
+		if err := r.RunTLS(addr, c.Api.Ssl.CertificateFile, c.Api.Ssl.KeyFile); err != nil {
 			zap.S().Fatalw("failed to configure HTTPS server", zap.Error(err))
 		}
 	} else {
-		if err := http.ListenAndServe(addr, router); err != nil {
+		if err := r.Run(addr); err != nil {
 			zap.S().Fatalw("failed to configure HTTP server", zap.Error(err))
 		}
 	}
+
+	// r := &Router{
+	// 	token: c.AuthenticationToken,
+	// 	upgrader: websocket.Upgrader{
+	// 		// Ensure that the websocket request is originating from the Panel itself,
+	// 		// and not some other location.
+	// 		CheckOrigin: func(r *http.Request) bool {
+	// 			return r.Header.Get("Origin") == c.PanelLocation
+	// 		},
+	// 	},
+	// }
 }
 
 // Configures the global logger for Zap so that we can call it from any location
@@ -206,6 +208,6 @@ func printLogo() {
 	fmt.Println(`\_____\    \/\/    /   /       /  __   /   ___/`)
 	fmt.Println(`   \___\          /   /   /   /  /_/  /___   /`)
 	fmt.Println(`        \___/\___/___/___/___/___    /______/`)
-	fmt.Println(`                            /_______/ v` + Version)
+	fmt.Println(`                            /_______/ v` + system.Version)
 	fmt.Println()
 }

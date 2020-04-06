@@ -1,11 +1,11 @@
-package main
+package system
 
 import (
 	"github.com/docker/docker/pkg/parsers/kernel"
 	"runtime"
 )
 
-type SystemInformation struct {
+type Information struct {
 	Version       string `json:"version"`
 	KernelVersion string `json:"kernel_version"`
 	Architecture  string `json:"architecture"`
@@ -13,13 +13,13 @@ type SystemInformation struct {
 	CpuCount      int    `json:"cpu_count"`
 }
 
-func GetSystemInformation() (*SystemInformation, error) {
+func GetSystemInformation() (*Information, error) {
 	k, err := kernel.GetKernelVersion()
 	if err != nil {
 		return nil, err
 	}
 
-	s := &SystemInformation{
+	s := &Information{
 		Version:       Version,
 		KernelVersion: k.String(),
 		Architecture:  runtime.GOARCH,

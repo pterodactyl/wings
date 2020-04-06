@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+var alg *jwt.HMACSHA
+
 // ArchiveTokenPayload represents an Archive Token Payload.
 type ArchiveTokenPayload struct {
 	jwt.Payload

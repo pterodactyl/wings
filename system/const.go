@@ -1,4 +1,4 @@
-package main
+package system
 
 const (
 	// The current version of this software.
