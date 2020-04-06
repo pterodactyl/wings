@@ -1,18 +1,18 @@
-package main
+package router
 
 import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"github.com/buger/jsonparser"
-	"github.com/gorilla/websocket"
-	"github.com/julienschmidt/httprouter"
+	"github.com/gin-gonic/gin"
 	"github.com/mholt/archiver/v3"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
+	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
 	"io"
@@ -22,143 +22,122 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
-// Retrieves a server out of the collection by UUID.
-func (rt *Router) GetServer(uuid string) *server.Server {
-	return server.GetServers().Find(func(i *server.Server) bool {
-		return i.Uuid == uuid
-	})
-}
-
-type Router struct {
-	upgrader websocket.Upgrader
-
-	// The authentication token defined in the config.yml file that allows
-	// a request to perform any action against the daemon.
-	token string
-}
-
-func (rt *Router) AuthenticateRequest(h httprouter.Handle) httprouter.Handle {
-	return rt.AuthenticateToken(rt.AuthenticateServer(h))
-}
-
-// Middleware to protect server specific routes. This will ensure that the server exists and
-// is in a state that allows it to be exposed to the API.
-func (rt *Router) AuthenticateServer(h httprouter.Handle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		if rt.GetServer(ps.ByName("server")) != nil {
-			h(w, r, ps)
-			return
-		}
-
-		http.NotFound(w, r)
-	}
-}
-
-// Attaches required access control headers to all of the requests.
-func (rt *Router) AttachAccessControlHeaders(w http.ResponseWriter, r *http.Request, ps httprouter.Params) (http.ResponseWriter, *http.Request, httprouter.Params) {
-	w.Header().Set("Access-Control-Allow-Origin", config.Get().PanelLocation)
-	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-
-	return w, r, ps
-}
-
-// Authenticates the request token against the given permission string, ensuring that
-// if it is a server permission, the token has control over that server. If it is a global
-// token, this will ensure that the request is using a properly signed global token.
-func (rt *Router) AuthenticateToken(h httprouter.Handle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		// Adds support for using this middleware on the websocket routes for servers. Those
-		// routes don't support Authorization headers, per the spec, so we abuse the socket
-		// protocol header and use that to pass the authorization token along to Wings without
-		// exposing the token in the URL directly. Neat. 📸
-		auth := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
-
-		if len(auth) != 2 || auth[0] != "Bearer" {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			http.Error(w, "authorization failed", http.StatusUnauthorized)
-			return
-		}
-
-		// Try to match the request against the global token for the Daemon, regardless
-		// of the permission type. If nothing is matched we will fall through to the Panel
-		// API to try and validate permissions for a server.
-		if auth[1] == rt.token {
-			h(rt.AttachAccessControlHeaders(w, r, ps))
-			return
-		}
-
-		// Happens because we don't have any of the server handling code here.
-		http.Error(w, "not implemented", http.StatusNotImplemented)
-		return
-	}
-}
-
-func (rt *Router) routeGetServerArchive(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	auth := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
+func getServerArchive(c *gin.Context) {
+	auth := strings.SplitN(c.GetHeader("Authorization"), " ", 2)
 
 	if len(auth) != 2 || auth[0] != "Bearer" {
-		w.Header().Set("WWW-Authenticate", "Bearer")
-		http.Error(w, "authorization failed", http.StatusUnauthorized)
+		c.Header("WWW-Authenticate", "Bearer")
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+			"error": "The required authorization heads were not present in the request.",
+		})
 		return
 	}
 
-	token, err := ParseArchiveJWT([]byte(auth[1]))
-	if err != nil {
-		http.Error(w, "authorization failed", http.StatusUnauthorized)
+	token := tokens.TransferPayload{}
+	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
+		TrackedError(err).AbortWithServerError(c)
 		return
 	}
 
-	if token.Subject != ps.ByName("server") {
-		http.Error(w, "forbidden", http.StatusForbidden)
+	if token.Subject != c.Param("server") {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"error": "You are not authorized to access this endpoint.",
+		})
 		return
 	}
 
-	s := rt.GetServer(ps.ByName("server"))
+	s := GetServer(c.Param("server"))
 
 	st, err := s.Archiver.Stat()
 	if err != nil {
 		if !os.IsNotExist(err) {
-			zap.S().Errorw("failed to stat archive for reading", zap.String("server", s.Uuid), zap.Error(err))
-			http.Error(w, "failed to stat archive", http.StatusInternalServerError)
+			// zap.S().Errorw("failed to stat archive for reading", zap.String("server", s.Uuid), zap.Error(err))
+			TrackedServerError(err, s).SetMessage("failed to stat archive").AbortWithServerError(c)
 			return
 		}
 
-		http.NotFound(w, r)
+		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
 
 	checksum, err := s.Archiver.Checksum()
 	if err != nil {
-		zap.S().Errorw("failed to calculate checksum", zap.String("server", s.Uuid), zap.Error(err))
-		http.Error(w, "failed to calculate checksum", http.StatusInternalServerError)
+		// zap.S().Errorw("failed to calculate checksum", zap.String("server", s.Uuid), zap.Error(err))
+		TrackedServerError(err, s).SetMessage("failed to calculate checksum").AbortWithServerError(c)
 		return
 	}
 
 	file, err := os.Open(s.Archiver.ArchivePath())
 	if err != nil {
+		tserr := TrackedServerError(err, s)
 		if !os.IsNotExist(err) {
-			zap.S().Errorw("failed to open archive for reading", zap.String("server", s.Uuid), zap.Error(err))
+			tserr.SetMessage("failed to open archive for reading")
+			// zap.S().Errorw("failed to open archive for reading", zap.String("server", s.Uuid), zap.Error(err))
+		} else {
+			tserr.SetMessage("failed to open archive")
 		}
 
-		http.Error(w, "failed to open archive", http.StatusInternalServerError)
+		tserr.AbortWithServerError(c)
 		return
 	}
 	defer file.Close()
 
-	w.Header().Set("X-Checksum", checksum)
-	w.Header().Set("X-Mime-Type", st.Mimetype)
-	w.Header().Set("Content-Length", strconv.Itoa(int(st.Info.Size())))
-	w.Header().Set("Content-Disposition", "attachment; filename="+s.Archiver.ArchiveName())
-	w.Header().Set("Content-Type", "application/octet-stream")
+	c.Header("X-Checksum", checksum)
+	c.Header("X-Mime-Type", st.Mimetype)
+	c.Header("Content-Length", strconv.Itoa(int(st.Info.Size())))
+	c.Header("Content-Disposition", "attachment; filename="+s.Archiver.ArchiveName())
+	c.Header("Content-Type", "application/octet-stream")
 
-	bufio.NewReader(file).WriteTo(w)
+	bufio.NewReader(file).WriteTo(c.Writer)
 }
 
-func (rt *Router) routeIncomingTransfer(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	zap.S().Debug("incoming transfer from panel!")
-	defer r.Body.Close()
+func postServerArchive(c *gin.Context) {
+	s := GetServer(c.Param("server"))
+
+	go func(server *server.Server) {
+		start := time.Now()
+
+		if err := server.Archiver.Archive(); err != nil {
+			zap.S().Errorw("failed to get archive for server", zap.String("server", s.Uuid), zap.Error(err))
+			return
+		}
+
+		zap.S().Debugw(
+			"successfully created archive for server",
+			zap.String("server", server.Uuid),
+			zap.Duration("time", time.Now().Sub(start).Round(time.Microsecond)),
+		)
+
+		r := api.NewRequester()
+		rerr, err := r.SendArchiveStatus(server.Uuid, true)
+		if rerr != nil || err != nil {
+			if err != nil {
+				zap.S().Errorw("failed to notify panel with archive status", zap.String("server", server.Uuid), zap.Error(err))
+				return
+			}
+
+			zap.S().Errorw(
+				"panel returned an error when sending the archive status",
+				zap.String("server", server.Uuid),
+				zap.Error(errors.New(rerr.String())),
+			)
+			return
+		}
+
+		zap.S().Debugw("successfully notified panel about archive status", zap.String("server", server.Uuid))
+	}(s)
+
+	c.Status(http.StatusAccepted)
+}
+
+func postTransfer(c *gin.Context) {
+	zap.S().Debug("incoming transfer from panel")
+
+	buf := bytes.Buffer{}
+	buf.ReadFrom(c.Request.Body)
 
 	go func(data []byte) {
 		serverID, _ := jsonparser.GetString(data, "server_id")
@@ -323,25 +302,7 @@ func (rt *Router) routeIncomingTransfer(w http.ResponseWriter, r *http.Request, 
 
 		zap.S().Debugw("successfully notified panel about transfer success", zap.String("server", serverID))
 		hasError = false
-	}(rt.ReaderToBytes(r.Body))
+	}(buf.Bytes())
 
-	w.WriteHeader(202)
-}
-
-func (rt *Router) ReaderToBytes(r io.Reader) []byte {
-	buf := bytes.Buffer{}
-	buf.ReadFrom(r)
-
-	return buf.Bytes()
-}
-
-// Configures the router and all of the associated routes.
-func (rt *Router) ConfigureRouter() *httprouter.Router {
-	router := httprouter.New()
-
-	router.GET("/api/servers/:server/archive", rt.AuthenticateServer(rt.routeGetServerArchive))
-
-	router.POST("/api/transfer", rt.AuthenticateToken(rt.routeIncomingTransfer))
-
-	return router
+	c.Status(http.StatusAccepted)
 }
