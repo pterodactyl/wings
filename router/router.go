@@ -1,19 +1,30 @@
 package router
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+)
 
 // Configures the routing infrastructure for this daemon instance.
 func Configure() *gin.Engine {
 	router := gin.Default()
 	router.Use(SetAccessControlHeaders)
 
+	router.OPTIONS("/api/system", func(c *gin.Context) {
+		c.Status(200)
+	})
+
 	// These routes use signed URLs to validate access to the resource being requested.
 	router.GET("/download/backup", getDownloadBackup)
 
-	// This route is special is sits above all of the other requests because we are
-	// using a JWT to authorize access to it, therefore it needs to be publically
+	// This route is special it sits above all of the other requests because we are
+	// using a JWT to authorize access to it, therefore it needs to be publicly
 	// accessible.
 	router.GET("/api/servers/:server/ws", getServerWebsocket)
+
+	// This request is called by another daemon when a server is going to be transferred out.
+	// This request does not need the AuthorizationMiddleware as the panel should never call it
+	// and requests are authenticated through a JWT the panel issues to the other daemon.
+	router.GET("/api/servers/:server/archive", getServerArchive)
 
 	// All of the routes beyond this mount will use an authorization middleware
 	// and will not be accessible without the correct Authorization header provided.
@@ -39,7 +50,8 @@ func Configure() *gin.Engine {
 		server.POST("/reinstall", postServerReinstall)
 		server.POST("/backup", postServerBackup)
 
-		server.GET("/archive", getServerArchive)
+		// This archive request causes the archive to start being created
+		// this should only be triggered by the panel.
 		server.POST("/archive", postServerArchive)
 
 		files := server.Group("/files")

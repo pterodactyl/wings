@@ -1,6 +1,7 @@
 package router
 
 import (
+	"bytes"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/server"
@@ -30,10 +31,10 @@ func getAllServers(c *gin.Context) {
 // Creates a new server on the wings daemon and begins the installation process
 // for it.
 func postCreateServer(c *gin.Context) {
-	var data []byte
-	c.Bind(&data)
+	buf := bytes.Buffer{}
+	buf.ReadFrom(c.Request.Body)
 
-	install, err := installer.New(data)
+	install, err := installer.New(buf.Bytes())
 	if err != nil {
 		TrackedError(err).
 			SetMessage("Failed to validate the data provided in the request.").

@@ -37,14 +37,14 @@ func getServerArchive(c *gin.Context) {
 	}
 
 	token := tokens.TransferPayload{}
-	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
+	if err := tokens.ParseToken([]byte(auth[1]), &token); err != nil {
 		TrackedError(err).AbortWithServerError(c)
 		return
 	}
 
 	if token.Subject != c.Param("server") {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"error": "You are not authorized to access this endpoint.",
+			"error": "( .. •˘___˘• .. )",
 		})
 		return
 	}
@@ -54,7 +54,6 @@ func getServerArchive(c *gin.Context) {
 	st, err := s.Archiver.Stat()
 	if err != nil {
 		if !os.IsNotExist(err) {
-			// zap.S().Errorw("failed to stat archive for reading", zap.String("server", s.Uuid), zap.Error(err))
 			TrackedServerError(err, s).SetMessage("failed to stat archive").AbortWithServerError(c)
 			return
 		}
@@ -65,7 +64,6 @@ func getServerArchive(c *gin.Context) {
 
 	checksum, err := s.Archiver.Checksum()
 	if err != nil {
-		// zap.S().Errorw("failed to calculate checksum", zap.String("server", s.Uuid), zap.Error(err))
 		TrackedServerError(err, s).SetMessage("failed to calculate checksum").AbortWithServerError(c)
 		return
 	}
@@ -75,7 +73,6 @@ func getServerArchive(c *gin.Context) {
 		tserr := TrackedServerError(err, s)
 		if !os.IsNotExist(err) {
 			tserr.SetMessage("failed to open archive for reading")
-			// zap.S().Errorw("failed to open archive for reading", zap.String("server", s.Uuid), zap.Error(err))
 		} else {
 			tserr.SetMessage("failed to open archive")
 		}
@@ -271,8 +268,6 @@ func postTransfer(c *gin.Context) {
 			return
 		}
 
-		zap.S().Debug(string(serverData))
-
 		// Create a new server installer (note this does not execute the install script)
 		i, err := installer.New(serverData)
 		if err != nil {
@@ -287,8 +282,19 @@ func postTransfer(c *gin.Context) {
 		i.Execute()
 
 		// Un-archive the archive. That sounds weird..
-		archiver.NewTarGz().Unarchive(archivePath, i.Server().Filesystem.Path())
+		if err := archiver.NewTarGz().Unarchive(archivePath, i.Server().Filesystem.Path()); err != nil {
+			zap.S().Errorw("failed to extract archive", zap.String("server", serverID), zap.Error(err))
+			return
+		}
 
+		// We mark the process as being successful here as if we fail to send a transfer success,
+		// then a transfer failure won't probably be successful either.
+		//
+		// It may be useful to retry sending the transfer success every so often just in case of a small
+		// hiccup or the fix of whatever error causing the success request to fail.
+		hasError = false
+
+		// Notify the panel that the transfer succeeded.
 		rerr, err := api.NewRequester().SendTransferSuccess(serverID)
 		if rerr != nil || err != nil {
 			if err != nil {
@@ -301,7 +307,6 @@ func postTransfer(c *gin.Context) {
 		}
 
 		zap.S().Debugw("successfully notified panel about transfer success", zap.String("server", serverID))
-		hasError = false
 	}(buf.Bytes())
 
 	c.Status(http.StatusAccepted)
