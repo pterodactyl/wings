@@ -130,7 +130,7 @@ func patchServer(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Performs a server installation in a backgrounded thread.
+// Performs a server installation in a background thread.
 func postServerInstall(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 

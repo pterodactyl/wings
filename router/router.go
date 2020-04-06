@@ -21,6 +21,7 @@ func Configure() *gin.Engine {
 	protected.GET("/api/system", getSystemInformation)
 	protected.GET("/api/servers", getAllServers)
 	protected.POST("/api/servers", postCreateServer)
+	protected.POST("/api/transfer", postTransfer)
 
 	// These are server specific routes, and require that the request be authorized, and
 	// that the server exist on the Daemon.
