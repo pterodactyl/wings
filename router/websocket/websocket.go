@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
 	"net/http"
@@ -28,9 +29,24 @@ const (
 
 type Handler struct {
 	Connection *websocket.Conn
-	JWT        *TokenPayload `json:"-"`
+	JWT        *tokens.WebsocketPayload `json:"-"`
 	server     *server.Server
 	mutex      sync.Mutex
+}
+
+// Parses a JWT into a websocket token payload.
+func NewTokenPayload(token []byte) (*tokens.WebsocketPayload, error) {
+	payload := tokens.WebsocketPayload{}
+	err := tokens.ParseToken(token, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	if !payload.HasPermission(PermissionConnect) {
+		return nil, errors.New("not authorized to connect to this socket")
+	}
+
+	return &payload, nil
 }
 
 // Returns a new websocket handler using the context provided.
@@ -54,35 +70,6 @@ func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request) (*Hand
 		server:     s,
 		mutex:      sync.Mutex{},
 	}, nil
-}
-
-// Validates the provided JWT against the known secret for the Daemon and returns the
-// parsed data.
-//
-// This function DOES NOT validate that the token is valid for the connected server, nor
-// does it ensure that the user providing the token is able to actually do things.
-func ParseJWT(token []byte) (*TokenPayload, error) {
-	var payload TokenPayload
-	if alg == nil {
-		alg = jwt.NewHS256([]byte(config.Get().AuthenticationToken))
-	}
-
-	now := time.Now()
-	verifyOptions := jwt.ValidatePayload(
-		&payload.Payload,
-		jwt.ExpirationTimeValidator(now),
-	)
-
-	_, err := jwt.Verify(token, alg, &payload, verifyOptions)
-	if err != nil {
-		return nil, err
-	}
-
-	if !payload.HasPermission(PermissionConnect) {
-		return nil, errors.New("not authorized to connect to this socket")
-	}
-
-	return &payload, nil
 }
 
 func (h *Handler) SendJson(v *Message) error {
@@ -194,7 +181,7 @@ func (h *Handler) HandleInbound(m Message) error {
 	switch m.Event {
 	case AuthenticationEvent:
 		{
-			token, err := ParseJWT([]byte(strings.Join(m.Args, "")))
+			token, err := NewTokenPayload([]byte(strings.Join(m.Args, "")))
 			if err != nil {
 				return err
 			}
