@@ -396,7 +396,6 @@ func (rt *Router) ReaderToBytes(r io.Reader) []byte {
 func (rt *Router) ConfigureRouter() *httprouter.Router {
 	router := httprouter.New()
 
-	router.GET("/download/backup", rt.routeDownloadBackup)
 	router.POST("/api/servers/:server/backup", rt.AuthenticateRequest(rt.routeServerBackup))
 
 	router.POST("/api/servers/:server/archive", rt.AuthenticateRequest(rt.routeRequestServerArchive))
