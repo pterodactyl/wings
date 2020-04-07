@@ -50,6 +50,7 @@ func (h *Handler) ListenForServerEvents(ctx context.Context) {
 		server.ConsoleOutputEvent,
 		server.InstallOutputEvent,
 		server.DaemonMessageEvent,
+		server.BackupCompletedEvent,
 	}
 
 	eventChannel := make(chan server.Event)

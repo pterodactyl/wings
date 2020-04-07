@@ -7,11 +7,12 @@ import (
 // Defines all of the possible output events for a server.
 // noinspection GoNameStartsWithPackageName
 const (
-	DaemonMessageEvent = "daemon message"
-	InstallOutputEvent = "install output"
-	ConsoleOutputEvent = "console output"
-	StatusEvent        = "status"
-	StatsEvent         = "stats"
+	DaemonMessageEvent   = "daemon message"
+	InstallOutputEvent   = "install output"
+	ConsoleOutputEvent   = "console output"
+	StatusEvent          = "status"
+	StatsEvent           = "stats"
+	BackupCompletedEvent = "backup completed"
 )
 
 type Event struct {

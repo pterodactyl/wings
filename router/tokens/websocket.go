@@ -3,6 +3,7 @@ package tokens
 import (
 	"encoding/json"
 	"github.com/gbrlsnchs/jwt/v3"
+	"strings"
 )
 
 type WebsocketPayload struct {
@@ -20,7 +21,7 @@ func (p *WebsocketPayload) GetPayload() *jwt.Payload {
 // Checks if the given token payload has a permission string.
 func (p *WebsocketPayload) HasPermission(permission string) bool {
 	for _, k := range p.Permissions {
-		if k == permission {
+		if k == permission || (!strings.HasPrefix(permission, "admin") && k == "*") {
 			return true
 		}
 	}

@@ -20,11 +20,14 @@ import (
 var alg *jwt.HMACSHA
 
 const (
-	PermissionConnect        = "connect"
-	PermissionSendCommand    = "send-command"
-	PermissionSendPower      = "send-power"
-	PermissionReceiveErrors  = "receive-errors"
-	PermissionReceiveInstall = "receive-install"
+	PermissionConnect          = "websocket.*"
+	PermissionSendCommand      = "control.console"
+	PermissionSendPowerStart   = "control.start"
+	PermissionSendPowerStop    = "control.stop"
+	PermissionSendPowerRestart = "control.restart"
+	PermissionReceiveErrors    = "admin.errors"
+	PermissionReceiveInstall   = "admin.install"
+	PermissionReceiveBackups   = "backup.read"
 )
 
 type Handler struct {
@@ -84,6 +87,14 @@ func (h *Handler) SendJson(v *Message) error {
 	if v.Event == server.InstallOutputEvent {
 		zap.S().Debugf("%+v", v.Args)
 		if h.JWT != nil && !h.JWT.HasPermission(PermissionReceiveInstall) {
+			return nil
+		}
+	}
+
+	// If the user does not have permission to see backup events, do not emit
+	// them over the socket.
+	if v.Event == server.BackupCompletedEvent {
+		if h.JWT != nil && !h.JWT.HasPermission(PermissionReceiveBackups) {
 			return nil
 		}
 	}
@@ -203,25 +214,31 @@ func (h *Handler) HandleInbound(m Message) error {
 		}
 	case SetStateEvent:
 		{
-			if !h.JWT.HasPermission(PermissionSendPower) {
-				return nil
-			}
-
 			switch strings.Join(m.Args, "") {
 			case "start":
-				return h.server.Environment.Start()
+				if h.JWT.HasPermission(PermissionSendPowerStart) {
+					return h.server.Environment.Start()
+				}
+				break
 			case "stop":
-				return h.server.Environment.Stop()
+				if h.JWT.HasPermission(PermissionSendPowerStop) {
+					return h.server.Environment.Stop()
+				}
+				break
 			case "restart":
-				{
+				if h.JWT.HasPermission(PermissionSendPowerRestart) {
 					if err := h.server.Environment.WaitForStop(60, false); err != nil {
 						return err
 					}
 
 					return h.server.Environment.Start()
 				}
+				break
 			case "kill":
-				return h.server.Environment.Terminate(os.Kill)
+				if h.JWT.HasPermission(PermissionSendPowerStop) {
+					return h.server.Environment.Terminate(os.Kill)
+				}
+				break
 			}
 
 			return nil
