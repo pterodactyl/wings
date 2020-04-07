@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"sync"
 )
 
@@ -48,6 +49,17 @@ func (e *EventBus) Publish(topic string, data string) {
 			}
 		}(Event{Data: data, Topic: topic}, ch)
 	}
+}
+
+func (e *EventBus) PublishJson(topic string, data interface{}) error {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	e.Publish(topic, string(b))
+
+	return nil
 }
 
 // Subscribe to an emitter topic using a channel.

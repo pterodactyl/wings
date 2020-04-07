@@ -170,6 +170,14 @@ func (b *Backup) BackupAndNotify() error {
 		return err
 	}
 
+	// Emit an event over the socket so we can update the backup in realtime on
+	// the frontend for the server.
+	b.server.Events().PublishJson(BackupCompletedEvent, map[string]interface{}{
+		"uuid": b.Uuid,
+		"sha256_hash": resp.Sha256Hash,
+		"file_size": resp.FileSize,
+	})
+
 	return nil
 }
 
