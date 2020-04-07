@@ -93,7 +93,7 @@ func (h *Handler) SendJson(v *Message) error {
 
 	// If the user does not have permission to see backup events, do not emit
 	// them over the socket.
-	if v.Event == server.BackupCompletedEvent {
+	if strings.HasPrefix(v.Event, server.BackupCompletedEvent) {
 		if h.JWT != nil && !h.JWT.HasPermission(PermissionReceiveBackups) {
 			return nil
 		}

@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 )
 
@@ -42,7 +43,21 @@ func (e *EventBus) Publish(topic string, data string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if ch, ok := e.subscribers[topic]; ok {
+	t := topic
+	// Some of our topics for the socket support passing a more specific namespace,
+	// such as "backup completed:1234" to indicate which specific backup was completed.
+	//
+	// In these cases, we still need to the send the event using the standard listener
+	// name of "backup completed".
+	if strings.Contains(topic, ":") {
+		parts := strings.SplitN(topic, ":", 2)
+
+		if len(parts) == 2 {
+			t = parts[0]
+		}
+	}
+
+	if ch, ok := e.subscribers[t]; ok {
 		go func(data Event, cs []chan Event) {
 			for _, channel := range cs {
 				channel <- data
