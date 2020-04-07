@@ -15,6 +15,7 @@ func Configure() *gin.Engine {
 
 	// These routes use signed URLs to validate access to the resource being requested.
 	router.GET("/download/backup", getDownloadBackup)
+	router.GET("/download/file", getDownloadFile)
 
 	// This route is special it sits above all of the other requests because we are
 	// using a JWT to authorize access to it, therefore it needs to be publicly
