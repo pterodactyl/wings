@@ -11,6 +11,7 @@ go 1.12
 // replace github.com/pterodactyl/sftp-server => ../sftp-server
 
 require (
+	github.com/AlecAivazis/survey/v2 v2.0.7
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Jeffail/gabs/v2 v2.2.0
 	github.com/Microsoft/go-winio v0.4.7 // indirect

@@ -31,13 +31,14 @@ var root = &cobra.Command{
 func init() {
 	root.PersistentFlags().StringVar(&configPath, "config", "config.yml", "set the location for the configuration file")
 	root.PersistentFlags().BoolVar(&debug, "debug", false, "pass in order to run wings in debug mode")
+
+	root.AddCommand(configureCmd)
 }
 
 func rootCmdRun(cmd *cobra.Command, args []string) {
 	c, err := config.ReadConfiguration(configPath)
 	if err != nil {
 		panic(err)
-		return
 	}
 
 	if debug {
