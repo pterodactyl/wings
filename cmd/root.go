@@ -23,7 +23,7 @@ var debug = false
 
 var root = &cobra.Command{
 	Use:   "wings",
-	Short: "The wings of the pterodactly game management panel",
+	Short: "The wings of the pterodactyl game management panel",
 	Long:  ``,
 	Run:   rootCmdRun,
 }
@@ -71,7 +71,7 @@ func rootCmdRun(cmd *cobra.Command, args []string) {
 		zap.S().Infow("configured system user", zap.String("username", su.Username), zap.String("uid", su.Uid), zap.String("gid", su.Gid))
 	}
 
-	zap.S().Infow("beginnning file permission setting on server data directories")
+	zap.S().Infow("beginning file permission setting on server data directories")
 	if err := c.EnsureFilePermissions(); err != nil {
 		zap.S().Errorw("failed to properly chown data directories", zap.Error(err))
 	} else {
