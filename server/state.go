@@ -4,12 +4,19 @@ import (
 	"encoding/json"
 	"github.com/pkg/errors"
 	"os"
+	"sync"
 )
 
-var statesFile = "data/states.json"
+var (
+	statesLock sync.Mutex
+	statesFile = "data/states.json"
+)
 
 // DoesStatesFileExist .
 func DoesStatesFileExist() (bool, error) {
+	statesLock.Lock()
+	defer statesLock.Unlock()
+
 	if _, err := os.Stat(statesFile); err != nil {
 		if !os.IsNotExist(err) {
 			return false, errors.WithStack(err)
@@ -28,6 +35,10 @@ func FetchServerStates() (map[string]string, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+
+	// Request a lock after we check if the file exists.
+	statesLock.Lock()
+	defer statesLock.Unlock()
 
 	// Return an empty map if the file does not exist.
 	if !exists {
@@ -69,6 +80,10 @@ func SaveServerStates() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	// Request a lock after we check if the file exists.
+	statesLock.Lock()
+	defer statesLock.Unlock()
 
 	// Create the file if it doesn't exist or open it if it already does.
 	var f *os.File
