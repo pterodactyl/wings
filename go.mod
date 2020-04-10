@@ -11,6 +11,7 @@ go 1.12
 // replace github.com/pterodactyl/sftp-server => ../sftp-server
 
 require (
+	github.com/AlecAivazis/survey/v2 v2.0.7
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Jeffail/gabs/v2 v2.2.0
 	github.com/Microsoft/go-winio v0.4.7 // indirect
@@ -52,8 +53,8 @@ require (
 	github.com/pkg/sftp v1.10.1 // indirect
 	github.com/pterodactyl/sftp-server v1.1.1
 	github.com/remeh/sizedwaitgroup v0.0.0-20180822144253-5e7302b12cce
-	github.com/sirupsen/logrus v1.0.5 // indirect
 	github.com/smartystreets/goconvey v1.6.4 // indirect
+	github.com/spf13/cobra v0.0.7
 	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/stretchr/testify v1.5.1 // indirect
 	go.uber.org/atomic v1.5.1 // indirect

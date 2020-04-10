@@ -1,7 +1,8 @@
-package main
+package environment
 
 import (
 	"context"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
@@ -10,7 +11,7 @@ import (
 )
 
 // Configures the required network for the docker environment.
-func ConfigureDockerEnvironment(c *config.DockerConfiguration) error {
+func ConfigureDocker(c *config.DockerConfiguration) error {
 	// Ensure the required docker network exists on the system.
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
