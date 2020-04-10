@@ -5,6 +5,7 @@ import (
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
 	"net/http"
+	"os"
 )
 
 // Backs up a server.
@@ -24,4 +25,22 @@ func postServerBackup(c *gin.Context) {
 	}(s.NewBackup(data.Uuid, data.IgnoredFiles))
 
 	c.Status(http.StatusAccepted)
+}
+
+// Deletes a local backup of a server.
+func deleteServerBackup(c *gin.Context) {
+	s := GetServer(c.Param("server"))
+
+	p, _, err := s.LocateBackup(c.Param("backup"))
+	if err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+
+	if err := os.Remove(p); err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }

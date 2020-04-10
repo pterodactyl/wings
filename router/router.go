@@ -49,7 +49,6 @@ func Configure() *gin.Engine {
 		server.POST("/commands", postServerCommands)
 		server.POST("/install", postServerInstall)
 		server.POST("/reinstall", postServerReinstall)
-		server.POST("/backup", postServerBackup)
 
 		// This archive request causes the archive to start being created
 		// this should only be triggered by the panel.
@@ -64,6 +63,12 @@ func Configure() *gin.Engine {
 			files.POST("/write", postServerWriteFile)
 			files.POST("/create-directory", postServerCreateDirectory)
 			files.POST("/delete", postServerDeleteFile)
+		}
+
+		backup := server.Group("/backup")
+		{
+			backup.POST("", postServerBackup)
+			backup.DELETE("/:backup", deleteServerBackup)
 		}
 	}
 
