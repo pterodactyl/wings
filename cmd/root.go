@@ -96,9 +96,9 @@ func rootCmdRun(*cobra.Command, []string) {
 		os.Exit(1)
 	}
 
-	if err := c.WriteToDisk(); err != nil {
+	/*if err := c.WriteToDisk(); err != nil {
 		zap.S().Errorw("failed to save configuration to disk", zap.Error(errors.WithStack(err)))
-	}
+	}*/
 
 	// Just for some nice log output.
 	for _, s := range server.GetServers().All() {

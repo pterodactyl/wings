@@ -291,7 +291,8 @@ func (c *Configuration) setSystemUser(u *user.User) error {
 	c.System.User.Uid = uid
 	c.System.User.Gid = gid
 
-	return c.WriteToDisk()
+	// return c.WriteToDisk()
+	return nil
 }
 
 // Ensures that the configured data directory has the correct permissions assigned to
