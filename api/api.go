@@ -32,7 +32,7 @@ func (r *PanelRequest) GetClient() *http.Client {
 func (r *PanelRequest) SetHeaders(req *http.Request) *http.Request {
 	req.Header.Set("Accept", "application/vnd.pterodactyl.v1+json")
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+config.Get().AuthenticationToken)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s.%s", config.Get().AuthenticationTokenId, config.Get().AuthenticationToken))
 
 	return req
 }
