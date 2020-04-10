@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -170,10 +171,11 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 				defer wg.Done()
 
 				s, _ := fs.DirectorySize(p)
-				size += s
+
+				atomic.AddInt64(&size, s)
 			}(filepath.Join(cleaned, f.Name()))
 		} else {
-			size += f.Size()
+			atomic.AddInt64(&size, f.Size())
 		}
 	}
 
