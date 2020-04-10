@@ -29,7 +29,6 @@ require (
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-rc.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gin-gonic/gin v1.6.2
-	github.com/gogo/protobuf v1.2.1 // indirect
 	github.com/golang/protobuf v1.3.5 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/uuid v1.1.1
@@ -65,7 +64,6 @@ require (
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e // indirect
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a // indirect
 	golang.org/x/sys v0.0.0-20200331124033-c3d80250170d // indirect
-	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect
 	golang.org/x/tools v0.0.0-20200403190813-44a64ad78b9b // indirect
 	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect

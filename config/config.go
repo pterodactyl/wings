@@ -21,6 +21,17 @@ type Configuration struct {
 	// if the debug flag is passed through the command line arguments.
 	Debug bool
 
+	// A unique identifier for this node in the Panel.
+	Uuid string
+
+	// An identifier for the token which must be included in any requests to the panel
+	// so that the token can be looked up correctly.
+	AuthenticationTokenId string `yaml:"token_id"`
+
+	// The token used when performing operations. Requests to this instance must
+	// validate against it.
+	AuthenticationToken string `yaml:"token"`
+
 	Api    ApiConfiguration
 	System SystemConfiguration
 	Docker DockerConfiguration
@@ -55,10 +66,6 @@ type Configuration struct {
 	// The location where the panel is running that this daemon should connect to
 	// to collect data and send events.
 	PanelLocation string `yaml:"remote"`
-
-	// The token used when performing operations. Requests to this instance must
-	// validate against it.
-	AuthenticationToken string `yaml:"token"`
 }
 
 // Defines basic system configuration settings.
