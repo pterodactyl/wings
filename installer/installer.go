@@ -5,6 +5,7 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
@@ -74,17 +75,26 @@ func New(data []byte) (*Installer, error) {
 
 	s.Container.Image = getString(data, "container", "image")
 
-	b, err := s.WriteConfigurationToDisk()
+	c, rerr, err := api.NewRequester().GetServerConfiguration(s.Uuid)
+	if err != nil || rerr != nil {
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		return nil, errors.New(rerr.String())
+	}
+
+	/*b, err := s.WriteConfigurationToDisk()
 	if err != nil {
 		return nil, err
-	}
+	}*/
 
 	// Destroy the temporary server instance.
 	s = nil
 
 	// Create a new server instance using the configuration we wrote to the disk
 	// so that everything gets instantiated correctly on the struct.
-	s2, err := server.FromConfiguration(b, &config.Get().System, nil)
+	s2, err := server.FromConfiguration(c, &config.Get().System)
 
 	return &Installer{
 		server: s2,

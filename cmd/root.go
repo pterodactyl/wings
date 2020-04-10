@@ -21,6 +21,7 @@ import (
 
 var configPath = "config.yml"
 var debug = false
+var shouldRunProfiler = false
 
 var root = &cobra.Command{
 	Use:   "wings",
@@ -32,12 +33,16 @@ var root = &cobra.Command{
 func init() {
 	root.PersistentFlags().StringVar(&configPath, "config", "config.yml", "set the location for the configuration file")
 	root.PersistentFlags().BoolVar(&debug, "debug", false, "pass in order to run wings in debug mode")
+	root.PersistentFlags().BoolVar(&shouldRunProfiler, "profile", false, "pass in order to profile wings")
 
 	root.AddCommand(configureCmd)
 }
 
-func rootCmdRun(cmd *cobra.Command, args []string) {
-	defer profile.Start().Stop()
+func rootCmdRun(*cobra.Command, []string) {
+	// Profile wings in production!!!!
+	if shouldRunProfiler {
+		defer profile.Start().Stop()
+	}
 
 	c, err := config.ReadConfiguration(configPath)
 	if err != nil {
@@ -113,7 +118,7 @@ func rootCmdRun(cmd *cobra.Command, args []string) {
 
 			// Create a server environment if none exists currently. This allows us to recover from Docker
 			// being reinstalled on the host system for example.
-			zap.S().Infow("ensuring envrionment exists", zap.String("server", s.Uuid))
+			zap.S().Infow("ensuring environment exists", zap.String("server", s.Uuid))
 			if err := s.Environment.Create(); err != nil {
 				zap.S().Errorw("failed to create an environment for server", zap.String("server", s.Uuid), zap.Error(err))
 			}
@@ -159,6 +164,11 @@ func rootCmdRun(cmd *cobra.Command, args []string) {
 	// Ensure the archive directory exists.
 	if err := os.MkdirAll(c.System.ArchiveDirectory, 0755); err != nil {
 		zap.S().Errorw("failed to create archive directory", zap.Error(err))
+	}
+
+	// Ensure the backup directory exists.
+	if err := os.MkdirAll(c.System.BackupDirectory, 0755); err != nil {
+		zap.S().Errorw("failed to create backup directory", zap.Error(err))
 	}
 
 	zap.S().Infow("configuring webserver", zap.Bool("ssl", c.Api.Ssl.Enabled), zap.String("host", c.Api.Host), zap.Int("port", c.Api.Port))
