@@ -521,14 +521,14 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 	// You must initialize the output of this directory as a non-nil value otherwise
 	// when it is marshaled into a JSON object you'll just get 'null' back, which will
 	// break the panel badly.
-	out := make([]*Stat, 0)
+	out := make([]*Stat, len(files))
 
 	// Iterate over all of the files and directories returned and perform an async process
 	// to get the mime-type for them all.
-	for _, file := range files {
+	for i, file := range files {
 		wg.Add(1)
 
-		go func(f os.FileInfo) {
+		go func(idx int, f os.FileInfo) {
 			defer wg.Done()
 
 			var m = "inode/directory"
@@ -536,11 +536,11 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 				m, _, _ = mimetype.DetectFile(filepath.Join(cleaned, f.Name()))
 			}
 
-			out = append(out, &Stat{
+			out[idx] = &Stat{
 				Info:     f,
 				Mimetype: m,
-			})
-		}(file)
+			}
+		}(i, file)
 	}
 
 	wg.Wait()
