@@ -13,19 +13,14 @@ func (h *Handler) ListenForExpiration(ctx context.Context) {
 	// Make a ticker and completion channel that is used to continuously poll the
 	// JWT stored in the session to send events to the socket when it is expiring.
 	ticker := time.NewTicker(time.Second * 30)
-	done := make(chan bool)
 
 	// Whenever this function is complete, end the ticker, close out the channel,
 	// and then close the websocket connection.
-	defer func() {
-		ticker.Stop()
-		done <- true
-	}()
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-		case <-done:
 			return
 		case <-ticker.C:
 			{

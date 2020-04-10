@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
+	"github.com/pkg/profile"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/router"
@@ -36,6 +37,8 @@ func init() {
 }
 
 func rootCmdRun(cmd *cobra.Command, args []string) {
+	defer profile.Start().Stop()
+
 	c, err := config.ReadConfiguration(configPath)
 	if err != nil {
 		panic(err)

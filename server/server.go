@@ -142,6 +142,11 @@ type Allocations struct {
 	Mappings map[string][]int `json:"mappings"`
 }
 
+// Initializes the default required internal struct components for a Server.
+func (s *Server) Init() {
+	s.mutex = &sync.Mutex{}
+}
+
 // Iterates over a given directory and loads all of the servers listed before returning
 // them to the calling function.
 func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
@@ -160,6 +165,15 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 		return err
 	}
 
+	configs, rerr, err := api.NewRequester().GetAllServerConfigurations()
+	if err != nil || rerr != nil {
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		return errors.New(rerr.String())
+	}
+
 	servers = NewCollection(nil)
 
 	for _, file := range f {
@@ -168,6 +182,7 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 		}
 
 		wg.Add()
+
 		// For each of the YAML files we find, parse it and create a new server
 		// configuration object that can then be returned to the caller.
 		go func(file os.FileInfo) {
@@ -179,7 +194,7 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 				return
 			}
 
-			s, err := FromConfiguration(b, cfg)
+			s, err := FromConfiguration(b, cfg, configs[file.Name()[:len(file.Name())-4]])
 			if err != nil {
 				if IsServerDoesNotExistError(err) {
 					zap.S().Infow("server does not exist on remote system", zap.String("server", file.Name()))
@@ -201,15 +216,10 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 	return nil
 }
 
-// Initializes the default required internal struct components for a Server.
-func (s *Server) Init() {
-	s.mutex = &sync.Mutex{}
-}
-
 // Initializes a server using a data byte array. This will be marshaled into the
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
-func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, error) {
+func FromConfiguration(data []byte, cfg *config.SystemConfiguration, apiCfg *api.ServerConfigurationResponse) (*Server, error) {
 	s := new(Server)
 
 	if err := defaults.Set(s); err != nil {
@@ -242,8 +252,16 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	s.Resources = ResourceUsage{}
 
 	// Forces the configuration to be synced with the panel.
-	if err := s.Sync(); err != nil {
-		return nil, err
+	if apiCfg == nil {
+		zap.S().Debug("syncing config with panel", zap.String("server", s.Uuid))
+		if err := s.Sync(); err != nil {
+			return nil, err
+		}
+	} else {
+		zap.S().Debug("syncing with local config", zap.String("server", s.Uuid))
+		if err := s.SyncWithConfiguration(apiCfg); err != nil {
+			return nil, err
+		}
 	}
 
 	return s, nil
@@ -296,13 +314,16 @@ func (s *Server) Sync() error {
 		return errors.New(rerr.String())
 	}
 
+	return s.SyncWithConfiguration(cfg)
+}
+
+func (s *Server) SyncWithConfiguration(cfg *api.ServerConfigurationResponse) error {
 	// Update the data structure and persist it to the disk.
 	if err := s.UpdateDataStructure(cfg.Settings, false); err != nil {
 		return errors.WithStack(err)
 	}
 
 	s.processConfiguration = cfg.ProcessConfiguration
-
 	return nil
 }
 

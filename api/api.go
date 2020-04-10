@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// Initalizes the requester instance.
+// Initializes the requester instance.
 func NewRequester() *PanelRequest {
 	return &PanelRequest{
 		Response: nil,

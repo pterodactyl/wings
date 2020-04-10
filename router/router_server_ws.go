@@ -20,7 +20,7 @@ func getServerWebsocket(c *gin.Context) {
 	defer handler.Connection.Close()
 
 	// Create a context that can be canceled when the user disconnects from this
-	// socket that will also cancel listeners running in seperate threads.
+	// socket that will also cancel listeners running in separate threads.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
