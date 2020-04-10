@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"github.com/pkg/errors"
+	"io/ioutil"
 	"os"
 	"sync"
 )
@@ -54,7 +55,7 @@ func FetchServerStates() (map[string]string, error) {
 
 	// Convert the json object to a map.
 	states := map[string]string{}
-	if err := json.NewDecoder(f).Decode(states); err != nil {
+	if err := json.NewDecoder(f).Decode(&states); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
@@ -75,36 +76,13 @@ func SaveServerStates() error {
 		return errors.WithStack(err)
 	}
 
-	// Check if the states file exists.
-	exists, err := DoesStatesFileExist()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Request a lock after we check if the file exists.
 	statesLock.Lock()
 	defer statesLock.Unlock()
 
-	// Create the file if it doesn't exist or open it if it already does.
-	var f *os.File
-	if !exists {
-		f, err = os.Create(statesFile)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-	} else {
-		f, err = os.Open(statesFile)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-	}
-	defer f.Close()
-
 	// Write the data to the file
-	if _, err := f.Write(data); err != nil {
+	if err := ioutil.WriteFile(statesFile, data, 0644); err != nil {
 		return errors.WithStack(err)
 	}
 
-	// Save the file basically.
-	return f.Sync()
+	return nil
 }

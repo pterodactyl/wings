@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/creasty/defaults"
 	"github.com/patrickmn/go-cache"
@@ -188,7 +187,7 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 
 			if state, exists := states[s.Uuid]; exists {
 				s.State = state
-				zap.S().Debug("loaded server state from cache", zap.String("server", s.Uuid), zap.String("state", s.State))
+				zap.S().Debugw("loaded server state from cache", zap.String("server", s.Uuid), zap.String("state", s.State))
 			}
 
 			servers.Add(s)
@@ -214,12 +213,7 @@ func FromConfiguration(data *api.ServerConfigurationResponse, cfg *config.System
 
 	s.Init()
 
-	j, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.UpdateDataStructure(j, false); err != nil {
+	if err := s.UpdateDataStructure(data.Settings, false); err != nil {
 		return nil, err
 	}
 
@@ -243,7 +237,7 @@ func FromConfiguration(data *api.ServerConfigurationResponse, cfg *config.System
 	s.Resources = ResourceUsage{}
 
 	// Forces the configuration to be synced with the panel.
-	zap.S().Debug("syncing config with panel", zap.String("server", s.Uuid))
+	zap.S().Debugw("syncing config with panel", zap.String("server", s.Uuid))
 	if err := s.SyncWithConfiguration(data); err != nil {
 		return nil, err
 	}
