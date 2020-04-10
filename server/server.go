@@ -179,7 +179,7 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 				return
 			}
 
-			s, err := FromConfiguration(b, cfg)
+			s, err := FromConfiguration(b, cfg, false)
 			if err != nil {
 				if IsServerDoesNotExistError(err) {
 					zap.S().Infow("server does not exist on remote system", zap.String("server", file.Name()))
@@ -209,7 +209,7 @@ func (s *Server) Init() {
 // Initializes a server using a data byte array. This will be marshaled into the
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
-func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, error) {
+func FromConfiguration(data []byte, cfg *config.SystemConfiguration, forceSync bool) (*Server, error) {
 	s := new(Server)
 
 	if err := defaults.Set(s); err != nil {
@@ -244,7 +244,7 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	// This is also done when the server is booted, however we need to account for instances
 	// where the server is already running and the Daemon reboots. In those cases this will
 	// allow us to you know, stop servers.
-	if cfg.SyncServersOnBoot {
+	if forceSync || cfg.SyncServersOnBoot {
 		if err := s.Sync(); err != nil {
 			return nil, err
 		}

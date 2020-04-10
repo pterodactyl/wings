@@ -82,7 +82,7 @@ type SystemConfiguration struct {
 		Gid int
 	}
 
-	// Determines wether or not server data should be synced when the Daemon is started.
+	// Determines whether or not server data should be synced when the Daemon is started.
 	// If set to false, data will only be synced when a server process is started, or
 	// detected as started when booting.
 	SyncServersOnBoot bool `default:"true" yaml:"sync_servers_on_boot"`
