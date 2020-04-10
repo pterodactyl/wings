@@ -84,7 +84,7 @@ func New(data []byte) (*Installer, error) {
 
 	// Create a new server instance using the configuration we wrote to the disk
 	// so that everything gets instantiated correctly on the struct.
-	s2, err := server.FromConfiguration(b, &config.Get().System, true)
+	s2, err := server.FromConfiguration(b, &config.Get().System)
 
 	return &Installer{
 		server: s2,

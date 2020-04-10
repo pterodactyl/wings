@@ -82,11 +82,6 @@ type SystemConfiguration struct {
 		Gid int
 	}
 
-	// Determines whether or not server data should be synced when the Daemon is started.
-	// If set to false, data will only be synced when a server process is started, or
-	// detected as started when booting.
-	SyncServersOnBoot bool `default:"true" yaml:"sync_servers_on_boot"`
-
 	// The path to the system's timezone file that will be mounted into running Docker containers.
 	TimezonePath string `yaml:"timezone_path"`
 
