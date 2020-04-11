@@ -72,7 +72,7 @@ type Server struct {
 
 	// Internal mutex used to block actions that need to occur sequentially, such as
 	// writing the configuration to the disk.
-	mutex *sync.Mutex
+	sync.RWMutex
 }
 
 // The build settings for a given server that impact docker container creation and
@@ -139,14 +139,9 @@ type Allocations struct {
 	Mappings map[string][]int `json:"mappings"`
 }
 
-// Initializes the default required internal struct components for a Server.
-func (s *Server) Init() {
-	s.mutex = &sync.Mutex{}
-}
-
 // Iterates over a given directory and loads all of the servers listed before returning
 // them to the calling function.
-func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
+func LoadDirectory() error {
 	// We could theoretically use a standard wait group here, however doing
 	// that introduces the potential to crash the program due to too many
 	// open files. This wouldn't happen on a small setup, but once the daemon is
@@ -179,7 +174,7 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 		go func(uuid string, data *api.ServerConfigurationResponse) {
 			defer wg.Done()
 
-			s, err := FromConfiguration(data, cfg)
+			s, err := FromConfiguration(data)
 			if err != nil {
 				zap.S().Errorw("failed to load server, skipping...", zap.String("server", uuid), zap.Error(err))
 				return
@@ -204,14 +199,12 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 // Initializes a server using a data byte array. This will be marshaled into the
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
-func FromConfiguration(data *api.ServerConfigurationResponse, cfg *config.SystemConfiguration) (*Server, error) {
+func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	s := new(Server)
 
 	if err := defaults.Set(s); err != nil {
 		return nil, err
 	}
-
-	s.Init()
 
 	if err := s.UpdateDataStructure(data.Settings, false); err != nil {
 		return nil, err
@@ -231,7 +224,7 @@ func FromConfiguration(data *api.ServerConfigurationResponse, cfg *config.System
 		Server: s,
 	}
 	s.Filesystem = Filesystem{
-		Configuration: cfg,
+		Configuration: &config.Get().System,
 		Server:        s,
 	}
 	s.Resources = ResourceUsage{}

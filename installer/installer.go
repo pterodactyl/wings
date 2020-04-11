@@ -48,8 +48,6 @@ func New(data []byte) (*Installer, error) {
 		},
 	}
 
-	s.Init()
-
 	s.Allocations.DefaultMapping.Ip = getString(data, "allocations", "default", "ip")
 	s.Allocations.DefaultMapping.Port = int(getInt(data, "allocations", "default", "port"))
 
@@ -94,7 +92,7 @@ func New(data []byte) (*Installer, error) {
 
 	// Create a new server instance using the configuration we wrote to the disk
 	// so that everything gets instantiated correctly on the struct.
-	s2, err := server.FromConfiguration(c, &config.Get().System)
+	s2, err := server.FromConfiguration(c)
 
 	return &Installer{
 		server: s2,

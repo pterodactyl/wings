@@ -86,7 +86,7 @@ func rootCmdRun(*cobra.Command, []string) {
 		zap.S().Infow("finished ensuring file permissions")
 	}
 
-	if err := server.LoadDirectory("data/servers", &c.System); err != nil {
+	if err := server.LoadDirectory(); err != nil {
 		zap.S().Fatalw("failed to load server configurations", zap.Error(errors.WithStack(err)))
 		return
 	}
