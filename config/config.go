@@ -32,11 +32,11 @@ type Configuration struct {
 
 	// An identifier for the token which must be included in any requests to the panel
 	// so that the token can be looked up correctly.
-	AuthenticationTokenId string `yaml:"token_id"`
+	AuthenticationTokenId string `json:"token_id" yaml:"token_id"`
 
 	// The token used when performing operations. Requests to this instance must
 	// validate against it.
-	AuthenticationToken string `yaml:"token"`
+	AuthenticationToken string `json:"token" yaml:"token"`
 
 	Api    ApiConfiguration
 	System SystemConfiguration
