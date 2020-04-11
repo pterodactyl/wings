@@ -30,6 +30,7 @@ func Configure() *gin.Engine {
 	// All of the routes beyond this mount will use an authorization middleware
 	// and will not be accessible without the correct Authorization header provided.
 	protected := router.Use(AuthorizationMiddleware)
+	protected.POST("/api/update", postUpdateConfiguration)
 	protected.GET("/api/system", getSystemInformation)
 	protected.GET("/api/servers", getAllServers)
 	protected.POST("/api/servers", postCreateServer)

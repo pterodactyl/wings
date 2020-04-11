@@ -17,6 +17,12 @@ import (
 )
 
 type Configuration struct {
+	sync.RWMutex `json:"-" yaml:"-"`
+
+	// Locker specific to writing the configuration to the disk, this happens
+	// in areas that might already be locked so we don't want to crash the process.
+	writeLock sync.Mutex
+
 	// Determines if wings should be running in debug mode. This value is ignored
 	// if the debug flag is passed through the command line arguments.
 	Debug bool
@@ -207,7 +213,7 @@ func ReadConfiguration(path string) (*Configuration, error) {
 
 	c := new(Configuration)
 	// Configures the default values for many of the configuration options present
-	// in the structs. Valkues set in the configuration file take priority over the
+	// in the structs. Values set in the configuration file take priority over the
 	// default values.
 	if err := defaults.Set(c); err != nil {
 		return nil, err
@@ -224,20 +230,29 @@ func ReadConfiguration(path string) (*Configuration, error) {
 	return c, nil
 }
 
+var Mutex sync.RWMutex
 var _config *Configuration
 var _debugViaFlag bool
 
-// Set the global configuration instance.
+// Set the global configuration instance. This is a blocking operation such that
+// anything trying to set a different configuration value, or read the configuration
+// will be paused until it is complete.
 func Set(c *Configuration) {
+	Mutex.Lock()
 	_config = c
+	Mutex.Unlock()
 }
 
 func SetDebugViaFlag(d bool) {
 	_debugViaFlag = d
 }
 
-// Get the global configuration instance.
+// Get the global configuration instance. This is a read-safe operation that will block
+// if the configuration is presently being modified.
 func Get() *Configuration {
+	Mutex.RLock()
+	defer Mutex.RUnlock()
+
 	return _config
 }
 
@@ -293,6 +308,9 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 func (c *Configuration) setSystemUser(u *user.User) error {
 	uid, _ := strconv.Atoi(u.Uid)
 	gid, _ := strconv.Atoi(u.Gid)
+
+	c.Lock()
+	defer c.Unlock()
 
 	c.System.Username = u.Username
 	c.System.User.Uid = uid
@@ -368,6 +386,10 @@ func (c *Configuration) WriteToDisk() error {
 	if err != nil {
 		return err
 	}
+
+	// Obtain an exclusive write against the configuration file.
+	c.writeLock.Lock()
+	defer c.writeLock.Unlock()
 
 	if err := ioutil.WriteFile("config.yml", b, 0644); err != nil {
 		return err

@@ -16,6 +16,9 @@ func NewCollection(servers []*Server) *Collection {
 
 // Return all of the items in the collection.
 func (c *Collection) All() []*Server {
+	c.RLock()
+	defer c.RUnlock()
+
 	return c.items
 }
 

@@ -69,10 +69,6 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 		s.Allocations.Mappings = src.Allocations.Mappings
 	}
 
-	/*if _, err := s.WriteConfigurationToDisk(); err != nil {
-		return errors.WithStack(err)
-	}*/
-
 	if background {
 		s.runBackgroundActions()
 	}
@@ -104,14 +100,6 @@ func (s *Server) runBackgroundActions() {
 	go func(server *Server) {
 		if server.Suspended && server.GetState() != ProcessOfflineState {
 			zap.S().Infow("server suspended with running process state, terminating now", zap.String("server", server.Uuid))
-
-			/*if err := server.Environment.Terminate(os.Kill); err != nil {
-				zap.S().Warnw(
-					"failed to terminate server environment after seeing suspension",
-					zap.String("server", server.Uuid),
-					zap.Error(err),
-				)
-			}*/
 
 			if err := server.Environment.WaitForStop(10, true); err != nil {
 				zap.S().Warnw(

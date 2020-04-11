@@ -3,6 +3,7 @@ package router
 import (
 	"bytes"
 	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/system"
@@ -62,4 +63,26 @@ func postCreateServer(c *gin.Context) {
 	}(install)
 
 	c.Status(http.StatusAccepted)
+}
+
+// Updates the running configuration for this daemon instance.
+func postUpdateConfiguration(c *gin.Context) {
+	// A backup of the configuration for error purposes.
+	ccopy := *config.Get()
+	// A copy of the configuration we're using to bind the data recevied into.
+	cfg := *config.Get()
+
+	c.BindJSON(&cfg)
+
+	config.Set(&cfg)
+	if err := config.Get().WriteToDisk(); err != nil {
+		// If there was an error writing to the disk, revert back to the configuration we had
+		// before this code was run.
+		config.Set(&ccopy)
+
+		TrackedError(err).AbortWithServerError(c)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
