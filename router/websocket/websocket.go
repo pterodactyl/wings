@@ -31,7 +31,7 @@ const (
 )
 
 type Handler struct {
-	sync.Mutex
+	sync.RWMutex
 	Connection *websocket.Conn
 	jwt        *tokens.WebsocketPayload `json:"-"`
 	server     *server.Server
@@ -185,8 +185,8 @@ func (h *Handler) setJwt(token *tokens.WebsocketPayload) {
 }
 
 func (h *Handler) GetJwt() *tokens.WebsocketPayload {
-	h.Lock()
-	defer h.Unlock()
+	h.RLock()
+	defer h.RUnlock()
 
 	return h.jwt
 }
