@@ -181,8 +181,8 @@ func LoadDirectory() error {
 			}
 
 			if state, exists := states[s.Uuid]; exists {
-				s.State = state
-				zap.S().Debugw("loaded server state from cache", zap.String("server", s.Uuid), zap.String("state", s.State))
+				s.SetState(state)
+				zap.S().Debugw("loaded server state from cache", zap.String("server", s.Uuid), zap.String("state", s.GetState()))
 			}
 
 			servers.Add(s)
@@ -315,71 +315,6 @@ func (s *Server) IsBootable() bool {
 // for the server is setup, and that all of the necessary files are created.
 func (s *Server) CreateEnvironment() error {
 	return s.Environment.Create()
-}
-
-const (
-	ProcessOfflineState  = "offline"
-	ProcessStartingState = "starting"
-	ProcessRunningState  = "running"
-	ProcessStoppingState = "stopping"
-)
-
-// Sets the state of the server internally. This function handles crash detection as
-// well as reporting to event listeners for the server.
-func (s *Server) SetState(state string) error {
-	if state != ProcessOfflineState && state != ProcessStartingState && state != ProcessRunningState && state != ProcessStoppingState {
-		return errors.New(fmt.Sprintf("invalid server state received: %s", state))
-	}
-
-	prevState := s.State
-	s.State = state
-
-	// Persist this change to the disk immediately so that should the Daemon be stopped or
-	// crash we can immediately restore the server state.
-	//
-	// This really only makes a difference if all of the Docker containers are also stopped,
-	// but this was a highly requested feature and isn't hard to work with, so lets do it.
-	//
-	// We also get the benefit of server status changes always propagating corrected configurations
-	// to the disk should we forget to do it elsewhere.
-	go func() {
-		/*if _, err := server.WriteConfigurationToDisk(); err != nil {
-			zap.S().Warnw("failed to write server state change to disk", zap.String("server", server.Uuid), zap.Error(err))
-		}*/
-
-		if err := SaveServerStates(); err != nil {
-			zap.S().Warnw("failed to write server states to disk", zap.Error(err))
-		}
-	}()
-
-	zap.S().Debugw("saw server status change event", zap.String("server", s.Uuid), zap.String("status", s.State))
-
-	// Emit the event to any listeners that are currently registered.
-	s.Events().Publish(StatusEvent, s.State)
-
-	// If server was in an online state, and is now in an offline state we should handle
-	// that as a crash event. In that scenario, check the last crash time, and the crash
-	// counter.
-	//
-	// In the event that we have passed the thresholds, don't do anything, otherwise
-	// automatically attempt to start the process back up for the user. This is done in a
-	// separate thread as to not block any actions currently taking place in the flow
-	// that called this function.
-	if (prevState == ProcessStartingState || prevState == ProcessRunningState) && s.State == ProcessOfflineState {
-		zap.S().Infow("detected server as entering a potentially crashed state; running handler", zap.String("server", s.Uuid))
-
-		go func(server *Server) {
-			if err := server.handleServerCrash(); err != nil {
-				if IsTooFrequentCrashError(err) {
-					zap.S().Infow("did not restart server after crash; occurred too soon after last", zap.String("server", server.Uuid))
-				} else {
-					zap.S().Errorw("failed to handle server crash state", zap.String("server", server.Uuid), zap.Error(err))
-				}
-			}
-		}(s)
-	}
-
-	return nil
 }
 
 // Gets the process configuration data for the server.

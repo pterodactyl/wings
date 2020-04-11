@@ -102,7 +102,7 @@ func (s *Server) runBackgroundActions() {
 	// Check if the server is now suspended, and if so and the process is not terminated
 	// yet, do it immediately.
 	go func(server *Server) {
-		if server.Suspended && server.State != ProcessOfflineState {
+		if server.Suspended && server.GetState() != ProcessOfflineState {
 			zap.S().Infow("server suspended with running process state, terminating now", zap.String("server", server.Uuid))
 
 			/*if err := server.Environment.Terminate(os.Kill); err != nil {

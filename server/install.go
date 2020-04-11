@@ -39,7 +39,7 @@ func (s *Server) Install() error {
 // Reinstalls a server's software by utilizing the install script for the server egg. This
 // does not touch any existing files for the server, other than what the script modifies.
 func (s *Server) Reinstall() error {
-	if s.State != ProcessOfflineState {
+	if s.GetState() != ProcessOfflineState {
 		zap.S().Debugw("waiting for server instance to enter a stopped state", zap.String("server", s.Uuid))
 		if err := s.Environment.WaitForStop(10, true); err != nil {
 			return err

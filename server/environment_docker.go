@@ -271,7 +271,7 @@ func (d *DockerEnvironment) Stop() error {
 // does not stop after seconds have passed, an error will be returned, or the instance
 // will be terminated forcefully depending on the value of the second argument.
 func (d *DockerEnvironment) WaitForStop(seconds int, terminate bool) error {
-	if d.Server.State == ProcessOfflineState {
+	if d.Server.GetState() == ProcessOfflineState {
 		return nil
 	}
 
@@ -444,7 +444,7 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 // information, instead just sit there with an async process that lets Docker stream all of this data
 // to us automatically.
 func (d *DockerEnvironment) EnableResourcePolling() error {
-	if d.Server.State == ProcessOfflineState {
+	if d.Server.GetState() == ProcessOfflineState {
 		return errors.New("cannot enable resource polling on a server that is not running")
 	}
 
@@ -472,7 +472,7 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 
 			// Disable collection if the server is in an offline state and this process is
 			// still running.
-			if s.State == ProcessOfflineState {
+			if s.GetState() == ProcessOfflineState {
 				d.DisableResourcePolling()
 				return
 			}

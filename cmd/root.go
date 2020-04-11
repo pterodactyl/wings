@@ -134,7 +134,7 @@ func rootCmdRun(*cobra.Command, []string) {
 			//
 			// This will also validate that a server process is running if the last tracked state we have
 			// is that it was running, but we see that the container process is not currently running.
-			if r || (!r && (s.State == server.ProcessRunningState || s.State == server.ProcessStartingState)) {
+			if r || (!r && s.IsRunning()) {
 				zap.S().Infow("detected server is running, re-attaching to process", zap.String("server", s.Uuid))
 				if err := s.Environment.Start(); err != nil {
 					zap.S().Warnw(

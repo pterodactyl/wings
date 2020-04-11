@@ -33,7 +33,7 @@ func (s *Server) handleServerCrash() error {
 	// No point in doing anything here if the server isn't currently offline, there
 	// is no reason to do a crash detection event. If the server crash detection is
 	// disabled we want to skip anything after this as well.
-	if s.State != ProcessOfflineState || !s.CrashDetection.Enabled {
+	if s.GetState() != ProcessOfflineState || !s.CrashDetection.Enabled {
 		if !s.CrashDetection.Enabled {
 			zap.S().Debugw("server triggered crash detection but handler is disabled for server process", zap.String("server", s.Uuid))
 

@@ -227,7 +227,7 @@ func (h *Handler) HandleInbound(m Message) error {
 
 			// On every authentication event, send the current server status back
 			// to the client. :)
-			h.server.Events().Publish(server.StatusEvent, h.server.State)
+			h.server.Events().Publish(server.StatusEvent, h.server.GetState())
 
 			h.unsafeSendJson(Message{
 				Event: AuthenticationSuccessEvent,
@@ -293,7 +293,7 @@ func (h *Handler) HandleInbound(m Message) error {
 				return nil
 			}
 
-			if h.server.State == server.ProcessOfflineState {
+			if h.server.GetState() == server.ProcessOfflineState {
 				return nil
 			}
 
