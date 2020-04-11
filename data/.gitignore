@@ -1,3 +1,4 @@
 servers/*.yml
 !install_logs/.gitkeep
 install_logs/*
+states.json

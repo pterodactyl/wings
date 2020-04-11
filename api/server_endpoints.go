@@ -49,6 +49,33 @@ type InstallationScript struct {
 	Script         string `json:"script"`
 }
 
+// GetAllServerConfigurations fetches configurations for all servers assigned to this node.
+func (r *PanelRequest) GetAllServerConfigurations() (map[string]*ServerConfigurationResponse, *RequestError, error) {
+	resp, err := r.Get("/servers")
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+	defer resp.Body.Close()
+
+	r.Response = resp
+
+	if r.HasError() {
+		return nil, r.Error(), nil
+	}
+
+	b, _ := r.ReadBody()
+	res := map[string]*ServerConfigurationResponse{}
+	if len(b) == 2 {
+		return res, nil, nil
+	}
+
+	if err := json.Unmarshal(b, &res); err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+
+	return res, nil, nil
+}
+
 // Fetches the server configuration and returns the struct for it.
 func (r *PanelRequest) GetServerConfiguration(uuid string) (*ServerConfigurationResponse, *RequestError, error) {
 	resp, err := r.Get(fmt.Sprintf("/servers/%s", uuid))

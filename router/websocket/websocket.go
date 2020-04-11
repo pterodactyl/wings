@@ -211,6 +211,13 @@ func (h *Handler) HandleInbound(m Message) error {
 		{
 			token, err := NewTokenPayload([]byte(strings.Join(m.Args, "")))
 			if err != nil {
+				// If the error says the JWT expired, send a token expired
+				// event and hopefully the client renews the token.
+				if err == jwt.ErrExpValidation {
+					h.SendJson(&Message{Event: TokenExpiredEvent})
+					return nil
+				}
+
 				return err
 			}
 

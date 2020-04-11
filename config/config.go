@@ -89,11 +89,6 @@ type SystemConfiguration struct {
 		Gid int
 	}
 
-	// Determines wether or not server data should be synced when the Daemon is started.
-	// If set to false, data will only be synced when a server process is started, or
-	// detected as started when booting.
-	SyncServersOnBoot bool `default:"true" yaml:"sync_servers_on_boot"`
-
 	// The path to the system's timezone file that will be mounted into running Docker containers.
 	TimezonePath string `yaml:"timezone_path"`
 
@@ -362,12 +357,6 @@ func (c *Configuration) EnsureFilePermissions() error {
 // lock on the file. This prevents something else from writing at the exact same time and
 // leading to bad data conditions.
 func (c *Configuration) WriteToDisk() error {
-	f, err := os.OpenFile("config.yml", os.O_WRONLY, os.ModeExclusive)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
 	ccopy := *c
 	// If debugging is set with the flag, don't save that to the configuration file, otherwise
 	// you'll always end up in debug mode.
@@ -380,7 +369,7 @@ func (c *Configuration) WriteToDisk() error {
 		return err
 	}
 
-	if _, err := f.Write(b); err != nil {
+	if err := ioutil.WriteFile("config.yml", b, 0644); err != nil {
 		return err
 	}
 

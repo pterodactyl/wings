@@ -9,10 +9,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
 	"os"
-	"path"
 	"strings"
 	"sync"
 	"time"
@@ -142,6 +139,11 @@ type Allocations struct {
 	Mappings map[string][]int `json:"mappings"`
 }
 
+// Initializes the default required internal struct components for a Server.
+func (s *Server) Init() {
+	s.mutex = &sync.Mutex{}
+}
+
 // Iterates over a given directory and loads all of the servers listed before returning
 // them to the calling function.
 func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
@@ -155,43 +157,41 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 	// the road to help big instances scale better.
 	wg := sizedwaitgroup.New(10)
 
-	f, err := ioutil.ReadDir(dir)
+	configs, rerr, err := api.NewRequester().GetAllServerConfigurations()
+	if err != nil || rerr != nil {
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		return errors.New(rerr.String())
+	}
+
+	states, err := FetchServerStates()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	servers = NewCollection(nil)
 
-	for _, file := range f {
-		if !strings.HasSuffix(file.Name(), ".yml") || file.IsDir() {
-			continue
-		}
-
+	for uuid, data := range configs {
 		wg.Add()
-		// For each of the YAML files we find, parse it and create a new server
-		// configuration object that can then be returned to the caller.
-		go func(file os.FileInfo) {
+
+		go func(uuid string, data *api.ServerConfigurationResponse) {
 			defer wg.Done()
 
-			b, err := ioutil.ReadFile(path.Join(dir, file.Name()))
+			s, err := FromConfiguration(data, cfg)
 			if err != nil {
-				zap.S().Errorw("failed to read server configuration file, skipping...", zap.String("server", file.Name()), zap.Error(err))
+				zap.S().Errorw("failed to load server, skipping...", zap.String("server", uuid), zap.Error(err))
 				return
 			}
 
-			s, err := FromConfiguration(b, cfg)
-			if err != nil {
-				if IsServerDoesNotExistError(err) {
-					zap.S().Infow("server does not exist on remote system", zap.String("server", file.Name()))
-				} else {
-					zap.S().Errorw("failed to parse server configuration, skipping...", zap.String("server", file.Name()), zap.Error(err))
-				}
-
-				return
+			if state, exists := states[s.Uuid]; exists {
+				s.State = state
+				zap.S().Debugw("loaded server state from cache", zap.String("server", s.Uuid), zap.String("state", s.State))
 			}
 
 			servers.Add(s)
-		}(file)
+		}(uuid, data)
 	}
 
 	// Wait until we've processed all of the configuration files in the directory
@@ -201,15 +201,10 @@ func LoadDirectory(dir string, cfg *config.SystemConfiguration) error {
 	return nil
 }
 
-// Initializes the default required internal struct components for a Server.
-func (s *Server) Init() {
-	s.mutex = &sync.Mutex{}
-}
-
 // Initializes a server using a data byte array. This will be marshaled into the
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
-func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, error) {
+func FromConfiguration(data *api.ServerConfigurationResponse, cfg *config.SystemConfiguration) (*Server, error) {
 	s := new(Server)
 
 	if err := defaults.Set(s); err != nil {
@@ -218,7 +213,7 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 
 	s.Init()
 
-	if err := yaml.Unmarshal(data, s); err != nil {
+	if err := s.UpdateDataStructure(data.Settings, false); err != nil {
 		return nil, err
 	}
 
@@ -241,13 +236,10 @@ func FromConfiguration(data []byte, cfg *config.SystemConfiguration) (*Server, e
 	}
 	s.Resources = ResourceUsage{}
 
-	// This is also done when the server is booted, however we need to account for instances
-	// where the server is already running and the Daemon reboots. In those cases this will
-	// allow us to you know, stop servers.
-	if cfg.SyncServersOnBoot {
-		if err := s.Sync(); err != nil {
-			return nil, err
-		}
+	// Forces the configuration to be synced with the panel.
+	zap.S().Debugw("syncing config with panel", zap.String("server", s.Uuid))
+	if err := s.SyncWithConfiguration(data); err != nil {
+		return nil, err
 	}
 
 	return s, nil
@@ -300,13 +292,16 @@ func (s *Server) Sync() error {
 		return errors.New(rerr.String())
 	}
 
+	return s.SyncWithConfiguration(cfg)
+}
+
+func (s *Server) SyncWithConfiguration(cfg *api.ServerConfigurationResponse) error {
 	// Update the data structure and persist it to the disk.
 	if err := s.UpdateDataStructure(cfg.Settings, false); err != nil {
 		return errors.WithStack(err)
 	}
 
 	s.processConfiguration = cfg.ProcessConfiguration
-
 	return nil
 }
 
@@ -354,11 +349,15 @@ func (s *Server) SetState(state string) error {
 	//
 	// We also get the benefit of server status changes always propagating corrected configurations
 	// to the disk should we forget to do it elsewhere.
-	go func(server *Server) {
-		if _, err := server.WriteConfigurationToDisk(); err != nil {
+	go func() {
+		/*if _, err := server.WriteConfigurationToDisk(); err != nil {
 			zap.S().Warnw("failed to write server state change to disk", zap.String("server", server.Uuid), zap.Error(err))
+		}*/
+
+		if err := SaveServerStates(); err != nil {
+			zap.S().Warnw("failed to write server states to disk", zap.Error(err))
 		}
-	}(s)
+	}()
 
 	zap.S().Debugw("saw server status change event", zap.String("server", s.Uuid), zap.String("status", s.State))
 
