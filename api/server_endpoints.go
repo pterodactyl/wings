@@ -63,8 +63,11 @@ func (r *PanelRequest) GetAllServerConfigurations() (map[string]*ServerConfigura
 		return nil, r.Error(), nil
 	}
 
-	res := map[string]*ServerConfigurationResponse{}
 	b, _ := r.ReadBody()
+	res := map[string]*ServerConfigurationResponse{}
+	if len(b) == 2 {
+		return res, nil, nil
+	}
 
 	if err := json.Unmarshal(b, &res); err != nil {
 		return nil, nil, errors.WithStack(err)
