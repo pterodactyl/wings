@@ -161,7 +161,7 @@ func LoadDirectory() error {
 		return errors.New(rerr.String())
 	}
 
-	states, err := FetchServerStates()
+	states, err := getServerStates()
 	if err != nil {
 		return errors.WithStack(err)
 	}

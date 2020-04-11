@@ -8,17 +8,16 @@ import (
 	"sync"
 )
 
-var (
-	statesLock sync.Mutex
-	statesFile = "data/states.json"
-)
+const stateFileLocation = "data/.states.json"
 
-// DoesStatesFileExist .
-func DoesStatesFileExist() (bool, error) {
-	statesLock.Lock()
-	defer statesLock.Unlock()
+var stateMutex sync.Mutex
 
-	if _, err := os.Stat(statesFile); err != nil {
+// Checks if the state tracking file exists, if not it is generated.
+func ensureStateFileExists() (bool, error) {
+	stateMutex.Lock()
+	defer stateMutex.Unlock()
+
+	if _, err := os.Stat(stateFileLocation); err != nil {
 		if !os.IsNotExist(err) {
 			return false, errors.WithStack(err)
 		}
@@ -29,17 +28,17 @@ func DoesStatesFileExist() (bool, error) {
 	return true, nil
 }
 
-// FetchServerStates .
-func FetchServerStates() (map[string]string, error) {
+// Returns the state of the servers.
+func getServerStates() (map[string]string, error) {
 	// Check if the states file exists.
-	exists, err := DoesStatesFileExist()
+	exists, err := ensureStateFileExists()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	// Request a lock after we check if the file exists.
-	statesLock.Lock()
-	defer statesLock.Unlock()
+	stateMutex.Lock()
+	defer stateMutex.Unlock()
 
 	// Return an empty map if the file does not exist.
 	if !exists {
@@ -47,7 +46,7 @@ func FetchServerStates() (map[string]string, error) {
 	}
 
 	// Open the states file.
-	f, err := os.Open(statesFile)
+	f, err := os.Open(stateFileLocation)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -76,11 +75,11 @@ func SaveServerStates() error {
 		return errors.WithStack(err)
 	}
 
-	statesLock.Lock()
-	defer statesLock.Unlock()
+	stateMutex.Lock()
+	defer stateMutex.Unlock()
 
 	// Write the data to the file
-	if err := ioutil.WriteFile(statesFile, data, 0644); err != nil {
+	if err := ioutil.WriteFile(stateFileLocation, data, 0644); err != nil {
 		return errors.WithStack(err)
 	}
 
