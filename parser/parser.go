@@ -60,7 +60,7 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 	} else {
 		if dt != jsonparser.String && dt != jsonparser.Number && dt != jsonparser.Boolean {
 			return errors.New(
-				fmt.Sprintf("cannot parse JSON: received unexpected replacement value type: %d", dt),
+				fmt.Sprintf("cannot parse JSON: received unexpected replacement value type: %s", dt.String()),
 			)
 		}
 
