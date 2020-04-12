@@ -37,9 +37,14 @@ func postCreateServer(c *gin.Context) {
 
 	install, err := installer.New(buf.Bytes())
 	if err != nil {
-		TrackedError(err).
-			SetMessage("Failed to validate the data provided in the request.").
-			AbortWithStatus(http.StatusUnprocessableEntity, c)
+		if installer.IsValidationError(err) {
+			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
+				"error": "The data provided in the request could not be validated.",
+			})
+			return
+		}
+
+		TrackedError(err).AbortWithServerError(c)
 		return
 	}
 

@@ -22,11 +22,11 @@ type Installer struct {
 // calling Execute().
 func New(data []byte) (*Installer, error) {
 	if !govalidator.IsUUIDv4(getString(data, "uuid")) {
-		return nil, errors.New("uuid provided was not in a valid format")
+		return nil, NewValidationError("uuid provided was not in a valid format")
 	}
 
 	if !govalidator.IsUUIDv4(getString(data, "service", "egg")) {
-		return nil, errors.New("service egg provided was not in a valid format")
+		return nil, NewValidationError("service egg provided was not in a valid format")
 	}
 
 	s := &server.Server{
@@ -81,11 +81,6 @@ func New(data []byte) (*Installer, error) {
 
 		return nil, errors.New(rerr.String())
 	}
-
-	/*b, err := s.WriteConfigurationToDisk()
-	if err != nil {
-		return nil, err
-	}*/
 
 	// Destroy the temporary server instance.
 	s = nil
