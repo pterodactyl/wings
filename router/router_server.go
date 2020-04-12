@@ -205,12 +205,5 @@ func deleteServer(c *gin.Context) {
 	// Deallocate the reference to this server.
 	s = nil
 
-	// Remove the configuration file stored on the Daemon for this server.
-	go func(u string) {
-		if err := os.Remove("data/servers/" + u + ".yml"); err != nil {
-			zap.S().Warnw("failed to delete server configuration file while processing deletion request", zap.String("server", u), zap.Error(errors.WithStack(err)))
-		}
-	}(uuid)
-
 	c.Status(http.StatusNoContent)
 }
