@@ -111,9 +111,35 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 // Sets the value at a specific pathway, but checks if we were looking for a specific
 // value or not before doing it.
 func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path string, value []byte) error {
-	if cfr.IfValue != nil {
-		if !c.Exists(path) || (c.Exists(path) && !bytes.Equal(c.Bytes(), []byte(*cfr.IfValue))) {
+	if cfr.IfValue != "" {
+		// If this is a regex based matching, we need to get a little more creative since
+		// we're only going to replacing part of the string, and not the whole thing.
+		if c.Exists(path) && strings.HasPrefix(cfr.IfValue, "regex:") {
+			// We're doing some regex here.
+			r, err := regexp.Compile(strings.TrimPrefix(cfr.IfValue, "regex:"))
+			if err != nil {
+				zap.S().Warnw(
+					"configuration if_value using invalid regexp, cannot do replacement",
+					zap.String("if_value", strings.TrimPrefix(cfr.IfValue, "regex:")),
+					zap.Error(err),
+				)
+				return nil
+			}
+
+			// If the path exists and there is a regex match, go ahead and attempt the replacement
+			// using the value we got from the key. This will only replace the one match.
+			v := strings.Trim(string(c.Path(path).Bytes()), "\"")
+			if r.Match([]byte(v)) {
+				_, err := c.SetP(r.ReplaceAllString(v, string(value)), path)
+
+				return err
+			}
+
 			return nil
+		} else {
+			if !c.Exists(path) || (c.Exists(path) && !bytes.Equal(c.Bytes(), []byte(cfr.IfValue))) {
+				return nil
+			}
 		}
 	}
 
@@ -154,7 +180,7 @@ func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplac
 			return match, errors.WithStack(err)
 		}
 
-		zap.S().Warnw(
+		zap.S().Debugw(
 			"attempted to load a configuration value that does not exist",
 			zap.Strings("path", path),
 			zap.String("filename", f.FileName),
@@ -162,7 +188,7 @@ func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplac
 
 		// If there is no key, keep the original value intact, that way it is obvious there
 		// is a replace issue at play.
-		return cfr.ReplaceWith.Value(), nil
+		return match, nil
 	} else {
 		replaced := []byte(configMatchRegex.ReplaceAllString(cfr.ReplaceWith.String(), string(match)))
 
