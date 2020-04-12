@@ -1,0 +1,19 @@
+version: '3'
+services:
+  daemon:
+    build: .
+    restart: always
+    hostname: daemon
+    ports:
+      - "8080:8080"
+      - "2022:2022"
+    tty: true
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/var/lib/docker/containers:/var/lib/docker/containers"
+      - "/srv/daemon/config/:/srv/daemon/config/"
+      - "/srv/daemon-data/:/srv/daemon-data/"
+      - "/tmp/pterodactyl/:/tmp/pterodactyl/"
+      - "/etc/timezone:/etc/timezone:ro"
+      ## Required for ssl if you user let's encrypt. uncomment to use.
+      ## - "/etc/letsencrypt/:/etc/letsencrypt/"
