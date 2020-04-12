@@ -5,7 +5,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
 	"net/http"
@@ -69,7 +68,7 @@ func (e *RequestError) AbortWithStatus(status int, c *gin.Context) {
 		}
 
 		c.Error(errors.WithStack(e))
-	} else if config.Get().Debug {
+	} else {
 		if e.server != nil {
 			zap.S().Debugw("encountered error while handling HTTP request", zap.String("server", e.server.Uuid), zap.String("error_id", e.Uuid), zap.Error(e.Err))
 		} else {
