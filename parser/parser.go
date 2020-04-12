@@ -3,7 +3,6 @@ package parser
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"github.com/beevik/etree"
 	"github.com/buger/jsonparser"
 	"github.com/ghodss/yaml"
@@ -43,11 +42,13 @@ type ConfigurationFile struct {
 
 // Defines a single find/replace instance for a given server configuration file.
 type ConfigurationFileReplacement struct {
-	Match     string               `json:"match"`
-	Value     string               `json:"value"`
-	ValueType jsonparser.ValueType `json:"-"`
+	Match       string       `json:"match"`
+	IfValue     *string      `json:"if_value"`
+	ReplaceWith ReplaceValue `json:"replace_with"`
 }
 
+// Handles unmarshaling the JSON representation into a struct that provides more useful
+// data to this functionality.
 func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 	if m, err := jsonparser.GetString(data, "match"); err != nil {
 		return err
@@ -55,17 +56,13 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 		cfr.Match = m
 	}
 
-	if v, dt, _, err := jsonparser.Get(data, "value"); err != nil {
+	if v, dt, _, err := jsonparser.Get(data, "replace_with"); err != nil {
 		return err
 	} else {
-		if dt != jsonparser.String && dt != jsonparser.Number && dt != jsonparser.Boolean {
-			return errors.New(
-				fmt.Sprintf("cannot parse JSON: received unexpected replacement value type: %s", dt.String()),
-			)
+		cfr.ReplaceWith = ReplaceValue{
+			value:     v,
+			valueType: dt,
 		}
-
-		cfr.Value = string(v)
-		cfr.ValueType = dt
 	}
 
 	return nil
@@ -139,7 +136,7 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 	}
 
 	for i, replacement := range f.Replace {
-		value, _, err := f.LookupConfigurationValue(replacement)
+		value, err := f.LookupConfigurationValue(replacement)
 		if err != nil {
 			return err
 		}
@@ -209,7 +206,7 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 func (f *ConfigurationFile) parseIniFile(path string) error {
 	// Ini package can't handle a non-existent file, so handle that automatically here
 	// by creating it if not exists.
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644);
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return err
 	}
@@ -223,7 +220,7 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 	for _, replacement := range f.Replace {
 		path := strings.SplitN(replacement.Match, ".", 2)
 
-		value, _, err := f.LookupConfigurationValue(replacement)
+		value, err := f.LookupConfigurationValue(replacement)
 		if err != nil {
 			return err
 		}
@@ -336,7 +333,7 @@ func (f *ConfigurationFile) parseTextFile(path string) error {
 			}
 
 			hasReplaced = true
-			t = strings.Replace(t, replace.Match, replace.Value, 1)
+			t = strings.Replace(t, replace.Match, replace.ReplaceWith.String(), 1)
 		}
 
 		// If there was a replacement that occurred on this specific line, do a write to the file
@@ -364,9 +361,17 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 	}
 
 	for _, replace := range f.Replace {
-		data, _, err := f.LookupConfigurationValue(replace)
+		data, err := f.LookupConfigurationValue(replace)
 		if err != nil {
 			return err
+		}
+
+		v, ok := p.Get(replace.Match)
+		// Don't attempt to replace the value if we're looking for a specific value and
+		// it does not match. If there was no match at all in the file for this key but
+		// we're doing an IfValue match, do nothing.
+		if replace.IfValue != nil && (!ok || (ok && v != *replace.IfValue)) {
+			continue
 		}
 
 		if _, _, err := p.Set(replace.Match, string(data)); err != nil {

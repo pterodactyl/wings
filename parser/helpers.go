@@ -1,12 +1,15 @@
 package parser
 
 import (
+	"bytes"
 	"github.com/Jeffail/gabs/v2"
 	"github.com/buger/jsonparser"
 	"github.com/iancoleman/strcase"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -44,32 +47,19 @@ func readFileBytes(path string) ([]byte, error) {
 	return ioutil.ReadAll(file)
 }
 
-// Helper function to set the value of the JSON key item based on the jsonparser value
-// type returned.
-func setPathway(c *gabs.Container, path string, value []byte, vt jsonparser.ValueType) error {
-	v := getKeyValue(value, vt)
-
-	_, err := c.SetP(v, path)
-
-	return err
-}
-
 // Gets the value of a key based on the value type defined.
-func getKeyValue(value []byte, vt jsonparser.ValueType) interface{} {
-	switch vt {
-	case jsonparser.Number:
-		{
-			v, _ := strconv.Atoi(string(value))
-			return v
-		}
-	case jsonparser.Boolean:
-		{
-			v, _ := strconv.ParseBool(string(value))
-			return v
-		}
-	default:
-		return string(value)
+func getKeyValue(value []byte) interface{} {
+	if reflect.ValueOf(value).Kind() == reflect.Bool {
+		v, _ := strconv.ParseBool(string(value))
+		return v
 	}
+
+	// Try to parse into an int, if this fails just ignore the error and
+	if v, err := strconv.Atoi(string(value)); err == nil {
+		return v
+	}
+
+	return string(value)
 }
 
 // Iterate over an unstructured JSON/YAML/etc. interface and set all of the required
@@ -88,7 +78,7 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 	}
 
 	for _, v := range f.Replace {
-		value, dt, err := f.LookupConfigurationValue(v)
+		value, err := f.LookupConfigurationValue(v)
 		if err != nil {
 			return nil, err
 		}
@@ -104,12 +94,12 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 			// If the child is a null value, nothing will happen. Seems reasonable as of the
 			// time this code is being written.
 			for _, child := range parsed.Path(strings.Trim(parts[0], ".")).Children() {
-				if err := setPathway(child, strings.Trim(parts[1], "."), value, dt); err != nil {
+				if err := v.SetAtPathway(child, strings.Trim(parts[1], "."), value); err != nil {
 					return nil, err
 				}
 			}
 		} else {
-			if err = setPathway(parsed, v.Match, value, dt); err != nil {
+			if err = v.SetAtPathway(parsed, v.Match, value); err != nil {
 				return nil, err
 			}
 		}
@@ -118,17 +108,34 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 	return parsed, nil
 }
 
+// Sets the value at a specific pathway, but checks if we were looking for a specific
+// value or not before doing it.
+func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path string, value []byte) error {
+	if cfr.IfValue != nil {
+		if !c.Exists(path) || (c.Exists(path) && !bytes.Equal(c.Bytes(), []byte(*cfr.IfValue))) {
+			return nil
+		}
+	}
+
+	_, err := c.SetP(getKeyValue(value), path)
+
+	return err
+}
+
 // Looks up a configuration value on the Daemon given a dot-notated syntax.
-func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplacement) ([]byte, jsonparser.ValueType, error) {
-	if !configMatchRegex.Match([]byte(cfr.Value)) {
-		return []byte(cfr.Value), cfr.ValueType, nil
+func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplacement) ([]byte, error) {
+	// If this is not something that we can do a regex lookup on then just continue
+	// on our merry way. If the value isn't a string, we're not going to be doing anything
+	// with it anyways.
+	if cfr.ReplaceWith.Type() != jsonparser.String || !configMatchRegex.Match(cfr.ReplaceWith.Value()) {
+		return cfr.ReplaceWith.Value(), nil
 	}
 
 	// If there is a match, lookup the value in the configuration for the Daemon. If no key
 	// is found, just return the string representation, otherwise use the value from the
 	// daemon configuration here.
 	huntPath := configMatchRegex.ReplaceAllString(
-		configMatchRegex.FindString(cfr.Value), "$1",
+		configMatchRegex.FindString(cfr.ReplaceWith.String()), "$1",
 	)
 
 	var path []string
@@ -141,18 +148,24 @@ func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplac
 
 	// Look for the key in the configuration file, and if found return that value to the
 	// calling function.
-	match, dt, _, err := jsonparser.Get(f.configuration, path...)
+	match, _, _, err := jsonparser.Get(f.configuration, path...)
 	if err != nil {
 		if err != jsonparser.KeyPathNotFoundError {
-			return match, dt, errors.WithStack(err)
+			return match, errors.WithStack(err)
 		}
+
+		zap.S().Warnw(
+			"attempted to load a configuration value that does not exist",
+			zap.Strings("path", path),
+			zap.String("filename", f.FileName),
+		)
 
 		// If there is no key, keep the original value intact, that way it is obvious there
 		// is a replace issue at play.
-		return []byte(cfr.Value), cfr.ValueType, nil
+		return cfr.ReplaceWith.Value(), nil
 	} else {
-		replaced := []byte(configMatchRegex.ReplaceAllString(cfr.Value, string(match)))
+		replaced := []byte(configMatchRegex.ReplaceAllString(cfr.ReplaceWith.String(), string(match)))
 
-		return replaced, cfr.ValueType, nil
+		return replaced, nil
 	}
 }
