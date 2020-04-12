@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"github.com/creasty/defaults"
+	"github.com/gbrlsnchs/jwt/v3"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -231,7 +232,9 @@ func ReadConfiguration(path string) (*Configuration, error) {
 }
 
 var Mutex sync.RWMutex
+
 var _config *Configuration
+var _jwtAlgo *jwt.HMACSHA
 var _debugViaFlag bool
 
 // Set the global configuration instance. This is a blocking operation such that
@@ -239,6 +242,11 @@ var _debugViaFlag bool
 // will be paused until it is complete.
 func Set(c *Configuration) {
 	Mutex.Lock()
+
+	if _config == nil || _config.AuthenticationToken != c.AuthenticationToken {
+		_jwtAlgo = jwt.NewHS256([]byte(c.AuthenticationToken))
+	}
+
 	_config = c
 	Mutex.Unlock()
 }
@@ -254,6 +262,14 @@ func Get() *Configuration {
 	defer Mutex.RUnlock()
 
 	return _config
+}
+
+// Returns the in-memory JWT algorithm.
+func GetJwtAlgorithm() *jwt.HMACSHA {
+	Mutex.RLock()
+	defer Mutex.RUnlock()
+
+	return _jwtAlgo
 }
 
 // Ensures that the Pterodactyl core user exists on the system. This user will be the

@@ -7,8 +7,8 @@ import (
 )
 
 type TokenStore struct {
+	sync.Mutex
 	cache *cache.Cache
-	mutex *sync.Mutex
 }
 
 var _tokens *TokenStore
@@ -20,16 +20,16 @@ func getTokenStore() *TokenStore {
 	if _tokens == nil {
 		_tokens = &TokenStore{
 			cache: cache.New(time.Minute*60, time.Minute*5),
-			mutex: &sync.Mutex{},
 		}
 	}
 
 	return _tokens
 }
 
+// Checks if a token is valid or not.
 func (t *TokenStore) IsValidToken(token string) bool {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
+	t.Lock()
+	defer t.Unlock()
 
 	_, exists := t.cache.Get(token)
 

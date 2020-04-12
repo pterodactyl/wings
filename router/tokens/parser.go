@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-var alg *jwt.HMACSHA
-
 type TokenData interface {
 	GetPayload() *jwt.Payload
 }
@@ -18,16 +16,12 @@ type TokenData interface {
 //
 // This simply returns a parsed token.
 func ParseToken(token []byte, data TokenData) error {
-	if alg == nil {
-		alg = jwt.NewHS256([]byte(config.Get().AuthenticationToken))
-	}
-
 	verifyOptions := jwt.ValidatePayload(
 		data.GetPayload(),
 		jwt.ExpirationTimeValidator(time.Now()),
 	)
 
-	_, err := jwt.Verify(token, alg, &data, verifyOptions)
+	_, err := jwt.Verify(token, config.GetJwtAlgorithm(), &data, verifyOptions)
 
 	return err
 }
