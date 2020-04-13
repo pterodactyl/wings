@@ -19,6 +19,7 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a
 	github.com/beevik/etree v1.1.0
 	github.com/buger/jsonparser v0.0.0-20191204142016-1a29609e0929
+	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/containerd/fifo v0.0.0-20190226154929-a9fb20d87448 // indirect
 	github.com/creasty/defaults v1.3.0
 	github.com/docker/distribution v2.7.1+incompatible // indirect
