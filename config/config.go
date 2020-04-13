@@ -67,7 +67,7 @@ type Configuration struct {
 
 		// The amount of time that should lapse between data output throttle
 		// checks. This should be defined in milliseconds.
-		CheckInterval int `defauly:"100" yaml:"check_interval"`
+		CheckInterval int `default:"100" yaml:"check_interval"`
 	}
 
 	// The location where the panel is running that this daemon should connect to
@@ -302,7 +302,7 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 
 		// We have to create the group first on Alpine, so do that here before continuing on
 		// to the user creation process.
-		if _, err := exec.Command("addgroup", "-s", c.System.Username).Output(); err != nil {
+		if _, err := exec.Command("addgroup", "-S", c.System.Username).Output(); err != nil {
 			return nil, err
 		}
 	}
@@ -365,7 +365,7 @@ func (c *Configuration) EnsureFilePermissions() error {
 		// the item is not a folder, or is not a folder that matches the expected UUIDv4 format
 		// skip over it.
 		//
-		// If we do have a positive match, run a chown aganist the directory.
+		// If we do have a positive match, run a chown against the directory.
 		go func(f os.FileInfo) {
 			defer wg.Done()
 
@@ -416,12 +416,20 @@ func (c *Configuration) WriteToDisk() error {
 
 // Gets the system release name.
 func getSystemName() (string, error) {
-	cmd := exec.Command("lsb_release", "-is")
+	// alpine doesn't have lsb_release
+	_, err := os.Stat("/etc/alpine-release")
+	if os.IsNotExist(err) {
+		// if the alpine release file doesn't exist. run lsb_release
+		cmd := exec.Command("lsb_release", "-is")
 
-	b, err := cmd.Output()
-	if err != nil {
-		return "", err
+		b, err := cmd.Output()
+		if err != nil {
+			return "", err
+		}
+
+		return string(b), nil
+	} else {
+		// if the alpine release file does exist return string
+		return "Alpine", err
 	}
-
-	return string(b), nil
 }
