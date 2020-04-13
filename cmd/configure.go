@@ -45,8 +45,10 @@ func init() {
 }
 
 func configureCmdRun(cmd *cobra.Command, args []string) {
-	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: true,
+	if configureArgs.AllowInsecure {
+		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
 	}
 
 	if _, err := os.Stat("config.yml"); err == nil && !configureArgs.Override {
