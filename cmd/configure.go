@@ -123,6 +123,9 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
+	fmt.Printf("%+v", req.Header)
+	fmt.Printf(req.URL.String())
+
 	res, err := c.Do(req)
 	if err != nil {
 		fmt.Println("Failed to fetch configuration from the panel.\n", err.Error())
@@ -130,9 +133,13 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == http.StatusForbidden {
+	if res.StatusCode == http.StatusForbidden || res.StatusCode == http.StatusUnauthorized {
 		fmt.Println("The authentication credentials provided were not valid.")
+		os.Exit(1)
+	} else if res.StatusCode != http.StatusOK {
+		b, _ := ioutil.ReadAll(res.Body)
 
+		fmt.Println("An error occurred while processing this request.\n", string(b))
 		os.Exit(1)
 	}
 
@@ -143,7 +150,7 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	if err := json.Unmarshal(b, &cfg); err != nil {
+	if err := json.Unmarshal(b, cfg); err != nil {
 		panic(err)
 	}
 

@@ -656,30 +656,6 @@ func (d *DockerEnvironment) Create() error {
 	return nil
 }
 
-// Given a host configuration mount, also mount the timezone data into it.
-func mountTimezoneData(c *container.HostConfig) error {
-	p := config.Get().System.TimezonePath
-
-	// Check for the timezone file, if it exists use it assuming it isn't also a directory,
-	// otherwise bubble the error back up the stack.
-	if s, err := os.Stat(p); err != nil {
-		return err
-	} else {
-		if s.IsDir() {
-			return errors.New("attempting to mount directory as timezone file")
-		}
-	}
-
-	c.Mounts = append(c.Mounts, mount.Mount{
-		Target:   p,
-		Source:   p,
-		Type:     mount.TypeBind,
-		ReadOnly: true,
-	})
-
-	return nil
-}
-
 // Sends the specified command to the stdin of the running container instance. There is no
 // confirmation that this data is sent successfully, only that it gets pushed into the stdin.
 func (d *DockerEnvironment) SendCommand(c string) error {

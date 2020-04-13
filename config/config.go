@@ -59,11 +59,11 @@ type Configuration struct {
 		// The number of seconds that must elapse before the internal counter
 		// begins decrementing warnings assigned to a process that is outputting
 		// too much data.
-		DecaySeconds int `default:"10" yaml:"decay"`
+		DecaySeconds int `default:"10" json:"decay" yaml:"decay"`
 
 		// The total number of bytes allowed to be output by a server process
 		// per interval.
-		BytesPerInterval int `default:"4096" yaml:"bytes"`
+		BytesPerInterval int `default:"4096" json:"bytes" yaml:"bytes"`
 
 		// The amount of time that should lapse between data output throttle
 		// checks. This should be defined in milliseconds.
@@ -72,7 +72,7 @@ type Configuration struct {
 
 	// The location where the panel is running that this daemon should connect to
 	// to collect data and send events.
-	PanelLocation string `yaml:"remote"`
+	PanelLocation string `json:"remote" yaml:"remote"`
 }
 
 // Defines basic system configuration settings.
@@ -95,9 +95,6 @@ type SystemConfiguration struct {
 		Uid int
 		Gid int
 	}
-
-	// The path to the system's timezone file that will be mounted into running Docker containers.
-	TimezonePath string `yaml:"timezone_path"`
 
 	// Determines if permissions for a server should be set automatically on
 	// daemon boot. This can take a long time on systems with many servers, or on
@@ -124,14 +121,14 @@ type SystemConfiguration struct {
 type SftpConfiguration struct {
 	// If set to false, the internal SFTP server will not be booted and you will need
 	// to run the SFTP server independent of this program.
-	UseInternalSystem bool `default:"true" yaml:"use_internal"`
+	UseInternalSystem bool `default:"true" json:"use_internal" yaml:"use_internal"`
 	// If set to true disk checking will not be performed. This will prevent the SFTP
 	// server from checking the total size of a directory when uploading files.
 	DisableDiskChecking bool `default:"false" yaml:"disable_disk_checking"`
 	// The bind address of the SFTP server.
-	Address string `default:"0.0.0.0" yaml:"bind_address"`
+	Address string `default:"0.0.0.0" json:"bind_address" yaml:"bind_address"`
 	// The bind port of the SFTP server.
-	Port int `default:"2022" yaml:"bind_port"`
+	Port int `default:"2022" json:"bind_port" yaml:"bind_port"`
 	// If set to true, no write actions will be allowed on the SFTP server.
 	ReadOnly bool `default:"false" yaml:"read_only"`
 }
@@ -169,19 +166,19 @@ type DockerNetworkConfiguration struct {
 type DockerConfiguration struct {
 	// Network configuration that should be used when creating a new network
 	// for containers run through the daemon.
-	Network DockerNetworkConfiguration `yaml:"network"`
+	Network DockerNetworkConfiguration `json:"network" yaml:"network"`
 
 	// If true, container images will be updated when a server starts if there
 	// is an update available. If false the daemon will not attempt updates and will
 	// defer to the host system to manage image updates.
-	UpdateImages bool `default:"true" yaml:"update_images"`
+	UpdateImages bool `default:"true" json:"update_images" yaml:"update_images"`
 
 	// The location of the Docker socket.
 	Socket string `default:"/var/run/docker.sock"`
 
 	// Defines the location of the timezone file on the host system that should
 	// be mounted into the created containers so that they all use the same time.
-	TimezonePath string `default:"/etc/timezone" yaml:"timezone_path"`
+	TimezonePath string `default:"/etc/timezone" json:"timezone_path" yaml:"timezone_path"`
 }
 
 // Defines the configuration for the internal API that is exposed by the
@@ -196,12 +193,12 @@ type ApiConfiguration struct {
 	// SSL configuration for the daemon.
 	Ssl struct {
 		Enabled         bool   `default:"false"`
-		CertificateFile string `yaml:"cert"`
-		KeyFile         string `yaml:"key"`
+		CertificateFile string `json:"cert" yaml:"cert"`
+		KeyFile         string `json:"key" yaml:"key"`
 	}
 
 	// The maximum size for files uploaded through the Panel in bytes.
-	UploadLimit int `default:"100" yaml:"upload_limit"`
+	UploadLimit int `default:"100" json:"upload_limit" yaml:"upload_limit"`
 }
 
 // Reads the configuration from the provided file and returns the configuration
