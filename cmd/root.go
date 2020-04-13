@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/pkg/errors"
 	"github.com/pkg/profile"
@@ -34,6 +35,16 @@ func init() {
 	root.PersistentFlags().StringVar(&configPath, "config", "config.yml", "set the location for the configuration file")
 	root.PersistentFlags().BoolVar(&debug, "debug", false, "pass in order to run wings in debug mode")
 	root.PersistentFlags().BoolVar(&shouldRunProfiler, "profile", false, "pass in order to profile wings")
+
+	if ! root.Flags().Changed("debug") {
+		if os.Getenv("DEBUG") != "" {
+			if boolVal, err := strconv.ParseBool(os.Getenv("DEBUG")); err != nil {
+				zap.S().Errorw("failed setting debug to environment value", zap.Error(err))
+			} else {
+				debug = boolVal
+			}
+		}
+	}
 
 	root.AddCommand(configureCmd)
 }

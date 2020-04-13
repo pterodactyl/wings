@@ -415,7 +415,7 @@ func (c *Configuration) WriteToDisk() error {
 // Gets the system release name.
 func getSystemName() (string, error) {
 	// use osrelease to get release version and ID
-	if  release, err := osrelease.Read(); err != nil {
+	if release, err := osrelease.Read(); err != nil {
 		return "", err
 	} else {
 		return release["ID"], nil
