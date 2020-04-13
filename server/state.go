@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"io"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -14,41 +15,14 @@ const stateFileLocation = "data/.states.json"
 
 var stateMutex sync.Mutex
 
-// Checks if the state tracking file exists, if not it is generated.
-func ensureStateFileExists() (bool, error) {
-	stateMutex.Lock()
-	defer stateMutex.Unlock()
-
-	if _, err := os.Stat(stateFileLocation); err != nil {
-		if !os.IsNotExist(err) {
-			return false, errors.WithStack(err)
-		}
-
-		return false, nil
-	}
-
-	return true, nil
-}
-
 // Returns the state of the servers.
 func getServerStates() (map[string]string, error) {
-	// Check if the states file exists.
-	exists, err := ensureStateFileExists()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
 	// Request a lock after we check if the file exists.
 	stateMutex.Lock()
 	defer stateMutex.Unlock()
 
-	// Return an empty map if the file does not exist.
-	if !exists {
-		return map[string]string{}, nil
-	}
-
 	// Open the states file.
-	f, err := os.Open(stateFileLocation)
+	f, err := os.OpenFile(stateFileLocation, os.O_RDONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -56,7 +30,7 @@ func getServerStates() (map[string]string, error) {
 
 	// Convert the json object to a map.
 	states := map[string]string{}
-	if err := json.NewDecoder(f).Decode(&states); err != nil {
+	if err := json.NewDecoder(f).Decode(&states); err != nil && err != io.EOF {
 		return nil, errors.WithStack(err)
 	}
 
