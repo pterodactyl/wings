@@ -46,3 +46,5 @@ test_*/
 !.gitkeep
 debug
 data/.states.json
+
+docker-compose.yml
