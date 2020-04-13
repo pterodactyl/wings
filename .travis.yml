@@ -3,7 +3,6 @@ dist: xenial
 language: go
 
 go:
-- 1.11.x
 - 1.13.x
 
 go_import_path: "github.com/pterodactyl/wings"
@@ -18,6 +17,8 @@ install:
 - go get github.com/mitchellh/gox
 - go get github.com/haya14busa/goverage
 - go get github.com/schrej/godacov
+
+- go mod download
 
 script:
 - make cross-build
