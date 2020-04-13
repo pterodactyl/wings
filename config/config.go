@@ -294,7 +294,7 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 
 	// Alpine Linux is the only OS we currently support that doesn't work with the useradd command, so
 	// in those cases we just modify the command a bit to work as expected.
-	if strings.HasPrefix(sysName, "Alpine") {
+	if strings.HasPrefix(sysName, "alpine") {
 		command = fmt.Sprintf("adduser -S -D -H -G %[1]s -s /bin/false %[1]s", c.System.Username)
 
 		// We have to create the group first on Alpine, so do that here before continuing on
@@ -413,11 +413,10 @@ func (c *Configuration) WriteToDisk() error {
 
 // Gets the system release name.
 func getSystemName() (string, error) {
-	// alpine doesn't have lsb_release
-	_, err := os.Stat("/etc/alpine-release")
-	if os.IsNotExist(err) {
-		// if the alpine release file doesn't exist. run lsb_release
-		cmd := exec.Command("lsb_release", "-is")
+
+
+
+		cmd := exec.Command("bash", "-c", ". /etc/os-release && echo $ID")
 
 		b, err := cmd.Output()
 		if err != nil {
@@ -425,8 +424,8 @@ func getSystemName() (string, error) {
 		}
 
 		return string(b), nil
-	} else {
-		// if the alpine release file does exist return string
-		return "Alpine", err
-	}
-}
+	} 
+		
+
+
+
