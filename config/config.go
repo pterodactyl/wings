@@ -350,19 +350,15 @@ func (c *Configuration) EnsureFilePermissions() error {
 	}
 
 	// create the daemon-data dir if it doesn't exist
-	p, file := path.Split(c.System.Data)
+	p, _ := path.Split(c.System.Data)
 
 	if _, err := os.Stat(c.System.Data); err != nil {
 		// if file doesn't exist
 		if os.IsNotExist(err) {
 			//
-			if _, err = os.Stat(c.System.Data); err != nil {
-				if file == "" {
-					if err = os.Mkdir(p, 0755); err != nil {
-					}
-					zap.S().Debugf("created %s folder", c.System.Data)
-				}
+			if err = os.Mkdir(p, 0755); err != nil {
 			}
+			zap.S().Debugf("created %s folder", c.System.Data)
 		}
 	}
 
