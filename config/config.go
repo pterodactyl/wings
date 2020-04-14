@@ -358,7 +358,6 @@ func (c *Configuration) EnsureFilePermissions() error {
 			//
 			if err = os.Mkdir(p, 0755); err != nil {
 			}
-			zap.S().Debugf("created %s folder", c.System.Data)
 		}
 	}
 
