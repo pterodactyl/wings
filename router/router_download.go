@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/router/tokens"
+	"github.com/pterodactyl/wings/server/backup"
 	"net/http"
 	"os"
 	"strconv"
@@ -25,13 +26,20 @@ func getDownloadBackup(c *gin.Context) {
 		return
 	}
 
-	p, st, err := s.LocateBackup(token.BackupUuid)
+	b, st, err := backup.LocateLocal(token.BackupUuid)
 	if err != nil {
+		if os.IsNotExist(err) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+				"error": "The requested backup was not found on this server.",
+			})
+			return
+		}
+
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}
 
-	f, err := os.Open(p)
+	f, err := os.Open(b.Path())
 	if err != nil {
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
