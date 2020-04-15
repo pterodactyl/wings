@@ -357,7 +357,12 @@ func (c *Configuration) EnsureFilePermissions() error {
 		if os.IsNotExist(err) {
 			//
 			if err = os.Mkdir(p, 0755); err != nil {
+				// of we can't make the directory return error
+				return err
 			}
+		} else {
+			// if the error is anything but IsNotExist
+			return err
 		}
 	}
 
