@@ -36,7 +36,7 @@ func (s *Server) Install() error {
 	return err
 }
 
-// Reinstalls a server's software by utilizing the install script for the server egg. This
+// Re-installs a server's software by utilizing the install script for the server egg. This
 // does not touch any existing files for the server, other than what the script modifies.
 func (s *Server) Reinstall() error {
 	if s.GetState() != ProcessOfflineState {
@@ -130,7 +130,7 @@ func (ip *InstallationProcess) Run() error {
 // Writes the installation script to a temporary file on the host machine so that it
 // can be properly mounted into the installation container and then executed.
 func (ip *InstallationProcess) writeScriptToDisk() (string, error) {
-	d, err := ioutil.TempDir("", "pterodactyl")
+	d, err := ioutil.TempDir("", "pterodactyl/")
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
