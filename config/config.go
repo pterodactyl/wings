@@ -237,6 +237,11 @@ func GetJwtAlgorithm() *jwt.HMACSHA {
 	return _jwtAlgo
 }
 
+// Returns the path for this configuration file.
+func (c *Configuration) GetPath() string {
+	return c.path
+}
+
 // Ensures that the Pterodactyl core user exists on the system. This user will be the
 // owner of all data in the root data directory and is used as the user within containers.
 //
@@ -376,7 +381,7 @@ func (c *Configuration) WriteToDisk() error {
 	c.writeLock.Lock()
 	defer c.writeLock.Unlock()
 
-	if err := ioutil.WriteFile(c.path, b, 0644); err != nil {
+	if err := ioutil.WriteFile(c.GetPath(), b, 0644); err != nil {
 		return err
 	}
 

@@ -81,7 +81,7 @@ func rootCmdRun(*cobra.Command, []string) {
 		panic(err)
 	}
 
-	zap.S().Infof("using configuration from path: %s", configPath)
+	zap.S().Infof("using configuration from path: %s", c.GetPath())
 	if c.Debug {
 		zap.S().Debugw("running in debug mode")
 		zap.S().Infow("certificate checking is disabled")
@@ -263,5 +263,10 @@ func printLogo() {
 	fmt.Println(`   \___\          /   /   /   /  /_/  /___   /`)
 	fmt.Println(`        \___/\___/___/___/___/___    /______/`)
 	fmt.Println(`                            /_______/ v` + system.Version)
+	fmt.Println()
+	fmt.Println(`Website: https://pterodactyl.io`)
+	fmt.Println(`Source: https://github.com/pterodactyl/wings`)
+	fmt.Println()
+	fmt.Println(`Copyright © 2018 - 2020 Dane Everitt & Contributors`)
 	fmt.Println()
 }
