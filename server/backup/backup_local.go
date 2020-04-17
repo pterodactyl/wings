@@ -1,19 +1,35 @@
 package backup
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"github.com/mholt/archiver/v3"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
+	"io"
 	"os"
+	"path"
 	"strings"
 	"sync"
 )
 
+type LocalBackup struct {
+	// The UUID of this backup object. This must line up with a backup from
+	// the panel instance.
+	Uuid string `json:"uuid"`
+
+	// An array of files to ignore when generating this backup. This should be
+	// compatible with a standard .gitignore structure.
+	IgnoredFiles []string `json:"ignored_files"`
+}
+
+var _ Backup = (*LocalBackup)(nil)
+
 // Locates the backup for a server and returns the local path. This will obviously only
 // work if the backup was created as a local backup.
-func LocateLocal(uuid string) (*Backup, os.FileInfo, error) {
-	b := &Backup{
+func LocateLocal(uuid string) (*LocalBackup, os.FileInfo, error) {
+	b := &LocalBackup{
 		Uuid:         uuid,
 		IgnoredFiles: nil,
 	}
@@ -30,26 +46,73 @@ func LocateLocal(uuid string) (*Backup, os.FileInfo, error) {
 	return b, st, nil
 }
 
+func (b *LocalBackup) Identifier() string {
+	return b.Uuid
+}
+
+// Returns the path for this specific backup.
+func (b *LocalBackup) Path() string {
+	return path.Join(config.Get().System.BackupDirectory, b.Uuid+".tar.gz")
+}
+
+// Returns the SHA256 checksum of a backup.
+func (b *LocalBackup) Checksum() ([]byte, error) {
+	h := sha256.New()
+
+	f, err := os.Open(b.Path())
+	if err != nil {
+		return []byte{}, errors.WithStack(err)
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(h, f); err != nil {
+		return []byte{}, errors.WithStack(err)
+	}
+
+	return h.Sum(nil), nil
+}
+
+// Removes a backup from the system.
+func (b *LocalBackup) Remove() error {
+	return os.Remove(b.Path())
+}
+
 // Generates a backup of the selected files and pushes it to the defined location
 // for this instance.
-func (b *Backup) LocalBackup(dir string) (*ArchiveDetails, error) {
+func (b *LocalBackup) Backup(dir string) error {
 	if err := archiver.Archive([]string{dir}, b.Path()); err != nil {
 		if strings.HasPrefix(err.Error(), "file already exists") {
 			if rerr := os.Remove(b.Path()); rerr != nil {
-				return nil, errors.WithStack(rerr)
+				return errors.WithStack(rerr)
 			}
 
 			// Re-attempt this backup by calling it with the same information.
-			return b.LocalBackup(dir)
+			return b.Backup(dir)
 		}
 
 		// If there was some error with the archive, just go ahead and ensure the backup
 		// is completely destroyed at this point. Ignore any errors from this function.
 		os.Remove(b.Path())
 
-		return nil, err
+		return errors.WithStack(err)
 	}
 
+	return nil
+}
+
+// Return the size of the generated backup.
+func (b *LocalBackup) Size() (int64, error) {
+	st, err := os.Stat(b.Path())
+	if err != nil {
+		return 0, errors.WithStack(err)
+	}
+
+	return st.Size(), nil
+}
+
+// Returns details of the archive by utilizing two go-routines to get the checksum and
+// the size of the archive.
+func (b *LocalBackup) Details() *ArchiveDetails {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
@@ -83,5 +146,20 @@ func (b *Backup) LocalBackup(dir string) (*ArchiveDetails, error) {
 	return &ArchiveDetails{
 		Checksum: checksum,
 		Size:     sz,
-	}, nil
+	}
+}
+
+// Ensures that the local backup destination for files exists.
+func (b *LocalBackup) ensureLocalBackupLocation() error {
+	d := config.Get().System.BackupDirectory
+
+	if _, err := os.Stat(d); err != nil {
+		if !os.IsNotExist(err) {
+			return errors.WithStack(err)
+		}
+
+		return os.MkdirAll(d, 0700)
+	}
+
+	return nil
 }

@@ -12,11 +12,11 @@ import (
 func postServerBackup(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	data := &backup.Backup{}
+	data := &backup.LocalBackup{}
 	c.BindJSON(&data)
 
-	go func(b *backup.Backup, serv *server.Server) {
-		if err := serv.BackupRoot(b); err != nil {
+	go func(b *backup.LocalBackup, serv *server.Server) {
+		if err := serv.BackupLocal(b); err != nil {
 			zap.S().Errorw("failed to generate backup for server", zap.Error(err))
 		}
 	}(data, s)
