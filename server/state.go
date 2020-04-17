@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"os"
 	"sync"
 )
-
-const stateFileLocation = "data/.states.json"
 
 var stateMutex sync.Mutex
 
@@ -22,7 +21,7 @@ func getServerStates() (map[string]string, error) {
 	defer stateMutex.Unlock()
 
 	// Open the states file.
-	f, err := os.OpenFile(stateFileLocation, os.O_RDONLY|os.O_CREATE, 0644)
+	f, err := os.OpenFile(config.Get().System.GetStatesPath(), os.O_RDONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -55,7 +54,7 @@ func saveServerStates() error {
 	defer stateMutex.Unlock()
 
 	// Write the data to the file
-	if err := ioutil.WriteFile(stateFileLocation, data, 0644); err != nil {
+	if err := ioutil.WriteFile(config.Get().System.GetStatesPath(), data, 0644); err != nil {
 		return errors.WithStack(err)
 	}
 

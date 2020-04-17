@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/pkg/profile"
@@ -19,7 +21,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var configPath = "config.yml"
+var configPath = config.DefaultLocation
 var debug = false
 var shouldRunProfiler = false
 
@@ -31,11 +33,32 @@ var root = &cobra.Command{
 }
 
 func init() {
-	root.PersistentFlags().StringVar(&configPath, "config", "config.yml", "set the location for the configuration file")
+	root.PersistentFlags().StringVar(&configPath, "config", config.DefaultLocation, "set the location for the configuration file")
 	root.PersistentFlags().BoolVar(&debug, "debug", false, "pass in order to run wings in debug mode")
 	root.PersistentFlags().BoolVar(&shouldRunProfiler, "profile", false, "pass in order to profile wings")
 
 	root.AddCommand(configureCmd)
+}
+
+// Get the configuration path based on the arguments provided.
+func readConfiguration() (*config.Configuration, error) {
+	var p = configPath
+	if !strings.HasPrefix(p, "/") {
+		d, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+
+		p = path.Clean(path.Join(d, configPath))
+	}
+
+	if s, err := os.Stat(p); err != nil {
+		return nil, errors.WithStack(err)
+	} else if s.IsDir() {
+		return nil, errors.New("cannot use directory as configuration file path")
+	}
+
+	return config.ReadConfiguration(p)
 }
 
 func rootCmdRun(*cobra.Command, []string) {
@@ -44,7 +67,7 @@ func rootCmdRun(*cobra.Command, []string) {
 		defer profile.Start().Stop()
 	}
 
-	c, err := config.ReadConfiguration(configPath)
+	c, err := readConfiguration()
 	if err != nil {
 		panic(err)
 	}
@@ -70,6 +93,11 @@ func rootCmdRun(*cobra.Command, []string) {
 
 	config.Set(c)
 	config.SetDebugViaFlag(debug)
+
+	if err := c.System.ConfigureDirectories(); err != nil {
+		zap.S().Panicw("failed to configure system directories for pterodactyl", zap.Error(err))
+		return
+	}
 
 	zap.S().Infof("checking for pterodactyl system user \"%s\"", c.System.Username)
 	if su, err := c.EnsurePterodactylUser(); err != nil {

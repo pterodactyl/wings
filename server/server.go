@@ -230,7 +230,6 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	s.Resources = ResourceUsage{}
 
 	// Forces the configuration to be synced with the panel.
-	zap.S().Debugw("syncing config with panel", zap.String("server", s.Uuid))
 	if err := s.SyncWithConfiguration(data); err != nil {
 		return nil, err
 	}

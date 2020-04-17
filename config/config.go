@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"github.com/cobaugh/osrelease"
 	"github.com/creasty/defaults"
@@ -18,8 +19,13 @@ import (
 	"sync"
 )
 
+const DefaultLocation = "/var/lib/pterodactyl/config.yml"
+
 type Configuration struct {
 	sync.RWMutex `json:"-" yaml:"-"`
+
+	// The location from which this configuration instance was instantiated.
+	path string
 
 	// Locker specific to writing the configuration to the disk, this happens
 	// in areas that might already be locked so we don't want to crash the process.
@@ -74,48 +80,6 @@ type Configuration struct {
 	// The location where the panel is running that this daemon should connect to
 	// to collect data and send events.
 	PanelLocation string `json:"remote" yaml:"remote"`
-}
-
-// Defines basic system configuration settings.
-type SystemConfiguration struct {
-	// Directory where the server data is stored at.
-	Data string `default:"/srv/daemon-data" yaml:"data"`
-
-	// Directory where server archives for transferring will be stored.
-	ArchiveDirectory string `default:"/srv/daemon-data/.archives" yaml:"archive_directory"`
-
-	// Directory where local backups will be stored on the machine.
-	BackupDirectory string `default:"/srv/daemon-data/.backups" yaml:"backup_directory"`
-
-	// The user that should own all of the server files, and be used for containers.
-	Username string `default:"pterodactyl" yaml:"username"`
-
-	// Definitions for the user that gets created to ensure that we can quickly access
-	// this information without constantly having to do a system lookup.
-	User struct {
-		Uid int
-		Gid int
-	}
-
-	// Determines if permissions for a server should be set automatically on
-	// daemon boot. This can take a long time on systems with many servers, or on
-	// systems with servers containing thousands of files.
-	//
-	// Setting this to true by default helps us avoid a lot of support requests
-	// from people that keep trying to move files around as a root user leading
-	// to server permission issues.
-	//
-	// In production and heavy use environments where boot speed is essential,
-	// this should be set to false as servers will self-correct permissions on
-	// boot anyways.
-	SetPermissionsOnBoot bool `default:"true" yaml:"set_permissions_on_boot"`
-
-	// Determines if Wings should detect a server that stops with a normal exit code of
-	// "0" as being crashed if the process stopped without any Wings interaction. E.g.
-	// the user did not press the stop button, but the process stopped cleanly.
-	DetectCleanExitAsCrash bool `default:"true" yaml:"detect_clean_exit_as_crash"`
-
-	Sftp *SftpConfiguration `yaml:"sftp"`
 }
 
 // Defines the configuration of the internal SFTP server.
@@ -217,6 +181,9 @@ func ReadConfiguration(path string) (*Configuration, error) {
 	if err := defaults.Set(c); err != nil {
 		return nil, err
 	}
+
+	// Track the location where we created this configuration.
+	c.path = path
 
 	// Replace environment variables within the configuration file with their
 	// values from the host system.
@@ -396,6 +363,10 @@ func (c *Configuration) WriteToDisk() error {
 		ccopy.Debug = false
 	}
 
+	if c.path == "" {
+		return errors.New("cannot write configuration, no path defined in struct")
+	}
+
 	b, err := yaml.Marshal(&ccopy)
 	if err != nil {
 		return err
@@ -405,7 +376,7 @@ func (c *Configuration) WriteToDisk() error {
 	c.writeLock.Lock()
 	defer c.writeLock.Unlock()
 
-	if err := ioutil.WriteFile("config.yml", b, 0644); err != nil {
+	if err := ioutil.WriteFile(c.path, b, 0644); err != nil {
 		return err
 	}
 
@@ -415,7 +386,7 @@ func (c *Configuration) WriteToDisk() error {
 // Gets the system release name.
 func getSystemName() (string, error) {
 	// use osrelease to get release version and ID
-	if  release, err := osrelease.Read(); err != nil {
+	if release, err := osrelease.Read(); err != nil {
 		return "", err
 	} else {
 		return release["ID"], nil

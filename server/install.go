@@ -10,6 +10,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
@@ -231,6 +232,11 @@ func (ip *InstallationProcess) BeforeExecute() (string, error) {
 	return fileName, nil
 }
 
+// Returns the log path for the installation process.
+func (ip *InstallationProcess) GetLogPath() string {
+	return filepath.Join(config.Get().System.GetInstallLogPath(), ip.Server.Uuid+".log")
+}
+
 // Cleans up after the execution of the installation process. This grabs the logs from the
 // process to store in the server configuration directory, and then destroys the associated
 // installation container.
@@ -248,7 +254,7 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 		return errors.WithStack(err)
 	}
 
-	f, err := os.OpenFile(filepath.Join("data/install_logs/", ip.Server.Uuid+".log"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	f, err := os.OpenFile(ip.GetLogPath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return errors.WithStack(err)
 	}

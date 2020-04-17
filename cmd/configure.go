@@ -22,6 +22,7 @@ var (
 	configureArgs struct {
 		PanelURL      string
 		Token         string
+		ConfigPath    string
 		Node          string
 		Override      bool
 		AllowInsecure bool
@@ -40,6 +41,7 @@ func init() {
 	configureCmd.PersistentFlags().StringVarP(&configureArgs.PanelURL, "panel-url", "p", "", "The base URL for this daemon's panel")
 	configureCmd.PersistentFlags().StringVarP(&configureArgs.Token, "token", "t", "", "The API key to use for fetching node information")
 	configureCmd.PersistentFlags().StringVarP(&configureArgs.Node, "node", "n", "", "The ID of the node which will be connected to this daemon")
+	configureCmd.PersistentFlags().StringVarP(&configureArgs.ConfigPath, "config-path", "c", config.DefaultLocation, "The path where the configuration file should be made")
 	configureCmd.PersistentFlags().BoolVar(&configureArgs.Override, "override", false, "Set to true to override an existing configuration for this node")
 	configureCmd.PersistentFlags().BoolVar(&configureArgs.AllowInsecure, "allow-insecure", false, "Set to true to disable certificate checking")
 }
@@ -51,7 +53,7 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	if _, err := os.Stat("config.yml"); err == nil && !configureArgs.Override {
+	if _, err := os.Stat(configureArgs.ConfigPath); err == nil && !configureArgs.Override {
 		survey.AskOne(&survey.Confirm{Message: "Override existing configuration file"}, &configureArgs.Override)
 		if !configureArgs.Override {
 			fmt.Println("Aborting process; a configuration file already exists for this node.")

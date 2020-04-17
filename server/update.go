@@ -52,11 +52,6 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 		}
 	} else {
 		s.Suspended = v
-		if s.Suspended {
-			zap.S().Debugw("server has been suspended", zap.String("server", s.Uuid))
-		} else {
-			zap.S().Debugw("server has been unsuspended", zap.String("server", s.Uuid))
-		}
 	}
 
 	// Environment and Mappings should be treated as a full update at all times, never a
