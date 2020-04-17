@@ -20,13 +20,13 @@ import (
 var alg *jwt.HMACSHA
 
 const (
-	PermissionConnect          = "websocket.*"
+	PermissionConnect          = "websocket.connect"
 	PermissionSendCommand      = "control.console"
 	PermissionSendPowerStart   = "control.start"
 	PermissionSendPowerStop    = "control.stop"
 	PermissionSendPowerRestart = "control.restart"
-	PermissionReceiveErrors    = "admin.errors"
-	PermissionReceiveInstall   = "admin.install"
+	PermissionReceiveErrors    = "admin.websocket.errors"
+	PermissionReceiveInstall   = "admin.websocket.install"
 	PermissionReceiveBackups   = "backup.read"
 )
 
