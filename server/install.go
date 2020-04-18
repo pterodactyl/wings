@@ -131,7 +131,7 @@ func (ip *InstallationProcess) Run() error {
 // Writes the installation script to a temporary file on the host machine so that it
 // can be properly mounted into the installation container and then executed.
 func (ip *InstallationProcess) writeScriptToDisk() (string, error) {
-	d, err := ioutil.TempDir("", "pterodactyl")
+	d, err := ioutil.TempDir("", "pterodactyl/")
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
