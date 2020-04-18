@@ -146,6 +146,10 @@ func (d *DockerEnvironment) OnBeforeStart() error {
 		return err
 	}
 
+	if !d.Server.Filesystem.HasSpaceAvailable() {
+		return errors.New("cannot start server, not enough disk space available")
+	}
+
 	// Always destroy and re-create the server container to ensure that synced data from
 	// the Panel is used.
 	if err := d.Client.ContainerRemove(context.Background(), d.Server.Uuid, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {

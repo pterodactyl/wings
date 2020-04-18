@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/gabriel-vasile/mimetype"
@@ -67,7 +68,7 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 		// Range over all of the path parts and form directory pathings from the end
 		// moving up until we have a valid resolution or we run out of paths to try.
 		for k := range parts {
-			try = strings.Join(parts[:(len(parts) - k)], "/")
+			try = strings.Join(parts[:(len(parts)-k)], "/")
 
 			if !strings.HasPrefix(try, fs.Path()) {
 				break
@@ -118,22 +119,26 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 		return true
 	}
 
-	var size int64
+	// If we have a match in the cache, use that value in the return. No need to perform an expensive
+	// disk operation, even if this is an empty value.
 	if x, exists := fs.Server.Cache.Get("disk_used"); exists {
-		size = x.(int64)
+		fs.Server.Resources.Disk = x.(int64)
+		return (x.(int64) / 1000.0 / 1000.0) <= space
 	}
 
 	// If there is no size its either because there is no data (in which case running this function
 	// will have effectively no impact), or there is nothing in the cache, in which case we need to
 	// grab the size of their data directory. This is a taxing operation, so we want to store it in
 	// the cache once we've gotten it.
-	if size == 0 {
-		if size, err := fs.DirectorySize("/"); err != nil {
-			zap.S().Warnw("failed to determine directory size", zap.String("server", fs.Server.Uuid), zap.Error(err))
-		} else {
-			fs.Server.Cache.Set("disk_used", size, time.Second * 60)
-		}
+	size, err := fs.DirectorySize("/")
+	if err != nil {
+		zap.S().Warnw("failed to determine directory size", zap.String("server", fs.Server.Uuid), zap.Error(err))
 	}
+
+	// Always cache the size, even if there is an error. We want to always return that value
+	// so that we don't cause an endless loop of determining the disk size if there is a temporary
+	// error encountered.
+	fs.Server.Cache.Set("disk_used", size, time.Second*60)
 
 	// Determine if their folder size, in bytes, is smaller than the amount of space they've
 	// been allocated.
@@ -146,42 +151,15 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 // through all of the folders. Returns the size in bytes. This can be a fairly taxing operation
 // on locations with tons of files, so it is recommended that you cache the output.
 func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
+	w := fs.NewWalker()
+	ctx := context.Background()
+
 	var size int64
-	var wg sync.WaitGroup
+	err := w.Walk(dir, ctx, func(f os.FileInfo) {
+		atomic.AddInt64(&size, f.Size())
+	})
 
-	cleaned, err := fs.SafePath(dir)
-	if err != nil {
-		return 0, err
-	}
-
-	files, err := ioutil.ReadDir(cleaned)
-	if err != nil {
-		return 0, err
-	}
-
-	// Iterate over all of the files and directories. If it is a file, immediately add its size
-	// to the total size being returned. If we're dealing with a directory, call this function
-	// on a seperate thread until we have gotten the size of everything nested within the given
-	// directory.
-	for _, f := range files {
-		if f.IsDir() {
-			wg.Add(1)
-
-			go func(p string) {
-				defer wg.Done()
-
-				s, _ := fs.DirectorySize(p)
-
-				atomic.AddInt64(&size, s)
-			}(filepath.Join(cleaned, f.Name()))
-		} else {
-			atomic.AddInt64(&size, f.Size())
-		}
-	}
-
-	wg.Wait()
-
-	return size, nil
+	return size, err
 }
 
 // Reads a file on the system and returns it as a byte representation in a file
