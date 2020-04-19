@@ -38,6 +38,7 @@ func (fw *FileWalker) Walk(dir string, ctx context.Context, callback func (os.Fi
 
 	for _, f := range files {
 		if f.IsDir() {
+			fi := f
 			p := filepath.Join(cleaned, f.Name())
 			// Recursively call this function to continue digging through the directory tree within
 			// a seperate goroutine. If the context is canceled abort this process.
@@ -49,7 +50,7 @@ func (fw *FileWalker) Walk(dir string, ctx context.Context, callback func (os.Fi
 					// If the callback returns true, go ahead and keep walking deeper. This allows
 					// us to programatically continue deeper into directories, or stop digging
 					// if that pathway knows it needs nothing else.
-					if callback(f, p) {
+					if callback(fi, p) {
 						return fw.Walk(p, ctx, callback)
 					}
 

@@ -10,7 +10,7 @@ type Backup interface {
 
 	// Generates a backup in whatever the configured source for the specific
 	// implementation is.
-	Backup(dir string) error
+	Backup(*IncludedFiles, string) error
 
 	// Returns a SHA256 checksum for the generated backup.
 	Checksum() ([]byte, error)

@@ -16,7 +16,7 @@ func (s *S3Backup) Identifier() string {
 	return s.Uuid
 }
 
-func (s *S3Backup) Backup(dir string) error {
+func (s *S3Backup) Backup(included *IncludedFiles, prefix string) error {
 	panic("implement me")
 }
 

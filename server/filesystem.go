@@ -9,6 +9,8 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/server/backup"
+	ignore "github.com/sabhiram/go-gitignore"
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
@@ -560,4 +562,44 @@ func (fs *Filesystem) EnsureDataDirectory() error {
 	}
 
 	return nil
+}
+
+// Given a directory, iterate through all of the files and folders within it and determine
+// if they should be included in the output based on an array of ignored matches. This uses
+// standard .gitignore formatting to make that determination.
+//
+// If no ignored files are passed through you'll get the entire directory listing.
+func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.IncludedFiles, error) {
+	cleaned, err := fs.SafePath(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	w := fs.NewWalker()
+	ctx := context.Background()
+
+	i, err := ignore.CompileIgnoreLines(ignored...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Walk through all of the files and directories on a server. This callback only returns
+	// files found, and will keep walking deeper and deeper into directories.
+	inc := new(backup.IncludedFiles)
+	if err := w.Walk(cleaned, ctx, func(f os.FileInfo, p string) bool {
+		// Avoid unnecessary parsing if there are no ignored files, nothing will match anyways
+		// so no reason to call the function.
+		if len(ignored) == 0 || !i.MatchesPath(strings.TrimPrefix(p, fs.Path() + "/")) {
+			inc.Push(&f, p)
+		}
+
+		// We can't just abort if the path is technically ignored. It is possible there is a nested
+		// file or folder that should not be excluded, so in this case we need to just keep going
+		// until we get to a final state.
+		return true
+	}); err != nil {
+		return nil, err
+	}
+
+	return inc, nil
 }

@@ -1,16 +1,15 @@
 package backup
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"github.com/mholt/archiver/v3"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
 	"io"
 	"os"
 	"path"
-	"strings"
 	"sync"
 )
 
@@ -79,25 +78,15 @@ func (b *LocalBackup) Remove() error {
 
 // Generates a backup of the selected files and pushes it to the defined location
 // for this instance.
-func (b *LocalBackup) Backup(dir string) error {
-	if err := archiver.Archive([]string{dir}, b.Path()); err != nil {
-		if strings.HasPrefix(err.Error(), "file already exists") {
-			if rerr := os.Remove(b.Path()); rerr != nil {
-				return errors.WithStack(rerr)
-			}
-
-			// Re-attempt this backup by calling it with the same information.
-			return b.Backup(dir)
-		}
-
-		// If there was some error with the archive, just go ahead and ensure the backup
-		// is completely destroyed at this point. Ignore any errors from this function.
-		os.Remove(b.Path())
-
-		return errors.WithStack(err)
+func (b *LocalBackup) Backup(included *IncludedFiles, prefix string) error {
+	a := &Archive{
+		TrimPrefix: prefix,
+		Files:      included,
 	}
 
-	return nil
+	err := a.Create(b.Path(), context.Background())
+
+	return err
 }
 
 // Return the size of the generated backup.

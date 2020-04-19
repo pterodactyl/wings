@@ -35,7 +35,12 @@ func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, suc
 // let the actual backup system handle notifying the panel of the status, but that
 // won't emit a websocket event.
 func (s *Server) BackupLocal(b *backup.LocalBackup) error {
-	if err := b.Backup(s.Filesystem.Path()); err != nil {
+	inc, err := s.Filesystem.GetIncludedFiles(s.Filesystem.Path(), b.IgnoredFiles)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	if err := b.Backup(inc, s.Filesystem.Path()); err != nil {
 		if notifyError := s.notifyPanelOfBackup(b.Identifier(), &backup.ArchiveDetails{}, false); notifyError != nil {
 			zap.S().Warnw("failed to notify panel of failed backup state", zap.String("backup", b.Uuid), zap.Error(err))
 		}

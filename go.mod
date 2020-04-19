@@ -17,7 +17,6 @@ require (
 	github.com/Microsoft/go-winio v0.4.7 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a
-	github.com/aws/aws-sdk-go v1.30.9 // indirect
 	github.com/beevik/etree v1.1.0
 	github.com/buger/jsonparser v0.0.0-20191204142016-1a29609e0929
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
@@ -37,6 +36,7 @@ require (
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/iancoleman/strcase v0.0.0-20191112232945-16388991a334
 	github.com/imdario/mergo v0.3.8
+	github.com/klauspost/pgzip v1.2.3
 	github.com/magiconair/properties v1.8.1
 	github.com/mattn/go-shellwords v1.0.10 // indirect
 	github.com/mholt/archiver/v3 v3.3.0
@@ -52,10 +52,10 @@ require (
 	github.com/pkg/sftp v1.10.1 // indirect
 	github.com/pterodactyl/sftp-server v1.1.1
 	github.com/remeh/sizedwaitgroup v0.0.0-20180822144253-5e7302b12cce
+	github.com/sabhiram/go-gitignore v0.0.0-20180611051255-d3107576ba94
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/spf13/cobra v0.0.7
-	github.com/stretchr/objx v0.2.0 // indirect
-	github.com/yuin/goldmark v1.1.30 // indirect
+	github.com/stretchr/testify v1.5.1 // indirect
 	go.uber.org/atomic v1.5.1 // indirect
 	go.uber.org/multierr v1.4.0 // indirect
 	go.uber.org/zap v1.13.0
