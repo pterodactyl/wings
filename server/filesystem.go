@@ -155,7 +155,7 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 	ctx := context.Background()
 
 	var size int64
-	err := w.Walk(dir, ctx, func(f os.FileInfo) bool {
+	err := w.Walk(dir, ctx, func(f os.FileInfo, _ string) bool {
 		// Only increment the size when we're dealing with a file specifically, otherwise
 		// just continue digging deeper until there are no more directories to iterate over.
 		if !f.IsDir() {
