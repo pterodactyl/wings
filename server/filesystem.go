@@ -155,8 +155,13 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 	ctx := context.Background()
 
 	var size int64
-	err := w.Walk(dir, ctx, func(f os.FileInfo) {
-		atomic.AddInt64(&size, f.Size())
+	err := w.Walk(dir, ctx, func(f os.FileInfo) bool {
+		// Only increment the size when we're dealing with a file specifically, otherwise
+		// just continue digging deeper until there are no more directories to iterate over.
+		if !f.IsDir() {
+			atomic.AddInt64(&size, f.Size())
+		}
+		return true
 	})
 
 	return size, err

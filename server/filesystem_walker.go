@@ -20,7 +20,7 @@ func (fs *Filesystem) NewWalker() *FileWalker {
 // Iterate over all of the files and directories within a given directory. When a file is
 // found the callback will be called with the file information. If a directory is encountered
 // it will be recursively passed back through to this function.
-func (fw *FileWalker) Walk(dir string, ctx context.Context, callback func (os.FileInfo)) error {
+func (fw *FileWalker) Walk(dir string, ctx context.Context, callback func (os.FileInfo) bool) error {
 	cleaned, err := fw.SafePath(dir)
 	if err != nil {
 		return err
@@ -46,12 +46,20 @@ func (fw *FileWalker) Walk(dir string, ctx context.Context, callback func (os.Fi
 				case <-ctx.Done():
 					return ctx.Err()
 				default:
-					return fw.Walk(p, ctx, callback)
+					// If the callback returns true, go ahead and keep walking deeper. This allows
+					// us to programatically continue deeper into directories, or stop digging
+					// if that pathway knows it needs nothing else.
+					if callback(f) {
+						return fw.Walk(p, ctx, callback)
+					}
+
+					return nil
 				}
 			})
 		} else {
 			// If this isn't a directory, go ahead and pass the file information into the
-			// callback.
+			// callback. We don't care about the response since we won't be stepping into
+			// anything from here.
 			callback(f)
 		}
 	}
