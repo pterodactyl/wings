@@ -1,10 +1,13 @@
 package server
 
 import (
+	"bufio"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/server/backup"
 	"go.uber.org/zap"
+	"os"
+	"path"
 )
 
 // Notifies the panel of a backup's state and returns an error if one is encountered
@@ -35,6 +38,30 @@ func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, suc
 // let the actual backup system handle notifying the panel of the status, but that
 // won't emit a websocket event.
 func (s *Server) BackupLocal(b *backup.LocalBackup) error {
+	// If no ignored files are present in the request, check for a .pteroignore file in the root
+	// of the server files directory, and use that to generate the backup.
+	if len(b.IgnoredFiles) == 0 {
+		f, err := os.Open(path.Join(s.Filesystem.Path(), ".pteroignore"))
+		if err != nil {
+			if !os.IsNotExist(err) {
+				zap.S().Warnw("failed to open .pteroignore file in server directory", zap.String("server", s.Uuid), zap.Error(errors.WithStack(err)))
+			}
+		} else {
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				// Only include non-empty lines, for the sake of clarity...
+				if t := scanner.Text(); t != "" {
+					b.IgnoredFiles = append(b.IgnoredFiles, t)
+				}
+			}
+
+			if err := scanner.Err(); err != nil {
+				zap.S().Warnw("failed to scan .pteroignore file for lines", zap.String("server", s.Uuid), zap.Error(errors.WithStack(err)))
+			}
+		}
+	}
+
+	// Get the included files based on the root path and the ignored files provided.
 	inc, err := s.Filesystem.GetIncludedFiles(s.Filesystem.Path(), b.IgnoredFiles)
 	if err != nil {
 		return errors.WithStack(err)
