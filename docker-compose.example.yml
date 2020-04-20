@@ -13,7 +13,7 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/lib/docker/containers:/var/lib/docker/containers"
-      - "/srv/daemon/:/srv/daemon/"
+      - "/var/lib/pterodactyl/:/var/lib/pterodactyl/"
       - "/srv/daemon-data/:/srv/daemon-data/"
       - "/tmp/pterodactyl/:/tmp/pterodactyl/"
       - "/etc/timezone:/etc/timezone:ro"

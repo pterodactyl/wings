@@ -9,4 +9,4 @@ RUN go build
 
 FROM alpine:latest
 COPY --from=0 /go/wings/wings /usr/bin/
-CMD ["wings","--config", "/srv/daemon/config.yml"]
+CMD ["wings","--config", "/var/lib/pterodactyl/config.yml"]
