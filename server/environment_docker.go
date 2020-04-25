@@ -618,8 +618,7 @@ func (d *DockerEnvironment) Create() error {
 		// from the Panel.
 		Resources: d.getResourcesForServer(),
 
-		// @todo make this configurable again
-		DNS: []string{"1.1.1.1", "8.8.8.8"},
+		DNS: config.Get().Docker.Network.Dns,
 
 		// Configure logging for the container to make it easier on the Daemon to grab
 		// the server output. Ensure that we don't use too much space on the host machine
