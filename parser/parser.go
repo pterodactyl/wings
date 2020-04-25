@@ -204,6 +204,11 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 	// Ensure the XML is indented properly.
 	doc.Indent(2)
 
+	// Truncate the file before attempting to write the changes.
+	if err := os.Truncate(path, 0); err != nil {
+		return err
+	}
+
 	// Write the XML to the file.
 	_, err = doc.WriteTo(file)
 
@@ -259,6 +264,11 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 				return err
 			}
 		}
+	}
+
+	// Truncate the file before attempting to write the changes.
+	if err := os.Truncate(path, 0); err != nil {
+		return err
 	}
 
 	if _, err := cfg.WriteTo(file); err != nil {
@@ -387,7 +397,7 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 		}
 	}
 
-	w, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
+	w, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
