@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/sftp-server"
+	"go.uber.org/zap"
 )
 
 func (r *PanelRequest) ValidateSftpCredentials(request sftp_server.AuthenticationRequest) (*sftp_server.AuthenticationResponse, error) {
@@ -21,11 +22,16 @@ func (r *PanelRequest) ValidateSftpCredentials(request sftp_server.Authenticatio
 	r.Response = resp
 
 	if r.HasError() {
-		if r.HttpResponseCode() == 403 {
-			return nil, sftp_server.InvalidCredentialsError{}
+		if r.HttpResponseCode() >= 400 && r.HttpResponseCode() < 500 {
+			zap.S().Debugw("failed to validate server credentials for SFTP", zap.String("error", r.Error().String()))
+
+			return nil, new(sftp_server.InvalidCredentialsError)
 		}
 
-		return nil, errors.WithStack(errors.New(r.Error().String()))
+		rerr := errors.New(r.Error().String())
+		zap.S().Warnw("error validating SFTP credentials", zap.Error(rerr))
+
+		return nil, rerr
 	}
 
 	response := new(sftp_server.AuthenticationResponse)
