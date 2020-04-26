@@ -1,8 +1,34 @@
 package backup
 
 import (
+	"errors"
+	"fmt"
 	"github.com/pterodactyl/wings/api"
 )
+
+const (
+	LocalBackupAdapter = "local"
+	S3BackupAdapter    = "s3"
+)
+
+type Request struct {
+	Adapter      string   `json:"adapter"`
+	Uuid         string   `json:"uuid"`
+	IgnoredFiles []string `json:"ignored_files"`
+	PresignedUrl string   `json:"presigned_url"`
+}
+
+// Generates a new local backup struct.
+func (r *Request) NewLocalBackup() (*LocalBackup, error) {
+	if r.Adapter != LocalBackupAdapter {
+		return nil, errors.New(fmt.Sprintf("cannot create local backup using [%s] adapter", r.Adapter))
+	}
+
+	return &LocalBackup{
+		Uuid:         r.Uuid,
+		IgnoredFiles: r.IgnoredFiles,
+	}, nil
+}
 
 type Backup interface {
 	// Returns the UUID of this backup as tracked by the panel instance.

@@ -1,6 +1,8 @@
 package router
 
 import (
+	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/backup"
@@ -12,14 +14,27 @@ import (
 func postServerBackup(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	data := &backup.LocalBackup{}
+	data := &backup.Request{}
 	c.BindJSON(&data)
 
-	go func(b *backup.LocalBackup, serv *server.Server) {
-		if err := serv.BackupLocal(b); err != nil {
-			zap.S().Errorw("failed to generate backup for server", zap.Error(err))
+	switch data.Adapter {
+	case backup.LocalBackupAdapter:
+		adapter, err := data.NewLocalBackup()
+		if err != nil {
+			TrackedServerError(err, s).AbortWithServerError(c)
+			return
 		}
-	}(data, s)
+
+		go func(b *backup.LocalBackup, serv *server.Server) {
+			if err := serv.BackupLocal(b); err != nil {
+				zap.S().Errorw("failed to generate backup for server", zap.Error(err))
+			}
+		}(adapter, s)
+	case backup.S3BackupAdapter:
+		TrackedServerError(errors.New(fmt.Sprintf("unsupported backup adapter [%s] provided", data.Adapter)), s).AbortWithServerError(c)
+	default:
+		TrackedServerError(errors.New(fmt.Sprintf("unknown backup adapter [%s] provided", data.Adapter)), s).AbortWithServerError(c)
+	}
 
 	c.Status(http.StatusAccepted)
 }

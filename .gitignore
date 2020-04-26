@@ -46,3 +46,4 @@ test_*/
 !.gitkeep
 debug
 data/.states.json
+.DS_Store
