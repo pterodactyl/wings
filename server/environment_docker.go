@@ -17,6 +17,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -824,9 +825,18 @@ func (d *DockerEnvironment) exposedPorts() nat.PortSet {
 // Formats the resources available to a server instance in such as way that Docker will
 // generate a matching environment in the container.
 func (d *DockerEnvironment) getResourcesForServer() container.Resources {
+	overhead := 1.05
+	// Set the hard limit for memory usage to be 5% more than the amount of memory assigned to
+	// the server. If the memory limit for the server is < 4G, use 10%, if less than 2G use
+	// 15%. This avoids unexpected crashes from processes like Java which run over the limit.
+	if d.Server.Build.MemoryLimit <= 2048 {
+		overhead = 1.15
+	} else if d.Server.Build.MemoryLimit  <= 4096 {
+		overhead = 1.10;
+	}
+
 	return container.Resources{
-		// @todo memory limit should be slightly higher than the reservation
-		Memory:            d.Server.Build.MemoryLimit * 1000000,
+		Memory:            int64(math.Round(float64(d.Server.Build.MemoryLimit) * 1000000.0 * overhead)),
 		MemoryReservation: d.Server.Build.MemoryLimit * 1000000,
 		MemorySwap:        d.Server.Build.ConvertedSwap(),
 		CPUQuota:          d.Server.Build.ConvertedCpuLimit(),
