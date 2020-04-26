@@ -17,8 +17,6 @@ import (
 	"time"
 )
 
-var alg *jwt.HMACSHA
-
 const (
 	PermissionConnect          = "websocket.connect"
 	PermissionSendCommand      = "control.console"
