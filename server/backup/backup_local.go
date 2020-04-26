@@ -138,6 +138,10 @@ func (b *LocalBackup) Details() *ArchiveDetails {
 	}
 }
 
+func (b *LocalBackup) Ignored() []string {
+	return b.IgnoredFiles
+}
+
 // Ensures that the local backup destination for files exists.
 func (b *LocalBackup) ensureLocalBackupLocation() error {
 	d := config.Get().System.BackupDirectory

@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	LocalBackupAdapter = "local"
+	LocalBackupAdapter = "wings"
 	S3BackupAdapter    = "s3"
 )
 
@@ -30,6 +30,23 @@ func (r *Request) NewLocalBackup() (*LocalBackup, error) {
 	}, nil
 }
 
+// Generates a new S3 backup struct.
+func (r *Request) NewS3Backup() (*S3Backup, error) {
+	if r.Adapter != S3BackupAdapter {
+		return nil, errors.New(fmt.Sprintf("cannot create s3 backup using [%s] adapter", r.Adapter))
+	}
+
+	if len(r.PresignedUrl) == 0 {
+		return nil, errors.New("a valid presigned S3 upload URL must be provided to use the [s3] adapter")
+	}
+
+	return &S3Backup{
+		Uuid:         r.Uuid,
+		IgnoredFiles: r.IgnoredFiles,
+		PresignedUrl: r.PresignedUrl,
+	}, nil
+}
+
 type Backup interface {
 	// Returns the UUID of this backup as tracked by the panel instance.
 	Identifier() string
@@ -37,6 +54,9 @@ type Backup interface {
 	// Generates a backup in whatever the configured source for the specific
 	// implementation is.
 	Backup(*IncludedFiles, string) error
+
+	// Returns the ignored files for this backup instance.
+	Ignored() []string
 
 	// Returns a SHA256 checksum for the generated backup.
 	Checksum() ([]byte, error)
@@ -51,6 +71,9 @@ type Backup interface {
 
 	// Returns details about the archive.
 	Details() *ArchiveDetails
+
+	// Removes a backup file.
+	Remove() error
 }
 
 type ArchiveDetails struct {

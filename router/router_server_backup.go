@@ -17,24 +17,30 @@ func postServerBackup(c *gin.Context) {
 	data := &backup.Request{}
 	c.BindJSON(&data)
 
+	var adapter backup.Backup
+	var err error
+
 	switch data.Adapter {
 	case backup.LocalBackupAdapter:
-		adapter, err := data.NewLocalBackup()
-		if err != nil {
-			TrackedServerError(err, s).AbortWithServerError(c)
-			return
-		}
-
-		go func(b *backup.LocalBackup, serv *server.Server) {
-			if err := serv.BackupLocal(b); err != nil {
-				zap.S().Errorw("failed to generate backup for server", zap.Error(err))
-			}
-		}(adapter, s)
+		adapter, err = data.NewLocalBackup()
 	case backup.S3BackupAdapter:
-		TrackedServerError(errors.New(fmt.Sprintf("unsupported backup adapter [%s] provided", data.Adapter)), s).AbortWithServerError(c)
+		adapter, err = data.NewS3Backup()
 	default:
-		TrackedServerError(errors.New(fmt.Sprintf("unknown backup adapter [%s] provided", data.Adapter)), s).AbortWithServerError(c)
+		err = errors.New(fmt.Sprintf("unknown backup adapter [%s] provided", data.Adapter))
+		return
 	}
+
+	if err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+
+	go func(b backup.Backup, serv *server.Server) {
+		if err := serv.Backup(b); err != nil {
+			zap.S().Errorw("failed to generate backup for server", zap.Error(err))
+		}
+	}(adapter, s)
+
 
 	c.Status(http.StatusAccepted)
 }

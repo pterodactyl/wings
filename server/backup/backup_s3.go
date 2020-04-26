@@ -8,6 +8,12 @@ type S3Backup struct {
 	// An array of files to ignore when generating this backup. This should be
 	// compatible with a standard .gitignore structure.
 	IgnoredFiles []string
+
+	// The pre-signed upload endpoint for the generated backup. This must be
+	// provided otherwise this request will fail. This allows us to keep all
+	// of the keys off the daemon instances and the panel can handle generating
+	// the credentials for us.
+	PresignedUrl string
 }
 
 var _ Backup = (*S3Backup)(nil)
@@ -34,4 +40,12 @@ func (s *S3Backup) Path() string {
 
 func (s *S3Backup) Details() *ArchiveDetails {
 	return &ArchiveDetails{}
+}
+
+func (s *S3Backup) Ignored() []string {
+	return s.IgnoredFiles
+}
+
+func (s *S3Backup) Remove() error {
+	return nil
 }
