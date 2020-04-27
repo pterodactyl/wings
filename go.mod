@@ -17,6 +17,7 @@ require (
 	github.com/Microsoft/go-winio v0.4.7 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a
+	github.com/aws/aws-sdk-go v1.30.14 // indirect
 	github.com/beevik/etree v1.1.0
 	github.com/buger/jsonparser v0.0.0-20191204142016-1a29609e0929
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
@@ -55,16 +56,17 @@ require (
 	github.com/sabhiram/go-gitignore v0.0.0-20180611051255-d3107576ba94
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/spf13/cobra v0.0.7
-	github.com/stretchr/testify v1.5.1 // indirect
+	github.com/stretchr/objx v0.2.0 // indirect
+	github.com/yuin/goldmark v1.1.30 // indirect
 	go.uber.org/atomic v1.5.1 // indirect
 	go.uber.org/multierr v1.4.0 // indirect
 	go.uber.org/zap v1.13.0
-	golang.org/x/crypto v0.0.0-20200414173820-0848c9571904 // indirect
+	golang.org/x/crypto v0.0.0-20200423211502-4bdfaf469ed5 // indirect
 	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
-	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e // indirect
+	golang.org/x/net v0.0.0-20200425230154-ff2c4b7c35a0 // indirect
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
-	golang.org/x/sys v0.0.0-20200413165638-669c56c373c4 // indirect
-	golang.org/x/tools v0.0.0-20200417140056-c07e33ef3290 // indirect
+	golang.org/x/sys v0.0.0-20200420163511-1957bb5e6d1f // indirect
+	golang.org/x/tools v0.0.0-20200426102838-f3a5411a4c3b // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/ini.v1 v1.51.0
 	gopkg.in/yaml.v2 v2.2.8

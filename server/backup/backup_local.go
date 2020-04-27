@@ -122,12 +122,11 @@ func (b *LocalBackup) Details() *ArchiveDetails {
 	go func() {
 		defer wg.Done()
 
-		st, err := os.Stat(b.Path())
-		if err != nil {
+		if s, err := b.Size(); err != nil {
 			return
+		} else {
+			sz = s
 		}
-
-		sz = st.Size()
 	}()
 
 	wg.Wait()
@@ -140,19 +139,4 @@ func (b *LocalBackup) Details() *ArchiveDetails {
 
 func (b *LocalBackup) Ignored() []string {
 	return b.IgnoredFiles
-}
-
-// Ensures that the local backup destination for files exists.
-func (b *LocalBackup) ensureLocalBackupLocation() error {
-	d := config.Get().System.BackupDirectory
-
-	if _, err := os.Stat(d); err != nil {
-		if !os.IsNotExist(err) {
-			return errors.WithStack(err)
-		}
-
-		return os.MkdirAll(d, 0700)
-	}
-
-	return nil
 }
