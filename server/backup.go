@@ -79,14 +79,14 @@ func (s *Server) GetIncludedBackupFiles(ignored []string) (*backup.IncludedFiles
 // Performs a server backup and then emits the event over the server websocket. We
 // let the actual backup system handle notifying the panel of the status, but that
 // won't emit a websocket event.
-func (s *Server) Backup(b backup.Backup) error {
+func (s *Server) Backup(b backup.BackupInterface) error {
 	// Get the included files based on the root path and the ignored files provided.
 	inc, err := s.GetIncludedBackupFiles(b.Ignored())
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	if err := b.Backup(inc, s.Filesystem.Path()); err != nil {
+	if err := b.Generate(inc, s.Filesystem.Path()); err != nil {
 		if notifyError := s.notifyPanelOfBackup(b.Identifier(), &backup.ArchiveDetails{}, false); notifyError != nil {
 			zap.S().Warnw("failed to notify panel of failed backup state", zap.String("backup", b.Identifier()), zap.Error(err))
 		}

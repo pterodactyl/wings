@@ -17,7 +17,7 @@ func postServerBackup(c *gin.Context) {
 	data := &backup.Request{}
 	c.BindJSON(&data)
 
-	var adapter backup.Backup
+	var adapter backup.BackupInterface
 	var err error
 
 	switch data.Adapter {
@@ -35,7 +35,7 @@ func postServerBackup(c *gin.Context) {
 		return
 	}
 
-	go func(b backup.Backup, serv *server.Server) {
+	go func(b backup.BackupInterface, serv *server.Server) {
 		if err := serv.Backup(b); err != nil {
 			zap.S().Errorw("failed to generate backup for server", zap.Error(err))
 		}

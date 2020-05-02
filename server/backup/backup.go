@@ -1,9 +1,16 @@
 package backup
 
 import (
-	"errors"
-	"fmt"
+	"crypto/sha256"
+	"encoding/hex"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/config"
+	"go.uber.org/zap"
+	"io"
+	"os"
+	"path"
+	"sync"
 )
 
 const (
@@ -11,49 +18,38 @@ const (
 	S3BackupAdapter    = "s3"
 )
 
-type Request struct {
-	Adapter      string   `json:"adapter"`
-	Uuid         string   `json:"uuid"`
+type ArchiveDetails struct {
+	Checksum string `json:"checksum"`
+	Size     int64  `json:"size"`
+}
+
+// Returns a request object.
+func (ad *ArchiveDetails) ToRequest(successful bool) api.BackupRequest {
+	return api.BackupRequest{
+		Checksum:   ad.Checksum,
+		Size:       ad.Size,
+		Successful: successful,
+	}
+}
+
+type Backup struct {
+	// The UUID of this backup object. This must line up with a backup from
+	// the panel instance.
+	Uuid string `json:"uuid"`
+
+	// An array of files to ignore when generating this backup. This should be
+	// compatible with a standard .gitignore structure.
 	IgnoredFiles []string `json:"ignored_files"`
-	PresignedUrl string   `json:"presigned_url"`
 }
 
-// Generates a new local backup struct.
-func (r *Request) NewLocalBackup() (*LocalBackup, error) {
-	if r.Adapter != LocalBackupAdapter {
-		return nil, errors.New(fmt.Sprintf("cannot create local backup using [%s] adapter", r.Adapter))
-	}
-
-	return &LocalBackup{
-		Uuid:         r.Uuid,
-		IgnoredFiles: r.IgnoredFiles,
-	}, nil
-}
-
-// Generates a new S3 backup struct.
-func (r *Request) NewS3Backup() (*S3Backup, error) {
-	if r.Adapter != S3BackupAdapter {
-		return nil, errors.New(fmt.Sprintf("cannot create s3 backup using [%s] adapter", r.Adapter))
-	}
-
-	if len(r.PresignedUrl) == 0 {
-		return nil, errors.New("a valid presigned S3 upload URL must be provided to use the [s3] adapter")
-	}
-
-	return &S3Backup{
-		Uuid:         r.Uuid,
-		IgnoredFiles: r.IgnoredFiles,
-		PresignedUrl: r.PresignedUrl,
-	}, nil
-}
-
-type Backup interface {
+// noinspection GoNameStartsWithPackageName
+type BackupInterface interface {
 	// Returns the UUID of this backup as tracked by the panel instance.
 	Identifier() string
 
 	// Generates a backup in whatever the configured source for the specific
 	// implementation is.
-	Backup(*IncludedFiles, string) error
+	Generate(*IncludedFiles, string) error
 
 	// Returns the ignored files for this backup instance.
 	Ignored() []string
@@ -76,16 +72,80 @@ type Backup interface {
 	Remove() error
 }
 
-type ArchiveDetails struct {
-	Checksum string `json:"checksum"`
-	Size     int64  `json:"size"`
+func (b *Backup) Identifier() string {
+	return b.Uuid
 }
 
-// Returns a request object.
-func (ad *ArchiveDetails) ToRequest(successful bool) api.BackupRequest {
-	return api.BackupRequest{
-		Checksum:   ad.Checksum,
-		Size:       ad.Size,
-		Successful: successful,
+// Returns the path for this specific backup.
+func (b *Backup) Path() string {
+	return path.Join(config.Get().System.BackupDirectory, b.Identifier()+".tar.gz")
+}
+
+// Return the size of the generated backup.
+func (b *Backup) Size() (int64, error) {
+	st, err := os.Stat(b.Path())
+	if err != nil {
+		return 0, errors.WithStack(err)
 	}
+
+	return st.Size(), nil
+}
+
+// Returns the SHA256 checksum of a backup.
+func (b *Backup) Checksum() ([]byte, error) {
+	h := sha256.New()
+
+	f, err := os.Open(b.Path())
+	if err != nil {
+		return []byte{}, errors.WithStack(err)
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(h, f); err != nil {
+		return []byte{}, errors.WithStack(err)
+	}
+
+	return h.Sum(nil), nil
+}
+
+// Returns details of the archive by utilizing two go-routines to get the checksum and
+// the size of the archive.
+func (b *Backup) Details() *ArchiveDetails {
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	var checksum string
+	// Calculate the checksum for the file.
+	go func() {
+		defer wg.Done()
+
+		resp, err := b.Checksum()
+		if err != nil {
+			zap.S().Errorw("failed to calculate checksum for backup", zap.String("backup", b.Uuid), zap.Error(err))
+		}
+
+		checksum = hex.EncodeToString(resp)
+	}()
+
+	var sz int64
+	go func() {
+		defer wg.Done()
+
+		if s, err := b.Size(); err != nil {
+			return
+		} else {
+			sz = s
+		}
+	}()
+
+	wg.Wait()
+
+	return &ArchiveDetails{
+		Checksum: checksum,
+		Size:     sz,
+	}
+}
+
+func (b *Backup) Ignored() []string {
+	return b.IgnoredFiles
 }
