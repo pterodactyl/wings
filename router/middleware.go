@@ -58,7 +58,7 @@ func ServerExists(c *gin.Context) {
 	u, err := uuid.Parse(c.Param("server"))
 	if err != nil || GetServer(u.String()) == nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-			"error": "The requested server does not exist.",
+			"error": "The resource you requested does not exist.",
 		})
 		return
 	}

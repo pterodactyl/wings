@@ -20,12 +20,12 @@ func Configure() *gin.Engine {
 	// This route is special it sits above all of the other requests because we are
 	// using a JWT to authorize access to it, therefore it needs to be publicly
 	// accessible.
-	router.GET("/api/servers/:server/ws", getServerWebsocket)
+	router.GET("/api/servers/:server/ws", ServerExists, getServerWebsocket)
 
 	// This request is called by another daemon when a server is going to be transferred out.
 	// This request does not need the AuthorizationMiddleware as the panel should never call it
 	// and requests are authenticated through a JWT the panel issues to the other daemon.
-	router.GET("/api/servers/:server/archive", getServerArchive)
+	router.GET("/api/servers/:server/archive", ServerExists, getServerArchive)
 
 	// All of the routes beyond this mount will use an authorization middleware
 	// and will not be accessible without the correct Authorization header provided.
