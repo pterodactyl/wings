@@ -15,6 +15,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"sync"
 )
@@ -131,6 +132,12 @@ func (ip *InstallationProcess) Run() error {
 // Writes the installation script to a temporary file on the host machine so that it
 // can be properly mounted into the installation container and then executed.
 func (ip *InstallationProcess) writeScriptToDisk() (string, error) {
+	// Make sure the temp directory root exists before trying to make a directory within it. The
+	// ioutil.TempDir call expects this base to exist, it won't create it for you.
+	if err := os.MkdirAll(path.Join(os.TempDir(), "pterodactyl/"), 0700); err != nil {
+		return "", errors.WithStack(err)
+	}
+
 	d, err := ioutil.TempDir("", "pterodactyl/")
 	if err != nil {
 		return "", errors.WithStack(err)
