@@ -23,8 +23,9 @@ type Event struct {
 }
 
 type EventBus struct {
+	sync.RWMutex
+
 	subscribers map[string][]chan Event
-	mu          sync.Mutex
 }
 
 // Returns the server's emitter instance.
@@ -40,8 +41,8 @@ func (s *Server) Events() *EventBus {
 
 // Publish data to a given topic.
 func (e *EventBus) Publish(topic string, data string) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.RLock()
+	defer e.RUnlock()
 
 	t := topic
 	// Some of our topics for the socket support passing a more specific namespace,
@@ -79,8 +80,8 @@ func (e *EventBus) PublishJson(topic string, data interface{}) error {
 
 // Subscribe to an emitter topic using a channel.
 func (e *EventBus) Subscribe(topic string, ch chan Event) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Lock()
+	defer e.Unlock()
 
 	if p, ok := e.subscribers[topic]; ok {
 		e.subscribers[topic] = append(p, ch)
@@ -91,8 +92,8 @@ func (e *EventBus) Subscribe(topic string, ch chan Event) {
 
 // Unsubscribe a channel from a topic.
 func (e *EventBus) Unsubscribe(topic string, ch chan Event) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Lock()
+	defer e.Unlock()
 
 	if _, ok := e.subscribers[topic]; ok {
 		for i := range e.subscribers[topic] {
@@ -100,5 +101,20 @@ func (e *EventBus) Unsubscribe(topic string, ch chan Event) {
 				e.subscribers[topic] = append(e.subscribers[topic][:i], e.subscribers[topic][i+1:]...)
 			}
 		}
+	}
+}
+
+// Removes all of the event listeners for the server. This is used when a server
+// is being deleted to avoid a bunch of de-reference errors cropping up. Obviously
+// should also check elsewhere and handle a server reference going nil, but this
+// won't hurt.
+func (e *EventBus) UnsubscribeAll() {
+	e.Lock()
+	defer e.Unlock()
+
+	// Loop over all of the subscribers and just remove all of the events
+	// for them.
+	for t := range e.subscribers {
+		e.subscribers[t] = make([]chan Event, 0)
 	}
 }

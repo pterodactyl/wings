@@ -178,6 +178,9 @@ func deleteServer(c *gin.Context) {
 		zap.S().Warnw("failed to delete server archive during deletion process", zap.String("server", s.Uuid), zap.Error(err))
 	}
 
+	// Unsubscribe all of the event listeners.
+	s.Events().UnsubscribeAll()
+
 	// Destroy the environment; in Docker this will handle a running container and
 	// forcibly terminate it before removing the container, so we do not need to handle
 	// that here.
