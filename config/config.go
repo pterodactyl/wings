@@ -268,6 +268,28 @@ func (c *Configuration) EnsureFilePermissions() error {
 
 	r := regexp.MustCompile("^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$")
 
+	// add trailing slash on data directory is no trailing slash exists
+	if ! strings.HasSuffix(c.System.Data, "/") {
+		c.System.Data = c.System.Data + "/"
+	}
+
+	// create the daemon-data dir if it doesn't exist
+	p, _ := path.Split(c.System.Data)
+
+	if _, err := os.Stat(c.System.Data); err != nil {
+		// if file doesn't exist
+		if os.IsNotExist(err) {
+			//
+			if err = os.Mkdir(p, 0755); err != nil {
+				// of we can't make the directory return error
+				return err
+			}
+		} else {
+			// if the error is anything but IsNotExist
+			return err
+		}
+	}
+
 	files, err := ioutil.ReadDir(c.System.Data)
 	if err != nil {
 		return err
