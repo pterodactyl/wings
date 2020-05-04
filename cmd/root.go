@@ -213,17 +213,6 @@ func rootCmdRun(*cobra.Command, []string) {
 			zap.S().Fatalw("failed to configure HTTP server", zap.Error(err))
 		}
 	}
-
-	// r := &Router{
-	// 	token: c.AuthenticationToken,
-	// 	upgrader: websocket.Upgrader{
-	// 		// Ensure that the websocket request is originating from the Panel itself,
-	// 		// and not some other location.
-	// 		CheckOrigin: func(r *http.Request) bool {
-	// 			return r.Header.Get("Origin") == c.PanelLocation
-	// 		},
-	// 	},
-	// }
 }
 
 // Execute calls cobra to handle cli commands
