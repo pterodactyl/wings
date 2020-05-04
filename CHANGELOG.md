@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.0.0-beta.3
+### Fixed
+* Daemon will no longer crash if someone requests a websocket for a deleted server.
+* Temporary directories are now created properly if missing during the server installation process.
+
+### Added
+* Added support for using Amazon S3 as a backup location for archives.
+
+### Changed
+* Memory overhead for containers is now 5/10/15% higher than the passed limit to account for JVM heap and prevent crashing.
+
 ## v1.0.0-alpha.2
 ### Added
 * Ability to run an installation process for a server and notify the panel when completed.
