@@ -19,7 +19,7 @@ import (
 	"sync"
 )
 
-const DefaultLocation = "/srv/wings/config.yml"
+const DefaultLocation = "/etc/wings/config.yml"
 
 type Configuration struct {
 	sync.RWMutex `json:"-" yaml:"-"`
