@@ -350,6 +350,19 @@ func (d *DockerEnvironment) Destroy() error {
 func (d *DockerEnvironment) ExitState() (uint32, bool, error) {
 	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
 	if err != nil {
+		// I'm not entirely sure how this can happen to be honest. I tried deleting a
+		// container _while_ a server was running and wings gracefully saw the crash and
+		// created a new container for it.
+		//
+		// However, someone reported an error in Discord about this scenario happening,
+		// so I guess this should prevent it? They didn't tell me how they caused it though
+		// so thats a mystery that will have to go unsolved.
+		//
+		// @see https://github.com/pterodactyl/panel/issues/2003
+		if client.IsErrNotFound(err) {
+			return 1, false, nil
+		}
+
 		return 0, false, errors.WithStack(err)
 	}
 
