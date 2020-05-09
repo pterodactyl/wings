@@ -197,16 +197,31 @@ func (d *DockerEnvironment) Start() error {
 		return &suspendedError{}
 	}
 
-	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
-	if err != nil && !client.IsErrNotFound(err) {
-		return errors.WithStack(err)
-	}
+	if c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid); err != nil {
+		// Do nothing if the container is not found, we just don't want to continue
+		// to the next block of code here. This check was inlined here to guard againt
+		// a nil-pointer when checking c.State below.
+		//
+		// @see https://github.com/pterodactyl/panel/issues/2000
+		if !client.IsErrNotFound(err) {
+			return errors.WithStack(err)
+		}
+	} else {
+		// If the server is running update our internal state and continue on with the attach.
+		if c.State.Running {
+			d.Server.SetState(ProcessRunningState)
 
-	// No reason to try starting a container that is already running.
-	if c.State.Running {
-		d.Server.SetState(ProcessRunningState)
+			return d.Attach()
+		}
 
-		return d.Attach()
+		// Truncate the log file so we don't end up outputting a bunch of useless log information
+		// to the websocket and whatnot. Check first that the path and file exist before trying
+		// to truncate them.
+		if _, err := os.Stat(c.LogPath); err == nil {
+			if err := os.Truncate(c.LogPath, 0); err != nil {
+				return errors.WithStack(err)
+			}
+		}
 	}
 
 	d.Server.SetState(ProcessStartingState)
@@ -219,15 +234,6 @@ func (d *DockerEnvironment) Start() error {
 	// occur.
 	if err := d.OnBeforeStart(); err != nil {
 		return errors.WithStack(err)
-	}
-
-	// Truncate the log file so we don't end up outputting a bunch of useless log information
-	// to the websocket and whatnot. Check first that the path and file exist before trying
-	// to truncate them.
-	if _, err := os.Stat(c.LogPath); err == nil {
-		if err := os.Truncate(c.LogPath, 0); err != nil {
-			return errors.WithStack(err)
-		}
 	}
 
 	// Update the configuration files defined for the server before beginning the boot process.
