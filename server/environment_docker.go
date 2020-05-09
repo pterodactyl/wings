@@ -566,8 +566,6 @@ func (d *DockerEnvironment) ensureImageExists(c *client.Client) error {
 
 // Creates a new container for the server using all of the data that is currently
 // available for it. If the container already exists it will be returned.
-//
-// @todo pull the image being requested if it doesn't exist currently.
 func (d *DockerEnvironment) Create() error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv)
@@ -660,17 +658,6 @@ func (d *DockerEnvironment) Create() error {
 		},
 		NetworkMode: "pterodactyl_nw",
 	}
-
-	// Pretty sure TZ=X in the environment variables negates the need for this
-	// to happen. Leaving it until I can confirm that works for everything.
-	//
-	// if err := mountTimezoneData(hostConf); err != nil {
-	// 	if os.IsNotExist(err) {
-	// 		zap.S().Warnw("the timezone data path configured does not exist on the system", zap.Error(errors.WithStack(err)))
-	// 	} else {
-	// 		zap.S().Warnw("failed to mount timezone data into container", zap.Error(errors.WithStack(err)))
-	// 	}
-	// }
 
 	if _, err := cli.ContainerCreate(ctx, conf, hostConf, nil, d.Server.Uuid); err != nil {
 		return errors.WithStack(err)
