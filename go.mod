@@ -1,6 +1,6 @@
 module github.com/pterodactyl/wings
 
-go 1.12
+go 1.13
 
 // Uncomment this in development environments to make changes to the core SFTP
 // server software. This assumes you're using the official Pterodactyl Environment
