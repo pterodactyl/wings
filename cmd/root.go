@@ -3,6 +3,7 @@ package cmd
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/mitchellh/colorstring"
 	"net/http"
 	"os"
 	"path"
@@ -62,9 +63,20 @@ func readConfiguration() (*config.Configuration, error) {
 }
 
 func rootCmdRun(*cobra.Command, []string) {
-	// Profile wings in production!!!!
 	if shouldRunProfiler {
 		defer profile.Start().Stop()
+	}
+
+	// Only attempt configuration file relocation if a custom location has not
+	// been specified in the command startup.
+	if configPath == config.DefaultLocation {
+		if err := RelocateConfiguration(); err != nil {
+			if os.IsNotExist(err) {
+				exitWithConfigurationNotice()
+			}
+
+			panic(err)
+		}
 	}
 
 	c, err := readConfiguration()
@@ -258,4 +270,24 @@ func printLogo() {
 	fmt.Println()
 	fmt.Println(`Copyright © 2018 - 2020 Dane Everitt & Contributors`)
 	fmt.Println()
+}
+
+func exitWithConfigurationNotice() {
+	fmt.Print(colorstring.Color(`
+[_red_][white][bold]Error: Configuration File Not Found[reset]
+
+Wings was not able to locate your configuration file, and therefore is not
+able to complete its boot process.
+
+Please ensure you have copied your instance configuration file into
+the default location, or have provided the --config flag to use a
+custom location.
+
+Default Location: /etc/pterodactyl/config.yml
+
+[yellow]This is not a bug with this software. Please do not make a bug report
+for this issue, it will be closed.[reset]
+
+`))
+	os.Exit(1)
 }
