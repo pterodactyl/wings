@@ -9,6 +9,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
 	"go.uber.org/zap"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -112,6 +113,23 @@ func (b *BuildSettings) ConvertedCpuLimit() int64 {
 	return b.CpuLimit * 1000
 }
 
+// Set the hard limit for memory usage to be 5% more than the amount of memory assigned to
+// the server. If the memory limit for the server is < 4G, use 10%, if less than 2G use
+// 15%. This avoids unexpected crashes from processes like Java which run over the limit.
+func (b *BuildSettings) MemoryOverheadMultiplier() float64 {
+	if b.MemoryLimit <= 2048 {
+		return 1.15
+	} else if b.MemoryLimit <= 4096 {
+		return 1.10
+	}
+
+	return 1.05
+}
+
+func (b *BuildSettings) BoundedMemoryLimit() int64 {
+	return int64(math.Round(float64(b.MemoryLimit) * b.MemoryOverheadMultiplier() * 1_000_000))
+}
+
 // Returns the amount of swap available as a total in bytes. This is returned as the amount
 // of memory available to the server initially, PLUS the amount of additional swap to include
 // which is the format used by Docker.
@@ -120,7 +138,7 @@ func (b *BuildSettings) ConvertedSwap() int64 {
 		return -1
 	}
 
-	return (b.Swap * 1000000) + (b.MemoryLimit * 1000000)
+	return (b.Swap * 1_000_000) + b.BoundedMemoryLimit()
 }
 
 // Defines the allocations available for a given server. When using the Docker environment

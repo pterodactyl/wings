@@ -17,7 +17,6 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
 	"io"
-	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -828,25 +827,24 @@ func (d *DockerEnvironment) exposedPorts() nat.PortSet {
 	return out
 }
 
+
 // Formats the resources available to a server instance in such as way that Docker will
 // generate a matching environment in the container.
+//
+// This will set the actual memory limit on the container using the multiplier which is the
+// hard limit for the container (after which will result in a crash). We then set the
+// reservation to be the expected memory limit based on simply multiplication.
+//
+// The swap value is either -1 to disable it, or set to the value of the hard memory limit
+// plus the additional swap assigned to the server since Docker expects this value to be
+// the same or higher than the memory limit.
 func (d *DockerEnvironment) getResourcesForServer() container.Resources {
-	overhead := 1.05
-	// Set the hard limit for memory usage to be 5% more than the amount of memory assigned to
-	// the server. If the memory limit for the server is < 4G, use 10%, if less than 2G use
-	// 15%. This avoids unexpected crashes from processes like Java which run over the limit.
-	if d.Server.Build.MemoryLimit <= 2048 {
-		overhead = 1.15
-	} else if d.Server.Build.MemoryLimit <= 4096 {
-		overhead = 1.10
-	}
-
 	return container.Resources{
-		Memory:            int64(math.Round(float64(d.Server.Build.MemoryLimit) * 1000000.0 * overhead)),
-		MemoryReservation: d.Server.Build.MemoryLimit * 1000000,
+		Memory:            d.Server.Build.BoundedMemoryLimit(),
+		MemoryReservation: d.Server.Build.MemoryLimit * 1_000_000,
 		MemorySwap:        d.Server.Build.ConvertedSwap(),
 		CPUQuota:          d.Server.Build.ConvertedCpuLimit(),
-		CPUPeriod:         100000,
+		CPUPeriod:         100_000,
 		CPUShares:         1024,
 		BlkioWeight:       d.Server.Build.IoWeight,
 		OomKillDisable:    &d.Server.Container.OomDisabled,
