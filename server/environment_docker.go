@@ -844,8 +844,8 @@ func (d *DockerEnvironment) getResourcesForServer() container.Resources {
 	// 15%. This avoids unexpected crashes from processes like Java which run over the limit.
 	if d.Server.Build.MemoryLimit <= 2048 {
 		overhead = 1.15
-	} else if d.Server.Build.MemoryLimit  <= 4096 {
-		overhead = 1.10;
+	} else if d.Server.Build.MemoryLimit <= 4096 {
+		overhead = 1.10
 	}
 
 	return container.Resources{
