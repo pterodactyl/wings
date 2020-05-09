@@ -9,7 +9,10 @@ import (
 // should obviously expect memory and CPU usage to be 0. However, disk will always be returned
 // since that is not dependent on the server being running to collect that data.
 type ResourceUsage struct {
-	// The total amount of memory, in bytes, that this server instance is consuming.
+	// The total amount of memory, in bytes, that this server instance is consuming. This is
+	// calculated slightly differently than just using the raw Memory field that the stats
+	// return from the container, so please check the code setting this value for how that
+	// is calculated.
 	Memory uint64 `json:"memory_bytes"`
 	// The total amount of memory this container or resource can use. Inside Docker this is
 	// going to be higher than you'd expect because we're automatically allocating overhead
@@ -26,6 +29,27 @@ type ResourceUsage struct {
 		RxBytes uint64 `json:"rx_bytes"`
 		TxBytes uint64 `json:"tx_bytes"`
 	} `json:"network"`
+}
+
+// The "docker stats" CLI call does not return the same value as the types.MemoryStats.Usage
+// value which can be rather confusing to people trying to compare panel usage to
+// their stats output.
+//
+// This math is straight up lifted from their CLI repository in order to show the same
+// values to avoid people bothering me about it. It should also reflect a slightly more
+// correct memory value anyways.
+//
+// @see https://github.com/docker/cli/blob/96e1d1d6/cli/command/container/stats_helpers.go#L227-L249
+func (ru *ResourceUsage) CalculateDockerMemory(stats types.MemoryStats) uint64 {
+	if v, ok := stats.Stats["total_inactive_file"]; ok && v < stats.Usage {
+		return stats.Usage - v
+	}
+
+	if v := stats.Stats["inactive_file"]; v < stats.Usage {
+		return stats.Usage - v
+	}
+
+	return stats.Usage
 }
 
 // Calculates the absolute CPU usage used by the server process on the system, not constrained

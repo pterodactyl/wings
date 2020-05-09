@@ -501,7 +501,7 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 			}
 
 			s.Resources.CpuAbsolute = s.Resources.CalculateAbsoluteCpu(&v.PreCPUStats, &v.CPUStats)
-			s.Resources.Memory = v.MemoryStats.Usage
+			s.Resources.Memory = s.Resources.CalculateDockerMemory(v.MemoryStats)
 			s.Resources.MemoryLimit = v.MemoryStats.Limit
 
 			// Why you ask? This already has the logic for caching disk space in use and then
@@ -826,7 +826,6 @@ func (d *DockerEnvironment) exposedPorts() nat.PortSet {
 
 	return out
 }
-
 
 // Formats the resources available to a server instance in such as way that Docker will
 // generate a matching environment in the container.
