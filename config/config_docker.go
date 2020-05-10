@@ -26,6 +26,7 @@ type DockerNetworkConfiguration struct {
 	Name       string                  `default:"pterodactyl_nw"`
 	ISPN       bool                    `default:"false" yaml:"ispn"`
 	Driver     string                  `default:"bridge"`
+	Mode       string                  `default:"pterodactyl_nw" yaml:"network_mode"`
 	IsInternal bool                    `default:"false" yaml:"is_internal"`
 	EnableICC  bool                    `default:"true" yaml:"enable_icc"`
 	Interfaces dockerNetworkInterfaces `yaml:"interfaces"`

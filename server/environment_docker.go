@@ -665,7 +665,7 @@ func (d *DockerEnvironment) Create() error {
 			"setpcap", "mknod", "audit_write", "net_raw", "dac_override",
 			"fowner", "fsetid", "net_bind_service", "sys_chroot", "setfcap",
 		},
-		NetworkMode: "pterodactyl_nw",
+		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
 	}
 
 	if _, err := cli.ContainerCreate(ctx, conf, hostConf, nil, d.Server.Uuid); err != nil {
