@@ -343,11 +343,21 @@ func (d *DockerEnvironment) Destroy() error {
 	// Avoid crash detection firing off.
 	d.Server.SetState(ProcessStoppingState)
 
-	return d.Client.ContainerRemove(ctx, d.Server.Uuid, types.ContainerRemoveOptions{
+	err := d.Client.ContainerRemove(ctx, d.Server.Uuid, types.ContainerRemoveOptions{
 		RemoveVolumes: true,
 		RemoveLinks:   false,
 		Force:         true,
 	})
+
+	// Don't trigger a destroy failure if we try to delete a container that does not
+	// exist on the system. We're just a step ahead of ourselves in that case.
+	//
+	// @see https://github.com/pterodactyl/panel/issues/2001
+	if err != nil && client.IsErrNotFound(err) {
+		return nil
+	}
+
+	return err
 }
 
 // Determine the container exit state and return the exit code and wether or not
