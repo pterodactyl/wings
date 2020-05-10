@@ -7,7 +7,6 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
-	"path"
 )
 
 func Initialize(config *config.Configuration) error {
@@ -21,8 +20,6 @@ func Initialize(config *config.Configuration) error {
 			ReadOnly:         config.System.Sftp.ReadOnly,
 			BindAddress:      config.System.Sftp.Address,
 			BindPort:         config.System.Sftp.Port,
-			ServerDataFolder: path.Join(config.System.Data, "/servers"),
-			DisableDiskCheck: config.System.Sftp.DisableDiskChecking,
 		},
 		CredentialValidator: validateCredentials,
 		PathValidator: validatePath,
@@ -76,6 +73,7 @@ func validateDiskSpace(fs sftp_server.FileSystem) bool {
 // the server's UUID if the credentials were valid.
 func validateCredentials(c sftp_server.AuthenticationRequest) (*sftp_server.AuthenticationResponse, error) {
 	resp, err := api.NewRequester().ValidateSftpCredentials(c)
+	zap.S().Named("sftp").Debugw("validating credentials for SFTP connection", zap.String("username", c.User))
 	if err != nil {
 		return resp, err
 	}
@@ -85,8 +83,9 @@ func validateCredentials(c sftp_server.AuthenticationRequest) (*sftp_server.Auth
 	})
 
 	if s == nil {
-		return resp, errors.New("no server found with that UUID")
+		return resp, errors.New("no matching server with UUID found")
 	}
 
+	zap.S().Named("sftp").Debugw("matched user to server instance, credentials successfully validated", zap.String("username", c.User), zap.String("server", s.Uuid))
 	return resp, err
 }
