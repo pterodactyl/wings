@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"os"
@@ -21,7 +22,9 @@ type S3Backup struct {
 
 var _ BackupInterface = (*S3Backup)(nil)
 
-func (s *S3Backup) Generate(included *IncludedFiles, prefix string) error {
+// Generates a new backup on the disk, moves it into the S3 bucket via the provided
+// presigned URL, and then deletes the backup from the disk.
+func (s *S3Backup) Generate(included *IncludedFiles, prefix string) (*ArchiveDetails, error) {
 	defer s.Remove()
 
 	a := &Archive{
@@ -30,45 +33,26 @@ func (s *S3Backup) Generate(included *IncludedFiles, prefix string) error {
 	}
 
 	if err := a.Create(s.Path(), context.Background()); err != nil {
-		return err
+		return nil, err
 	}
 
-	fmt.Println(s.PresignedUrl)
-
-	r, err := http.NewRequest(http.MethodPut, s.PresignedUrl, nil)
+	rc, err := os.Open(s.Path())
 	if err != nil {
-		return err
-	}
-
-	if sz, err := s.Size(); err != nil {
-		return err
-	} else {
-		r.ContentLength = sz
-		r.Header.Add("Content-Length", strconv.Itoa(int(sz)))
-		r.Header.Add("Content-Type", "application/x-gzip")
-	}
-
-	var rc io.ReadCloser
-	if f, err := os.Open(s.Path()); err != nil {
-		return err
-	} else {
-		rc = f
+		return nil, err
 	}
 	defer rc.Close()
 
-	r.Body = rc
-	resp, err := http.DefaultClient.Do(r)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+	if resp, err := s.generateRemoteRequest(rc); err != nil {
+		return nil, err
+	} else {
+		resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		io.Copy(os.Stdout, resp.Body)
-		return fmt.Errorf("failed to put S3 object, %d:%s", resp.StatusCode, resp.Status)
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("failed to put S3 object, %d:%s", resp.StatusCode, resp.Status)
+		}
 	}
 
-	return nil
+	return s.Details(), err
 }
 
 // Removes a backup from the system.
@@ -76,9 +60,24 @@ func (s *S3Backup) Remove() error {
 	return os.Remove(s.Path())
 }
 
-func (s *S3Backup) Details() *ArchiveDetails {
-	return &ArchiveDetails{
-		Checksum: "checksum",
-		Size:     1024,
+// Generates the remote S3 request and begins the upload.
+func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) (*http.Response, error) {
+	r, err := http.NewRequest(http.MethodPut, s.PresignedUrl, nil)
+	if err != nil {
+		return nil, err
 	}
+
+	if sz, err := s.Size(); err != nil {
+		return nil, err
+	} else {
+		r.ContentLength = sz
+		r.Header.Add("Content-Length", strconv.Itoa(int(sz)))
+		r.Header.Add("Content-Type", "application/x-gzip")
+	}
+
+	r.Body = rc
+
+	zap.S().Debugw("uploading backup to remote S3 endpoint", zap.String("endpoint", s.PresignedUrl), zap.Any("headers", r.Header))
+
+	return http.DefaultClient.Do(r)
 }

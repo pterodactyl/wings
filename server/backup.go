@@ -86,7 +86,8 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 		return errors.WithStack(err)
 	}
 
-	if err := b.Generate(inc, s.Filesystem.Path()); err != nil {
+	ad, err := b.Generate(inc, s.Filesystem.Path())
+	if err != nil {
 		if notifyError := s.notifyPanelOfBackup(b.Identifier(), &backup.ArchiveDetails{}, false); notifyError != nil {
 			zap.S().Warnw("failed to notify panel of failed backup state", zap.String("backup", b.Identifier()), zap.Error(err))
 		}
@@ -96,7 +97,6 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 
 	// Try to notify the panel about the status of this backup. If for some reason this request
 	// fails, delete the archive from the daemon and return that error up the chain to the caller.
-	ad := b.Details()
 	if notifyError := s.notifyPanelOfBackup(b.Identifier(), ad, true); notifyError != nil {
 		b.Remove()
 

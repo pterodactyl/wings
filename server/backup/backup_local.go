@@ -41,13 +41,15 @@ func (b *LocalBackup) Remove() error {
 
 // Generates a backup of the selected files and pushes it to the defined location
 // for this instance.
-func (b *LocalBackup) Generate(included *IncludedFiles, prefix string) error {
+func (b *LocalBackup) Generate(included *IncludedFiles, prefix string) (*ArchiveDetails, error) {
 	a := &Archive{
 		TrimPrefix: prefix,
 		Files:      included,
 	}
 
-	err := a.Create(b.Path(), context.Background())
+	if err := a.Create(b.Path(), context.Background()); err != nil {
+		return nil, err
+	}
 
-	return err
+	return b.Details(), nil
 }

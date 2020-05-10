@@ -49,7 +49,7 @@ type BackupInterface interface {
 
 	// Generates a backup in whatever the configured source for the specific
 	// implementation is.
-	Generate(*IncludedFiles, string) error
+	Generate(*IncludedFiles, string) (*ArchiveDetails, error)
 
 	// Returns the ignored files for this backup instance.
 	Ignored() []string
