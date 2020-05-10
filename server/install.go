@@ -104,6 +104,18 @@ func NewInstallationProcess(s *Server, script *api.InstallationScript) (*Install
 	return proc, nil
 }
 
+// Removes the installer container for the server.
+func (ip *InstallationProcess) RemoveContainer() {
+	err := ip.client.ContainerRemove(context.Background(), ip.Server.Uuid + "_installer", types.ContainerRemoveOptions{
+		RemoveVolumes: true,
+		Force:         true,
+	})
+
+	if err != nil && !client.IsErrNotFound(err) {
+		zap.S().Warnw("failed to delete server installer container", zap.String("server", ip.Server.Uuid), zap.Error(errors.WithStack(err)))
+	}
+}
+
 // Runs the installation process, this is done as a backgrounded thread. This will configure
 // the required environment, and then spin up the installation container.
 //
@@ -117,6 +129,8 @@ func (ip *InstallationProcess) Run() error {
 
 	cid, err := ip.Execute(installPath)
 	if err != nil {
+		ip.RemoveContainer()
+
 		return err
 	}
 
@@ -249,6 +263,7 @@ func (ip *InstallationProcess) GetLogPath() string {
 // installation container.
 func (ip *InstallationProcess) AfterExecute(containerId string) error {
 	ctx := context.Background()
+	defer ip.RemoveContainer()
 
 	zap.S().Debugw("pulling installation logs for server", zap.String("server", ip.Server.Uuid), zap.String("container_id", containerId))
 	reader, err := ip.client.ContainerLogs(ctx, containerId, types.ContainerLogsOptions{
@@ -271,17 +286,6 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 	// can be referenced after this container is deleted.
 	if _, err := io.Copy(f, reader); err != nil {
 		return errors.WithStack(err)
-	}
-
-	zap.S().Debugw("removing server installation container", zap.String("server", ip.Server.Uuid), zap.String("container_id", containerId))
-	rErr := ip.client.ContainerRemove(ctx, containerId, types.ContainerRemoveOptions{
-		RemoveVolumes: true,
-		RemoveLinks:   false,
-		Force:         true,
-	})
-
-	if rErr != nil && !client.IsErrNotFound(rErr) {
-		return errors.WithStack(rErr)
 	}
 
 	return nil
@@ -331,7 +335,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 		Tmpfs: map[string]string{
 			"/tmp": "rw,exec,nosuid,size=50M",
 		},
-		DNS: []string{"1.1.1.1", "8.8.8.8"},
+		DNS: config.Get().Docker.Network.Dns,
 		LogConfig: container.LogConfig{
 			Type: "local",
 			Config: map[string]string{
@@ -341,7 +345,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 			},
 		},
 		Privileged:  true,
-		NetworkMode: "pterodactyl_nw",
+		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
 	}
 
 	zap.S().Infow("creating installer container for server process", zap.String("server", ip.Server.Uuid))
