@@ -4,14 +4,24 @@ import (
 	"bufio"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Returns the contents of a file on the server.
 func getServerFileContents(c *gin.Context) {
 	s := GetServer(c.Param("server"))
-	cleaned, err := s.Filesystem.SafePath(c.Query("file"))
+
+	p, err := url.QueryUnescape(c.Query("file"))
+	if err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+	p = "/" + strings.TrimLeft(p, "/")
+
+	cleaned, err := s.Filesystem.SafePath(p)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"error": "The file requested could not be found.",
@@ -56,7 +66,13 @@ func getServerFileContents(c *gin.Context) {
 func getServerListDirectory(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	stats, err := s.Filesystem.ListDirectory(c.Query("directory"))
+	d, err := url.QueryUnescape(c.Query("directory"))
+	if err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+
+	stats, err := s.Filesystem.ListDirectory(d)
 	if err != nil {
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
@@ -69,9 +85,9 @@ func getServerListDirectory(c *gin.Context) {
 func putServerRenameFile(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	var data struct{
+	var data struct {
 		RenameFrom string `json:"rename_from"`
-		RenameTo string `json:"rename_to"`
+		RenameTo   string `json:"rename_to"`
 	}
 	c.BindJSON(&data)
 
@@ -128,7 +144,14 @@ func postServerDeleteFile(c *gin.Context) {
 func postServerWriteFile(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	if err := s.Filesystem.Writefile(c.Query("file"), c.Request.Body); err != nil {
+	f, err := url.QueryUnescape(c.Query("file"))
+	if err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+	f = "/" + strings.TrimLeft(f, "/")
+
+	if err := s.Filesystem.Writefile(f, c.Request.Body); err != nil {
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}

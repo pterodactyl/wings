@@ -401,13 +401,12 @@ func (fs *Filesystem) Copy(p string) error {
 		return errors.WithStack(err)
 	}
 
-	if s, err := os.Stat(cleaned); (err != nil && os.IsNotExist(err)) || s.IsDir() || !s.Mode().IsRegular() {
-		// For now I think I am okay just returning a nil response if the thing
-		// we're trying to copy doesn't exist. Probably will want to come back and
-		// re-evaluate if this is a smart decision (I'm guessing not).
-		return nil
-	} else if err != nil {
-		return errors.WithStack(err)
+	if s, err := os.Stat(cleaned); err != nil {
+		return err
+	} else if s.IsDir() || !s.Mode().IsRegular() {
+		// If this is a directory or not a regular file, just throw a not-exist error
+		// since anything calling this function should understand what that means.
+		return os.ErrNotExist
 	}
 
 	base := filepath.Base(cleaned)
