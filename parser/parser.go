@@ -40,6 +40,39 @@ type ConfigurationFile struct {
 	configuration []byte
 }
 
+// Custom unmarshaler for configuration files. If there is an error while parsing out the
+// replacements, don't fail the entire operation, just log a global warning so someone can
+// find the issue, and return an empty array of replacements.
+//
+// I imagine people will notice configuration replacement isn't working correctly and then
+// the logs should help better expose that issue.
+func (f *ConfigurationFile) UnmarshalJSON(data []byte) error {
+	var m map[string]*json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(*m["file"], &f.FileName); err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(*m["parser"], &f.Parser); err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(*m["replace"], &f.Replace); err != nil {
+		zap.S().Warnw(
+			"failed to unmarshal configuration file replacement",
+			zap.String("file", f.FileName),
+			zap.Error(err),
+		)
+
+		f.Replace = []ConfigurationFileReplacement{}
+	}
+
+	return nil
+}
+
 // Defines a single find/replace instance for a given server configuration file.
 type ConfigurationFileReplacement struct {
 	Match       string       `json:"match"`
@@ -52,7 +85,7 @@ type ConfigurationFileReplacement struct {
 func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 	m, err := jsonparser.GetString(data, "match")
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 	cfr.Match = m
 
@@ -60,14 +93,24 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 	// We only check keypath here since match & replace_with should be present on all of
 	// them, however if_value is optional.
 	if err != nil && err != jsonparser.KeyPathNotFoundError {
-		return errors.WithStack(err)
+		return err
 	}
 	cfr.IfValue = iv
 
 	rw, dt, _, err := jsonparser.Get(data, "replace_with")
 	if err != nil {
-		return errors.WithStack(err)
+		if err != jsonparser.KeyPathNotFoundError {
+			return err
+		}
+
+		// Okay, likely dealing with someone who forgot to upgrade their eggs, so in
+		// that case, fallback to using the old key which was "value".
+		rw, dt, _, err = jsonparser.Get(data, "value")
+		if err != nil {
+			return err
+		}
 	}
+
 	cfr.ReplaceWith = ReplaceValue{
 		value:     rw,
 		valueType: dt,
