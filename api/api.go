@@ -45,6 +45,28 @@ func (r *PanelRequest) GetEndpoint(endpoint string) string {
 	)
 }
 
+// Logs the request into the debug log with all of the important request bits.
+// The authorization key will be cleaned up before being output.
+func (r *PanelRequest) logDebug(req *http.Request) {
+	headers := make(map[string][]string)
+	for k, v := range req.Header {
+		if k != "Authorization" || len(v) == 0 {
+			headers[k] = v
+			continue
+		}
+
+		headers[k] = []string{v[0][0:15] + "(redacted)"}
+	}
+
+
+	zap.S().Debugw(
+		"making request to external HTTP endpoint",
+		zap.String("method", req.Method),
+		zap.String("endpoint", req.URL.String()),
+		zap.Any("headers", headers),
+	)
+}
+
 func (r *PanelRequest) Get(url string) (*http.Response, error) {
 	c := r.GetClient()
 
@@ -55,7 +77,7 @@ func (r *PanelRequest) Get(url string) (*http.Response, error) {
 		return nil, err
 	}
 
-	zap.S().Debugw("GET request to endpoint", zap.String("endpoint", r.GetEndpoint(url)), zap.Any("headers", req.Header))
+	r.logDebug(req)
 
 	return c.Do(req)
 }
@@ -70,7 +92,7 @@ func (r *PanelRequest) Post(url string, data []byte) (*http.Response, error) {
 		return nil, err
 	}
 
-	zap.S().Debugw("POST request to endpoint", zap.String("endpoint", r.GetEndpoint(url)), zap.Any("headers", req.Header))
+	r.logDebug(req)
 
 	return c.Do(req)
 }
