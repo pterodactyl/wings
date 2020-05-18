@@ -124,8 +124,12 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 func (f *ConfigurationFile) Parse(path string, internal bool) error {
 	zap.S().Debugw("parsing configuration file", zap.String("path", path), zap.String("parser", string(f.Parser)))
 
-	mb, _ := json.Marshal(config.Get())
-	f.configuration = mb
+	if mb, err := json.Marshal(config.Get()); err != nil {
+		return err
+	} else {
+		f.configuration = mb
+	}
+
 
 	var err error
 

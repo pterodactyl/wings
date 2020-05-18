@@ -15,7 +15,7 @@ type dockerNetworkInterfaces struct {
 type DockerNetworkConfiguration struct {
 	// The interface that should be used to create the network. Must not conflict
 	// with any other interfaces in use by Docker or on the system.
-	Interface string `default:"172.18.0.1"`
+	Interface string `default:"172.18.0.1" json:"interface" yaml:"interface"`
 
 	// The DNS settings for containers.
 	Dns []string `default:"[\"1.1.1.1\", \"1.0.0.1\"]"`
@@ -45,7 +45,7 @@ type DockerConfiguration struct {
 	UpdateImages bool `default:"true" json:"update_images" yaml:"update_images"`
 
 	// The location of the Docker socket.
-	Socket string `default:"/var/run/docker.sock"`
+	Socket string `default:"/var/run/docker.sock" json:"socket" yaml:"socket"`
 
 	// Defines the location of the timezone file on the host system that should
 	// be mounted into the created containers so that they all use the same time.

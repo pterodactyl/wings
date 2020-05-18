@@ -46,9 +46,9 @@ type Configuration struct {
 	// validate against it.
 	AuthenticationToken string `json:"token" yaml:"token"`
 
-	Api    ApiConfiguration
-	System SystemConfiguration
-	Docker DockerConfiguration
+	Api    ApiConfiguration    `json:"api" yaml:"api"`
+	System SystemConfiguration `json:"system" yaml:"system"`
+	Docker DockerConfiguration `json:"docker" yaml:"docker"`
 
 	// The amount of time in seconds that should elapse between disk usage checks
 	// run by the daemon. Setting a higher number can result in better IO performance

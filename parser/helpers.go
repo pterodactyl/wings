@@ -165,11 +165,8 @@ func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplac
 	)
 
 	var path []string
-	// The camel casing is important here, the configuration for the Daemon does not use
-	// JSON, and as such all of the keys will be generated in CamelCase format, rather than
-	// the expected snake_case from the old Daemon.
 	for _, value := range strings.Split(huntPath, ".") {
-		path = append(path, strcase.ToCamel(value))
+		path = append(path, strcase.ToSnake(value))
 	}
 
 	// Look for the key in the configuration file, and if found return that value to the
