@@ -784,7 +784,7 @@ eloop:
 			}
 		}
 
-		out = append(out, fmt.Sprintf("%s=\"%s\"", strings.ToUpper(k), v))
+		out = append(out, fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
 	}
 
 	return out
