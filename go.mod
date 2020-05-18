@@ -36,6 +36,7 @@ require (
 	github.com/gorilla/websocket v1.4.0
 	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/iancoleman/strcase v0.0.0-20191112232945-16388991a334
+	github.com/icza/dyno v0.0.0-20200205103839-49cb13720835
 	github.com/imdario/mergo v0.3.8
 	github.com/klauspost/pgzip v1.2.3
 	github.com/magiconair/properties v1.8.1

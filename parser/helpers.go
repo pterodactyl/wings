@@ -9,7 +9,6 @@ import (
 	"go.uber.org/zap"
 	"io/ioutil"
 	"os"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -48,13 +47,14 @@ func readFileBytes(path string) ([]byte, error) {
 }
 
 // Gets the value of a key based on the value type defined.
-func getKeyValue(value []byte) interface{} {
-	if reflect.ValueOf(value).Kind() == reflect.Bool {
+func (cfr *ConfigurationFileReplacement) getKeyValue(value []byte) interface{} {
+	if cfr.ReplaceWith.Type() == jsonparser.Boolean {
 		v, _ := strconv.ParseBool(string(value))
 		return v
 	}
 
-	// Try to parse into an int, if this fails just ignore the error and
+	// Try to parse into an int, if this fails just ignore the error and continue
+	// through, returning the string.
 	if v, err := strconv.Atoi(string(value)); err == nil {
 		return v
 	}
@@ -70,7 +70,9 @@ func getKeyValue(value []byte) interface{} {
 // configurations per-world (such as Spigot and Bungeecord) where we'll need to make
 // adjustments to the bind address for the user.
 //
-// This does not currently support nested matches. container.*.foo.*.bar will not work.
+// This does not currently support nested wildcard matches. For example, foo.*.bar
+// will work, however foo.*.bar.*.baz will not, since we'll only be splitting at the
+// first wildcard, and not subsequent ones.
 func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error) {
 	parsed, err := gabs.ParseJSON(data)
 	if err != nil {
@@ -143,7 +145,7 @@ func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path st
 		}
 	}
 
-	_, err := c.SetP(getKeyValue(value), path)
+	_, err := c.SetP(cfr.getKeyValue(value), path)
 
 	return err
 }

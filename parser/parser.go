@@ -5,14 +5,16 @@ import (
 	"encoding/json"
 	"github.com/beevik/etree"
 	"github.com/buger/jsonparser"
-	"github.com/ghodss/yaml"
+	"github.com/icza/dyno"
 	"github.com/magiconair/properties"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"go.uber.org/zap"
 	"gopkg.in/ini.v1"
+	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -73,6 +75,11 @@ func (f *ConfigurationFile) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Regex to match paths such as foo[1].bar[2] and convert them into a format that
+// gabs can work with, such as foo.1.bar.2 in this case. This is applied when creating
+// the struct for the configuration file replacements.
+var cfrMatchReplacement = regexp.MustCompile(`\[(\d+)]`)
+
 // Defines a single find/replace instance for a given server configuration file.
 type ConfigurationFileReplacement struct {
 	Match       string       `json:"match"`
@@ -87,7 +94,9 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	cfr.Match = m
+
+	// See comment on the replacement regex to understand what exactly this is doing.
+	cfr.Match = cfrMatchReplacement.ReplaceAllString(m, ".$1")
 
 	iv, err := jsonparser.GetString(data, "if_value")
 	// We only check keypath here since match & replace_with should be present on all of
@@ -129,7 +138,6 @@ func (f *ConfigurationFile) Parse(path string, internal bool) error {
 	} else {
 		f.configuration = mb
 	}
-
 
 	var err error
 
@@ -351,10 +359,15 @@ func (f *ConfigurationFile) parseYamlFile(path string) error {
 		return err
 	}
 
+	i := make(map[string]interface{})
+	if err := yaml.Unmarshal(b, &i); err != nil {
+		return err
+	}
+
 	// Unmarshal the yaml data into a JSON interface such that we can work with
 	// any arbitrary data structure. If we don't do this, I can't use gabs which
 	// makes working with unknown JSON signficiantly easier.
-	jsonBytes, err := yaml.YAMLToJSON(b)
+	jsonBytes, err := json.Marshal(dyno.ConvertMapI2MapS(i))
 	if err != nil {
 		return err
 	}
@@ -367,7 +380,7 @@ func (f *ConfigurationFile) parseYamlFile(path string) error {
 	}
 
 	// Remarshal the JSON into YAML format before saving it back to the disk.
-	marshaled, err := yaml.JSONToYAML(data.Bytes())
+	marshaled, err := yaml.Marshal(data.Data())
 	if err != nil {
 		return err
 	}
