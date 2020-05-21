@@ -621,19 +621,31 @@ func (d *DockerEnvironment) Create() error {
 		},
 	}
 
+	mounts := []mount.Mount{
+		{
+			Target:   "/home/container",
+			Source:   d.Server.Filesystem.Path(),
+			Type:     mount.TypeBind,
+			ReadOnly: false,
+		},
+	}
+
+	for _, m := range d.Server.Mounts {
+		mounts = append(mounts, mount.Mount{
+			Type: mount.TypeBind,
+
+			Source:   m.Source,
+			Target:   m.Target,
+			ReadOnly: m.ReadOnly,
+		})
+	}
+
 	hostConf := &container.HostConfig{
 		PortBindings: d.portBindings(),
 
 		// Configure the mounts for this container. First mount the server data directory
 		// into the container as a r/w bind.
-		Mounts: []mount.Mount{
-			{
-				Target:   "/home/container",
-				Source:   d.Server.Filesystem.Path(),
-				Type:     mount.TypeBind,
-				ReadOnly: false,
-			},
-		},
+		Mounts: mounts,
 
 		// Configure the /tmp folder mapping in containers. This is necessary for some
 		// games that need to make use of it for downloads and other installation processes.
