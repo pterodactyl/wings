@@ -84,9 +84,6 @@ type Configuration struct {
 
 // Defines the configuration of the internal SFTP server.
 type SftpConfiguration struct {
-	// If set to false, the internal SFTP server will not be booted and you will need
-	// to run the SFTP server independent of this program.
-	UseInternalSystem bool `default:"true" json:"use_internal" yaml:"use_internal"`
 	// If set to true disk checking will not be performed. This will prevent the SFTP
 	// server from checking the total size of a directory when uploading files.
 	DisableDiskChecking bool `default:"false" yaml:"disable_disk_checking"`

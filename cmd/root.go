@@ -196,10 +196,8 @@ func rootCmdRun(*cobra.Command, []string) {
 	// Wait until all of the servers are ready to go before we fire up the HTTP server.
 	wg.Wait()
 
-	// If the SFTP subsystem should be started, do so now.
-	if c.System.Sftp.UseInternalSystem {
-		sftp.Initialize(c)
-	}
+	// Initalize SFTP.
+	sftp.Initialize(c)
 
 	// Ensure the archive directory exists.
 	if err := os.MkdirAll(c.System.ArchiveDirectory, 0755); err != nil {

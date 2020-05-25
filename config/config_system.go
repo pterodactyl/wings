@@ -51,7 +51,7 @@ type SystemConfiguration struct {
 	// the user did not press the stop button, but the process stopped cleanly.
 	DetectCleanExitAsCrash bool `default:"true" yaml:"detect_clean_exit_as_crash"`
 
-	Sftp *SftpConfiguration `yaml:"sftp"`
+	Sftp SftpConfiguration `yaml:"sftp"`
 }
 
 // Ensures that all of the system directories exist on the system. These directories are
