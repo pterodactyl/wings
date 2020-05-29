@@ -182,6 +182,10 @@ func (d *DockerEnvironment) Start() error {
 	// that point.
 	defer func() {
 		if sawError {
+			// If we don't set it to stopping first, you'll trigger crash detection which
+			// we don't want to do at this point since it'll just immediately try to do the
+			// exact same action that lead to it crashing in the first place...
+			d.Server.SetState(ProcessStoppingState)
 			d.Server.SetState(ProcessOfflineState)
 		}
 	}()
@@ -248,8 +252,8 @@ func (d *DockerEnvironment) Start() error {
 		return errors.WithStack(err)
 	}
 
-	opts := types.ContainerStartOptions{}
-	if err := d.Client.ContainerStart(context.Background(), d.Server.Uuid, opts); err != nil {
+	ctx, _ := context.WithTimeout(context.Background(), time.Second * 10)
+	if err := d.Client.ContainerStart(ctx, d.Server.Uuid, types.ContainerStartOptions{}); err != nil {
 		return errors.WithStack(err)
 	}
 
