@@ -137,10 +137,7 @@ func (h *Handler) TokenValid() error {
 // Sends an error back to the connected websocket instance by checking the permissions
 // of the token. If the user has the "receive-errors" grant we will send back the actual
 // error message, otherwise we just send back a standard error message.
-func (h *Handler) SendErrorJson(err error) error {
-	h.Lock()
-	defer h.Unlock()
-
+func (h *Handler) SendErrorJson(msg Message, err error) error {
 	j := h.GetJwt()
 
 	message := "an unexpected error was encountered while handling this request"
@@ -156,13 +153,14 @@ func (h *Handler) SendErrorJson(err error) error {
 	if !server.IsSuspendedError(err) {
 		zap.S().Errorw(
 			"an error was encountered in the websocket process",
+			zap.String("event", msg.Event),
 			zap.String("server", h.server.Uuid),
 			zap.String("error_identifier", u.String()),
 			zap.Error(err),
 		)
 	}
 
-	return h.Connection.WriteJSON(wsm)
+	return h.unsafeSendJson(wsm)
 }
 
 // Converts an error message into a more readable representation and returns a UUID
