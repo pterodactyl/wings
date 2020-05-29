@@ -46,7 +46,10 @@ func postServerPower(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
 	var data server.PowerAction
-	c.BindJSON(&data)
+	// BindJSON sends 400 if the request fails, all we need to do is return
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
 
 	if !data.IsValid() {
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
@@ -98,8 +101,13 @@ func postServerCommands(c *gin.Context) {
 		return
 	}
 
-	var data struct{ Commands []string `json:"commands"` }
-	c.BindJSON(&data)
+	var data struct {
+		Commands []string `json:"commands"`
+	}
+	// BindJSON sends 400 if the request fails, all we need to do is return
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
 
 	for _, command := range data.Commands {
 		if err := s.Environment.SendCommand(command); err != nil {

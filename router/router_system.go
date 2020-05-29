@@ -77,7 +77,10 @@ func postUpdateConfiguration(c *gin.Context) {
 	// A copy of the configuration we're using to bind the data recevied into.
 	cfg := *config.Get()
 
-	c.BindJSON(&cfg)
+	// BindJSON sends 400 if the request fails, all we need to do is return
+	if err := c.BindJSON(&cfg); err != nil {
+		return
+	}
 
 	config.Set(&cfg)
 	if err := config.Get().WriteToDisk(); err != nil {
