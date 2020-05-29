@@ -547,12 +547,45 @@ func (d *DockerEnvironment) DisableResourcePolling() error {
 	return errors.WithStack(err)
 }
 
-// Pulls the image from Docker.
+// Pulls the image from Docker. If there is an error while pulling the image from the source
+// but the image already exists locally, we will report that error to the logger but continue
+// with the process.
+//
+// The reasoning behind this is that Quay has had some serious outages as of late, and we don't
+// need to block all of the servers from booting just because of that. I'd imagine in a lot of
+// cases an outage shouldn't affect users too badly. It'll at least keep existing servers working
+// correctly if anything.
 //
 // @todo handle authorization & local images
 func (d *DockerEnvironment) ensureImageExists(c *client.Client) error {
-	out, err := c.ImagePull(context.Background(), d.Server.Container.Image, types.ImagePullOptions{All: false})
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+
+	out, err := c.ImagePull(ctx, d.Server.Container.Image, types.ImagePullOptions{All: false})
 	if err != nil {
+		images, ierr := c.ImageList(ctx, types.ImageListOptions{})
+		if ierr != nil {
+			// Well damn, something has gone really wrong here, just go ahead and abort there
+			// isn't much anything we can do to try and self-recover from this.
+			return ierr
+		}
+
+		for _, img := range images {
+			for _, t := range img.RepoTags {
+				if t == d.Server.Container.Image {
+					zap.S().Warnw(
+						"unable to pull requested image from remote source, however the image exists locally",
+						zap.String("server", d.Server.Uuid),
+						zap.String("image", d.Server.Container.Image),
+						zap.Error(err),
+					)
+
+					// Okay, we found a matching container image, in that case just go ahead and return
+					// from this function, since there is nothing else we need to do here.
+					return nil
+				}
+			}
+		}
+
 		return err
 	}
 	defer out.Close()
