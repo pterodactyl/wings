@@ -16,6 +16,7 @@ require (
 	github.com/Jeffail/gabs/v2 v2.2.0
 	github.com/Microsoft/go-winio v0.4.7 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
+	github.com/apex/log v1.3.0
 	github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a
 	github.com/aws/aws-sdk-go v1.30.14 // indirect
 	github.com/beevik/etree v1.1.0
@@ -27,6 +28,7 @@ require (
 	github.com/docker/docker v0.0.0-20180422163414-57142e89befe
 	github.com/docker/go-connections v0.4.0
 	github.com/docker/go-units v0.3.3 // indirect
+	github.com/fatih/color v1.9.0
 	github.com/gabriel-vasile/mimetype v0.1.4
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-rc.0
 	github.com/ghodss/yaml v1.0.0
@@ -40,6 +42,7 @@ require (
 	github.com/imdario/mergo v0.3.8
 	github.com/klauspost/pgzip v1.2.3
 	github.com/magiconair/properties v1.8.1
+	github.com/mattn/go-colorable v0.1.4
 	github.com/mattn/go-shellwords v1.0.10 // indirect
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db

@@ -3,7 +3,9 @@ package cmd
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/mitchellh/colorstring"
+	"github.com/pterodactyl/wings/loggers/cli"
 	"net/http"
 	"os"
 	"path"
@@ -93,10 +95,10 @@ func rootCmdRun(*cobra.Command, []string) {
 		panic(err)
 	}
 
-	zap.S().Infof("using configuration from path: %s", c.GetPath())
+	log.WithField("path", c.GetPath()).Info("loading configuration from path")
 	if c.Debug {
-		zap.S().Debugw("running in debug mode")
-		zap.S().Infow("certificate checking is disabled")
+		log.Debug("running in debug mode")
+		log.Info("certificate checking is disabled")
 
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
 			InsecureSkipVerify: true,
@@ -107,42 +109,47 @@ func rootCmdRun(*cobra.Command, []string) {
 	config.SetDebugViaFlag(debug)
 
 	if err := c.System.ConfigureDirectories(); err != nil {
-		zap.S().Panicw("failed to configure system directories for pterodactyl", zap.Error(err))
-		return
+		log.Fatal("failed to configure system directories for pterodactyl")
+		panic(err)
 	}
 
-	zap.S().Infof("checking for pterodactyl system user \"%s\"", c.System.Username)
+	log.WithField("username", c.System.Username).Info("checking for pterodactyl system user")
 	if su, err := c.EnsurePterodactylUser(); err != nil {
-		zap.S().Panicw("failed to create pterodactyl system user", zap.Error(err))
+		log.Error("failed to create pterodactyl system user")
+		panic(err)
 		return
 	} else {
-		zap.S().Infow("configured system user", zap.String("username", su.Username), zap.String("uid", su.Uid), zap.String("gid", su.Gid))
+		log.WithFields(log.Fields{
+			"username": su.Username,
+			"uid":      su.Uid,
+			"gid":      su.Gid,
+		}).Info("configured system user successfully")
 	}
 
-	zap.S().Infow("beginning file permission setting on server data directories")
+	log.Info("beginning file permission setting on server data directories")
 	if err := c.EnsureFilePermissions(); err != nil {
-		zap.S().Errorw("failed to properly chown data directories", zap.Error(err))
+		log.WithField("error", err).Error("failed to properly chown data directories")
 	} else {
-		zap.S().Infow("finished ensuring file permissions")
+		log.Info("finished ensuring file permissions")
 	}
 
 	if err := server.LoadDirectory(); err != nil {
-		zap.S().Fatalw("failed to load server configurations", zap.Error(errors.WithStack(err)))
+		log.WithField("error", err).Fatal("failed to load server configurations")
 		return
 	}
 
 	if err := environment.ConfigureDocker(&c.Docker); err != nil {
-		zap.S().Fatalw("failed to configure docker environment", zap.Error(errors.WithStack(err)))
+		log.WithField("error", err).Fatal("failed to configure docker environment")
 		os.Exit(1)
 	}
 
 	if err := c.WriteToDisk(); err != nil {
-		zap.S().Errorw("failed to save configuration to disk", zap.Error(errors.WithStack(err)))
+		log.WithField("error", err).Error("failed to save configuration to disk")
 	}
 
 	// Just for some nice log output.
 	for _, s := range server.GetServers().All() {
-		zap.S().Infow("loaded configuration for server", zap.String("server", s.Uuid))
+		log.WithField("server", s.Uuid).Info("loaded configuration for server")
 	}
 
 	// Create a new WaitGroup that limits us to 4 servers being bootstrapped at a time
@@ -154,18 +161,23 @@ func rootCmdRun(*cobra.Command, []string) {
 		wg.Add()
 
 		go func(s *server.Server) {
-			defer wg.Done()
+			// Required for tracing purposes.
+			var err error
+
+			defer func() {
+				s.Log().Trace("ensuring server environment exists").Stop(&err)
+				wg.Done()
+			}()
 
 			// Create a server environment if none exists currently. This allows us to recover from Docker
 			// being reinstalled on the host system for example.
-			zap.S().Infow("ensuring environment exists", zap.String("server", s.Uuid))
-			if err := s.Environment.Create(); err != nil {
-				zap.S().Errorw("failed to create an environment for server", zap.String("server", s.Uuid), zap.Error(err))
+			if err = s.Environment.Create(); err != nil {
+				s.Log().WithField("error", err).Error("failed to process environment")
 			}
 
 			r, err := s.Environment.IsRunning()
 			if err != nil {
-				zap.S().Errorw("error checking server environment status", zap.String("server", s.Uuid), zap.Error(err))
+				s.Log().WithField("error", err).Error("error checking server environment status")
 			}
 
 			// If the server is currently running on Docker, mark the process as being in that state.
@@ -175,13 +187,9 @@ func rootCmdRun(*cobra.Command, []string) {
 			// This will also validate that a server process is running if the last tracked state we have
 			// is that it was running, but we see that the container process is not currently running.
 			if r || (!r && s.IsRunning()) {
-				zap.S().Infow("detected server is running, re-attaching to process", zap.String("server", s.Uuid))
+				s.Log().Info("detected server is running, re-attaching to process...")
 				if err := s.Environment.Start(); err != nil {
-					zap.S().Warnw(
-						"failed to properly start server detected as already running",
-						zap.String("server", s.Uuid),
-						zap.Error(errors.WithStack(err)),
-					)
+					s.Log().WithField("error", errors.WithStack(err)).Warn("failed to properly start server detected as already running")
 				}
 
 				return
@@ -201,26 +209,32 @@ func rootCmdRun(*cobra.Command, []string) {
 
 	// Ensure the archive directory exists.
 	if err := os.MkdirAll(c.System.ArchiveDirectory, 0755); err != nil {
-		zap.S().Errorw("failed to create archive directory", zap.Error(err))
+		log.WithField("error", err).Error("failed to create archive directory")
 	}
 
 	// Ensure the backup directory exists.
 	if err := os.MkdirAll(c.System.BackupDirectory, 0755); err != nil {
-		zap.S().Errorw("failed to create backup directory", zap.Error(err))
+		log.WithField("error", err).Error("failed to create backup directory")
 	}
 
-	zap.S().Infow("configuring webserver", zap.Bool("ssl", c.Api.Ssl.Enabled), zap.String("host", c.Api.Host), zap.Int("port", c.Api.Port))
+	log.WithFields(log.Fields{
+		"ssl": c.Api.Ssl.Enabled,
+		"host": c.Api.Host,
+		"port": c.Api.Port,
+	}).Info("configuring webserver...")
 
 	r := router.Configure()
 	addr := fmt.Sprintf("%s:%d", c.Api.Host, c.Api.Port)
 
 	if c.Api.Ssl.Enabled {
 		if err := r.RunTLS(addr, c.Api.Ssl.CertificateFile, c.Api.Ssl.KeyFile); err != nil {
-			zap.S().Fatalw("failed to configure HTTPS server", zap.Error(err))
+			log.WithField("error", err).Fatal("failed to configure HTTPS server")
+			os.Exit(1)
 		}
 	} else {
 		if err := r.Run(addr); err != nil {
-			zap.S().Fatalw("failed to configure HTTP server", zap.Error(err))
+			log.WithField("error", err).Fatal("failed to configure HTTP server")
+			os.Exit(1)
 		}
 	}
 }
@@ -249,6 +263,9 @@ func configureLogging(debug bool) error {
 	}
 
 	zap.ReplaceGlobals(logger)
+
+	log.SetHandler(cli.Default)
+	log.SetLevel(log.DebugLevel)
 
 	return nil
 }

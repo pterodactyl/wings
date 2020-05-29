@@ -2,12 +2,12 @@ package environment
 
 import (
 	"context"
+	"github.com/apex/log"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/pterodactyl/wings/config"
-	"go.uber.org/zap"
 )
 
 // Configures the required network for the docker environment.
@@ -20,10 +20,10 @@ func ConfigureDocker(c *config.DockerConfiguration) error {
 
 	resource, err := cli.NetworkInspect(context.Background(), c.Network.Name, types.NetworkInspectOptions{})
 	if err != nil && client.IsErrNotFound(err) {
-		zap.S().Infow("creating missing pterodactyl0 interface, this could take a few seconds...")
+		log.Info("creating missing pterodactyl0 interface, this could take a few seconds...")
 		return createDockerNetwork(cli, c)
 	} else if err != nil {
-		zap.S().Fatalw("failed to create required docker network for containers", zap.Error(err))
+		log.WithField("error", err).Fatal("failed to create required docker network for containers")
 	}
 
 	switch resource.Driver {

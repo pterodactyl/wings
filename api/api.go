@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
-	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -58,13 +58,11 @@ func (r *PanelRequest) logDebug(req *http.Request) {
 		headers[k] = []string{v[0][0:15] + "(redacted)"}
 	}
 
-
-	zap.S().Debugw(
-		"making request to external HTTP endpoint",
-		zap.String("method", req.Method),
-		zap.String("endpoint", req.URL.String()),
-		zap.Any("headers", headers),
-	)
+	log.WithFields(log.Fields{
+		"method": req.Method,
+		"endpoint": req.URL.String(),
+		"headers": headers,
+	}).Debug("making request to external HTTP endpoint")
 }
 
 func (r *PanelRequest) Get(url string) (*http.Response, error) {

@@ -3,10 +3,10 @@ package config
 import (
 	"errors"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/cobaugh/osrelease"
 	"github.com/creasty/defaults"
 	"github.com/gbrlsnchs/jwt/v3"
-	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -296,7 +296,7 @@ func (c *Configuration) EnsureFilePermissions() error {
 			gid, _ := strconv.Atoi(su.Gid)
 
 			if err := os.Chown(path.Join(c.System.Data, f.Name()), uid, gid); err != nil {
-				zap.S().Warnw("failed to chown server directory", zap.String("directory", f.Name()), zap.Error(err))
+				log.WithField("error", err).WithField("directory", f.Name()).Warn("failed to chown server directory")
 			}
 		}(file)
 	}

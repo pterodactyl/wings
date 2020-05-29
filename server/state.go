@@ -82,7 +82,7 @@ func (s *Server) SetState(state string) error {
 	s.State = state
 
 	// Emit the event to any listeners that are currently registered.
-	zap.S().Debugw("saw server status change event", zap.String("server", s.Uuid), zap.String("status", s.State))
+	s.Log().WithField("status", s.State).Debug("saw server status change event")
 	s.Events().Publish(StatusEvent, s.State)
 
 	// Release the lock as it is no longer needed for the following actions.

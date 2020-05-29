@@ -1,6 +1,7 @@
 package sftp
 
 import (
+	"github.com/apex/log"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/sftp-server"
 	"github.com/pterodactyl/wings/api"
@@ -38,7 +39,7 @@ func Initialize(config *config.Configuration) error {
 	// a long running operation.
 	go func(instance *sftp_server.Server) {
 		if err := c.Initalize(); err != nil {
-			zap.S().Named("sftp").Errorw("failed to initialize SFTP subsystem", zap.Error(errors.WithStack(err)))
+			log.WithField("subsystem", "sftp").WithField("error", errors.WithStack(err)).Error("failed to initialize SFTP subsystem")
 		}
 	}(c)
 
@@ -73,7 +74,8 @@ func validateDiskSpace(fs sftp_server.FileSystem) bool {
 // the server's UUID if the credentials were valid.
 func validateCredentials(c sftp_server.AuthenticationRequest) (*sftp_server.AuthenticationResponse, error) {
 	resp, err := api.NewRequester().ValidateSftpCredentials(c)
-	zap.S().Named("sftp").Debugw("validating credentials for SFTP connection", zap.String("username", c.User))
+
+	log.WithFields(log.Fields{"subsystem": "sftp", "username": c.User}).Debug("validating credentials for SFTP connection")
 	if err != nil {
 		return resp, err
 	}
@@ -86,6 +88,7 @@ func validateCredentials(c sftp_server.AuthenticationRequest) (*sftp_server.Auth
 		return resp, errors.New("no matching server with UUID found")
 	}
 
-	zap.S().Named("sftp").Debugw("matched user to server instance, credentials successfully validated", zap.String("username", c.User), zap.String("server", s.Uuid))
+	s.Log().WithFields(log.Fields{"subsystem": "sftp", "username": c.User}).Debug("matched user to server instance, credentials successfully validated")
+
 	return resp, err
 }

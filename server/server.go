@@ -2,13 +2,13 @@ package server
 
 import (
 	"fmt"
+	"github.com/apex/log"
 	"github.com/creasty/defaults"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
-	"go.uber.org/zap"
 	"math"
 	"os"
 	"strings"
@@ -194,13 +194,13 @@ func LoadDirectory() error {
 
 			s, err := FromConfiguration(data)
 			if err != nil {
-				zap.S().Errorw("failed to load server, skipping...", zap.String("server", uuid), zap.Error(err))
+				log.WithField("server", uuid).WithField("error", err).Error("failed to load server, skipping...")
 				return
 			}
 
 			if state, exists := states[s.Uuid]; exists {
 				s.SetState(state)
-				zap.S().Debugw("loaded server state from cache", zap.String("server", s.Uuid), zap.String("state", s.GetState()))
+				s.Log().WithField("state", s.GetState()).Debug("loaded server state from cache file")
 			}
 
 			servers.Add(s)
@@ -280,6 +280,10 @@ eloop:
 	}
 
 	return out
+}
+
+func (s *Server) Log() *log.Entry {
+	return log.WithField("server", s.Uuid)
 }
 
 // Syncs the state of the server on the Panel with Wings. This ensures that we're always

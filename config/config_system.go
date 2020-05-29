@@ -1,7 +1,7 @@
 package config
 
 import (
-	"go.uber.org/zap"
+	"github.com/apex/log"
 	"os"
 	"path"
 )
@@ -57,27 +57,27 @@ type SystemConfiguration struct {
 // Ensures that all of the system directories exist on the system. These directories are
 // created so that only the owner can read the data, and no other users.
 func (sc *SystemConfiguration) ConfigureDirectories() error {
-	zap.S().Debugw("ensuring root data directory exists", zap.String("path", sc.RootDirectory))
+	log.WithField("path", sc.RootDirectory).Debug("ensuring root data directory exists")
 	if err := os.MkdirAll(sc.RootDirectory, 0700); err != nil {
 		return err
 	}
 
-	zap.S().Debugw("ensuring log directory exists", zap.String("path", sc.LogDirectory))
+	log.WithField("path", sc.LogDirectory).Debug("ensuring log directory exists")
 	if err := os.MkdirAll(path.Join(sc.LogDirectory, "/install"), 0700); err != nil {
 		return err
 	}
 
-	zap.S().Debugw("ensuring server data directory exists", zap.String("path", sc.Data))
+	log.WithField("path", sc.Data).Debug("ensuring server data directory exists")
 	if err := os.MkdirAll(sc.Data, 0700); err != nil {
 		return err
 	}
 
-	zap.S().Debugw("ensuring archive data directory exists", zap.String("path", sc.ArchiveDirectory))
+	log.WithField("path", sc.ArchiveDirectory).Debug("ensuring archive data directory exists")
 	if err := os.MkdirAll(sc.ArchiveDirectory, 0700); err != nil {
 		return err
 	}
 
-	zap.S().Debugw("ensuring backup data directory exists", zap.String("path", sc.BackupDirectory))
+	log.WithField("path", sc.BackupDirectory).Debug("ensuring backup data directory exists")
 	if err := os.MkdirAll(sc.BackupDirectory, 0700); err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
@@ -15,7 +16,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
-	"go.uber.org/zap"
 	"io"
 	"os"
 	"strconv"
@@ -141,7 +141,7 @@ func (d *DockerEnvironment) InSituUpdate() error {
 // state. This ensures that unexpected container deletion while Wings is running does
 // not result in the server becoming unbootable.
 func (d *DockerEnvironment) OnBeforeStart() error {
-	zap.S().Infow("syncing server configuration with Panel", zap.String("server", d.Server.Uuid))
+	d.Server.Log().Info("syncing server configuration with panel")
 	if err := d.Server.Sync(); err != nil {
 		return err
 	}
@@ -422,7 +422,7 @@ func (d *DockerEnvironment) Attach() error {
 	d.attached = true
 	go func() {
 		if err := d.EnableResourcePolling(); err != nil {
-			zap.S().Warnw("failed to enabled resource polling on server", zap.String("server", d.Server.Uuid), zap.Error(errors.WithStack(err)))
+			d.Server.Log().WithField("error", errors.WithStack(err)).Warn("failed to enable resource polling on server")
 		}
 	}()
 
@@ -470,7 +470,7 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 		}
 
 		if err := s.Err(); err != nil {
-			zap.S().Warnw("error processing scanner line in console output", zap.String("server", d.Server.Uuid), zap.Error(err))
+			d.Server.Log().WithField("error", err).Warn("error processing scanner line in console output")
 		}
 	}(reader)
 
@@ -500,7 +500,7 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 
 			if err := dec.Decode(&v); err != nil {
 				if err != io.EOF {
-					zap.S().Warnw("encountered error processing server stats; stopping collection", zap.Error(err))
+					d.Server.Log().WithField("error", err).Warn("encountered error processing server stats, stopping collection")
 				}
 
 				d.DisableResourcePolling()
@@ -576,12 +576,10 @@ func (d *DockerEnvironment) ensureImageExists(c *client.Client) error {
 		for _, img := range images {
 			for _, t := range img.RepoTags {
 				if t == d.Server.Container.Image {
-					zap.S().Warnw(
-						"unable to pull requested image from remote source, however the image exists locally",
-						zap.String("server", d.Server.Uuid),
-						zap.String("image", d.Server.Container.Image),
-						zap.Error(err),
-					)
+					d.Server.Log().WithFields(log.Fields{
+						"image": d.Server.Container.Image,
+						"error": errors.New(err.Error()),
+					}).Warn("unable to pull requested image from remote source, however the image exists locally")
 
 					// Okay, we found a matching container image, in that case just go ahead and return
 					// from this function, since there is nothing else we need to do here.
@@ -594,7 +592,7 @@ func (d *DockerEnvironment) ensureImageExists(c *client.Client) error {
 	}
 	defer out.Close()
 
-	zap.S().Debugw("pulling docker image... this could take a bit of time", zap.String("image", d.Server.Container.Image))
+	log.WithField("image", d.Server.Container.Image).Debug("pulling docker image... this could take a bit of time")
 
 	// I'm not sure what the best approach here is, but this will block execution until the image
 	// is done being pulled, which is what we need.
