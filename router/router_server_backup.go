@@ -15,7 +15,10 @@ func postServerBackup(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
 	data := &backup.Request{}
-	c.BindJSON(&data)
+	// BindJSON sends 400 if the request fails, all we need to do is return
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
 
 	var adapter backup.BackupInterface
 	var err error
@@ -40,7 +43,6 @@ func postServerBackup(c *gin.Context) {
 			zap.S().Errorw("failed to generate backup for server", zap.Error(err))
 		}
 	}(adapter, s)
-
 
 	c.Status(http.StatusAccepted)
 }

@@ -89,7 +89,10 @@ func putServerRenameFile(c *gin.Context) {
 		RenameFrom string `json:"rename_from"`
 		RenameTo   string `json:"rename_to"`
 	}
-	c.BindJSON(&data)
+	// BindJSON sends 400 if the request fails, all we need to do is return
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
 
 	if data.RenameFrom == "" || data.RenameTo == "" {
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
@@ -113,7 +116,10 @@ func postServerCopyFile(c *gin.Context) {
 	var data struct {
 		Location string `json:"location"`
 	}
-	c.BindJSON(&data)
+	// BindJSON sends 400 if the request fails, all we need to do is return
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
 
 	if err := s.Filesystem.Copy(data.Location); err != nil {
 		TrackedServerError(err, s).AbortWithServerError(c)
@@ -130,7 +136,10 @@ func postServerDeleteFile(c *gin.Context) {
 	var data struct {
 		Location string `json:"location"`
 	}
-	c.BindJSON(&data)
+	// BindJSON sends 400 if the request fails, all we need to do is return
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
 
 	if err := s.Filesystem.Delete(data.Location); err != nil {
 		TrackedServerError(err, s).AbortWithServerError(c)
@@ -167,7 +176,10 @@ func postServerCreateDirectory(c *gin.Context) {
 		Name string `json:"name"`
 		Path string `json:"path"`
 	}
-	c.BindJSON(&data)
+	// BindJSON sends 400 if the request fails, all we need to do is return
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
 
 	if err := s.Filesystem.CreateDirectory(data.Name, data.Path); err != nil {
 		TrackedServerError(err, s).AbortWithServerError(c)
