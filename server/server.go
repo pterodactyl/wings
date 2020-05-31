@@ -247,6 +247,10 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	}
 	s.Resources = ResourceUsage{}
 
+	// Force the disk usage to become cached to return in a resources response
+	// or when connecting to the websocket of an offline server.
+	go s.Filesystem.HasSpaceAvailable()
+
 	// Forces the configuration to be synced with the panel.
 	if err := s.SyncWithConfiguration(data); err != nil {
 		return nil, err

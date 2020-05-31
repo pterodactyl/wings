@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gbrlsnchs/jwt/v3"
 	"github.com/google/uuid"
@@ -221,14 +222,39 @@ func (h *Handler) HandleInbound(m Message) error {
 				h.setJwt(token)
 			}
 
-			// On every authentication event, send the current server status back
-			// to the client. :)
-			h.server.Events().Publish(server.StatusEvent, h.server.GetState())
-
 			h.unsafeSendJson(Message{
 				Event: AuthenticationSuccessEvent,
 				Args:  []string{},
 			})
+
+			// On every authentication event, send the current server status back
+			// to the client. :)
+			state := h.server.GetState()
+			h.SendJson(&Message{
+				Event: server.StatusEvent,
+				Args:  []string{state},
+			})
+
+			// Only send the current disk usage if the server is offline, if docker container is running,
+			// Environment#EnableResourcePolling() will send this data to all clients.
+			if state == server.ProcessOfflineState {
+				_ = h.server.Filesystem.HasSpaceAvailable()
+
+				resources := server.ResourceUsage{
+					Memory:      0,
+					MemoryLimit: 0,
+					CpuAbsolute: 0.0,
+					Disk:        h.server.Resources.Disk,
+				}
+				resources.Network.RxBytes = 0
+				resources.Network.TxBytes = 0
+
+				b, _ := json.Marshal(resources)
+				h.SendJson(&Message{
+					Event: server.StatsEvent,
+					Args:  []string{string(b)},
+				})
+			}
 
 			return nil
 		}
