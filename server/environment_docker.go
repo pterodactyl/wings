@@ -122,11 +122,13 @@ func (d *DockerEnvironment) InSituUpdate() error {
 		return errors.WithStack(err)
 	}
 
+	ctx, _ := context.WithTimeout(context.Background(), time.Second * 10)
 	u := container.UpdateConfig{
 		Resources: d.getResourcesForServer(),
 	}
 
-	if _, err := d.Client.ContainerUpdate(context.Background(), d.Server.Uuid, u); err != nil {
+	d.Server.Log().WithField("limits", fmt.Sprintf("%+v", u.Resources)).Debug("updating server container on-the-fly with passed limits")
+	if _, err := d.Client.ContainerUpdate(ctx, d.Server.Uuid, u); err != nil {
 		return errors.WithStack(err)
 	}
 

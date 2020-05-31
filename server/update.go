@@ -34,6 +34,16 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 		return errors.WithStack(err)
 	}
 
+	// Don't explode if we're setting CPU limits to 0. Mergo sees that as an empty value
+	// so it won't override the value we've passed through in the API call. However, we can
+	// safely assume that we're passing through valid data structures here. I foresee this
+	// backfiring at some point, but until then...
+	//
+	// We'll go ahead and do this with swap as well.
+	s.Build.CpuLimit = src.Build.CpuLimit
+	s.Build.Swap = src.Build.Swap
+	s.Build.DiskSpace = src.Build.DiskSpace
+
 	// Mergo can't quite handle this boolean value correctly, so for now we'll just
 	// handle this edge case manually since none of the other data passed through in this
 	// request is going to be boolean. Allegedly.
@@ -81,12 +91,9 @@ func (s *Server) runBackgroundActions() {
 	// Update the environment in place, allowing memory and CPU usage to be adjusted
 	// on the fly without the user needing to reboot (theoretically).
 	go func(server *Server) {
+		server.Log().Info("performing server limit modification on-the-fly")
 		if err := server.Environment.InSituUpdate(); err != nil {
-			zap.S().Warnw(
-				"failed to perform in-situ update of server environment",
-				zap.String("server", server.Uuid),
-				zap.Error(err),
-			)
+			server.Log().WithField("error", err).Warn("failed to perform on-the-fly update of the server environment")
 		}
 	}(s)
 
