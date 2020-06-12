@@ -218,14 +218,27 @@ func (h *Handler) HandleInbound(m Message) error {
 				return err
 			}
 
-			if token.HasPermission(PermissionConnect) {
-				h.setJwt(token)
-			}
+			// Check if the user has previously authenticated successfully.
+			newConnection := h.GetJwt() == nil
 
+			// Previously there was a HasPermission(PermissionConnect) check around this,
+			// however NewTokenPayload will return an error if it doesn't have the connect
+			// permission meaning that it was a redundant function call.
+			h.setJwt(token)
+
+			// Tell the client they authenticated successfully.
 			h.unsafeSendJson(Message{
 				Event: AuthenticationSuccessEvent,
 				Args:  []string{},
 			})
+
+			// Check if the client was refreshing their authentication token
+			// instead of authenticating for the first time.
+			if !newConnection {
+				// This prevents duplicate status messages as outlined in
+				// https://github.com/pterodactyl/panel/issues/2077
+				return nil
+			}
 
 			// On every authentication event, send the current server status back
 			// to the client. :)
