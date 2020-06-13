@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/apex/log"
-	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/colorstring"
 	"github.com/pterodactyl/wings/loggers/cli"
 	"net/http"
@@ -223,8 +222,6 @@ func rootCmdRun(*cobra.Command, []string) {
 		"host": c.Api.Host,
 		"port": c.Api.Port,
 	}).Info("configuring webserver...")
-
-	gin.SetMode("release")
 
 	r := router.Configure()
 	addr := fmt.Sprintf("%s:%d", c.Api.Host, c.Api.Port)
