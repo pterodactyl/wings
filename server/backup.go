@@ -2,10 +2,10 @@ package server
 
 import (
 	"bufio"
+	"github.com/apex/log"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/server/backup"
-	"go.uber.org/zap"
 	"os"
 	"path"
 )
@@ -17,16 +17,15 @@ func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, suc
 	rerr, err := r.SendBackupStatus(uuid, ad.ToRequest(successful))
 	if rerr != nil || err != nil {
 		if err != nil {
-			zap.S().Errorw(
-				"failed to notify panel of backup status due to internal code error",
-				zap.String("backup", s.Uuid),
-				zap.Error(err),
-			)
+			s.Log().WithFields(log.Fields{
+				"backup": uuid,
+				"error":  err,
+			}).Error("failed to notify panel of backup status due to internal code error")
 
 			return err
 		}
 
-		zap.S().Warnw(rerr.String(), zap.String("backup", uuid))
+		s.Log().WithField("backup", uuid).Warn(rerr.String())
 
 		return errors.New(rerr.String())
 	}
@@ -66,7 +65,7 @@ func (s *Server) GetIncludedBackupFiles(ignored []string) (*backup.IncludedFiles
 	// of the server files directory, and use that to generate the backup.
 	if len(ignored) == 0 {
 		if i, err := s.getServerwideIgnoredFiles(); err != nil {
-			zap.S().Warnw("failed to retrieve server ignored files", zap.String("server", s.Uuid), zap.Error(err))
+			s.Log().WithField("error", err).Warn("failed to retrieve ignored files listing for server")
 		} else {
 			ignored = i
 		}
@@ -89,7 +88,10 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 	ad, err := b.Generate(inc, s.Filesystem.Path())
 	if err != nil {
 		if notifyError := s.notifyPanelOfBackup(b.Identifier(), &backup.ArchiveDetails{}, false); notifyError != nil {
-			zap.S().Warnw("failed to notify panel of failed backup state", zap.String("backup", b.Identifier()), zap.Error(err))
+			s.Log().WithFields(log.Fields{
+				"backup": b.Identifier(),
+				"error":  err,
+			}).Warn("failed to notify panel of failed backup state")
 		}
 
 		return errors.WithStack(err)

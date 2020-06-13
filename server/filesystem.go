@@ -11,7 +11,6 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server/backup"
 	ignore "github.com/sabhiram/go-gitignore"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"os"
@@ -134,7 +133,7 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 	// the cache once we've gotten it.
 	size, err := fs.DirectorySize("/")
 	if err != nil {
-		zap.S().Warnw("failed to determine directory size", zap.String("server", fs.Server.Uuid), zap.Error(err))
+		fs.Server.Log().WithField("error", err).Warn("failed to determine root server directory size")
 	}
 
 	// Always cache the size, even if there is an error. We want to always return that value

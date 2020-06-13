@@ -3,7 +3,7 @@ package backup
 import (
 	"context"
 	"fmt"
-	"go.uber.org/zap"
+	"github.com/apex/log"
 	"io"
 	"net/http"
 	"os"
@@ -76,8 +76,11 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) (*http.Response, erro
 	}
 
 	r.Body = rc
-
-	zap.S().Debugw("uploading backup to remote S3 endpoint", zap.String("endpoint", s.PresignedUrl), zap.Any("headers", r.Header))
+	
+	log.WithFields(log.Fields{
+		"endpoint": s.PresignedUrl,
+		"headers": r.Header,
+	}).Debug("uploading backup to remote S3 endpoint")
 
 	return http.DefaultClient.Do(r)
 }

@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/backup"
-	"go.uber.org/zap"
 	"net/http"
 )
 
@@ -40,7 +39,7 @@ func postServerBackup(c *gin.Context) {
 
 	go func(b backup.BackupInterface, serv *server.Server) {
 		if err := serv.Backup(b); err != nil {
-			zap.S().Errorw("failed to generate backup for server", zap.Error(err))
+			serv.Log().WithField("error", err).Error("failed to generate backup for server")
 		}
 	}(adapter, s)
 

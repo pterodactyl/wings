@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/server"
-	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"strconv"
@@ -137,11 +136,7 @@ func postServerInstall(c *gin.Context) {
 
 	go func(serv *server.Server) {
 		if err := serv.Install(); err != nil {
-			zap.S().Errorw(
-				"failed to execute server installation process",
-				zap.String("server", serv.Uuid),
-				zap.Error(err),
-			)
+			serv.Log().WithField("error", err).Error("failed to execute server installation process")
 		}
 	}(s)
 
@@ -154,11 +149,7 @@ func postServerReinstall(c *gin.Context) {
 
 	go func(serv *server.Server) {
 		if err := serv.Reinstall(); err != nil {
-			zap.S().Errorw(
-				"failed to complete server reinstall process",
-				zap.String("server", serv.Uuid),
-				zap.Error(err),
-			)
+			serv.Log().WithField("error", err).Error("failed to complete server re-install process")
 		}
 	}(s)
 
@@ -176,7 +167,7 @@ func deleteServer(c *gin.Context) {
 	// Delete the server's archive if it exists. We intentionally don't return
 	// here, if the archive fails to delete, the server can still be removed.
 	if err := s.Archiver.DeleteIfExists(); err != nil {
-		zap.S().Warnw("failed to delete server archive during deletion process", zap.String("server", s.Uuid), zap.Error(err))
+		s.Log().WithField("error", err).Warn("failed to delete server archive during deletion process")
 	}
 
 	// Unsubscribe all of the event listeners.
@@ -197,7 +188,10 @@ func deleteServer(c *gin.Context) {
 	// so we don't want to block the HTTP call while waiting on this.
 	go func(p string) {
 		if err := os.RemoveAll(p); err != nil {
-			zap.S().Warnw("failed to remove server files during deletion process", zap.String("path", p), zap.Error(errors.WithStack(err)))
+			log.WithFields(log.Fields{
+				"path": p,
+				"error": errors.WithStack(err),
+			}).Warn("failed to remove server files during deletion process")
 		}
 	}(s.Filesystem.Path())
 

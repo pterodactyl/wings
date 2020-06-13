@@ -3,9 +3,9 @@ package backup
 import (
 	"archive/tar"
 	"context"
+	"github.com/apex/log"
 	gzip "github.com/klauspost/pgzip"
 	"github.com/remeh/sizedwaitgroup"
-	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"io"
 	"os"
@@ -67,7 +67,7 @@ func (a *Archive) Create(dest string, ctx context.Context) error {
 		// Attempt to remove the archive if there is an error, report that error to
 		// the logger if it fails.
 		if rerr := os.Remove(dest); rerr != nil && !os.IsNotExist(rerr) {
-			zap.S().Warnw("failed to delete corrupted backup archive", zap.String("location", dest))
+			log.WithField("location", dest).Warn("failed to delete corrupted backup archive")
 		}
 
 		return err

@@ -5,7 +5,6 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 // Merges data passed through in JSON form into the existing server object.
@@ -101,14 +100,10 @@ func (s *Server) runBackgroundActions() {
 	// yet, do it immediately.
 	go func(server *Server) {
 		if server.Suspended && server.GetState() != ProcessOfflineState {
-			zap.S().Infow("server suspended with running process state, terminating now", zap.String("server", server.Uuid))
+			server.Log().Info("server suspended with running process state, terminating now")
 
 			if err := server.Environment.WaitForStop(10, true); err != nil {
-				zap.S().Warnw(
-					"failed to stop server environment after seeing suspension",
-					zap.String("server", server.Uuid),
-					zap.Error(err),
-				)
+				server.Log().WithField("error", err).Warn("failed to terminate server environment after suspension")
 			}
 		}
 	}(s)

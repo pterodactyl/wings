@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"os"
@@ -98,7 +97,7 @@ func (s *Server) SetState(state string) error {
 	// to the disk should we forget to do it elsewhere.
 	go func() {
 		if err := saveServerStates(); err != nil {
-			zap.S().Warnw("failed to write server states to disk", zap.Error(err))
+			s.Log().WithField("error", err).Warn("failed to write server states to disk")
 		}
 	}()
 
@@ -111,14 +110,14 @@ func (s *Server) SetState(state string) error {
 	// separate thread as to not block any actions currently taking place in the flow
 	// that called this function.
 	if (prevState == ProcessStartingState || prevState == ProcessRunningState) && s.GetState() == ProcessOfflineState {
-		zap.S().Infow("detected server as entering a potentially crashed state; running handler", zap.String("server", s.Uuid))
+		s.Log().Info("detected server as entering a crashed state; running crash handler")
 
 		go func(server *Server) {
 			if err := server.handleServerCrash(); err != nil {
 				if IsTooFrequentCrashError(err) {
-					zap.S().Infow("did not restart server after crash; occurred too soon after last", zap.String("server", server.Uuid))
+					server.Log().Info("did not restart server after crash; occurred too soon after the last")
 				} else {
-					zap.S().Errorw("failed to handle server crash state", zap.String("server", server.Uuid), zap.Error(err))
+					server.Log().WithField("error", err).Error("failed to handle server crash")
 				}
 			}
 		}(s)
