@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
@@ -11,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"os"
@@ -25,14 +25,12 @@ import (
 func (s *Server) Install() error {
 	err := s.internalInstall()
 
-	zap.S().Debugw("notifying panel of server install state", zap.String("server", s.Uuid))
+	s.Log().Debug("notifying panel of server install state")
 	if serr := s.SyncInstallState(err == nil); serr != nil {
-		zap.S().Warnw(
-			"failed to notify panel of server install state",
-			zap.String("server", s.Uuid),
-			zap.Bool("was_successful", err == nil),
-			zap.Error(serr),
-		)
+		s.Log().WithFields(log.Fields{
+			"was_successful": err == nil,
+			"error":          serr,
+		}).Warn("failed to notify panel of server install state")
 	}
 
 	return err
@@ -42,7 +40,7 @@ func (s *Server) Install() error {
 // does not touch any existing files for the server, other than what the script modifies.
 func (s *Server) Reinstall() error {
 	if s.GetState() != ProcessOfflineState {
-		zap.S().Debugw("waiting for server instance to enter a stopped state", zap.String("server", s.Uuid))
+		s.Log().Debug("waiting for server instance to enter a stopped state")
 		if err := s.Environment.WaitForStop(10, true); err != nil {
 			return err
 		}
@@ -67,14 +65,12 @@ func (s *Server) internalInstall() error {
 		return errors.WithStack(err)
 	}
 
-	zap.S().Infow("beginning installation process for server", zap.String("server", s.Uuid))
-
+	s.Log().Info("beginning installation process for server")
 	if err := p.Run(); err != nil {
 		return err
 	}
 
-	zap.S().Infow("completed installation process for server", zap.String("server", s.Uuid))
-
+	s.Log().Info("completed installation process for server")
 	return nil
 }
 
@@ -106,13 +102,13 @@ func NewInstallationProcess(s *Server, script *api.InstallationScript) (*Install
 
 // Removes the installer container for the server.
 func (ip *InstallationProcess) RemoveContainer() {
-	err := ip.client.ContainerRemove(context.Background(), ip.Server.Uuid + "_installer", types.ContainerRemoveOptions{
+	err := ip.client.ContainerRemove(context.Background(), ip.Server.Uuid+"_installer", types.ContainerRemoveOptions{
 		RemoveVolumes: true,
 		Force:         true,
 	})
 
 	if err != nil && !client.IsErrNotFound(err) {
-		zap.S().Warnw("failed to delete server installer container", zap.String("server", ip.Server.Uuid), zap.Error(errors.WithStack(err)))
+		ip.Server.Log().WithField("error", errors.WithStack(err)).Warn("failed to delete server install container")
 	}
 }
 
@@ -137,7 +133,7 @@ func (ip *InstallationProcess) Run() error {
 	// If this step fails, log a warning but don't exit out of the process. This is completely
 	// internal to the daemon's functionality, and does not affect the status of the server itself.
 	if err := ip.AfterExecute(cid); err != nil {
-		zap.S().Warnw("failed to complete after-execute step of installation process", zap.String("server", ip.Server.Uuid), zap.Error(err))
+		ip.Server.Log().WithField("error", err).Warn("failed to complete after-execute step of installation process")
 	}
 
 	return nil
@@ -189,7 +185,7 @@ func (ip *InstallationProcess) pullInstallationImage() error {
 	// Block continuation until the image has been pulled successfully.
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		zap.S().Debugw(scanner.Text())
+		log.Debug(scanner.Text())
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -265,7 +261,7 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 	ctx := context.Background()
 	defer ip.RemoveContainer()
 
-	zap.S().Debugw("pulling installation logs for server", zap.String("server", ip.Server.Uuid), zap.String("container_id", containerId))
+	ip.Server.Log().WithField("container_id", containerId).Debug("pulling installation logs for server")
 	reader, err := ip.client.ContainerLogs(ctx, containerId, types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -294,12 +290,6 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 // Executes the installation process inside a specially created docker container.
 func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 	ctx := context.Background()
-
-	zap.S().Debugw(
-		"creating server installer container",
-		zap.String("server", ip.Server.Uuid),
-		zap.String("script_path", installPath+"/install.sh"),
-	)
 
 	conf := &container.Config{
 		Hostname:     "installer",
@@ -348,17 +338,13 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
 	}
 
-	zap.S().Infow("creating installer container for server process", zap.String("server", ip.Server.Uuid))
+	ip.Server.Log().WithField("install_script", installPath+"/install.sh").Info("creating install container for server process")
 	r, err := ip.client.ContainerCreate(ctx, conf, hostConf, nil, ip.Server.Uuid+"_installer")
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
 
-	zap.S().Infow(
-		"running installation script for server in container",
-		zap.String("server", ip.Server.Uuid),
-		zap.String("container_id", r.ID),
-	)
+	ip.Server.Log().WithField("container_id", r.ID).Info("running installation script for server in container")
 	if err := ip.client.ContainerStart(ctx, r.ID, types.ContainerStartOptions{}); err != nil {
 		return "", err
 	}
@@ -366,11 +352,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 	go func(id string) {
 		ip.Server.Events().Publish(DaemonMessageEvent, "Starting installation process, this could take a few minutes...")
 		if err := ip.StreamOutput(id); err != nil {
-			zap.S().Errorw(
-				"error handling streaming output for server install process",
-				zap.String("container_id", id),
-				zap.Error(err),
-			)
+			ip.Server.Log().WithField("error", err).Error("error while handling output stream for server install process")
 		}
 		ip.Server.Events().Publish(DaemonMessageEvent, "Installation process completed.")
 	}(r.ID)
@@ -409,12 +391,10 @@ func (ip *InstallationProcess) StreamOutput(id string) error {
 	}
 
 	if err := s.Err(); err != nil {
-		zap.S().Warnw(
-			"error processing scanner line in installation output for server",
-			zap.String("server", ip.Server.Uuid),
-			zap.String("container_id", id),
-			zap.Error(errors.WithStack(err)),
-		)
+		ip.Server.Log().WithFields(log.Fields{
+			"container_id": id,
+			"error": errors.WithStack(err),
+		}).Warn("error processing scanner line in installation output for server")
 	}
 
 	return nil

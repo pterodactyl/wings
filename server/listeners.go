@@ -1,8 +1,8 @@
 package server
 
 import (
+	"github.com/apex/log"
 	"github.com/pterodactyl/wings/api"
-	"go.uber.org/zap"
 	"strings"
 )
 
@@ -28,9 +28,10 @@ func (s *Server) onConsoleOutput(data string) {
 	// set the server to that state. Only do this if the server is not currently stopped
 	// or stopping.
 	if s.GetState() == ProcessStartingState && strings.Contains(data, s.processConfiguration.Startup.Done) {
-		zap.S().Debugw(
-			"detected server in running state based on line output", zap.String("match", s.processConfiguration.Startup.Done), zap.String("against", data),
-		)
+		s.Log().WithFields(log.Fields{
+			"match": s.processConfiguration.Startup.Done,
+			"against": data,
+		}).Debug("detected server in running state based on console line output")
 
 		s.SetState(ProcessRunningState)
 	}

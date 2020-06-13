@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	ws "github.com/gorilla/websocket"
 	"github.com/pterodactyl/wings/router/websocket"
-	"go.uber.org/zap"
 )
 
 // Upgrades a connection to a websocket and passes events along between.
@@ -40,7 +39,7 @@ func getServerWebsocket(c *gin.Context) {
 				ws.CloseServiceRestart,
 				ws.CloseAbnormalClosure,
 			) {
-				zap.S().Warnw("error handling websocket message", zap.Error(err))
+				s.Log().WithField("error", err).Warn("error handling websocket message for server")
 			}
 			break
 		}
@@ -57,4 +56,3 @@ func getServerWebsocket(c *gin.Context) {
 		}
 	}
 }
-

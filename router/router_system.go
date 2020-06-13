@@ -2,12 +2,12 @@ package router
 
 import (
 	"bytes"
+	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/system"
-	"go.uber.org/zap"
 	"net/http"
 )
 
@@ -59,11 +59,7 @@ func postCreateServer(c *gin.Context) {
 		i.Execute()
 
 		if err := i.Server().Install(); err != nil {
-			zap.S().Errorw(
-				"failed to run install process for server",
-				zap.String("server", i.Uuid()),
-				zap.Error(err),
-			)
+			log.WithFields(log.Fields{"server": i.Uuid(), "error": err}).Error("failed to run install process for server")
 		}
 	}(install)
 

@@ -2,6 +2,7 @@ package router
 
 import (
 	"bytes"
+	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/server"
@@ -74,15 +75,12 @@ func postServerPower(c *gin.Context) {
 	// Pass the actual heavy processing off to a seperate thread to handle so that
 	// we can immediately return a response from the server. Some of these actions
 	// can take quite some time, especially stopping or restarting.
-	go func() {
-		if err := s.HandlePowerAction(data); err != nil {
-			zap.S().Errorw(
-				"encountered an error processing a server power action",
-				zap.String("server", s.Uuid),
-				zap.Error(err),
-			)
+	go func(server *server.Server) {
+		if err := server.HandlePowerAction(data); err != nil {
+			server.Log().WithFields(log.Fields{"action": data, "error": err}).
+				Error("encountered error processing a server power action in the background")
 		}
-	}()
+	}(s)
 
 	c.Status(http.StatusAccepted)
 }
@@ -111,12 +109,7 @@ func postServerCommands(c *gin.Context) {
 
 	for _, command := range data.Commands {
 		if err := s.Environment.SendCommand(command); err != nil {
-			zap.S().Warnw(
-				"failed to send command to server",
-				zap.String("server", s.Uuid),
-				zap.String("command", command),
-				zap.Error(err),
-			)
+			s.Log().WithFields(log.Fields{"command": command, "error": err}).Warn("failed to send command to server instance")
 		}
 	}
 

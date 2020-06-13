@@ -2,13 +2,13 @@ package installer
 
 import (
 	"encoding/json"
+	"github.com/apex/log"
 	"github.com/asaskevich/govalidator"
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
-	"go.uber.org/zap"
 	"os"
 	"path"
 )
@@ -108,24 +108,27 @@ func (i *Installer) Server() *server.Server {
 // associated installation process based on the parameters passed through for
 // the server instance.
 func (i *Installer) Execute() {
-	zap.S().Debugw("creating required server data directory", zap.String("server", i.Uuid()))
-	if err := os.MkdirAll(path.Join(config.Get().System.Data, i.Uuid()), 0755); err != nil {
-		zap.S().Errorw("failed to create server data directory", zap.String("server", i.Uuid()), zap.Error(errors.WithStack(err)))
+	p := path.Join(config.Get().System.Data, i.Uuid())
+	l := log.WithFields(log.Fields{"server": i.Uuid(), "process": "installer"})
+
+	l.WithField("path", p).Debug("creating required server data directory")
+	if err := os.MkdirAll(p, 0755); err != nil {
+		l.WithFields(log.Fields{"path": p, "error": errors.WithStack(err)}).Error("failed to create server data directory")
 		return
 	}
 
-	if err := os.Chown(path.Join(config.Get().System.Data, i.Uuid()), config.Get().System.User.Uid, config.Get().System.User.Gid); err != nil {
-		zap.S().Errorw("failed to chown server data directory", zap.String("server", i.Uuid()), zap.Error(errors.WithStack(err)))
+	if err := os.Chown(p, config.Get().System.User.Uid, config.Get().System.User.Gid); err != nil {
+		l.WithField("error", errors.WithStack(err)).Error("failed to chown server data directory")
 		return
 	}
 
-	zap.S().Debugw("creating required environment for server instance", zap.String("server", i.Uuid()))
+	l.Debug("creating required environment for server instance")
 	if err := i.server.Environment.Create(); err != nil {
-		zap.S().Errorw("failed to create environment for server", zap.String("server", i.Uuid()), zap.Error(err))
+		l.WithField("error", err).Error("failed to create environment for server")
 		return
 	}
 
-	zap.S().Debugw("created environment for server during install process", zap.String("server", i.Uuid()))
+	l.Info("successfully created environment for server during install process")
 }
 
 // Returns a string value from the JSON data provided.

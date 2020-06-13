@@ -3,10 +3,10 @@ package parser
 import (
 	"bytes"
 	"github.com/Jeffail/gabs/v2"
+	"github.com/apex/log"
 	"github.com/buger/jsonparser"
 	"github.com/iancoleman/strcase"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	"io/ioutil"
 	"os"
 	"regexp"
@@ -120,11 +120,9 @@ func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path st
 			// We're doing some regex here.
 			r, err := regexp.Compile(strings.TrimPrefix(cfr.IfValue, "regex:"))
 			if err != nil {
-				zap.S().Warnw(
-					"configuration if_value using invalid regexp, cannot do replacement",
-					zap.String("if_value", strings.TrimPrefix(cfr.IfValue, "regex:")),
-					zap.Error(err),
-				)
+				log.WithFields(log.Fields{"if_value": strings.TrimPrefix(cfr.IfValue, "regex:"), "error": err}).
+					Warn("configuration if_value using invalid regexp, cannot perform replacement")
+
 				return nil
 			}
 
@@ -179,11 +177,7 @@ func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplac
 			return match, errors.WithStack(err)
 		}
 
-		zap.S().Debugw(
-			"attempted to load a configuration value that does not exist",
-			zap.Strings("path", path),
-			zap.String("filename", f.FileName),
-		)
+		log.WithFields(log.Fields{"path": path, "filename": f.FileName}).Debug("attempted to load a configuration value that does not exist")
 
 		// If there is no key, keep the original value intact, that way it is obvious there
 		// is a replace issue at play.

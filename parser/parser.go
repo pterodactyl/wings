@@ -3,13 +3,13 @@ package parser
 import (
 	"bufio"
 	"encoding/json"
+	"github.com/apex/log"
 	"github.com/beevik/etree"
 	"github.com/buger/jsonparser"
 	"github.com/icza/dyno"
 	"github.com/magiconair/properties"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
-	"go.uber.org/zap"
 	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -29,6 +29,10 @@ const (
 )
 
 type ConfigurationParser string
+
+func (cp ConfigurationParser) String() string {
+	return string(cp)
+}
 
 // Defines a configuration file for the server startup. These will be looped over
 // and modified before the server finishes booting.
@@ -63,11 +67,7 @@ func (f *ConfigurationFile) UnmarshalJSON(data []byte) error {
 	}
 
 	if err := json.Unmarshal(*m["replace"], &f.Replace); err != nil {
-		zap.S().Warnw(
-			"failed to unmarshal configuration file replacement",
-			zap.String("file", f.FileName),
-			zap.Error(err),
-		)
+		log.WithField("file", f.FileName).WithField("error", err).Warn("failed to unmarshal configuration file replacement")
 
 		f.Replace = []ConfigurationFileReplacement{}
 	}
@@ -131,7 +131,7 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 // Parses a given configuration file and updates all of the values within as defined
 // in the API response from the Panel.
 func (f *ConfigurationFile) Parse(path string, internal bool) error {
-	zap.S().Debugw("parsing configuration file", zap.String("path", path), zap.String("parser", string(f.Parser)))
+	log.WithField("path", path).WithField("parser", f.Parser.String()).Debug("parsing server configuration file")
 
 	if mb, err := json.Marshal(config.Get()); err != nil {
 		return err

@@ -2,11 +2,11 @@ package router
 
 import (
 	"fmt"
+	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/server"
-	"go.uber.org/zap"
 	"net/http"
 	"os"
 )
@@ -40,6 +40,14 @@ func TrackedServerError(err error, s *server.Server) *RequestError {
 	}
 }
 
+func (e *RequestError) logger() *log.Entry {
+	if e.server != nil {
+		return e.server.Log().WithField("error_id", e.Uuid)
+	}
+
+	return log.WithField("error_id", e.Uuid)
+}
+
 // Sets the output message to display to the user in the error.
 func (e *RequestError) SetMessage(msg string) *RequestError {
 	e.Message = msg
@@ -61,19 +69,11 @@ func (e *RequestError) AbortWithStatus(status int, c *gin.Context) {
 
 	// Otherwise, log the error to zap, and then report the error back to the user.
 	if status >= 500 {
-		if e.server != nil {
-			zap.S().Errorw("encountered error while handling HTTP request", zap.String("server", e.server.Uuid), zap.String("error_id", e.Uuid), zap.Error(e.Err))
-		} else {
-			zap.S().Errorw("encountered error while handling HTTP request", zap.String("error_id", e.Uuid), zap.Error(e.Err))
-		}
+		e.logger().WithField("error", e.Err).Error("encountered HTTP/500 error while handling request")
 
 		c.Error(errors.WithStack(e))
 	} else {
-		if e.server != nil {
-			zap.S().Debugw("encountered error while handling HTTP request", zap.String("server", e.server.Uuid), zap.String("error_id", e.Uuid), zap.Error(e.Err))
-		} else {
-			zap.S().Debugw("encountered error while handling HTTP request", zap.String("error_id", e.Uuid), zap.Error(e.Err))
-		}
+		e.logger().WithField("error", e.Err).Debug("encountered non-HTTP/500 error while handling request")
 	}
 
 	msg := "An unexpected error was encountered while processing this request."

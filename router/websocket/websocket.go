@@ -3,6 +3,7 @@ package websocket
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/gbrlsnchs/jwt/v3"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -10,7 +11,6 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
-	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"strings"
@@ -85,7 +85,6 @@ func (h *Handler) SendJson(v *Message) error {
 		// If we're sending installation output but the user does not have the required
 		// permissions to see the output, don't send it down the line.
 		if v.Event == server.InstallOutputEvent {
-			zap.S().Debugf("%+v", v.Args)
 			if !j.HasPermission(PermissionReceiveInstall) {
 				return nil
 			}
@@ -152,13 +151,8 @@ func (h *Handler) SendErrorJson(msg Message, err error) error {
 	wsm.Args = []string{m}
 
 	if !server.IsSuspendedError(err) {
-		zap.S().Errorw(
-			"an error was encountered in the websocket process",
-			zap.String("event", msg.Event),
-			zap.String("server", h.server.Uuid),
-			zap.String("error_identifier", u.String()),
-			zap.Error(err),
-		)
+		h.server.Log().WithFields(log.Fields{"event": msg.Event, "error_identifier": u.String(), "error": err}).
+			Error("failed to handle websocket process; an error was encountered processing an event")
 	}
 
 	return h.unsafeSendJson(wsm)
@@ -192,7 +186,7 @@ func (h *Handler) GetJwt() *tokens.WebsocketPayload {
 func (h *Handler) HandleInbound(m Message) error {
 	if m.Event != AuthenticationEvent {
 		if err := h.TokenValid(); err != nil {
-			zap.S().Debugw("jwt token is no longer valid", zap.String("message", err.Error()))
+			log.WithField("message", err.Error()).Debug("jwt for server websocket is no longer valid")
 
 			h.unsafeSendJson(Message{
 				Event: ErrorEvent,

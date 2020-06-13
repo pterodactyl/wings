@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
-	"go.uber.org/zap"
 	"time"
 )
 
@@ -27,15 +26,13 @@ type CrashDetection struct {
 //
 // If the server is determined to have crashed, the process will be restarted and the
 // counter for the server will be incremented.
-//
-// @todo output event to server console
 func (s *Server) handleServerCrash() error {
 	// No point in doing anything here if the server isn't currently offline, there
 	// is no reason to do a crash detection event. If the server crash detection is
 	// disabled we want to skip anything after this as well.
 	if s.GetState() != ProcessOfflineState || !s.CrashDetection.Enabled {
 		if !s.CrashDetection.Enabled {
-			zap.S().Debugw("server triggered crash detection but handler is disabled for server process", zap.String("server", s.Uuid))
+			s.Log().Debug("server triggered crash detection but handler is disabled for server process")
 
 			s.PublishConsoleOutputFromDaemon("Server detected as crashed; crash detection is disabled for this instance.")
 		}
@@ -51,7 +48,7 @@ func (s *Server) handleServerCrash() error {
 	// If the system is not configured to detect a clean exit code as a crash, and the
 	// crash is not the result of the program running out of memory, do nothing.
 	if exitCode == 0 && !oomKilled && !config.Get().System.DetectCleanExitAsCrash {
-		zap.S().Debugw("server exited with successful code; system configured to not detect as crash", zap.String("server", s.Uuid))
+		s.Log().Debug("server exited with successful exit code; system is configured to not detect this as a crash")
 
 		return nil
 	}
