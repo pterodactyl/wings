@@ -2,5 +2,5 @@ package system
 
 const (
 	// The current version of this software.
-	Version = "0.0.1"
+	Version = "1.0.0-beta.6"
 )
