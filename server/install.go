@@ -27,10 +27,16 @@ func (s *Server) Install() error {
 
 	s.Log().Debug("notifying panel of server install state")
 	if serr := s.SyncInstallState(err == nil); serr != nil {
-		s.Log().WithFields(log.Fields{
-			"was_successful": err == nil,
-			"error":          serr,
-		}).Warn("failed to notify panel of server install state")
+		l := s.Log().WithField("was_successful", err == nil)
+
+		// If the request was successful but there was an error with this request, attach the
+		// error to this log entry. Otherwise ignore it in this log since whatever is calling
+		// this function should handle the error and will end up logging the same one.
+		if err == nil {
+			l.WithField("error", serr)
+		}
+
+		l.Warn("failed to notify panel of server install state")
 	}
 
 	return err

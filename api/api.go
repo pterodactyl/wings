@@ -130,6 +130,12 @@ func (r *PanelRequest) HttpResponseCode() int {
 	return r.Response.StatusCode
 }
 
+func IsRequestError(err error) bool {
+	_, ok := err.(*RequestError)
+
+	return ok
+}
+
 type RequestError struct {
 	Code   string `json:"code"`
 	Status string `json:"status"`
@@ -137,8 +143,12 @@ type RequestError struct {
 }
 
 // Returns the error response in a string form that can be more easily consumed.
-func (re *RequestError) String() string {
+func (re *RequestError) Error() string {
 	return fmt.Sprintf("%s: %s (HTTP/%s)", re.Code, re.Detail, re.Status)
+}
+
+func (re *RequestError) String() string {
+	return re.Error()
 }
 
 type RequestErrorBag struct {
