@@ -164,6 +164,11 @@ func deleteServer(c *gin.Context) {
 	// to start it while this process is running.
 	s.Suspended = true
 
+	// If the server is currently installing, abort it.
+	if s.IsInstalling() {
+		s.AbortInstallation()
+	}
+
 	// Delete the server's archive if it exists. We intentionally don't return
 	// here, if the archive fails to delete, the server can still be removed.
 	if err := s.Archiver.DeleteIfExists(); err != nil {

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/creasty/defaults"
@@ -9,6 +10,7 @@ import (
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
+	"golang.org/x/sync/semaphore"
 	"math"
 	"os"
 	"strings"
@@ -71,9 +73,25 @@ type Server struct {
 	// started, and then cached here.
 	processConfiguration *api.ProcessConfiguration
 
+	// Tracks the installation process for this server and prevents a server from running
+	// two installer processes at the same time. This also allows us to cancel a running
+	// installation process, for example when a server is deleted from the panel while the
+	// installer process is still running.
+	installer InstallerDetails
+
 	// Internal mutex used to block actions that need to occur sequentially, such as
 	// writing the configuration to the disk.
 	sync.RWMutex
+}
+
+type InstallerDetails struct {
+	// The cancel function for the installer. This will be a non-nil value while there
+	// is an installer running for the server.
+	cancel *context.CancelFunc
+
+	// Installer lock. You should obtain an exclusive lock on this context while running
+	// the installation process and release it when finished.
+	sem *semaphore.Weighted
 }
 
 // The build settings for a given server that impact docker container creation and

@@ -12,12 +12,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
+	"golang.org/x/sync/semaphore"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // Executes the installation stack for a server process. Bubbles any errors up to the calling
@@ -84,8 +86,8 @@ type InstallationProcess struct {
 	Server *Server
 	Script *api.InstallationScript
 
-	client *client.Client
-	mutex  *sync.Mutex
+	client  *client.Client
+	context context.Context
 }
 
 // Generates a new installation process struct that will be used to create containers,
@@ -94,21 +96,70 @@ func NewInstallationProcess(s *Server, script *api.InstallationScript) (*Install
 	proc := &InstallationProcess{
 		Script: script,
 		Server: s,
-		mutex:  &sync.Mutex{},
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s.installer.cancel = &cancel
 
 	if c, err := client.NewClientWithOpts(client.FromEnv); err != nil {
 		return nil, errors.WithStack(err)
 	} else {
 		proc.client = c
+		proc.context = ctx
 	}
 
 	return proc, nil
 }
 
+// Try to obtain an exclusive lock on the installation process for the server. Waits up to 10
+// seconds before aborting with a context timeout.
+func (s *Server) acquireInstallationLock() error {
+	if s.installer.sem == nil {
+		s.installer.sem = semaphore.NewWeighted(1)
+	}
+
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+
+	return s.installer.sem.Acquire(ctx, 1)
+}
+
+// Determines if the server is actively running the installation process by checking the status
+// of the semaphore lock.
+func (s *Server) IsInstalling() bool {
+	if s.installer.sem == nil {
+		return false
+	}
+
+	if s.installer.sem.TryAcquire(1) {
+		// If we made it into this block it means we were able to obtain an exclusive lock
+		// on the semaphore. In that case, go ahead and release that lock immediately, and
+		// return false.
+		s.installer.sem.Release(1)
+
+		return false
+	}
+
+	return true
+}
+
+// Aborts the server installation process by calling the cancel function on the installer
+// context.
+func (s *Server) AbortInstallation() {
+	if !s.IsInstalling() {
+		return
+	}
+
+	if s.installer.cancel != nil {
+		cancel := *s.installer.cancel
+
+		s.Log().Warn("aborting running installation process")
+		cancel()
+	}
+}
+
 // Removes the installer container for the server.
 func (ip *InstallationProcess) RemoveContainer() {
-	err := ip.client.ContainerRemove(context.Background(), ip.Server.Uuid+"_installer", types.ContainerRemoveOptions{
+	err := ip.client.ContainerRemove(ip.context, ip.Server.Uuid+"_installer", types.ContainerRemoveOptions{
 		RemoveVolumes: true,
 		Force:         true,
 	})
@@ -124,6 +175,20 @@ func (ip *InstallationProcess) RemoveContainer() {
 // Once the container finishes installing the results will be stored in an installation
 // log in the server's configuration directory.
 func (ip *InstallationProcess) Run() error {
+	ip.Server.Log().Debug("acquiring installation process lock")
+	if err := ip.Server.acquireInstallationLock(); err != nil {
+		return err
+	}
+
+	// We now have an exclusive lock on this installation process. Ensure that whenever this
+	// process is finished that the semaphore is released so that other processes and be executed
+	// without encounting a wait timeout.
+	defer func() {
+		ip.Server.Log().Debug("releasing installation process lock")
+		ip.Server.installer.sem.Release(1)
+		ip.Server.installer.cancel = nil
+	}()
+
 	installPath, err := ip.BeforeExecute()
 	if err != nil {
 		return err
@@ -183,7 +248,7 @@ func (ip *InstallationProcess) writeScriptToDisk() (string, error) {
 
 // Pulls the docker image to be used for the installation container.
 func (ip *InstallationProcess) pullInstallationImage() error {
-	r, err := ip.client.ImagePull(context.Background(), ip.Script.ContainerImage, types.ImagePullOptions{})
+	r, err := ip.client.ImagePull(ip.context, ip.Script.ContainerImage, types.ImagePullOptions{})
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -237,7 +302,7 @@ func (ip *InstallationProcess) BeforeExecute() (string, error) {
 			Force:         true,
 		}
 
-		if err := ip.client.ContainerRemove(context.Background(), ip.Server.Uuid+"_installer", opts); err != nil {
+		if err := ip.client.ContainerRemove(ip.context, ip.Server.Uuid+"_installer", opts); err != nil {
 			if !client.IsErrNotFound(err) {
 				e = append(e, err)
 			}
@@ -264,11 +329,10 @@ func (ip *InstallationProcess) GetLogPath() string {
 // process to store in the server configuration directory, and then destroys the associated
 // installation container.
 func (ip *InstallationProcess) AfterExecute(containerId string) error {
-	ctx := context.Background()
 	defer ip.RemoveContainer()
 
 	ip.Server.Log().WithField("container_id", containerId).Debug("pulling installation logs for server")
-	reader, err := ip.client.ContainerLogs(ctx, containerId, types.ContainerLogsOptions{
+	reader, err := ip.client.ContainerLogs(ip.context, containerId, types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     false,
@@ -295,8 +359,6 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 
 // Executes the installation process inside a specially created docker container.
 func (ip *InstallationProcess) Execute(installPath string) (string, error) {
-	ctx := context.Background()
-
 	conf := &container.Config{
 		Hostname:     "installer",
 		AttachStdout: true,
@@ -345,13 +407,13 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 	}
 
 	ip.Server.Log().WithField("install_script", installPath+"/install.sh").Info("creating install container for server process")
-	r, err := ip.client.ContainerCreate(ctx, conf, hostConf, nil, ip.Server.Uuid+"_installer")
+	r, err := ip.client.ContainerCreate(ip.context, conf, hostConf, nil, ip.Server.Uuid+"_installer")
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
 
 	ip.Server.Log().WithField("container_id", r.ID).Info("running installation script for server in container")
-	if err := ip.client.ContainerStart(ctx, r.ID, types.ContainerStartOptions{}); err != nil {
+	if err := ip.client.ContainerStart(ip.context, r.ID, types.ContainerStartOptions{}); err != nil {
 		return "", err
 	}
 
@@ -363,7 +425,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 		ip.Server.Events().Publish(DaemonMessageEvent, "Installation process completed.")
 	}(r.ID)
 
-	sChann, eChann := ip.client.ContainerWait(ctx, r.ID, container.WaitConditionNotRunning)
+	sChann, eChann := ip.client.ContainerWait(ip.context, r.ID, container.WaitConditionNotRunning)
 	select {
 	case err := <-eChann:
 		if err != nil {
@@ -379,7 +441,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 // directory, as well as to a websocket listener so that the process can be viewed in
 // the panel by administrators.
 func (ip *InstallationProcess) StreamOutput(id string) error {
-	reader, err := ip.client.ContainerLogs(context.Background(), id, types.ContainerLogsOptions{
+	reader, err := ip.client.ContainerLogs(ip.context, id, types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
@@ -399,7 +461,7 @@ func (ip *InstallationProcess) StreamOutput(id string) error {
 	if err := s.Err(); err != nil {
 		ip.Server.Log().WithFields(log.Fields{
 			"container_id": id,
-			"error": errors.WithStack(err),
+			"error":        errors.WithStack(err),
 		}).Warn("error processing scanner line in installation output for server")
 	}
 
