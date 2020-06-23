@@ -564,7 +564,10 @@ func (d *DockerEnvironment) DisableResourcePolling() error {
 //
 // @todo handle authorization & local images
 func (d *DockerEnvironment) ensureImageExists(c *client.Client) error {
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+	// Give it up to 15 minutes to pull the image. I think this should cover 99.8% of cases where an
+	// image pull might fail. I can't imagine it will ever take more than 15 minutes to fully pull
+	// an image. Let me know when I am inevitably wrong here...
+	ctx, _ := context.WithTimeout(context.Background(), time.Minute*15)
 
 	out, err := c.ImagePull(ctx, d.Server.Container.Image, types.ImagePullOptions{All: false})
 	if err != nil {
