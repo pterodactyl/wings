@@ -70,6 +70,8 @@ func (h *Handler) HandleLog(e *log.Entry) error {
 		}
 
 		if err, ok := e.Fields.Get("error").(error); ok {
+			var br = color2.New(color2.Bold, color2.FgRed)
+
 			if e, ok := errors.Cause(err).(tracer); ok {
 				st := e.StackTrace()
 
@@ -78,11 +80,9 @@ func (h *Handler) HandleLog(e *log.Entry) error {
 					l = 5
 				}
 
-				br := color2.New(color2.Bold, color2.FgRed)
-
 				fmt.Fprintf(h.Writer, "\n%s%+v\n\n", br.Sprintf("Stacktrace:"), st[0:l])
 			} else {
-				fmt.Printf("\n\nINVALID TRACER\n\n")
+				fmt.Fprintf(h.Writer, "\n%s\n%+v\n\n", br.Sprintf("Stacktrace:"), err)
 			}
 		} else {
 			fmt.Printf("\n\nINVALID ERROR\n\n")
