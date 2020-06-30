@@ -9,6 +9,7 @@ import (
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/system"
 	"net/http"
+	"strings"
 )
 
 // Returns information about the system that wings is running on.
@@ -76,6 +77,16 @@ func postUpdateConfiguration(c *gin.Context) {
 	// BindJSON sends 400 if the request fails, all we need to do is return
 	if err := c.BindJSON(&cfg); err != nil {
 		return
+	}
+
+	// Keep the SSL certificates the same since the Panel will send through Lets Encrypt
+	// default locations. However, if we picked a different location manually we don't
+	// want to override that.
+	//
+	// If you pass through manual locations in the API call this logic will be skipped.
+	if strings.HasPrefix(cfg.Api.Ssl.KeyFile, "/etc/letsencrypt/live/") {
+		cfg.Api.Ssl.KeyFile = ccopy.Api.Ssl.KeyFile
+		cfg.Api.Ssl.CertificateFile = ccopy.Api.Ssl.CertificateFile
 	}
 
 	config.Set(&cfg)
