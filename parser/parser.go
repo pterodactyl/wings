@@ -273,12 +273,13 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 // Parses an ini file.
 func (f *ConfigurationFile) parseIniFile(path string) error {
 	// Ini package can't handle a non-existent file, so handle that automatically here
-	// by creating it if not exists.
+	// by creating it if not exists. Then, immediately close the file since we will use
+	// other methods to write the new contents.
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	file.Close()
 
 	cfg, err := ini.Load(path)
 	if err != nil {
@@ -321,16 +322,7 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 		}
 	}
 
-	// Truncate the file before attempting to write the changes.
-	if err := os.Truncate(path, 0); err != nil {
-		return err
-	}
-
-	if _, err := cfg.WriteTo(file); err != nil {
-		return err
-	}
-
-	return nil
+	return cfg.SaveTo(path)
 }
 
 // Parses a json file updating any matching key/value pairs. If a match is not found, the
