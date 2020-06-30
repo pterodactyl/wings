@@ -132,7 +132,7 @@ func ReadConfiguration(path string) (*Configuration, error) {
 	}
 
 	// Track the location where we created this configuration.
-	c.path = path
+	c.unsafeSetPath(path)
 
 	// Replace environment variables within the configuration file with their
 	// values from the host system.
@@ -209,6 +209,9 @@ func (c *Configuration) unsafeSetPath(path string) {
 
 // Returns the path for this configuration file.
 func (c *Configuration) GetPath() string {
+	c.RLock()
+	defer c.RUnlock()
+
 	return c.path
 }
 
@@ -266,11 +269,10 @@ func (c *Configuration) setSystemUser(u *user.User) error {
 	gid, _ := strconv.Atoi(u.Gid)
 
 	c.Lock()
-	defer c.Unlock()
-
 	c.System.Username = u.Username
 	c.System.User.Uid = uid
 	c.System.User.Gid = gid
+	c.Unlock()
 
 	return c.WriteToDisk()
 }
@@ -331,6 +333,10 @@ func (c *Configuration) EnsureFilePermissions() error {
 // lock on the file. This prevents something else from writing at the exact same time and
 // leading to bad data conditions.
 func (c *Configuration) WriteToDisk() error {
+	// Obtain an exclusive write against the configuration file.
+	c.writeLock.Lock()
+	defer c.writeLock.Unlock()
+
 	ccopy := *c
 	// If debugging is set with the flag, don't save that to the configuration file, otherwise
 	// you'll always end up in debug mode.
@@ -346,10 +352,6 @@ func (c *Configuration) WriteToDisk() error {
 	if err != nil {
 		return err
 	}
-
-	// Obtain an exclusive write against the configuration file.
-	c.writeLock.Lock()
-	defer c.writeLock.Unlock()
 
 	if err := ioutil.WriteFile(c.GetPath(), b, 0644); err != nil {
 		return err
