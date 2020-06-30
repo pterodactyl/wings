@@ -96,12 +96,12 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 			// If the child is a null value, nothing will happen. Seems reasonable as of the
 			// time this code is being written.
 			for _, child := range parsed.Path(strings.Trim(parts[0], ".")).Children() {
-				if err := v.SetAtPathway(child, strings.Trim(parts[1], "."), value); err != nil {
+				if err := v.SetAtPathway(child, strings.Trim(parts[1], "."), []byte(value)); err != nil {
 					return nil, err
 				}
 			}
 		} else {
-			if err = v.SetAtPathway(parsed, v.Match, value); err != nil {
+			if err = v.SetAtPathway(parsed, v.Match, []byte(value)); err != nil {
 				return nil, err
 			}
 		}
@@ -149,12 +149,12 @@ func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path st
 }
 
 // Looks up a configuration value on the Daemon given a dot-notated syntax.
-func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplacement) ([]byte, error) {
+func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplacement) (string, error) {
 	// If this is not something that we can do a regex lookup on then just continue
 	// on our merry way. If the value isn't a string, we're not going to be doing anything
 	// with it anyways.
 	if cfr.ReplaceWith.Type() != jsonparser.String || !configMatchRegex.Match(cfr.ReplaceWith.Value()) {
-		return cfr.ReplaceWith.Value(), nil
+		return cfr.ReplaceWith.String(), nil
 	}
 
 	// If there is a match, lookup the value in the configuration for the Daemon. If no key
@@ -174,17 +174,15 @@ func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplac
 	match, _, _, err := jsonparser.Get(f.configuration, path...)
 	if err != nil {
 		if err != jsonparser.KeyPathNotFoundError {
-			return match, errors.WithStack(err)
+			return string(match), errors.WithStack(err)
 		}
 
 		log.WithFields(log.Fields{"path": path, "filename": f.FileName}).Debug("attempted to load a configuration value that does not exist")
 
 		// If there is no key, keep the original value intact, that way it is obvious there
 		// is a replace issue at play.
-		return match, nil
+		return string(match), nil
 	} else {
-		replaced := []byte(configMatchRegex.ReplaceAllString(cfr.ReplaceWith.String(), string(match)))
-
-		return replaced, nil
+		return configMatchRegex.ReplaceAllString(cfr.ReplaceWith.String(), string(match)), nil
 	}
 }

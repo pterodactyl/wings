@@ -236,13 +236,13 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 
 		// Iterate over the elements we found and update their values.
 		for _, element := range doc.FindElements(path) {
-			if xmlValueMatchRegex.Match(value) {
-				k := xmlValueMatchRegex.ReplaceAllString(string(value), "$1")
-				v := xmlValueMatchRegex.ReplaceAllString(string(value), "$2")
+			if xmlValueMatchRegex.MatchString(value) {
+				k := xmlValueMatchRegex.ReplaceAllString(value, "$1")
+				v := xmlValueMatchRegex.ReplaceAllString(value, "$2")
 
 				element.CreateAttr(k, v)
 			} else {
-				element.SetText(string(value))
+				element.SetText(value)
 			}
 		}
 	}
@@ -313,9 +313,9 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 		// If the key exists in the file go ahead and set the value, otherwise try to
 		// create it in the section.
 		if s.HasKey(k) {
-			s.Key(k).SetValue(string(value))
+			s.Key(k).SetValue(value)
 		} else {
-			if _, err := s.NewKey(k, string(value)); err != nil {
+			if _, err := s.NewKey(k, value); err != nil {
 				return err
 			}
 		}
@@ -452,7 +452,7 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 			continue
 		}
 
-		if _, _, err := p.Set(replace.Match, string(data)); err != nil {
+		if _, _, err := p.Set(replace.Match, data); err != nil {
 			return err
 		}
 	}
