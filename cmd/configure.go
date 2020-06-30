@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/creasty/defaults"
 	"github.com/pterodactyl/wings/config"
 	"github.com/spf13/cobra"
 	"io/ioutil"
@@ -147,8 +146,8 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 
 	b, err := ioutil.ReadAll(res.Body)
 
-	cfg := new(config.Configuration)
-	if err := defaults.Set(cfg); err != nil {
+	cfg, err := config.NewFromPath(configPath)
+	if err != nil {
 		panic(err)
 	}
 

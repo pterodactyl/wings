@@ -186,6 +186,27 @@ func GetJwtAlgorithm() *jwt.HMACSHA {
 	return _jwtAlgo
 }
 
+// Create a new struct and set the path where it should be stored.
+func NewFromPath(path string) (*Configuration, error) {
+	c := new(Configuration)
+	if err := defaults.Set(c); err != nil {
+		return c, err
+	}
+
+	c.unsafeSetPath(path)
+
+	return c, nil
+}
+
+// Sets the path where the configuration file is located on the server. This function should
+// not be called except by processes that are generating the configuration such as the configration
+// command shipped with this software.
+func (c *Configuration) unsafeSetPath(path string) {
+	c.Lock()
+	c.path = path
+	c.Unlock()
+}
+
 // Returns the path for this configuration file.
 func (c *Configuration) GetPath() string {
 	return c.path
