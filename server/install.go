@@ -13,6 +13,7 @@ import (
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"golang.org/x/sync/semaphore"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"os"
@@ -349,7 +350,37 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 	defer f.Close()
 
 	// We write the contents of the container output to a more "permanent" file so that they
-	// can be referenced after this container is deleted.
+	// can be referenced after this container is deleted. We'll also include the environment
+	// variables passed into the container to make debugging things a little easier.
+	ip.Server.Log().WithField("path", ip.GetLogPath()).Debug("writing most recent installation logs to disk")
+
+	tmpl, err := template.New("header").Parse(`Pterodactyl Server Installation Log
+
+|
+| Details
+| ------------------------------
+  Server UUID:          {{.Server.Uuid}}
+  Container Image:      {{.Script.ContainerImage}}
+  Container Entrypoint: {{.Script.Entrypoint}}
+
+|
+| Environment Variables
+| ------------------------------
+{{ range $key, $value := .Server.GetEnvironmentVariables }}  {{ $value }}
+{{ end }}
+
+|
+| Script Output
+| ------------------------------
+`)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	if err := tmpl.Execute(f, ip); err != nil {
+		return errors.WithStack(err)
+	}
+
 	if _, err := io.Copy(f, reader); err != nil {
 		return errors.WithStack(err)
 	}
