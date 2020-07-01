@@ -32,7 +32,8 @@ require (
 	github.com/gabriel-vasile/mimetype v0.1.4
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-rc.0
 	github.com/ghodss/yaml v1.0.0
-	github.com/gin-gonic/gin v1.6.2
+	github.com/gin-gonic/autotls v0.0.0-20200518075542-45033372a9ad
+	github.com/gin-gonic/gin v1.6.3
 	github.com/golang/protobuf v1.3.5 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.0
@@ -63,7 +64,7 @@ require (
 	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/yuin/goldmark v1.1.30 // indirect
 	go.uber.org/zap v1.15.0
-	golang.org/x/crypto v0.0.0-20200429183012-4b2356b1ed79 // indirect
+	golang.org/x/crypto v0.0.0-20200429183012-4b2356b1ed79
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/net v0.0.0-20200425230154-ff2c4b7c35a0 // indirect
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
