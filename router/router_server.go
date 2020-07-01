@@ -135,7 +135,7 @@ func postServerInstall(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
 	go func(serv *server.Server) {
-		if err := serv.Install(); err != nil {
+		if err := serv.Install(true); err != nil {
 			serv.Log().WithField("error", err).Error("failed to execute server installation process")
 		}
 	}(s)

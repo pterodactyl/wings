@@ -25,7 +25,17 @@ import (
 
 // Executes the installation stack for a server process. Bubbles any errors up to the calling
 // function which should handle contacting the panel to notify it of the server state.
-func (s *Server) Install() error {
+//
+// Pass true as the first arugment in order to execute a server sync before the process to
+// ensure the latest information is used.
+func (s *Server) Install(sync bool) error {
+	if sync {
+		s.Log().Info("syncing server state with remote source before executing installation process")
+		if err := s.Sync(); err != nil {
+			return err
+		}
+	}
+
 	err := s.internalInstall()
 
 	s.Log().Debug("notifying panel of server install state")
@@ -55,7 +65,7 @@ func (s *Server) Reinstall() error {
 		}
 	}
 
-	return s.Install()
+	return s.Install(true)
 }
 
 // Internal installation function used to simplify reporting back to the Panel.

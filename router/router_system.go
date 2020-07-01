@@ -59,7 +59,7 @@ func postCreateServer(c *gin.Context) {
 	go func(i *installer.Installer) {
 		i.Execute()
 
-		if err := i.Server().Install(); err != nil {
+		if err := i.Server().Install(false); err != nil {
 			log.WithFields(log.Fields{"server": i.Uuid(), "error": err}).Error("failed to run install process for server")
 		}
 	}(install)
