@@ -56,7 +56,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/profile v1.4.0
 	github.com/pkg/sftp v1.11.0 // indirect
-	github.com/pterodactyl/sftp-server v1.1.2
+	github.com/pterodactyl/sftp-server v1.1.4
 	github.com/remeh/sizedwaitgroup v0.0.0-20180822144253-5e7302b12cce
 	github.com/sabhiram/go-gitignore v0.0.0-20180611051255-d3107576ba94
 	github.com/smartystreets/goconvey v1.6.4 // indirect

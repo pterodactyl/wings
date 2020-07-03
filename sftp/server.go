@@ -8,6 +8,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"go.uber.org/zap"
+	"regexp"
 )
 
 func Initialize(config *config.Configuration) error {
@@ -70,13 +71,36 @@ func validateDiskSpace(fs sftp_server.FileSystem) bool {
 	return s.Filesystem.HasSpaceAvailable()
 }
 
+var validUsernameRegexp = regexp.MustCompile(`^(?i)(.+)\.([a-z0-9]{8})$`)
+
 // Validates a set of credentials for a SFTP login aganist Pterodactyl Panel and returns
 // the server's UUID if the credentials were valid.
 func validateCredentials(c sftp_server.AuthenticationRequest) (*sftp_server.AuthenticationResponse, error) {
-	resp, err := api.NewRequester().ValidateSftpCredentials(c)
-
 	log.WithFields(log.Fields{"subsystem": "sftp", "username": c.User}).Debug("validating credentials for SFTP connection")
+
+	f := log.Fields{
+		"subsystem": "sftp",
+		"username":  c.User,
+		"ip":        c.IP,
+	}
+
+	// If the username doesn't meet the expected format that the Panel would even recognize just go ahead
+	// and bail out of the process here to avoid accidentially brute forcing the panel if a bot decides
+	// to connect to spam username attempts.
+	if !validUsernameRegexp.MatchString(c.User) {
+		log.WithFields(f).Warn("failed to validate user credentials (invalid format)")
+
+		return nil, new(sftp_server.InvalidCredentialsError)
+	}
+
+	resp, err := api.NewRequester().ValidateSftpCredentials(c)
 	if err != nil {
+		if sftp_server.IsInvalidCredentialsError(err) {
+			log.WithFields(f).Warn("failed to validate user credentials (invalid username or password)")
+		} else {
+			log.WithFields(f).Error("encountered an error while trying to validate user credentials")
+		}
+
 		return resp, err
 	}
 
@@ -88,7 +112,7 @@ func validateCredentials(c sftp_server.AuthenticationRequest) (*sftp_server.Auth
 		return resp, errors.New("no matching server with UUID found")
 	}
 
-	s.Log().WithFields(log.Fields{"subsystem": "sftp", "username": c.User}).Debug("matched user to server instance, credentials successfully validated")
+	s.Log().WithFields(f).Debug("credentials successfully validated and matched user to server instance")
 
 	return resp, err
 }
