@@ -34,7 +34,7 @@ func New(data []byte) (*Installer, error) {
 		Suspended:  false,
 		State:      server.ProcessOfflineState,
 		Invocation: getString(data, "invocation"),
-		EnvVars:    make(map[string]string),
+		EnvVars:    make(server.EnvironmentVariables),
 		Build: server.BuildSettings{
 			MemoryLimit: getInt(data, "build", "memory"),
 			Swap:        getInt(data, "build", "swap"),
@@ -55,7 +55,7 @@ func New(data []byte) (*Installer, error) {
 	if b, _, _, err := jsonparser.Get(data, "environment"); err != nil {
 		return nil, errors.WithStack(err)
 	} else {
-		s.EnvVars = make(map[string]string)
+		s.EnvVars = make(server.EnvironmentVariables)
 		if err := json.Unmarshal(b, &s.EnvVars); err != nil {
 			return nil, errors.WithStack(err)
 		}

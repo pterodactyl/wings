@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/semaphore"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,36 @@ var servers *Collection
 
 func GetServers() *Collection {
 	return servers
+}
+
+type EnvironmentVariables map[string]interface{}
+
+// Ugly hacky function to handle environment variables that get passed through as not-a-string
+// from the Panel. Ideally we'd just say only pass strings, but that is a fragile idea and if a
+// string wasn't passed through you'd cause a crash or the server to become unavailable. For now
+// try to handle the most likely values from the JSON and hope for the best.
+func (ev EnvironmentVariables) Get(key string) string {
+	val, ok := ev[key]
+	if !ok {
+		return ""
+	}
+
+	switch val.(type) {
+	case int:
+		return strconv.Itoa(val.(int))
+	case int32:
+		return strconv.FormatInt(val.(int64), 10)
+	case int64:
+		return strconv.FormatInt(val.(int64), 10)
+	case float32:
+		return fmt.Sprintf("%f", val.(float32))
+	case float64:
+		return fmt.Sprintf("%f", val.(float64))
+	case bool:
+		return strconv.FormatBool(val.(bool))
+	}
+
+	return val.(string)
 }
 
 // High level definition for a server instance being controlled by Wings.
@@ -43,7 +74,7 @@ type Server struct {
 
 	// An array of environment variables that should be passed along to the running
 	// server process.
-	EnvVars map[string]string `json:"environment" yaml:"environment"`
+	EnvVars EnvironmentVariables `json:"environment" yaml:"environment"`
 
 	Archiver       Archiver       `json:"-" yaml:"-"`
 	CrashDetection CrashDetection `json:"crash_detection" yaml:"crash_detection"`
@@ -287,14 +318,14 @@ func (s *Server) GetEnvironmentVariables() []string {
 	}
 
 eloop:
-	for k, v := range s.EnvVars {
+	for k := range s.EnvVars {
 		for _, e := range out {
 			if strings.HasPrefix(e, strings.ToUpper(k)) {
 				continue eloop
 			}
 		}
 
-		out = append(out, fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
+		out = append(out, fmt.Sprintf("%s=%s", strings.ToUpper(k), s.EnvVars.Get(k)))
 	}
 
 	return out

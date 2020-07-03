@@ -653,7 +653,7 @@ func (d *DockerEnvironment) Create() error {
 		ExposedPorts: d.exposedPorts(),
 
 		Image: d.Server.Container.Image,
-		Env:   d.environmentVariables(),
+		Env:   d.Server.GetEnvironmentVariables(),
 
 		Labels: map[string]string{
 			"Service":       "Pterodactyl",
@@ -802,36 +802,6 @@ func (d *DockerEnvironment) parseLogToStrings(b []byte) ([]string, error) {
 	}
 
 	return out, nil
-}
-
-// Returns the environment variables for a server in KEY="VALUE" form.
-func (d *DockerEnvironment) environmentVariables() []string {
-	zone, _ := time.Now().In(time.Local).Zone()
-
-	var out = []string{
-		fmt.Sprintf("TZ=%s", zone),
-		fmt.Sprintf("STARTUP=%s", d.Server.Invocation),
-		fmt.Sprintf("SERVER_MEMORY=%d", d.Server.Build.MemoryLimit),
-		fmt.Sprintf("SERVER_IP=%s", d.Server.Allocations.DefaultMapping.Ip),
-		fmt.Sprintf("SERVER_PORT=%d", d.Server.Allocations.DefaultMapping.Port),
-	}
-
-eloop:
-	for k, v := range d.Server.EnvVars {
-		for _, e := range out {
-			if strings.HasPrefix(e, strings.ToUpper(k)) {
-				continue eloop
-			}
-		}
-
-		out = append(out, fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
-	}
-
-	return out
-}
-
-func (d *DockerEnvironment) volumes() map[string]struct{} {
-	return nil
 }
 
 // Converts the server allocation mappings into a format that can be understood
