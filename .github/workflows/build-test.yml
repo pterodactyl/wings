@@ -2,6 +2,9 @@ name: "Build & Test"
 
 on:
   push:
+    branches-ignore:
+      - 'master'
+      - 'release/**'
   pull_request:
 
 jobs:
@@ -20,11 +23,11 @@ jobs:
         run: go test ./...
       
       - name: Compress binary
-        if: ${{ github.ref == 'develop' }}
+        if: ${{ github.ref == 'refs/remotes/origin/develop' || github.event_name == 'pull_request' }}
         run: upx build/wings_linux_amd64
       
       - uses: actions/upload-artifact@v2
-        if: ${{ github.ref == 'develop' }}
+        if: ${{ github.ref == 'refs/remotes/origin/develop' || github.event_name == 'pull_request' }}
         with:
           name: wings_linux_amd64
           path: build/wings_linux_amd64
