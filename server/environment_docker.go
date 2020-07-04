@@ -671,22 +671,17 @@ func (d *DockerEnvironment) Create() error {
 		},
 	}
 
+	var mounted bool
 	for _, m := range d.Server.Mounts {
+		mounted = false
 		source := filepath.Clean(m.Source)
+		target := filepath.Clean(m.Target)
 
 		for _, allowed := range config.Get().AllowedMounts {
 			if !strings.HasPrefix(source, allowed) {
 				continue
 			}
 
-			target := filepath.Clean(m.Target)
-
-			log.WithFields(log.Fields{
-				"server":    d.Server.Uuid,
-				"source":    source,
-				"target":    target,
-				"read_only": m.ReadOnly,
-			}).Debug("attaching mount to server's container")
 			mounts = append(mounts, mount.Mount{
 				Type: mount.TypeBind,
 
@@ -694,6 +689,21 @@ func (d *DockerEnvironment) Create() error {
 				Target:   target,
 				ReadOnly: m.ReadOnly,
 			})
+
+			mounted = true
+			break
+		}
+
+		log := log.WithFields(log.Fields{
+			"server":      d.Server.Uuid,
+			"source_path": source,
+			"target_path": target,
+			"read_only":   m.ReadOnly,
+		})
+		if mounted {
+			log.Debug("attaching mount to server's container")
+		} else {
+			log.Warn("skipping mount because it isn't allowed")
 		}
 	}
 
