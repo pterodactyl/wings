@@ -24,7 +24,7 @@ jobs:
         run: upx build/wings_linux_amd64
       
       - uses: actions/upload-artifact@v2
-        if: ${{ github.ref == "develop" }}
+        if: ${{ github.ref == 'develop' }}
         with:
           name: wings_linux_amd64
           path: build/wings_linux_amd64
