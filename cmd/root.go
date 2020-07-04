@@ -3,14 +3,15 @@ package cmd
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/apex/log"
-	"github.com/mitchellh/colorstring"
-	"github.com/pterodactyl/wings/loggers/cli"
-	"golang.org/x/crypto/acme/autocert"
 	"net/http"
 	"os"
 	"path"
 	"strings"
+
+	"github.com/apex/log"
+	"github.com/mitchellh/colorstring"
+	"github.com/pterodactyl/wings/loggers/cli"
+	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/pkg/errors"
 	"github.com/pkg/profile"
@@ -41,7 +42,7 @@ var root = &cobra.Command{
 			os.Exit(1)
 		}
 	},
-	Run:   rootCmdRun,
+	Run: rootCmdRun,
 }
 
 func init() {
@@ -52,6 +53,7 @@ func init() {
 	root.PersistentFlags().StringVar(&tlsHostname, "tls-hostname", "", "required with --auto-tls, the FQDN for the generated SSL certificate")
 
 	root.AddCommand(configureCmd)
+	root.AddCommand(diagnosticsCmd)
 }
 
 // Get the configuration path based on the arguments provided.
@@ -229,10 +231,10 @@ func rootCmdRun(*cobra.Command, []string) {
 	}
 
 	log.WithFields(log.Fields{
-		"use_ssl": c.Api.Ssl.Enabled,
+		"use_ssl":      c.Api.Ssl.Enabled,
 		"use_auto_tls": useAutomaticTls && len(tlsHostname) > 0,
 		"host_address": c.Api.Host,
-		"host_port": c.Api.Port,
+		"host_port":    c.Api.Port,
 	}).Info("configuring internal webserver")
 
 	r := router.Configure()
@@ -240,9 +242,9 @@ func rootCmdRun(*cobra.Command, []string) {
 
 	if useAutomaticTls && len(tlsHostname) > 0 {
 		m := autocert.Manager{
-			Prompt:          autocert.AcceptTOS,
-			Cache:           autocert.DirCache(path.Join(c.System.RootDirectory, "/.tls-cache")),
-			HostPolicy:      autocert.HostWhitelist(tlsHostname),
+			Prompt:     autocert.AcceptTOS,
+			Cache:      autocert.DirCache(path.Join(c.System.RootDirectory, "/.tls-cache")),
+			HostPolicy: autocert.HostWhitelist(tlsHostname),
 		}
 
 		log.WithField("hostname", tlsHostname).
