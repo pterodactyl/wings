@@ -1,0 +1,27 @@
+name: "Build & Test"
+
+on:
+  push:
+  pull_request:
+  # schedule:
+  #   - cron: '0 21 * * 6'
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '^1.14.2'
+      - name: Build
+        run: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o build/wings_linux_amd64 -v wings.go
+      - name: Test
+        run: go test ./...
+      - name: Compress binary
+        run: make compress
+      - uses: actions/upload-artifact@v2
+        # if: ${{ github.event_name == "schedule" }}
+        with:
+          name: amd64
+          path: build/wings_linux_amd64
