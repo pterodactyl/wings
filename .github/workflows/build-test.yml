@@ -20,7 +20,7 @@ jobs:
         run: go test ./...
       
       - name: Compress binary
-        if: ${{ github.ref == "develop" }}
+        if: ${{ github.ref == 'develop' }}
         run: upx build/wings_linux_amd64
       
       - uses: actions/upload-artifact@v2
