@@ -18,6 +18,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -671,8 +672,10 @@ func (d *DockerEnvironment) Create() error {
 	}
 
 	for _, m := range d.Server.Mounts {
+		source := filepath.Clean(m.Source)
+
 		for _, allowed := range config.Get().AllowedMounts {
-			if !strings.HasPrefix(m.Source, allowed) {
+			if !strings.HasPrefix(source, allowed) {
 				continue
 			}
 
@@ -685,8 +688,8 @@ func (d *DockerEnvironment) Create() error {
 			mounts = append(mounts, mount.Mount{
 				Type: mount.TypeBind,
 
-				Source:   m.Source,
-				Target:   m.Target,
+				Source:   source,
+				Target:   filepath.Clean(m.Target),
 				ReadOnly: m.ReadOnly,
 			})
 		}
