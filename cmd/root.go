@@ -3,14 +3,15 @@ package cmd
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/apex/log"
-	"github.com/mitchellh/colorstring"
-	"github.com/pterodactyl/wings/loggers/cli"
-	"golang.org/x/crypto/acme/autocert"
 	"net/http"
 	"os"
 	"path"
 	"strings"
+
+	"github.com/apex/log"
+	"github.com/mitchellh/colorstring"
+	"github.com/pterodactyl/wings/loggers/cli"
+	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/pkg/errors"
 	"github.com/pkg/profile"
@@ -30,6 +31,7 @@ var debug = false
 var shouldRunProfiler = false
 var useAutomaticTls = false
 var tlsHostname = ""
+var showVersion = false
 
 var root = &cobra.Command{
 	Use:   "wings",
@@ -41,10 +43,11 @@ var root = &cobra.Command{
 			os.Exit(1)
 		}
 	},
-	Run:   rootCmdRun,
+	Run: rootCmdRun,
 }
 
 func init() {
+	root.PersistentFlags().BoolVar(&showVersion, "version", false, "show the version and exit")
 	root.PersistentFlags().StringVar(&configPath, "config", config.DefaultLocation, "set the location for the configuration file")
 	root.PersistentFlags().BoolVar(&debug, "debug", false, "pass in order to run wings in debug mode")
 	root.PersistentFlags().BoolVar(&shouldRunProfiler, "profile", false, "pass in order to profile wings")
@@ -76,6 +79,11 @@ func readConfiguration() (*config.Configuration, error) {
 }
 
 func rootCmdRun(*cobra.Command, []string) {
+	if showVersion {
+		fmt.Println(system.Version)
+		os.Exit(0)
+	}
+
 	if shouldRunProfiler {
 		defer profile.Start().Stop()
 	}
@@ -229,10 +237,10 @@ func rootCmdRun(*cobra.Command, []string) {
 	}
 
 	log.WithFields(log.Fields{
-		"use_ssl": c.Api.Ssl.Enabled,
+		"use_ssl":      c.Api.Ssl.Enabled,
 		"use_auto_tls": useAutomaticTls && len(tlsHostname) > 0,
 		"host_address": c.Api.Host,
-		"host_port": c.Api.Port,
+		"host_port":    c.Api.Port,
 	}).Info("configuring internal webserver")
 
 	r := router.Configure()
@@ -240,9 +248,9 @@ func rootCmdRun(*cobra.Command, []string) {
 
 	if useAutomaticTls && len(tlsHostname) > 0 {
 		m := autocert.Manager{
-			Prompt:          autocert.AcceptTOS,
-			Cache:           autocert.DirCache(path.Join(c.System.RootDirectory, "/.tls-cache")),
-			HostPolicy:      autocert.HostWhitelist(tlsHostname),
+			Prompt:     autocert.AcceptTOS,
+			Cache:      autocert.DirCache(path.Join(c.System.RootDirectory, "/.tls-cache")),
+			HostPolicy: autocert.HostWhitelist(tlsHostname),
 		}
 
 		log.WithField("hostname", tlsHostname).
