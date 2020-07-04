@@ -1,16 +1,19 @@
 package server
 
 import (
+	"context"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/creasty/defaults"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
-	"go.uber.org/zap"
+	"golang.org/x/sync/semaphore"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +23,36 @@ var servers *Collection
 
 func GetServers() *Collection {
 	return servers
+}
+
+type EnvironmentVariables map[string]interface{}
+
+// Ugly hacky function to handle environment variables that get passed through as not-a-string
+// from the Panel. Ideally we'd just say only pass strings, but that is a fragile idea and if a
+// string wasn't passed through you'd cause a crash or the server to become unavailable. For now
+// try to handle the most likely values from the JSON and hope for the best.
+func (ev EnvironmentVariables) Get(key string) string {
+	val, ok := ev[key]
+	if !ok {
+		return ""
+	}
+
+	switch val.(type) {
+	case int:
+		return strconv.Itoa(val.(int))
+	case int32:
+		return strconv.FormatInt(val.(int64), 10)
+	case int64:
+		return strconv.FormatInt(val.(int64), 10)
+	case float32:
+		return fmt.Sprintf("%f", val.(float32))
+	case float64:
+		return fmt.Sprintf("%f", val.(float64))
+	case bool:
+		return strconv.FormatBool(val.(bool))
+	}
+
+	return val.(string)
 }
 
 // High level definition for a server instance being controlled by Wings.
@@ -41,7 +74,7 @@ type Server struct {
 
 	// An array of environment variables that should be passed along to the running
 	// server process.
-	EnvVars map[string]string `json:"environment"`
+	EnvVars EnvironmentVariables `json:"environment"`
 
 	Allocations    Allocations    `json:"allocations"`
 	Build          BuildSettings  `json:"build"`
@@ -73,9 +106,25 @@ type Server struct {
 	// started, and then cached here.
 	processConfiguration *api.ProcessConfiguration
 
+	// Tracks the installation process for this server and prevents a server from running
+	// two installer processes at the same time. This also allows us to cancel a running
+	// installation process, for example when a server is deleted from the panel while the
+	// installer process is still running.
+	installer InstallerDetails
+
 	// Internal mutex used to block actions that need to occur sequentially, such as
 	// writing the configuration to the disk.
 	sync.RWMutex
+}
+
+type InstallerDetails struct {
+	// The cancel function for the installer. This will be a non-nil value while there
+	// is an installer running for the server.
+	cancel *context.CancelFunc
+
+	// Installer lock. You should obtain an exclusive lock on this context while running
+	// the installation process and release it when finished.
+	sem *semaphore.Weighted
 }
 
 // The build settings for a given server that impact docker container creation and
@@ -196,13 +245,13 @@ func LoadDirectory() error {
 
 			s, err := FromConfiguration(data)
 			if err != nil {
-				zap.S().Errorw("failed to load server, skipping...", zap.String("server", uuid), zap.Error(err))
+				log.WithField("server", uuid).WithField("error", err).Error("failed to load server, skipping...")
 				return
 			}
 
 			if state, exists := states[s.Uuid]; exists {
 				s.SetState(state)
-				zap.S().Debugw("loaded server state from cache", zap.String("server", s.Uuid), zap.String("state", s.GetState()))
+				s.Log().WithField("state", s.GetState()).Debug("loaded server state from cache file")
 			}
 
 			servers.Add(s)
@@ -271,17 +320,21 @@ func (s *Server) GetEnvironmentVariables() []string {
 	}
 
 eloop:
-	for k, v := range s.EnvVars {
+	for k := range s.EnvVars {
 		for _, e := range out {
 			if strings.HasPrefix(e, strings.ToUpper(k)) {
 				continue eloop
 			}
 		}
 
-		out = append(out, fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
+		out = append(out, fmt.Sprintf("%s=%s", strings.ToUpper(k), s.EnvVars.Get(k)))
 	}
 
 	return out
+}
+
+func (s *Server) Log() *log.Entry {
+	return log.WithField("server", s.Uuid)
 }
 
 // Syncs the state of the server on the Panel with Wings. This ensures that we're always

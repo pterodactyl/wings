@@ -1,13 +1,32 @@
 package router
 
 import (
+	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 )
 
 // Configures the routing infrastructure for this daemon instance.
 func Configure() *gin.Engine {
-	router := gin.Default()
+	gin.SetMode("release")
+
+	router := gin.New()
+
+	router.Use(gin.Recovery())
 	router.Use(SetAccessControlHeaders)
+	// @todo log this into a different file so you can setup IP blocking for abusive requests and such.
+	// This should still dump requests in debug mode since it does help with understanding the request
+	// lifecycle and quickly seeing what was called leading to the logs. However, it isn't feasible to mix
+	// this output in production and still get meaningful logs from it since they'll likely just be a huge
+	// spamfest.
+	router.Use(gin.LoggerWithFormatter(func(params gin.LogFormatterParams) string {
+		log.WithFields(log.Fields{
+			"client_ip": params.ClientIP,
+			"status":    params.StatusCode,
+			"latency":   params.Latency,
+		}).Debugf("%s %s", params.MethodColor()+params.Method+params.ResetColor(), params.Path)
+
+		return ""
+	}))
 
 	router.OPTIONS("/api/system", func(c *gin.Context) {
 		c.Status(200)

@@ -3,13 +3,13 @@ package parser
 import (
 	"bufio"
 	"encoding/json"
+	"github.com/apex/log"
 	"github.com/beevik/etree"
 	"github.com/buger/jsonparser"
 	"github.com/icza/dyno"
 	"github.com/magiconair/properties"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
-	"go.uber.org/zap"
 	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -29,6 +29,10 @@ const (
 )
 
 type ConfigurationParser string
+
+func (cp ConfigurationParser) String() string {
+	return string(cp)
+}
 
 // Defines a configuration file for the server startup. These will be looped over
 // and modified before the server finishes booting.
@@ -63,11 +67,7 @@ func (f *ConfigurationFile) UnmarshalJSON(data []byte) error {
 	}
 
 	if err := json.Unmarshal(*m["replace"], &f.Replace); err != nil {
-		zap.S().Warnw(
-			"failed to unmarshal configuration file replacement",
-			zap.String("file", f.FileName),
-			zap.Error(err),
-		)
+		log.WithField("file", f.FileName).WithField("error", err).Warn("failed to unmarshal configuration file replacement")
 
 		f.Replace = []ConfigurationFileReplacement{}
 	}
@@ -131,7 +131,7 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 // Parses a given configuration file and updates all of the values within as defined
 // in the API response from the Panel.
 func (f *ConfigurationFile) Parse(path string, internal bool) error {
-	zap.S().Debugw("parsing configuration file", zap.String("path", path), zap.String("parser", string(f.Parser)))
+	log.WithField("path", path).WithField("parser", f.Parser.String()).Debug("parsing server configuration file")
 
 	if mb, err := json.Marshal(config.Get()); err != nil {
 		return err
@@ -236,13 +236,13 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 
 		// Iterate over the elements we found and update their values.
 		for _, element := range doc.FindElements(path) {
-			if xmlValueMatchRegex.Match(value) {
-				k := xmlValueMatchRegex.ReplaceAllString(string(value), "$1")
-				v := xmlValueMatchRegex.ReplaceAllString(string(value), "$2")
+			if xmlValueMatchRegex.MatchString(value) {
+				k := xmlValueMatchRegex.ReplaceAllString(value, "$1")
+				v := xmlValueMatchRegex.ReplaceAllString(value, "$2")
 
 				element.CreateAttr(k, v)
 			} else {
-				element.SetText(string(value))
+				element.SetText(value)
 			}
 		}
 	}
@@ -273,12 +273,13 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 // Parses an ini file.
 func (f *ConfigurationFile) parseIniFile(path string) error {
 	// Ini package can't handle a non-existent file, so handle that automatically here
-	// by creating it if not exists.
+	// by creating it if not exists. Then, immediately close the file since we will use
+	// other methods to write the new contents.
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	file.Close()
 
 	cfg, err := ini.Load(path)
 	if err != nil {
@@ -313,24 +314,15 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 		// If the key exists in the file go ahead and set the value, otherwise try to
 		// create it in the section.
 		if s.HasKey(k) {
-			s.Key(k).SetValue(string(value))
+			s.Key(k).SetValue(value)
 		} else {
-			if _, err := s.NewKey(k, string(value)); err != nil {
+			if _, err := s.NewKey(k, value); err != nil {
 				return err
 			}
 		}
 	}
 
-	// Truncate the file before attempting to write the changes.
-	if err := os.Truncate(path, 0); err != nil {
-		return err
-	}
-
-	if _, err := cfg.WriteTo(file); err != nil {
-		return err
-	}
-
-	return nil
+	return cfg.SaveTo(path)
 }
 
 // Parses a json file updating any matching key/value pairs. If a match is not found, the
@@ -452,7 +444,7 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 			continue
 		}
 
-		if _, _, err := p.Set(replace.Match, string(data)); err != nil {
+		if _, _, err := p.Set(replace.Match, data); err != nil {
 			return err
 		}
 	}

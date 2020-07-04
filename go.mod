@@ -16,6 +16,7 @@ require (
 	github.com/Jeffail/gabs/v2 v2.2.0
 	github.com/Microsoft/go-winio v0.4.7 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
+	github.com/apex/log v1.3.0
 	github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a
 	github.com/aws/aws-sdk-go v1.30.14 // indirect
 	github.com/beevik/etree v1.1.0
@@ -27,10 +28,12 @@ require (
 	github.com/docker/docker v0.0.0-20180422163414-57142e89befe
 	github.com/docker/go-connections v0.4.0
 	github.com/docker/go-units v0.3.3 // indirect
+	github.com/fatih/color v1.9.0
 	github.com/gabriel-vasile/mimetype v0.1.4
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-rc.0
 	github.com/ghodss/yaml v1.0.0
-	github.com/gin-gonic/gin v1.6.2
+	github.com/gin-gonic/autotls v0.0.0-20200518075542-45033372a9ad
+	github.com/gin-gonic/gin v1.6.3
 	github.com/golang/protobuf v1.3.5 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.0
@@ -40,6 +43,7 @@ require (
 	github.com/imdario/mergo v0.3.8
 	github.com/klauspost/pgzip v1.2.3
 	github.com/magiconair/properties v1.8.1
+	github.com/mattn/go-colorable v0.1.4
 	github.com/mattn/go-shellwords v1.0.10 // indirect
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db
@@ -52,7 +56,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/profile v1.4.0
 	github.com/pkg/sftp v1.11.0 // indirect
-	github.com/pterodactyl/sftp-server v1.1.2
+	github.com/pterodactyl/sftp-server v1.1.4
 	github.com/remeh/sizedwaitgroup v0.0.0-20180822144253-5e7302b12cce
 	github.com/sabhiram/go-gitignore v0.0.0-20180611051255-d3107576ba94
 	github.com/smartystreets/goconvey v1.6.4 // indirect
@@ -60,7 +64,7 @@ require (
 	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/yuin/goldmark v1.1.30 // indirect
 	go.uber.org/zap v1.15.0
-	golang.org/x/crypto v0.0.0-20200429183012-4b2356b1ed79 // indirect
+	golang.org/x/crypto v0.0.0-20200429183012-4b2356b1ed79
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/net v0.0.0-20200425230154-ff2c4b7c35a0 // indirect
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a

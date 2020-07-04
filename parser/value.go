@@ -14,7 +14,9 @@ func (cv *ReplaceValue) Value() []byte {
 }
 
 func (cv *ReplaceValue) String() string {
-	return string(cv.value)
+	str, _ := jsonparser.ParseString(cv.value)
+
+	return str
 }
 
 func (cv *ReplaceValue) Type() jsonparser.ValueType {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
@@ -15,7 +16,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
-	"go.uber.org/zap"
 	"io"
 	"os"
 	"strconv"
@@ -122,11 +122,13 @@ func (d *DockerEnvironment) InSituUpdate() error {
 		return errors.WithStack(err)
 	}
 
+	ctx, _ := context.WithTimeout(context.Background(), time.Second * 10)
 	u := container.UpdateConfig{
 		Resources: d.getResourcesForServer(),
 	}
 
-	if _, err := d.Client.ContainerUpdate(context.Background(), d.Server.Uuid, u); err != nil {
+	d.Server.Log().WithField("limits", fmt.Sprintf("%+v", u.Resources)).Debug("updating server container on-the-fly with passed limits")
+	if _, err := d.Client.ContainerUpdate(ctx, d.Server.Uuid, u); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -141,7 +143,7 @@ func (d *DockerEnvironment) InSituUpdate() error {
 // state. This ensures that unexpected container deletion while Wings is running does
 // not result in the server becoming unbootable.
 func (d *DockerEnvironment) OnBeforeStart() error {
-	zap.S().Infow("syncing server configuration with Panel", zap.String("server", d.Server.Uuid))
+	d.Server.Log().Info("syncing server configuration with panel")
 	if err := d.Server.Sync(); err != nil {
 		return err
 	}
@@ -182,6 +184,10 @@ func (d *DockerEnvironment) Start() error {
 	// that point.
 	defer func() {
 		if sawError {
+			// If we don't set it to stopping first, you'll trigger crash detection which
+			// we don't want to do at this point since it'll just immediately try to do the
+			// exact same action that lead to it crashing in the first place...
+			d.Server.SetState(ProcessStoppingState)
 			d.Server.SetState(ProcessOfflineState)
 		}
 	}()
@@ -248,8 +254,8 @@ func (d *DockerEnvironment) Start() error {
 		return errors.WithStack(err)
 	}
 
-	opts := types.ContainerStartOptions{}
-	if err := d.Client.ContainerStart(context.Background(), d.Server.Uuid, opts); err != nil {
+	ctx, _ := context.WithTimeout(context.Background(), time.Second * 10)
+	if err := d.Client.ContainerStart(ctx, d.Server.Uuid, types.ContainerStartOptions{}); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -418,7 +424,7 @@ func (d *DockerEnvironment) Attach() error {
 	d.attached = true
 	go func() {
 		if err := d.EnableResourcePolling(); err != nil {
-			zap.S().Warnw("failed to enabled resource polling on server", zap.String("server", d.Server.Uuid), zap.Error(errors.WithStack(err)))
+			d.Server.Log().WithField("error", errors.WithStack(err)).Warn("failed to enable resource polling on server")
 		}
 	}()
 
@@ -466,7 +472,7 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 		}
 
 		if err := s.Err(); err != nil {
-			zap.S().Warnw("error processing scanner line in console output", zap.String("server", d.Server.Uuid), zap.Error(err))
+			d.Server.Log().WithField("error", err).Warn("error processing scanner line in console output")
 		}
 	}(reader)
 
@@ -496,7 +502,7 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 
 			if err := dec.Decode(&v); err != nil {
 				if err != io.EOF {
-					zap.S().Warnw("encountered error processing server stats; stopping collection", zap.Error(err))
+					d.Server.Log().WithField("error", err).Warn("encountered error processing server stats, stopping collection")
 				}
 
 				d.DisableResourcePolling()
@@ -547,17 +553,51 @@ func (d *DockerEnvironment) DisableResourcePolling() error {
 	return errors.WithStack(err)
 }
 
-// Pulls the image from Docker.
+// Pulls the image from Docker. If there is an error while pulling the image from the source
+// but the image already exists locally, we will report that error to the logger but continue
+// with the process.
+//
+// The reasoning behind this is that Quay has had some serious outages as of late, and we don't
+// need to block all of the servers from booting just because of that. I'd imagine in a lot of
+// cases an outage shouldn't affect users too badly. It'll at least keep existing servers working
+// correctly if anything.
 //
 // @todo handle authorization & local images
 func (d *DockerEnvironment) ensureImageExists(c *client.Client) error {
-	out, err := c.ImagePull(context.Background(), d.Server.Container.Image, types.ImagePullOptions{All: false})
+	// Give it up to 15 minutes to pull the image. I think this should cover 99.8% of cases where an
+	// image pull might fail. I can't imagine it will ever take more than 15 minutes to fully pull
+	// an image. Let me know when I am inevitably wrong here...
+	ctx, _ := context.WithTimeout(context.Background(), time.Minute*15)
+
+	out, err := c.ImagePull(ctx, d.Server.Container.Image, types.ImagePullOptions{All: false})
 	if err != nil {
+		images, ierr := c.ImageList(ctx, types.ImageListOptions{})
+		if ierr != nil {
+			// Well damn, something has gone really wrong here, just go ahead and abort there
+			// isn't much anything we can do to try and self-recover from this.
+			return ierr
+		}
+
+		for _, img := range images {
+			for _, t := range img.RepoTags {
+				if t == d.Server.Container.Image {
+					d.Server.Log().WithFields(log.Fields{
+						"image": d.Server.Container.Image,
+						"error": errors.New(err.Error()),
+					}).Warn("unable to pull requested image from remote source, however the image exists locally")
+
+					// Okay, we found a matching container image, in that case just go ahead and return
+					// from this function, since there is nothing else we need to do here.
+					return nil
+				}
+			}
+		}
+
 		return err
 	}
 	defer out.Close()
 
-	zap.S().Debugw("pulling docker image... this could take a bit of time", zap.String("image", d.Server.Container.Image))
+	log.WithField("image", d.Server.Container.Image).Debug("pulling docker image... this could take a bit of time")
 
 	// I'm not sure what the best approach here is, but this will block execution until the image
 	// is done being pulled, which is what we need.
@@ -613,7 +653,7 @@ func (d *DockerEnvironment) Create() error {
 		ExposedPorts: d.exposedPorts(),
 
 		Image: d.Server.Container.Image,
-		Env:   d.environmentVariables(),
+		Env:   d.Server.GetEnvironmentVariables(),
 
 		Labels: map[string]string{
 			"Service":       "Pterodactyl",
@@ -774,36 +814,6 @@ func (d *DockerEnvironment) parseLogToStrings(b []byte) ([]string, error) {
 	}
 
 	return out, nil
-}
-
-// Returns the environment variables for a server in KEY="VALUE" form.
-func (d *DockerEnvironment) environmentVariables() []string {
-	zone, _ := time.Now().In(time.Local).Zone()
-
-	var out = []string{
-		fmt.Sprintf("TZ=%s", zone),
-		fmt.Sprintf("STARTUP=%s", d.Server.Invocation),
-		fmt.Sprintf("SERVER_MEMORY=%d", d.Server.Build.MemoryLimit),
-		fmt.Sprintf("SERVER_IP=%s", d.Server.Allocations.DefaultMapping.Ip),
-		fmt.Sprintf("SERVER_PORT=%d", d.Server.Allocations.DefaultMapping.Port),
-	}
-
-eloop:
-	for k, v := range d.Server.EnvVars {
-		for _, e := range out {
-			if strings.HasPrefix(e, strings.ToUpper(k)) {
-				continue eloop
-			}
-		}
-
-		out = append(out, fmt.Sprintf("%s=%s", strings.ToUpper(k), v))
-	}
-
-	return out
-}
-
-func (d *DockerEnvironment) volumes() map[string]struct{} {
-	return nil
 }
 
 // Converts the server allocation mappings into a format that can be understood

@@ -2,10 +2,10 @@ package router
 
 import (
 	"bytes"
+	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/server"
-	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"strconv"
@@ -46,7 +46,10 @@ func postServerPower(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
 	var data server.PowerAction
-	c.BindJSON(&data)
+	// BindJSON sends 400 if the request fails, all we need to do is return
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
 
 	if !data.IsValid() {
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
@@ -71,15 +74,12 @@ func postServerPower(c *gin.Context) {
 	// Pass the actual heavy processing off to a seperate thread to handle so that
 	// we can immediately return a response from the server. Some of these actions
 	// can take quite some time, especially stopping or restarting.
-	go func() {
-		if err := s.HandlePowerAction(data); err != nil {
-			zap.S().Errorw(
-				"encountered an error processing a server power action",
-				zap.String("server", s.Uuid),
-				zap.Error(err),
-			)
+	go func(server *server.Server) {
+		if err := server.HandlePowerAction(data); err != nil {
+			server.Log().WithFields(log.Fields{"action": data, "error": err}).
+				Error("encountered error processing a server power action in the background")
 		}
-	}()
+	}(s)
 
 	c.Status(http.StatusAccepted)
 }
@@ -98,17 +98,17 @@ func postServerCommands(c *gin.Context) {
 		return
 	}
 
-	var data struct{ Commands []string `json:"commands"` }
-	c.BindJSON(&data)
+	var data struct {
+		Commands []string `json:"commands"`
+	}
+	// BindJSON sends 400 if the request fails, all we need to do is return
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
 
 	for _, command := range data.Commands {
 		if err := s.Environment.SendCommand(command); err != nil {
-			zap.S().Warnw(
-				"failed to send command to server",
-				zap.String("server", s.Uuid),
-				zap.String("command", command),
-				zap.Error(err),
-			)
+			s.Log().WithFields(log.Fields{"command": command, "error": err}).Warn("failed to send command to server instance")
 		}
 	}
 
@@ -135,12 +135,8 @@ func postServerInstall(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
 	go func(serv *server.Server) {
-		if err := serv.Install(); err != nil {
-			zap.S().Errorw(
-				"failed to execute server installation process",
-				zap.String("server", serv.Uuid),
-				zap.Error(err),
-			)
+		if err := serv.Install(true); err != nil {
+			serv.Log().WithField("error", err).Error("failed to execute server installation process")
 		}
 	}(s)
 
@@ -153,11 +149,7 @@ func postServerReinstall(c *gin.Context) {
 
 	go func(serv *server.Server) {
 		if err := serv.Reinstall(); err != nil {
-			zap.S().Errorw(
-				"failed to complete server reinstall process",
-				zap.String("server", serv.Uuid),
-				zap.Error(err),
-			)
+			serv.Log().WithField("error", err).Error("failed to complete server re-install process")
 		}
 	}(s)
 
@@ -172,10 +164,15 @@ func deleteServer(c *gin.Context) {
 	// to start it while this process is running.
 	s.Suspended = true
 
+	// If the server is currently installing, abort it.
+	if s.IsInstalling() {
+		s.AbortInstallation()
+	}
+
 	// Delete the server's archive if it exists. We intentionally don't return
 	// here, if the archive fails to delete, the server can still be removed.
 	if err := s.Archiver.DeleteIfExists(); err != nil {
-		zap.S().Warnw("failed to delete server archive during deletion process", zap.String("server", s.Uuid), zap.Error(err))
+		s.Log().WithField("error", err).Warn("failed to delete server archive during deletion process")
 	}
 
 	// Unsubscribe all of the event listeners.
@@ -196,7 +193,10 @@ func deleteServer(c *gin.Context) {
 	// so we don't want to block the HTTP call while waiting on this.
 	go func(p string) {
 		if err := os.RemoveAll(p); err != nil {
-			zap.S().Warnw("failed to remove server files during deletion process", zap.String("path", p), zap.Error(errors.WithStack(err)))
+			log.WithFields(log.Fields{
+				"path": p,
+				"error": errors.WithStack(err),
+			}).Warn("failed to remove server files during deletion process")
 		}
 	}(s.Filesystem.Path())
 

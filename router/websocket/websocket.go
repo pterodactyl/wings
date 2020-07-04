@@ -1,7 +1,9 @@
 package websocket
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/gbrlsnchs/jwt/v3"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -9,7 +11,6 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
-	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"strings"
@@ -84,7 +85,6 @@ func (h *Handler) SendJson(v *Message) error {
 		// If we're sending installation output but the user does not have the required
 		// permissions to see the output, don't send it down the line.
 		if v.Event == server.InstallOutputEvent {
-			zap.S().Debugf("%+v", v.Args)
 			if !j.HasPermission(PermissionReceiveInstall) {
 				return nil
 			}
@@ -137,10 +137,7 @@ func (h *Handler) TokenValid() error {
 // Sends an error back to the connected websocket instance by checking the permissions
 // of the token. If the user has the "receive-errors" grant we will send back the actual
 // error message, otherwise we just send back a standard error message.
-func (h *Handler) SendErrorJson(err error) error {
-	h.Lock()
-	defer h.Unlock()
-
+func (h *Handler) SendErrorJson(msg Message, err error) error {
 	j := h.GetJwt()
 
 	message := "an unexpected error was encountered while handling this request"
@@ -154,15 +151,11 @@ func (h *Handler) SendErrorJson(err error) error {
 	wsm.Args = []string{m}
 
 	if !server.IsSuspendedError(err) {
-		zap.S().Errorw(
-			"an error was encountered in the websocket process",
-			zap.String("server", h.server.Uuid),
-			zap.String("error_identifier", u.String()),
-			zap.Error(err),
-		)
+		h.server.Log().WithFields(log.Fields{"event": msg.Event, "error_identifier": u.String(), "error": err}).
+			Error("failed to handle websocket process; an error was encountered processing an event")
 	}
 
-	return h.Connection.WriteJSON(wsm)
+	return h.unsafeSendJson(wsm)
 }
 
 // Converts an error message into a more readable representation and returns a UUID
@@ -193,7 +186,7 @@ func (h *Handler) GetJwt() *tokens.WebsocketPayload {
 func (h *Handler) HandleInbound(m Message) error {
 	if m.Event != AuthenticationEvent {
 		if err := h.TokenValid(); err != nil {
-			zap.S().Debugw("jwt token is no longer valid", zap.String("message", err.Error()))
+			log.WithField("message", err.Error()).Debug("jwt for server websocket is no longer valid")
 
 			h.unsafeSendJson(Message{
 				Event: ErrorEvent,
@@ -219,18 +212,56 @@ func (h *Handler) HandleInbound(m Message) error {
 				return err
 			}
 
-			if token.HasPermission(PermissionConnect) {
-				h.setJwt(token)
-			}
+			// Check if the user has previously authenticated successfully.
+			newConnection := h.GetJwt() == nil
 
-			// On every authentication event, send the current server status back
-			// to the client. :)
-			h.server.Events().Publish(server.StatusEvent, h.server.GetState())
+			// Previously there was a HasPermission(PermissionConnect) check around this,
+			// however NewTokenPayload will return an error if it doesn't have the connect
+			// permission meaning that it was a redundant function call.
+			h.setJwt(token)
 
+			// Tell the client they authenticated successfully.
 			h.unsafeSendJson(Message{
 				Event: AuthenticationSuccessEvent,
 				Args:  []string{},
 			})
+
+			// Check if the client was refreshing their authentication token
+			// instead of authenticating for the first time.
+			if !newConnection {
+				// This prevents duplicate status messages as outlined in
+				// https://github.com/pterodactyl/panel/issues/2077
+				return nil
+			}
+
+			// On every authentication event, send the current server status back
+			// to the client. :)
+			state := h.server.GetState()
+			h.SendJson(&Message{
+				Event: server.StatusEvent,
+				Args:  []string{state},
+			})
+
+			// Only send the current disk usage if the server is offline, if docker container is running,
+			// Environment#EnableResourcePolling() will send this data to all clients.
+			if state == server.ProcessOfflineState {
+				_ = h.server.Filesystem.HasSpaceAvailable()
+
+				resources := server.ResourceUsage{
+					Memory:      0,
+					MemoryLimit: 0,
+					CpuAbsolute: 0.0,
+					Disk:        h.server.Resources.Disk,
+				}
+				resources.Network.RxBytes = 0
+				resources.Network.TxBytes = 0
+
+				b, _ := json.Marshal(resources)
+				h.SendJson(&Message{
+					Event: server.StatsEvent,
+					Args:  []string{string(b)},
+				})
+			}
 
 			return nil
 		}

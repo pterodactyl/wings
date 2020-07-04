@@ -8,3 +8,5 @@ cross-build: clean build compress
 
 clean:
 	rm -rf build/wings_*
+
+.PHONY: all build compress clean

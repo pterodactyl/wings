@@ -3,10 +3,10 @@ package backup
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"github.com/apex/log"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
-	"go.uber.org/zap"
 	"io"
 	"os"
 	"path"
@@ -121,7 +121,10 @@ func (b *Backup) Details() *ArchiveDetails {
 
 		resp, err := b.Checksum()
 		if err != nil {
-			zap.S().Errorw("failed to calculate checksum for backup", zap.String("backup", b.Uuid), zap.Error(err))
+			log.WithFields(log.Fields{
+				"backup": b.Identifier(),
+				"error": err,
+			}).Error("failed to calculate checksum for backup")
 		}
 
 		checksum = hex.EncodeToString(resp)

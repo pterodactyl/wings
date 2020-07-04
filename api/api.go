@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
-	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -58,13 +58,11 @@ func (r *PanelRequest) logDebug(req *http.Request) {
 		headers[k] = []string{v[0][0:15] + "(redacted)"}
 	}
 
-
-	zap.S().Debugw(
-		"making request to external HTTP endpoint",
-		zap.String("method", req.Method),
-		zap.String("endpoint", req.URL.String()),
-		zap.Any("headers", headers),
-	)
+	log.WithFields(log.Fields{
+		"method": req.Method,
+		"endpoint": req.URL.String(),
+		"headers": headers,
+	}).Debug("making request to external HTTP endpoint")
 }
 
 func (r *PanelRequest) Get(url string) (*http.Response, error) {
@@ -132,6 +130,12 @@ func (r *PanelRequest) HttpResponseCode() int {
 	return r.Response.StatusCode
 }
 
+func IsRequestError(err error) bool {
+	_, ok := err.(*RequestError)
+
+	return ok
+}
+
 type RequestError struct {
 	Code   string `json:"code"`
 	Status string `json:"status"`
@@ -139,8 +143,12 @@ type RequestError struct {
 }
 
 // Returns the error response in a string form that can be more easily consumed.
-func (re *RequestError) String() string {
+func (re *RequestError) Error() string {
 	return fmt.Sprintf("%s: %s (HTTP/%s)", re.Code, re.Detail, re.Status)
+}
+
+func (re *RequestError) String() string {
+	return re.Error()
 }
 
 type RequestErrorBag struct {

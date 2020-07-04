@@ -3,10 +3,10 @@ package config
 import (
 	"errors"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/cobaugh/osrelease"
 	"github.com/creasty/defaults"
 	"github.com/gbrlsnchs/jwt/v3"
-	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -84,9 +84,6 @@ type Configuration struct {
 
 // Defines the configuration of the internal SFTP server.
 type SftpConfiguration struct {
-	// If set to false, the internal SFTP server will not be booted and you will need
-	// to run the SFTP server independent of this program.
-	UseInternalSystem bool `default:"true" json:"use_internal" yaml:"use_internal"`
 	// If set to true disk checking will not be performed. This will prevent the SFTP
 	// server from checking the total size of a directory when uploading files.
 	DisableDiskChecking bool `default:"false" yaml:"disable_disk_checking"`
@@ -135,7 +132,7 @@ func ReadConfiguration(path string) (*Configuration, error) {
 	}
 
 	// Track the location where we created this configuration.
-	c.path = path
+	c.unsafeSetPath(path)
 
 	// Replace environment variables within the configuration file with their
 	// values from the host system.
@@ -189,8 +186,32 @@ func GetJwtAlgorithm() *jwt.HMACSHA {
 	return _jwtAlgo
 }
 
+// Create a new struct and set the path where it should be stored.
+func NewFromPath(path string) (*Configuration, error) {
+	c := new(Configuration)
+	if err := defaults.Set(c); err != nil {
+		return c, err
+	}
+
+	c.unsafeSetPath(path)
+
+	return c, nil
+}
+
+// Sets the path where the configuration file is located on the server. This function should
+// not be called except by processes that are generating the configuration such as the configration
+// command shipped with this software.
+func (c *Configuration) unsafeSetPath(path string) {
+	c.Lock()
+	c.path = path
+	c.Unlock()
+}
+
 // Returns the path for this configuration file.
 func (c *Configuration) GetPath() string {
+	c.RLock()
+	defer c.RUnlock()
+
 	return c.path
 }
 
@@ -248,11 +269,10 @@ func (c *Configuration) setSystemUser(u *user.User) error {
 	gid, _ := strconv.Atoi(u.Gid)
 
 	c.Lock()
-	defer c.Unlock()
-
 	c.System.Username = u.Username
 	c.System.User.Uid = uid
 	c.System.User.Gid = gid
+	c.Unlock()
 
 	return c.WriteToDisk()
 }
@@ -299,7 +319,7 @@ func (c *Configuration) EnsureFilePermissions() error {
 			gid, _ := strconv.Atoi(su.Gid)
 
 			if err := os.Chown(path.Join(c.System.Data, f.Name()), uid, gid); err != nil {
-				zap.S().Warnw("failed to chown server directory", zap.String("directory", f.Name()), zap.Error(err))
+				log.WithField("error", err).WithField("directory", f.Name()).Warn("failed to chown server directory")
 			}
 		}(file)
 	}
@@ -313,6 +333,10 @@ func (c *Configuration) EnsureFilePermissions() error {
 // lock on the file. This prevents something else from writing at the exact same time and
 // leading to bad data conditions.
 func (c *Configuration) WriteToDisk() error {
+	// Obtain an exclusive write against the configuration file.
+	c.writeLock.Lock()
+	defer c.writeLock.Unlock()
+
 	ccopy := *c
 	// If debugging is set with the flag, don't save that to the configuration file, otherwise
 	// you'll always end up in debug mode.
@@ -328,10 +352,6 @@ func (c *Configuration) WriteToDisk() error {
 	if err != nil {
 		return err
 	}
-
-	// Obtain an exclusive write against the configuration file.
-	c.writeLock.Lock()
-	defer c.writeLock.Unlock()
 
 	if err := ioutil.WriteFile(c.GetPath(), b, 0644); err != nil {
 		return err
