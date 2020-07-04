@@ -80,6 +80,9 @@ type Configuration struct {
 	// The location where the panel is running that this daemon should connect to
 	// to collect data and send events.
 	PanelLocation string `json:"remote" yaml:"remote"`
+
+	// AllowedMounts .
+	AllowedMounts []string `json:"allowed_mounts" yaml:"allowed_mounts"`
 }
 
 // Defines the configuration of the internal SFTP server.

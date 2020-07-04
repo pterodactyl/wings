@@ -122,7 +122,7 @@ func (d *DockerEnvironment) InSituUpdate() error {
 		return errors.WithStack(err)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second * 10)
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
 	u := container.UpdateConfig{
 		Resources: d.getResourcesForServer(),
 	}
@@ -254,7 +254,7 @@ func (d *DockerEnvironment) Start() error {
 		return errors.WithStack(err)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second * 10)
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
 	if err := d.Client.ContainerStart(ctx, d.Server.Uuid, types.ContainerStartOptions{}); err != nil {
 		return errors.WithStack(err)
 	}
@@ -671,13 +671,25 @@ func (d *DockerEnvironment) Create() error {
 	}
 
 	for _, m := range d.Server.Mounts {
-		mounts = append(mounts, mount.Mount{
-			Type: mount.TypeBind,
+		for _, allowed := range config.Get().AllowedMounts {
+			if !strings.HasPrefix(m.Source, allowed) {
+				continue
+			}
 
-			Source:   m.Source,
-			Target:   m.Target,
-			ReadOnly: m.ReadOnly,
-		})
+			log.WithFields(log.Fields{
+				"server":    d.Server.Uuid,
+				"source":    m.Source,
+				"target":    m.Target,
+				"read_only": m.ReadOnly,
+			}).Debug("attaching mount to server's container")
+			mounts = append(mounts, mount.Mount{
+				Type: mount.TypeBind,
+
+				Source:   m.Source,
+				Target:   m.Target,
+				ReadOnly: m.ReadOnly,
+			})
+		}
 	}
 
 	hostConf := &container.HostConfig{
