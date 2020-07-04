@@ -679,17 +679,19 @@ func (d *DockerEnvironment) Create() error {
 				continue
 			}
 
+			target := filepath.Clean(m.Target)
+
 			log.WithFields(log.Fields{
 				"server":    d.Server.Uuid,
-				"source":    m.Source,
-				"target":    m.Target,
+				"source":    source,
+				"target":    target,
 				"read_only": m.ReadOnly,
 			}).Debug("attaching mount to server's container")
 			mounts = append(mounts, mount.Mount{
 				Type: mount.TypeBind,
 
 				Source:   source,
-				Target:   filepath.Clean(m.Target),
+				Target:   target,
 				ReadOnly: m.ReadOnly,
 			})
 		}
