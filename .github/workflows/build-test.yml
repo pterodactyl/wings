@@ -22,9 +22,9 @@ jobs:
       - name: Test
         run: go test ./...
       
-      - name: Compress binary
+      - name: Compress binary and make it executable
         if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
-        run: upx build/wings_linux_amd64
+        run: upx build/wings_linux_amd64 && chmod +x build/wings_linux_amd64
       
       - uses: actions/upload-artifact@v2
         if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
