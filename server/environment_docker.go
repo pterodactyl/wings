@@ -94,9 +94,7 @@ func (d *DockerEnvironment) Exists() (bool, error) {
 //
 // @see docker/client/errors.go
 func (d *DockerEnvironment) IsRunning() (bool, error) {
-	ctx := context.Background()
-
-	c, err := d.Client.ContainerInspect(ctx, d.Server.Uuid)
+	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
 	if err != nil {
 		return false, err
 	}
@@ -122,12 +120,14 @@ func (d *DockerEnvironment) InSituUpdate() error {
 		return errors.WithStack(err)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second * 10)
 	u := container.UpdateConfig{
 		Resources: d.getResourcesForServer(),
 	}
 
 	d.Server.Log().WithField("limits", fmt.Sprintf("%+v", u.Resources)).Debug("updating server container on-the-fly with passed limits")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 	if _, err := d.Client.ContainerUpdate(ctx, d.Server.Uuid, u); err != nil {
 		return errors.WithStack(err)
 	}
@@ -254,7 +254,8 @@ func (d *DockerEnvironment) Start() error {
 		return errors.WithStack(err)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second * 10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 	if err := d.Client.ContainerStart(ctx, d.Server.Uuid, types.ContainerStartOptions{}); err != nil {
 		return errors.WithStack(err)
 	}
@@ -323,9 +324,7 @@ func (d *DockerEnvironment) WaitForStop(seconds int, terminate bool) error {
 
 // Forcefully terminates the container using the signal passed through.
 func (d *DockerEnvironment) Terminate(signal os.Signal) error {
-	ctx := context.Background()
-
-	c, err := d.Client.ContainerInspect(ctx, d.Server.Uuid)
+	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -337,19 +336,17 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 	d.Server.SetState(ProcessStoppingState)
 
 	return d.Client.ContainerKill(
-		ctx, d.Server.Uuid, strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed"),
+		context.Background(), d.Server.Uuid, strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed"),
 	)
 }
 
 // Remove the Docker container from the machine. If the container is currently running
 // it will be forcibly stopped by Docker.
 func (d *DockerEnvironment) Destroy() error {
-	ctx := context.Background()
-
 	// Avoid crash detection firing off.
 	d.Server.SetState(ProcessStoppingState)
 
-	err := d.Client.ContainerRemove(ctx, d.Server.Uuid, types.ContainerRemoveOptions{
+	err := d.Client.ContainerRemove(context.Background(), d.Server.Uuid, types.ContainerRemoveOptions{
 		RemoveVolumes: true,
 		RemoveLinks:   false,
 		Force:         true,
@@ -403,10 +400,8 @@ func (d *DockerEnvironment) Attach() error {
 		return errors.WithStack(err)
 	}
 
-	ctx := context.Background()
-
 	var err error
-	d.stream, err = d.Client.ContainerAttach(ctx, d.Server.Uuid, types.ContainerAttachOptions{
+	d.stream, err = d.Client.ContainerAttach(context.Background(), d.Server.Uuid, types.ContainerAttachOptions{
 		Stdin:  true,
 		Stdout: true,
 		Stderr: true,
@@ -453,7 +448,6 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 		return errors.New(fmt.Sprintf("no such container: %s", d.Server.Uuid))
 	}
 
-	ctx := context.Background()
 	opts := types.ContainerLogsOptions{
 		ShowStderr: true,
 		ShowStdout: true,
@@ -461,7 +455,7 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 		Since:      time.Now().Format(time.RFC3339),
 	}
 
-	reader, err := d.Client.ContainerLogs(ctx, d.Server.Uuid, opts)
+	reader, err := d.Client.ContainerLogs(context.Background(), d.Server.Uuid, opts)
 
 	go func(r io.ReadCloser) {
 		defer r.Close()
@@ -487,9 +481,7 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 		return errors.New("cannot enable resource polling on a server that is not running")
 	}
 
-	ctx := context.Background()
-
-	stats, err := d.Client.ContainerStats(ctx, d.Server.Uuid, true)
+	stats, err := d.Client.ContainerStats(context.Background(), d.Server.Uuid, true)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -563,15 +555,16 @@ func (d *DockerEnvironment) DisableResourcePolling() error {
 // correctly if anything.
 //
 // @todo handle authorization & local images
-func (d *DockerEnvironment) ensureImageExists(c *client.Client) error {
+func (d *DockerEnvironment) ensureImageExists() error {
 	// Give it up to 15 minutes to pull the image. I think this should cover 99.8% of cases where an
 	// image pull might fail. I can't imagine it will ever take more than 15 minutes to fully pull
 	// an image. Let me know when I am inevitably wrong here...
-	ctx, _ := context.WithTimeout(context.Background(), time.Minute*15)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*15)
+	defer cancel()
 
-	out, err := c.ImagePull(ctx, d.Server.Container.Image, types.ImagePullOptions{All: false})
+	out, err := d.Client.ImagePull(ctx, d.Server.Container.Image, types.ImagePullOptions{All: false})
 	if err != nil {
-		images, ierr := c.ImageList(ctx, types.ImageListOptions{})
+		images, ierr := d.Client.ImageList(ctx, types.ImageListOptions{})
 		if ierr != nil {
 			// Well damn, something has gone really wrong here, just go ahead and abort there
 			// isn't much anything we can do to try and self-recover from this.
@@ -580,16 +573,18 @@ func (d *DockerEnvironment) ensureImageExists(c *client.Client) error {
 
 		for _, img := range images {
 			for _, t := range img.RepoTags {
-				if t == d.Server.Container.Image {
-					d.Server.Log().WithFields(log.Fields{
-						"image": d.Server.Container.Image,
-						"error": errors.New(err.Error()),
-					}).Warn("unable to pull requested image from remote source, however the image exists locally")
-
-					// Okay, we found a matching container image, in that case just go ahead and return
-					// from this function, since there is nothing else we need to do here.
-					return nil
+				if t != d.Server.Container.Image {
+					continue
 				}
+
+				d.Server.Log().WithFields(log.Fields{
+					"image": d.Server.Container.Image,
+					"error": errors.New(err.Error()),
+				}).Warn("unable to pull requested image from remote source, however the image exists locally")
+
+				// Okay, we found a matching container image, in that case just go ahead and return
+				// from this function, since there is nothing else we need to do here.
+				return nil
 			}
 		}
 
@@ -616,12 +611,6 @@ func (d *DockerEnvironment) ensureImageExists(c *client.Client) error {
 // Creates a new container for the server using all of the data that is currently
 // available for it. If the container already exists it will be returned.
 func (d *DockerEnvironment) Create() error {
-	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
 	// Ensure the data directory exists before getting too far through this process.
 	if err := d.Server.Filesystem.EnsureDataDirectory(); err != nil {
 		return errors.WithStack(err)
@@ -630,19 +619,20 @@ func (d *DockerEnvironment) Create() error {
 	// If the container already exists don't hit the user with an error, just return
 	// the current information about it which is what we would do when creating the
 	// container anyways.
-	if _, err := cli.ContainerInspect(ctx, d.Server.Uuid); err == nil {
+	if _, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid); err == nil {
 		return nil
 	} else if !client.IsErrNotFound(err) {
 		return errors.WithStack(err)
 	}
 
 	// Try to pull the requested image before creating the container.
-	if err := d.ensureImageExists(cli); err != nil {
+	if err := d.ensureImageExists(); err != nil {
 		return errors.WithStack(err)
 	}
 
 	conf := &container.Config{
-		Hostname:     "container",
+		Hostname:     d.Server.Uuid,
+		Domainname:   config.Get().Docker.Domainname,
 		User:         strconv.Itoa(config.Get().System.User.Uid),
 		AttachStdin:  true,
 		AttachStdout: true,
@@ -708,7 +698,7 @@ func (d *DockerEnvironment) Create() error {
 		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
 	}
 
-	if _, err := cli.ContainerCreate(ctx, conf, hostConf, nil, d.Server.Uuid); err != nil {
+	if _, err := d.Client.ContainerCreate(context.Background(), conf, hostConf, nil, d.Server.Uuid); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -730,9 +720,7 @@ func (d *DockerEnvironment) SendCommand(c string) error {
 // Reads the log file for the server. This does not care if the server is running or not, it will
 // simply try to read the last X bytes of the file and return them.
 func (d *DockerEnvironment) Readlog(len int64) ([]string, error) {
-	ctx := context.Background()
-
-	j, err := d.Client.ContainerInspect(ctx, d.Server.Uuid)
+	j, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
 	if err != nil {
 		return nil, err
 	}
