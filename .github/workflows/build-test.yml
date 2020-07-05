@@ -17,7 +17,7 @@ jobs:
           go-version: '^1.14.2'
       
       - name: Build
-        run: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -ldflags "-X system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_linux_amd64 -v wings.go
+        run: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -ldflags "-X github.com/pterodactyl/wings/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_linux_amd64 -v wings.go
       
       - name: Test
         run: go test ./...
