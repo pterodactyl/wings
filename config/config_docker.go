@@ -39,6 +39,9 @@ type DockerConfiguration struct {
 	// for containers run through the daemon.
 	Network DockerNetworkConfiguration `json:"network" yaml:"network"`
 
+	// Domainname is the Docker domainname for all containers.
+	Domainname string `default:"" json:"domainname" yaml:"domainname"`
+
 	// If true, container images will be updated when a server starts if there
 	// is an update available. If false the daemon will not attempt updates and will
 	// defer to the host system to manage image updates.
