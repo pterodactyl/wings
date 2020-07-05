@@ -22,11 +22,14 @@ require (
 	github.com/beevik/etree v1.1.0
 	github.com/buger/jsonparser v0.0.0-20191204142016-1a29609e0929
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
+	github.com/containerd/containerd v1.3.6 // indirect
 	github.com/containerd/fifo v0.0.0-20190226154929-a9fb20d87448 // indirect
 	github.com/creasty/defaults v1.3.0
+	github.com/docker/cli v17.12.1-ce-rc2+incompatible
 	github.com/docker/distribution v2.7.1+incompatible // indirect
-	github.com/docker/docker v0.0.0-20180422163414-57142e89befe
+	github.com/docker/docker v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
 	github.com/docker/go-connections v0.4.0
+	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.3.3 // indirect
 	github.com/fatih/color v1.9.0
 	github.com/gabriel-vasile/mimetype v0.1.4
@@ -49,6 +52,7 @@ require (
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
+	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect

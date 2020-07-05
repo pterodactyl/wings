@@ -55,6 +55,7 @@ func init() {
 	root.PersistentFlags().StringVar(&tlsHostname, "tls-hostname", "", "required with --auto-tls, the FQDN for the generated SSL certificate")
 
 	root.AddCommand(configureCmd)
+	root.AddCommand(diagnosticsCmd)
 }
 
 // Get the configuration path based on the arguments provided.
