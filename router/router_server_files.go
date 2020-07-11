@@ -2,11 +2,14 @@ package router
 
 import (
 	"bufio"
+	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/server"
+	"golang.org/x/sync/errgroup"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 )
@@ -130,19 +133,44 @@ func postServerCopyFile(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Deletes a server file.
-func postServerDeleteFile(c *gin.Context) {
+// Deletes files from a server.
+func postServerDeleteFiles(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
 	var data struct {
-		Location string `json:"location"`
+		Root  string   `json:"root"`
+		Files []string `json:"files"`
 	}
-	// BindJSON sends 400 if the request fails, all we need to do is return
+
 	if err := c.BindJSON(&data); err != nil {
 		return
 	}
 
-	if err := s.Filesystem.Delete(data.Location); err != nil {
+	if len(data.Files) == 0 {
+		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "No files were specififed for deletion.",
+		})
+		return
+	}
+
+	g, ctx := errgroup.WithContext(context.Background())
+
+	// Loop over the array of files passed in and delete them. If any of the file deletions
+	// fail just abort the process entirely.
+	for _, p := range data.Files {
+		pi := path.Join(data.Root, p)
+
+		g.Go(func() error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				return s.Filesystem.Delete(pi)
+			}
+		})
+	}
+
+	if err := g.Wait(); err != nil {
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}
