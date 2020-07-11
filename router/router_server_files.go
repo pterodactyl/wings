@@ -195,7 +195,7 @@ func postServerCompressFiles(c *gin.Context) {
 
 	var data struct {
 		RootPath string   `json:"root"`
-		Paths    []string `json:"paths"`
+		Files    []string `json:"files"`
 	}
 
 	if err := c.BindJSON(&data); err != nil {
@@ -209,7 +209,7 @@ func postServerCompressFiles(c *gin.Context) {
 		return
 	}
 
-	f, err := s.Filesystem.CompressFiles(data.RootPath, data.Paths)
+	f, err := s.Filesystem.CompressFiles(data.RootPath, data.Files)
 	if err != nil {
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
