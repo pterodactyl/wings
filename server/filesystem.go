@@ -11,6 +11,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server/backup"
 	ignore "github.com/sabhiram/go-gitignore"
+	"golang.org/x/sync/errgroup"
 	"io"
 	"io/ioutil"
 	"os"
@@ -105,6 +106,58 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 	}
 
 	return "", InvalidPathResolution
+}
+
+// Executes the fs.SafePath function in parallel against an array of paths. If any of the calls
+// fails an error will be returned.
+func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
+	var cleaned []string
+
+	for _, ip := range paths {
+		fmt.Println(ip)
+	}
+
+	// Simple locker function to avoid racy appends to the array of cleaned paths.
+	var m = new(sync.Mutex)
+	var push = func(c string) {
+		m.Lock()
+		cleaned = append(cleaned, c)
+		m.Unlock()
+	}
+
+	// Create an error group that we can use to run processes in parallel while retaining
+	// the ability to cancel the entire process immediately should any of it fail.
+	g, ctx := errgroup.WithContext(context.Background())
+
+	// Iterate over all of the paths and generate a cleaned path, if there is an error for any
+	// of the files, abort the process.
+	for _, p := range paths {
+		// Create copy so we can use it within the goroutine correctly.
+		pi := p
+
+		// Recursively call this function to continue digging through the directory tree within
+		// a seperate goroutine. If the context is canceled abort this process.
+		g.Go(func() error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				// If the callback returns true, go ahead and keep walking deeper. This allows
+				// us to programatically continue deeper into directories, or stop digging
+				// if that pathway knows it needs nothing else.
+				if c, err := fs.SafePath(pi); err != nil {
+					return err
+				} else {
+					push(c)
+				}
+
+				return nil
+			}
+		})
+	}
+
+	// Block until all of the routines finish and have returned a value.
+	return cleaned, g.Wait()
 }
 
 // Determines if the directory a file is trying to be added to has enough space available
@@ -587,7 +640,7 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 	if err := w.Walk(cleaned, ctx, func(f os.FileInfo, p string) bool {
 		// Avoid unnecessary parsing if there are no ignored files, nothing will match anyways
 		// so no reason to call the function.
-		if len(ignored) == 0 || !i.MatchesPath(strings.TrimPrefix(p, fs.Path() + "/")) {
+		if len(ignored) == 0 || !i.MatchesPath(strings.TrimPrefix(p, fs.Path()+"/")) {
 			inc.Push(&f, p)
 		}
 
@@ -600,4 +653,71 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 	}
 
 	return inc, nil
+}
+
+// Compresses all of the files matching the given paths in the specififed directory. This function
+// also supports passing nested paths to only compress certain files and folders when working in
+// a larger directory. This effectively creates a local backup, but rather than ignoring specific
+// files and folders, it takes an allow-list of files and folders.
+//
+// All paths are relative to the dir that is passed in as the first argument, and the compressed
+// file will be placed at that location named `archive-{date}.tar.gz`.
+func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, error) {
+	cleanedRootDir, err := fs.SafePath(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Take all of the paths passed in and merge them together with the root directory we've gotten.
+	for i, p := range paths {
+		paths[i] = filepath.Join(cleanedRootDir, p)
+	}
+
+	cleaned, err := fs.ParallelSafePath(paths)
+	if err != nil {
+		return nil, err
+	}
+
+	w := fs.NewWalker()
+	wg := new(sync.WaitGroup)
+
+	inc := new(backup.IncludedFiles)
+	// Iterate over all of the cleaned paths and merge them into a large object of final file
+	// paths to pass into the archiver. As directories are encountered this will drop into them
+	// and look for all of the files.
+	for _, p := range cleaned {
+		wg.Add(1)
+
+		go func(pa string) {
+			defer wg.Done()
+
+			f, err := os.Stat(pa)
+			if err != nil {
+				fs.Server.Log().WithField("error", err).WithField("path", pa).Warn("failed to stat file or directory for compression")
+				return
+			}
+
+			if f.IsDir() {
+				// Recursively drop into directory and get all of the additional files and directories within
+				// it that should be included in this backup.
+				w.Walk(pa, context.Background(), func(info os.FileInfo, s string) bool {
+					if !info.IsDir() {
+						inc.Push(&info, s)
+					}
+
+					return true
+				})
+			} else {
+				inc.Push(&f, pa)
+			}
+		}(p)
+	}
+
+	wg.Wait()
+
+	a := &backup.Archive{TrimPrefix: fs.Path(), Files: inc}
+
+	d := path.Join(cleanedRootDir, fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")))
+
+	return a.Create(d, context.Background())
 }

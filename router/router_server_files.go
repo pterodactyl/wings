@@ -3,6 +3,7 @@ package router
 import (
 	"bufio"
 	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/server"
 	"net/http"
 	"net/url"
 	"os"
@@ -187,4 +188,28 @@ func postServerCreateDirectory(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+func postServerCompressFiles(c *gin.Context) {
+	s := GetServer(c.Param("server"))
+
+	var data struct {
+		RootPath string   `json:"root"`
+		Paths    []string `json:"paths"`
+	}
+
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
+
+	f, err := s.Filesystem.CompressFiles(data.RootPath, data.Paths)
+	if err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+
+	c.JSON(http.StatusOK, &server.Stat{
+		Info:     f,
+		Mimetype: "application/tar+gzip",
+	})
 }

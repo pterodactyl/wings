@@ -21,10 +21,10 @@ type Archive struct {
 }
 
 // Creates an archive at dest with all of the files definied in the included files struct.
-func (a *Archive) Create(dest string, ctx context.Context) error {
+func (a *Archive) Create(dest string, ctx context.Context) (os.FileInfo, error) {
 	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
 
@@ -70,10 +70,12 @@ func (a *Archive) Create(dest string, ctx context.Context) error {
 			log.WithField("location", dest).Warn("failed to delete corrupted backup archive")
 		}
 
-		return err
+		return nil, err
 	}
 
-	return nil
+	st, _ := f.Stat()
+
+	return st, nil
 }
 
 // Adds a single file to the existing tar archive writer.
