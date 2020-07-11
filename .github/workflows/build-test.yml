@@ -1,0 +1,33 @@
+name: "Build & Test"
+
+on:
+  push:
+    branches-ignore:
+      - 'master'
+      - 'release/**'
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '^1.14.2'
+      
+      - name: Build
+        run: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -ldflags "-X github.com/pterodactyl/wings/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_linux_amd64 -v wings.go
+      
+      - name: Test
+        run: go test ./...
+      
+      - name: Compress binary and make it executable
+        if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
+        run: upx build/wings_linux_amd64 && chmod +x build/wings_linux_amd64
+      
+      - uses: actions/upload-artifact@v2
+        if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
+        with:
+          name: wings_linux_amd64
+          path: build/wings_linux_amd64
