@@ -385,6 +385,20 @@ func (fs *Filesystem) Rename(from string, to string) error {
 		return errors.WithStack(err)
 	}
 
+	if f, err := os.Stat(cleanedFrom); err != nil {
+		return errors.WithStack(err)
+	} else {
+		d := cleanedTo
+		if !f.IsDir() {
+			d = strings.TrimSuffix(d, path.Base(cleanedTo))
+		}
+
+		// Ensure that the directory we're moving into exists correctly on the system.
+		if mkerr := os.MkdirAll(d, 0644); mkerr != nil {
+			return errors.WithStack(mkerr)
+		}
+	}
+
 	return os.Rename(cleanedFrom, cleanedTo)
 }
 
