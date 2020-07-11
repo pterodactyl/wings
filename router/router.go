@@ -78,7 +78,7 @@ func Configure() *gin.Engine {
 		{
 			files.GET("/contents", getServerFileContents)
 			files.GET("/list-directory", getServerListDirectory)
-			files.PUT("/rename", putServerRenameFile)
+			files.PUT("/rename", putServerRenameFiles)
 			files.POST("/copy", postServerCopyFile)
 			files.POST("/write", postServerWriteFile)
 			files.POST("/create-directory", postServerCreateDirectory)

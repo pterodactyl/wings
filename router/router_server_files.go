@@ -85,27 +85,49 @@ func getServerListDirectory(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
-// Renames (or moves) a file for a server.
-func putServerRenameFile(c *gin.Context) {
+type renameFile struct {
+	To   string `json:"to"`
+	From string `json:"from"`
+}
+
+// Renames (or moves) files for a server.
+func putServerRenameFiles(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
 	var data struct {
-		RenameFrom string `json:"rename_from"`
-		RenameTo   string `json:"rename_to"`
+		Root  string       `json:"root"`
+		Files []renameFile `json:"files"`
 	}
 	// BindJSON sends 400 if the request fails, all we need to do is return
 	if err := c.BindJSON(&data); err != nil {
 		return
 	}
 
-	if data.RenameFrom == "" || data.RenameTo == "" {
+	if len(data.Files) == 0 {
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "Invalid paths were provided, did you forget to provide both a new and old path?",
+			"error": "No files to move or rename were provided.",
 		})
 		return
 	}
 
-	if err := s.Filesystem.Rename(data.RenameFrom, data.RenameTo); err != nil {
+	g, ctx := errgroup.WithContext(context.Background())
+
+	// Loop over the array of files passed in and perform the move or rename action against each.
+	for _, p := range data.Files {
+		pf := path.Join(data.Root, p.From)
+		pt := path.Join(data.Root, p.To)
+
+		g.Go(func() error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				return s.Filesystem.Rename(pf, pt)
+			}
+		})
+	}
+
+	if err := g.Wait(); err != nil {
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}
