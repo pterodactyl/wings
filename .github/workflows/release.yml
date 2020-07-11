@@ -1,0 +1,88 @@
+name: "Release"
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '^1.14.2'
+      
+      - name: Build
+        env:
+          REF: ${{ github.ref }}
+        run: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -ldflags "-X github.com/pterodactyl/wings/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_linux_amd64 -v wings.go
+      
+      - name: Test
+        run: go test ./...
+      
+      - name: Compress binary and make it executable
+        run: upx build/wings_linux_amd64 && chmod +x build/wings_linux_amd64
+
+      - name: Extract changelog
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          sed -n "/^## ${REF:10}/,/^## /{/^## /b;p}" CHANGELOG.md > ./RELEASE_CHANGELOG
+          echo ::set-output name=version_name::`sed -nr "s/^## (${REF:10} .*)$/\1/p" CHANGELOG.md`
+
+
+      - name: Create checksum and add to changelog
+        run: |
+          SUM=`cd build && sha256sum wings_linux_amd64`
+          echo -e "\n#### SHA256 Checksum\n\n\`\`\`\n$SUM\n\`\`\`\n" >> ./RELEASE_CHANGELOG
+          echo $SUM > checksum.txt
+
+      - name: Create release branch
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          BRANCH=release/${REF:10}
+          git config --local user.email "ci@pterodactyl.io"
+          git config --local user.name "Pterodactyl CI"
+          git checkout -b $BRANCH
+          git push -u origin $BRANCH
+          sed -i "s/	Version = \".*\"/	Version = \"${REF:11}\"/" config/app.php
+          git add config/app.php
+          git commit -m "bump version for release"
+          git push
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ steps.extract_changelog.outputs.version_name }}
+          body_path: ./RELEASE_CHANGELOG
+          draft: true
+          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+      
+      - name: Upload binary
+        id: upload-release-binary 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} 
+          asset_path: build/wings_linux_amd64
+          asset_name: wings_linux_amd64
+          asset_content_type: application/octet-stream
+      
+      - name: Upload checksum
+        id: upload-release-checksum 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} 
+          asset_path: ./checksum.txt
+          asset_name: checksum.txt
+          asset_content_type: text/plain
