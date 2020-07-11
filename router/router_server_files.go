@@ -202,6 +202,13 @@ func postServerCompressFiles(c *gin.Context) {
 		return
 	}
 
+	if !s.Filesystem.HasSpaceAvailable() {
+		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+			"error": "This server does not have enough available disk space to generate a compressed archive.",
+		})
+		return
+	}
+
 	f, err := s.Filesystem.CompressFiles(data.RootPath, data.Paths)
 	if err != nil {
 		TrackedServerError(err, s).AbortWithServerError(c)
