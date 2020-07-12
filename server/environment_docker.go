@@ -18,6 +18,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -256,6 +257,7 @@ func (d *DockerEnvironment) Start() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
+
 	if err := d.Client.ContainerStart(ctx, d.Server.Uuid, types.ContainerStartOptions{}); err != nil {
 		return errors.WithStack(err)
 	}
@@ -651,19 +653,57 @@ func (d *DockerEnvironment) Create() error {
 		},
 	}
 
+	mounts := []mount.Mount{
+		{
+			Target:   "/home/container",
+			Source:   d.Server.Filesystem.Path(),
+			Type:     mount.TypeBind,
+			ReadOnly: false,
+		},
+	}
+
+	var mounted bool
+	for _, m := range d.Server.Mounts {
+		mounted = false
+		source := filepath.Clean(m.Source)
+		target := filepath.Clean(m.Target)
+
+		for _, allowed := range config.Get().AllowedMounts {
+			if !strings.HasPrefix(source, allowed) {
+				continue
+			}
+
+			mounts = append(mounts, mount.Mount{
+				Type: mount.TypeBind,
+
+				Source:   source,
+				Target:   target,
+				ReadOnly: m.ReadOnly,
+			})
+
+			mounted = true
+			break
+		}
+
+		log := log.WithFields(log.Fields{
+			"server":      d.Server.Uuid,
+			"source_path": source,
+			"target_path": target,
+			"read_only":   m.ReadOnly,
+		})
+		if mounted {
+			log.Debug("attaching mount to server's container")
+		} else {
+			log.Warn("skipping mount because it isn't allowed")
+		}
+	}
+
 	hostConf := &container.HostConfig{
 		PortBindings: d.portBindings(),
 
 		// Configure the mounts for this container. First mount the server data directory
 		// into the container as a r/w bind.
-		Mounts: []mount.Mount{
-			{
-				Target:   "/home/container",
-				Source:   d.Server.Filesystem.Path(),
-				Type:     mount.TypeBind,
-				ReadOnly: false,
-			},
-		},
+		Mounts: mounts,
 
 		// Configure the /tmp folder mapping in containers. This is necessary for some
 		// games that need to make use of it for downloads and other installation processes.

@@ -73,6 +73,10 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 		s.Allocations.Mappings = src.Allocations.Mappings
 	}
 
+	if src.Mounts != nil && len(src.Mounts) > 0 {
+		s.Mounts = src.Mounts
+	}
+
 	if background {
 		s.runBackgroundActions()
 	}

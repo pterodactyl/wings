@@ -74,27 +74,29 @@ type Server struct {
 
 	// An array of environment variables that should be passed along to the running
 	// server process.
-	EnvVars EnvironmentVariables `json:"environment" yaml:"environment"`
+	EnvVars EnvironmentVariables `json:"environment"`
 
-	Archiver       Archiver       `json:"-" yaml:"-"`
-	CrashDetection CrashDetection `json:"crash_detection" yaml:"crash_detection"`
-	Build          BuildSettings  `json:"build"`
 	Allocations    Allocations    `json:"allocations"`
-	Environment    Environment    `json:"-" yaml:"-"`
-	Filesystem     Filesystem     `json:"-" yaml:"-"`
-	Resources      ResourceUsage  `json:"resources" yaml:"-"`
+	Build          BuildSettings  `json:"build"`
+	CrashDetection CrashDetection `json:"crash_detection"`
+	Mounts         []Mount        `json:"mounts"`
+	Resources      ResourceUsage  `json:"resources"`
+
+	Archiver    Archiver    `json:"-"`
+	Environment Environment `json:"-"`
+	Filesystem  Filesystem  `json:"-"`
 
 	Container struct {
 		// Defines the Docker image that will be used for this server
 		Image string `json:"image,omitempty"`
 		// If set to true, OOM killer will be disabled on the server's Docker container.
 		// If not present (nil) we will default to disabling it.
-		OomDisabled bool `default:"true" json:"oom_disabled" yaml:"oom_disabled"`
+		OomDisabled bool `default:"true" json:"oom_disabled"`
 	} `json:"container,omitempty"`
 
 	// Server cache used to store frequently requested information in memory and make
 	// certain long operations return faster. For example, FS disk space usage.
-	Cache *cache.Cache `json:"-" yaml:"-"`
+	Cache *cache.Cache `json:"-"`
 
 	// Events emitted by the server instance.
 	emitter *EventBus
@@ -130,25 +132,25 @@ type InstallerDetails struct {
 type BuildSettings struct {
 	// The total amount of memory in megabytes that this server is allowed to
 	// use on the host system.
-	MemoryLimit int64 `json:"memory_limit" yaml:"memory"`
+	MemoryLimit int64 `json:"memory_limit"`
 
 	// The amount of additional swap space to be provided to a container instance.
 	Swap int64 `json:"swap"`
 
 	// The relative weight for IO operations in a container. This is relative to other
 	// containers on the system and should be a value between 10 and 1000.
-	IoWeight uint16 `json:"io_weight" yaml:"io"`
+	IoWeight uint16 `json:"io_weight"`
 
 	// The percentage of CPU that this instance is allowed to consume relative to
 	// the host. A value of 200% represents complete utilization of two cores. This
 	// should be a value between 1 and THREAD_COUNT * 100.
-	CpuLimit int64 `json:"cpu_limit" yaml:"cpu"`
+	CpuLimit int64 `json:"cpu_limit"`
 
 	// The amount of disk space in megabytes that a server is allowed to use.
-	DiskSpace int64 `json:"disk_space" yaml:"disk"`
+	DiskSpace int64 `json:"disk_space"`
 
 	// Sets which CPU threads can be used by the docker instance.
-	Threads string `json:"threads" yaml:"threads"`
+	Threads string `json:"threads"`
 }
 
 // Converts the CPU limit for a server build into a number that can be better understood
@@ -199,7 +201,7 @@ type Allocations struct {
 	DefaultMapping struct {
 		Ip   string `json:"ip"`
 		Port int    `json:"port"`
-	} `json:"default" yaml:"default"`
+	} `json:"default"`
 
 	// Mappings contains all of the ports that should be assigned to a given server
 	// attached to the IP they correspond to.
