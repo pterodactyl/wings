@@ -113,10 +113,6 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 	var cleaned []string
 
-	for _, ip := range paths {
-		fmt.Println(ip)
-	}
-
 	// Simple locker function to avoid racy appends to the array of cleaned paths.
 	var m = new(sync.Mutex)
 	var push = func(c string) {
