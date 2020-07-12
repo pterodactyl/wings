@@ -3,13 +3,18 @@ package router
 import (
 	"bufio"
 	"context"
+	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"golang.org/x/sync/errgroup"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -170,7 +175,7 @@ func postServerDeleteFiles(c *gin.Context) {
 
 	if len(data.Files) == 0 {
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "No files were specififed for deletion.",
+			"error": "No files were specified for deletion.",
 		})
 		return
 	}
@@ -276,4 +281,91 @@ func postServerCompressFiles(c *gin.Context) {
 		Info:     f,
 		Mimetype: "application/tar+gzip",
 	})
+}
+
+func postServerUploadFiles(c *gin.Context) {
+	token := tokens.UploadPayload{}
+	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
+		TrackedError(err).AbortWithServerError(c)
+		return
+	}
+
+	s := GetServer(token.ServerUuid)
+	if s == nil || !token.IsUniqueRequest() {
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+			"error": "The requested resource was not found on this server.",
+		})
+		return
+	}
+
+	if !s.Filesystem.HasSpaceAvailable() {
+		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+			"error": "This server does not have enough available disk space to accept any file uploads.",
+		})
+		return
+	}
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Failed to get multipart form.",
+		})
+		return
+	}
+
+	for i := range form.File {
+		log.Debug(i)
+	}
+
+	headers, ok := form.File["files"]
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusNotModified, gin.H{
+			"error": "No files were attached to the request.",
+		})
+		return
+	}
+
+	// TODO: Make sure directory is safe.
+	directory := c.Query("directory")
+
+	for _, header := range headers {
+		// TODO: Make sure header#Filename is clean.
+		p, err := s.Filesystem.SafePath(filepath.Join(directory, header.Filename))
+		if err != nil {
+			c.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+		log.Debug(p)
+
+		// We run this in a different method so I can use defer without any of
+		// the consequences caused by calling it in a loop.
+		if err := handleFileUpload(p, s, header); err != nil {
+			c.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+	}
+}
+
+func handleFileUpload(p string, s *server.Server, header *multipart.FileHeader) error {
+	_, err := s.Filesystem.Stat(header.Filename)
+	if err == nil {
+		// TODO: Figure out how to better handle this
+
+		// This means the file exists, not 100% sure what to do in this situation, but for now we will skip the file.
+		return nil
+	} else if !os.IsNotExist(err) {
+		return errors.WithStack(err)
+	}
+
+	file, err := header.Open()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer file.Close()
+
+	if err := s.Filesystem.Writefile(p, file); err != nil {
+		return errors.WithStack(err)
+	}
+
+	return nil
 }
