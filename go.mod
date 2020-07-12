@@ -15,10 +15,8 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Jeffail/gabs/v2 v2.2.0
 	github.com/Microsoft/go-winio v0.4.7 // indirect
-	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/apex/log v1.3.0
 	github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a
-	github.com/aws/aws-sdk-go v1.30.14 // indirect
 	github.com/beevik/etree v1.1.0
 	github.com/buger/jsonparser v0.0.0-20191204142016-1a29609e0929
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
@@ -34,13 +32,11 @@ require (
 	github.com/fatih/color v1.9.0
 	github.com/gabriel-vasile/mimetype v0.1.4
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-rc.0
-	github.com/ghodss/yaml v1.0.0
-	github.com/gin-gonic/autotls v0.0.0-20200518075542-45033372a9ad
 	github.com/gin-gonic/gin v1.6.3
 	github.com/golang/protobuf v1.3.5 // indirect
 	github.com/google/uuid v1.1.1
+	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/gorilla/websocket v1.4.0
-	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/iancoleman/strcase v0.0.0-20191112232945-16388991a334
 	github.com/icza/dyno v0.0.0-20200205103839-49cb13720835
 	github.com/imdario/mergo v0.3.8
@@ -50,8 +46,6 @@ require (
 	github.com/mattn/go-shellwords v1.0.10 // indirect
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
@@ -65,8 +59,7 @@ require (
 	github.com/sabhiram/go-gitignore v0.0.0-20180611051255-d3107576ba94
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/spf13/cobra v0.0.7
-	github.com/stretchr/objx v0.2.0 // indirect
-	github.com/yuin/goldmark v1.1.30 // indirect
+	github.com/stretchr/testify v1.5.1 // indirect
 	go.uber.org/zap v1.15.0
 	golang.org/x/crypto v0.0.0-20200429183012-4b2356b1ed79
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
