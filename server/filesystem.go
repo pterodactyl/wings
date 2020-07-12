@@ -162,17 +162,19 @@ func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 // Because determining the amount of space being used by a server is a taxing operation we
 // will load it all up into a cache and pull from that as long as the key is not expired.
 func (fs *Filesystem) HasSpaceAvailable() bool {
-	var space = fs.Server.Build.DiskSpace
-
-	// If space is -1 or 0 just return true, means they're allowed unlimited.
-	if space <= 0 {
-		return true
-	}
+	space := fs.Server.Build.DiskSpace
 
 	// If we have a match in the cache, use that value in the return. No need to perform an expensive
 	// disk operation, even if this is an empty value.
 	if x, exists := fs.Server.Cache.Get("disk_used"); exists {
 		fs.Server.Resources.Disk = x.(int64)
+
+		// This check is here to ensure that true is always returned if the server has unlimited disk space.
+		// See the end of this method for more information (the other `if space <= 0`).
+		if space <= 0 {
+			return true
+		}
+
 		return (x.(int64) / 1000.0 / 1000.0) <= space
 	}
 
@@ -193,6 +195,15 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 	// Determine if their folder size, in bytes, is smaller than the amount of space they've
 	// been allocated.
 	fs.Server.Resources.Disk = size
+
+	// If space is -1 or 0 just return true, means they're allowed unlimited.
+	//
+	// Technically we could skip disk space calculation because we don't need to check if the server exceeds it's limit
+	// but because this method caches the disk usage it would be best to calculate the disk usage and always
+	// return true.
+	if space <= 0 {
+		return true
+	}
 
 	return (size / 1000.0 / 1000.0) <= space
 }
