@@ -677,7 +677,7 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 	return inc, nil
 }
 
-// Compresses all of the files matching the given paths in the specififed directory. This function
+// Compresses all of the files matching the given paths in the specified directory. This function
 // also supports passing nested paths to only compress certain files and folders when working in
 // a larger directory. This effectively creates a local backup, but rather than ignoring specific
 // files and folders, it takes an allow-list of files and folders.
