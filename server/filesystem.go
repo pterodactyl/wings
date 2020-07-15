@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/mholt/archiver/v3"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server/backup"
@@ -741,4 +742,26 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 	d := path.Join(cleanedRootDir, fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")))
 
 	return a.Create(d, context.Background())
+}
+
+// DecompressFile decompresses an archive.
+func (fs *Filesystem) DecompressFile(dir, file string) error {
+	// Clean the directory path where the contents of archive will be extracted to.
+	safeBasePath, err := fs.SafePath(dir)
+	if err != nil {
+		return err
+	}
+
+	// Clean the full path to the archive which will be unarchived.
+	safeArchivePath, err := fs.SafePath(filepath.Join(safeBasePath, file))
+	if err != nil {
+		return err
+	}
+
+	// Decompress the archive using it's extension to determine the algorithm.
+	if err := archiver.Unarchive(safeArchivePath, safeBasePath); err != nil {
+		return err
+	}
+
+	return nil
 }

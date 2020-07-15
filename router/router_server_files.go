@@ -277,3 +277,30 @@ func postServerCompressFiles(c *gin.Context) {
 		Mimetype: "application/tar+gzip",
 	})
 }
+
+func postServerDecompressFiles(c *gin.Context) {
+	s := GetServer(c.Param("server"))
+
+	var data struct {
+		RootPath string `json:"root"`
+		File     string `json:"file"`
+	}
+
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
+
+	if !s.Filesystem.HasSpaceAvailable() {
+		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+			"error": "This server does not have enough available disk space to decompress an archive.",
+		})
+		return
+	}
+
+	if err := s.Filesystem.DecompressFile(data.RootPath, data.File); err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}

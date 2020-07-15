@@ -84,6 +84,7 @@ func Configure() *gin.Engine {
 			files.POST("/create-directory", postServerCreateDirectory)
 			files.POST("/delete", postServerDeleteFiles)
 			files.POST("/compress", postServerCompressFiles)
+			files.POST("/decompress", postServerDecompressFiles)
 		}
 
 		backup := server.Group("/backup")
