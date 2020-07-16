@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/mholt/archiver/v3"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server/backup"
@@ -165,33 +164,10 @@ func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 func (fs *Filesystem) HasSpaceAvailable() bool {
 	space := fs.Server.Build.DiskSpace
 
-	// If we have a match in the cache, use that value in the return. No need to perform an expensive
-	// disk operation, even if this is an empty value.
-	if x, exists := fs.Server.Cache.Get("disk_used"); exists {
-		fs.Server.Resources.Disk = x.(int64)
-
-		// This check is here to ensure that true is always returned if the server has unlimited disk space.
-		// See the end of this method for more information (the other `if space <= 0`).
-		if space <= 0 {
-			return true
-		}
-
-		return (x.(int64) / 1000.0 / 1000.0) <= space
-	}
-
-	// If there is no size its either because there is no data (in which case running this function
-	// will have effectively no impact), or there is nothing in the cache, in which case we need to
-	// grab the size of their data directory. This is a taxing operation, so we want to store it in
-	// the cache once we've gotten it.
-	size, err := fs.DirectorySize("/")
+	size, err := fs.getCachedDiskUsage()
 	if err != nil {
 		fs.Server.Log().WithField("error", err).Warn("failed to determine root server directory size")
 	}
-
-	// Always cache the size, even if there is an error. We want to always return that value
-	// so that we don't cause an endless loop of determining the disk size if there is a temporary
-	// error encountered.
-	fs.Server.Cache.Set("disk_used", size, time.Second*60)
 
 	// Determine if their folder size, in bytes, is smaller than the amount of space they've
 	// been allocated.
@@ -207,6 +183,29 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 	}
 
 	return (size / 1000.0 / 1000.0) <= space
+}
+
+// Internal helper function to allow other parts of the codebase to check the total used disk space
+// as needed without overly taxing the system. This will prioritize the value from the cache to avoid
+// excessive IO usage. We will only walk the filesystem and determine the size of the directory if there
+// is no longer a cached value.
+func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
+	if x, exists := fs.Server.Cache.Get("disk_used"); exists {
+		return x.(int64), nil
+	}
+
+	// If there is no size its either because there is no data (in which case running this function
+	// will have effectively no impact), or there is nothing in the cache, in which case we need to
+	// grab the size of their data directory. This is a taxing operation, so we want to store it in
+	// the cache once we've gotten it.
+	size, err := fs.DirectorySize("/")
+
+	// Always cache the size, even if there is an error. We want to always return that value
+	// so that we don't cause an endless loop of determining the disk size if there is a temporary
+	// error encountered.
+	fs.Server.Cache.Set("disk_used", size, time.Second*60)
+
+	return size, err
 }
 
 // Determines the directory size of a given location by running parallel tasks to iterate
@@ -742,17 +741,4 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 	d := path.Join(cleanedRootDir, fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")))
 
 	return a.Create(d, context.Background())
-}
-
-// Decompress a file in a given directory by using the archiver tool to infer the file
-// type and go from there.
-func (fs *Filesystem) DecompressFile(dir string, file string) error {
-	source, err := fs.SafePath(filepath.Join(dir, file))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	dest := strings.TrimSuffix(source, filepath.Base(source))
-
-	return archiver.Unarchive(source, dest)
 }

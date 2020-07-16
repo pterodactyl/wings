@@ -290,9 +290,15 @@ func postServerDecompressFiles(c *gin.Context) {
 		return
 	}
 
-	if !s.Filesystem.HasSpaceAvailable() {
+	hasSpace, err := s.Filesystem.SpaceAvailableForDecompression(data.RootPath, data.File)
+	if err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+
+	if !hasSpace {
 		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
-			"error": "This server does not have enough available disk space to decompress an archive.",
+			"error": "This server does not have enough available disk space to decompress this archive.",
 		})
 		return
 	}
