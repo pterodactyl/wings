@@ -744,24 +744,15 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 	return a.Create(d, context.Background())
 }
 
-// DecompressFile decompresses an archive.
-func (fs *Filesystem) DecompressFile(dir, file string) error {
-	// Clean the directory path where the contents of archive will be extracted to.
-	safeBasePath, err := fs.SafePath(dir)
+// Decompress a file in a given directory by using the archiver tool to infer the file
+// type and go from there.
+func (fs *Filesystem) DecompressFile(dir string, file string) error {
+	source, err := fs.SafePath(filepath.Join(dir, file))
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
-	// Clean the full path to the archive which will be unarchived.
-	safeArchivePath, err := fs.SafePath(filepath.Join(safeBasePath, file))
-	if err != nil {
-		return err
-	}
+	dest := strings.TrimSuffix(source, filepath.Base(source))
 
-	// Decompress the archive using it's extension to determine the algorithm.
-	if err := archiver.Unarchive(safeArchivePath, safeBasePath); err != nil {
-		return err
-	}
-
-	return nil
+	return archiver.Unarchive(source, dest)
 }
