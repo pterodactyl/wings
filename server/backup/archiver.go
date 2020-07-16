@@ -20,9 +20,9 @@ type Archive struct {
 	Files      *IncludedFiles
 }
 
-// Creates an archive at dest with all of the files definied in the included files struct.
-func (a *Archive) Create(dest string, ctx context.Context) (os.FileInfo, error) {
-	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+// Creates an archive at dst with all of the files defined in the included files struct.
+func (a *Archive) Create(dst string, ctx context.Context) (os.FileInfo, error) {
+	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -66,14 +66,17 @@ func (a *Archive) Create(dest string, ctx context.Context) (os.FileInfo, error) 
 
 		// Attempt to remove the archive if there is an error, report that error to
 		// the logger if it fails.
-		if rerr := os.Remove(dest); rerr != nil && !os.IsNotExist(rerr) {
-			log.WithField("location", dest).Warn("failed to delete corrupted backup archive")
+		if rerr := os.Remove(dst); rerr != nil && !os.IsNotExist(rerr) {
+			log.WithField("location", dst).Warn("failed to delete corrupted backup archive")
 		}
 
 		return nil, err
 	}
 
-	st, _ := f.Stat()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
 
 	return st, nil
 }
@@ -101,7 +104,7 @@ func (a *Archive) addToArchive(p string, s *os.FileInfo, w *tar.Writer) error {
 	a.Lock()
 	defer a.Unlock()
 
-	if err = w.WriteHeader(header); err != nil {
+	if err := w.WriteHeader(header); err != nil {
 		return err
 	}
 
