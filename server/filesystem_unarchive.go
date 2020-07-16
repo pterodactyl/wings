@@ -4,11 +4,9 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
-	"context"
 	"fmt"
 	"github.com/mholt/archiver/v3"
 	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 	"io"
 	"os"
 	"path/filepath"
@@ -75,37 +73,18 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		return errors.WithStack(err)
 	}
 
-	g, ctx := errgroup.WithContext(context.Background())
-
 	// Walk over all of the files spinning up an additional go-routine for each file we've encountered
 	// and then extract that file from the archive and write it to the disk. If any part of this process
 	// encounters an error the entire process will be stopped.
-	archiver.Walk(source, func(f archiver.File) error {
+	return archiver.Walk(source, func(f archiver.File) error {
 		// Don't waste time with directories, we don't need to create them if they have no contents, and
 		// we will ensure the directory exists when opening the file for writing anyways.
 		if f.IsDir() {
 			return nil
 		}
 
-		fi := f
-		g.Go(func() error {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-				return fs.extractFileFromArchive(fi)
-			}
-		})
-
-		return nil
+		return fs.extractFileFromArchive(f)
 	})
-
-	// Wait until everything is done, and then return.
-	if err := g.Wait(); err != nil {
-		return errors.WithStack(err)
-	}
-
-	return nil
 }
 
 // Extracts a single file from the archive and writes it to the disk after verifying that it will end
