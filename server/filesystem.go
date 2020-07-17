@@ -29,10 +29,9 @@ import (
 var InvalidPathResolution = errors.New("invalid path resolution")
 
 type Filesystem struct {
-	// The server object associated with this Filesystem.
 	Server *Server
-
 	Configuration *config.SystemConfiguration
+	cacheDiskMu sync.Mutex
 }
 
 // Returns the root path that contains all of a server's data.
@@ -171,7 +170,9 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 
 	// Determine if their folder size, in bytes, is smaller than the amount of space they've
 	// been allocated.
+	fs.Server.Resources.Lock()
 	fs.Server.Resources.Disk = size
+	fs.Server.Resources.Unlock()
 
 	// If space is -1 or 0 just return true, means they're allowed unlimited.
 	//
@@ -190,6 +191,15 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 // excessive IO usage. We will only walk the filesystem and determine the size of the directory if there
 // is no longer a cached value.
 func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
+	// Obtain an exclusive lock on this process so that we don't unintentionally run it at the same
+	// time as another running process. Once the lock is available it'll read from the cache for the
+	// second call rather than hitting the disk in parallel.
+	//
+	// This effectively the same speed as running this call in parallel since this cache will return
+	// instantly on the second call.
+	fs.cacheDiskMu.Lock()
+	defer fs.cacheDiskMu.Unlock()
+
 	if x, exists := fs.Server.Cache.Get("disk_used"); exists {
 		return x.(int64), nil
 	}

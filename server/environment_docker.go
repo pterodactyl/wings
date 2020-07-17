@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -510,17 +511,19 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 				return
 			}
 
+			s.Resources.Lock()
 			s.Resources.CpuAbsolute = s.Resources.CalculateAbsoluteCpu(&v.PreCPUStats, &v.CPUStats)
 			s.Resources.Memory = s.Resources.CalculateDockerMemory(v.MemoryStats)
 			s.Resources.MemoryLimit = v.MemoryStats.Limit
+			s.Resources.Unlock()
 
 			// Why you ask? This already has the logic for caching disk space in use and then
 			// also handles pushing that value to the resources object automatically.
 			s.Filesystem.HasSpaceAvailable()
 
 			for _, nw := range v.Networks {
-				s.Resources.Network.RxBytes += nw.RxBytes
-				s.Resources.Network.TxBytes += nw.TxBytes
+				atomic.AddUint64(&s.Resources.Network.RxBytes, nw.RxBytes)
+				atomic.AddUint64(&s.Resources.Network.TxBytes, nw.TxBytes)
 			}
 
 			b, _ := json.Marshal(s.Resources)
@@ -539,10 +542,7 @@ func (d *DockerEnvironment) DisableResourcePolling() error {
 
 	err := d.stats.Close()
 
-	d.Server.Resources.CpuAbsolute = 0
-	d.Server.Resources.Memory = 0
-	d.Server.Resources.Network.TxBytes = 0
-	d.Server.Resources.Network.RxBytes = 0
+	d.Server.Resources.Empty()
 
 	return errors.WithStack(err)
 }

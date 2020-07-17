@@ -3,12 +3,15 @@ package server
 import (
 	"github.com/docker/docker/api/types"
 	"math"
+	"sync"
 )
 
 // Defines the current resource usage for a given server instance. If a server is offline you
 // should obviously expect memory and CPU usage to be 0. However, disk will always be returned
 // since that is not dependent on the server being running to collect that data.
 type ResourceUsage struct {
+	sync.RWMutex
+
 	// The total amount of memory, in bytes, that this server instance is consuming. This is
 	// calculated slightly differently than just using the raw Memory field that the stats
 	// return from the container, so please check the code setting this value for how that
@@ -29,6 +32,18 @@ type ResourceUsage struct {
 		RxBytes uint64 `json:"rx_bytes"`
 		TxBytes uint64 `json:"tx_bytes"`
 	} `json:"network"`
+}
+
+// Resets the usages values to zero, used when a server is stopped to ensure we don't hold
+// onto any values incorrectly.
+func (ru *ResourceUsage) Empty() {
+	ru.Lock()
+	defer ru.Unlock()
+
+	ru.Memory = 0
+	ru.CpuAbsolute = 0
+	ru.Network.TxBytes = 0
+	ru.Network.RxBytes = 0
 }
 
 // The "docker stats" CLI call does not return the same value as the types.MemoryStats.Usage
