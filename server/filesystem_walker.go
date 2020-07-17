@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"github.com/gammazero/workerpool"
 	"io/ioutil"
 	"os"
@@ -17,6 +18,10 @@ type PooledFileWalker struct {
 	wg       sync.WaitGroup
 	pool     *workerpool.WorkerPool
 	callback filepath.WalkFunc
+	cancel   context.CancelFunc
+
+	err     error
+	errOnce sync.Once
 
 	Filesystem *Filesystem
 }
@@ -85,7 +90,14 @@ func (w *PooledFileWalker) push(path string) {
 	w.wg.Add(1)
 	w.pool.Submit(func() {
 		defer w.wg.Done()
-		w.process(path)
+		if err := w.process(path); err != nil {
+			w.errOnce.Do(func() {
+				w.err = err
+				if w.cancel != nil {
+					w.cancel()
+				}
+			})
+		}
 	})
 }
 
@@ -95,10 +107,17 @@ func (fs *Filesystem) Walk(dir string, callback filepath.WalkFunc) error {
 	w := newPooledWalker(fs)
 	w.callback = callback
 
+	_, cancel := context.WithCancel(context.Background())
+	w.cancel = cancel
+
 	w.push(dir)
 
 	w.wg.Wait()
 	w.pool.StopWait()
+
+	if w.err != nil {
+		return w.err
+	}
 
 	return nil
 }
