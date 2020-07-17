@@ -1,15 +1,24 @@
 package server
 
 import (
-	"context"
-	"golang.org/x/sync/errgroup"
+	"github.com/gammazero/workerpool"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 )
 
 type FileWalker struct {
 	*Filesystem
+}
+
+type PooledFileWalker struct {
+	wg       sync.WaitGroup
+	pool     *workerpool.WorkerPool
+	callback filepath.WalkFunc
+
+	Filesystem *Filesystem
 }
 
 // Returns a new walker instance.
@@ -17,54 +26,76 @@ func (fs *Filesystem) NewWalker() *FileWalker {
 	return &FileWalker{fs}
 }
 
-// Iterate over all of the files and directories within a given directory. When a file is
-// found the callback will be called with the file information. If a directory is encountered
-// it will be recursively passed back through to this function.
-func (fw *FileWalker) Walk(dir string, ctx context.Context, callback func (os.FileInfo, string) bool) error {
-	cleaned, err := fw.SafePath(dir)
+// Creates a new pooled file walker that will concurrently walk over a given directory but limit itself
+// to a worker pool as to not completely flood out the system or cause a process crash.
+func newPooledWalker(fs *Filesystem) *PooledFileWalker {
+	return &PooledFileWalker{
+		Filesystem: fs,
+		// Create a worker pool that is the same size as the number of processors available on the
+		// system. Going much higher doesn't provide much of a performance boost, and is only more
+		// likely to lead to resource overloading anyways.
+		pool: workerpool.New(runtime.GOMAXPROCS(0)),
+	}
+}
+
+// Process a given path by calling the callback function for all of the files and directories within
+// the path, and then dropping into any directories that we come across.
+func (w *PooledFileWalker) process(path string) error {
+	defer w.wg.Done()
+
+	p, err := w.Filesystem.SafePath(path)
 	if err != nil {
 		return err
 	}
 
-	// Get all of the files from this directory.
-	files, err := ioutil.ReadDir(cleaned)
+	files, err := ioutil.ReadDir(p)
 	if err != nil {
 		return err
 	}
 
-	// Create an error group that we can use to run processes in parallel while retaining
-	// the ability to cancel the entire process immediately should any of it fail.
-	g, ctx := errgroup.WithContext(ctx)
-
+	// Loop over all of the files and directories in the given directory and call the provided
+	// callback function. If we encounter a directory, push that directory onto the worker queue
+	// to be processed.
 	for _, f := range files {
-		if f.IsDir() {
-			fi := f
-			p := filepath.Join(cleaned, f.Name())
-			// Recursively call this function to continue digging through the directory tree within
-			// a seperate goroutine. If the context is canceled abort this process.
-			g.Go(func() error {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				default:
-					// If the callback returns true, go ahead and keep walking deeper. This allows
-					// us to programatically continue deeper into directories, or stop digging
-					// if that pathway knows it needs nothing else.
-					if callback(fi, p) {
-						return fw.Walk(p, ctx, callback)
-					}
+		sp := filepath.Join(p, f.Name())
+		i, err := os.Stat(sp)
 
-					return nil
-				}
-			})
-		} else {
-			// If this isn't a directory, go ahead and pass the file information into the
-			// callback. We don't care about the response since we won't be stepping into
-			// anything from here.
-			callback(f, filepath.Join(cleaned, f.Name()))
+		if err = w.callback(sp, i, err); err != nil {
+			if err == filepath.SkipDir {
+				return nil
+			}
+
+			return err
+		}
+
+		if i.IsDir() {
+			w.push(sp)
 		}
 	}
 
-	// Block until all of the routines finish and have returned a value.
-	return g.Wait()
+	return nil
+}
+
+// Push a new path into the worker pool.
+//
+// @todo probably helps to handle errors.
+func (w *PooledFileWalker) push(path string) {
+	w.wg.Add(1)
+	w.pool.Submit(func() {
+		w.process(path)
+	})
+}
+
+// Walks the given directory and executes the callback function for all of the files and directories
+// that are encountered.
+func (fs *Filesystem) Walk(dir string, callback filepath.WalkFunc) error {
+	w := newPooledWalker(fs)
+	w.callback = callback
+
+	w.push(dir)
+
+	w.wg.Wait()
+	w.pool.StopWait()
+
+	return nil
 }

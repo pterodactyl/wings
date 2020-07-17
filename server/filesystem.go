@@ -29,9 +29,9 @@ import (
 var InvalidPathResolution = errors.New("invalid path resolution")
 
 type Filesystem struct {
-	Server *Server
+	Server        *Server
 	Configuration *config.SystemConfiguration
-	cacheDiskMu sync.Mutex
+	cacheDiskMu   sync.Mutex
 }
 
 // Returns the root path that contains all of a server's data.
@@ -222,17 +222,13 @@ func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
 // through all of the folders. Returns the size in bytes. This can be a fairly taxing operation
 // on locations with tons of files, so it is recommended that you cache the output.
 func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
-	w := fs.NewWalker()
-	ctx := context.Background()
-
 	var size int64
-	err := w.Walk(dir, ctx, func(f os.FileInfo, _ string) bool {
-		// Only increment the size when we're dealing with a file specifically, otherwise
-		// just continue digging deeper until there are no more directories to iterate over.
+	err := fs.Walk(dir, func(_ string, f os.FileInfo, err error) error {
 		if !f.IsDir() {
 			atomic.AddInt64(&size, f.Size())
 		}
-		return true
+
+		return nil
 	})
 
 	return size, err
@@ -657,9 +653,6 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 		return nil, err
 	}
 
-	w := fs.NewWalker()
-	ctx := context.Background()
-
 	i, err := ignore.CompileIgnoreLines(ignored...)
 	if err != nil {
 		return nil, err
@@ -668,7 +661,8 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 	// Walk through all of the files and directories on a server. This callback only returns
 	// files found, and will keep walking deeper and deeper into directories.
 	inc := new(backup.IncludedFiles)
-	if err := w.Walk(cleaned, ctx, func(f os.FileInfo, p string) bool {
+
+	if err := fs.Walk(cleaned, func(p string, f os.FileInfo, err error) error {
 		// Avoid unnecessary parsing if there are no ignored files, nothing will match anyways
 		// so no reason to call the function.
 		if len(ignored) == 0 || !i.MatchesPath(strings.TrimPrefix(p, fs.Path()+"/")) {
@@ -678,7 +672,7 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 		// We can't just abort if the path is technically ignored. It is possible there is a nested
 		// file or folder that should not be excluded, so in this case we need to just keep going
 		// until we get to a final state.
-		return true
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -709,42 +703,33 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 		return nil, err
 	}
 
-	w := fs.NewWalker()
-	wg := new(sync.WaitGroup)
-
 	inc := new(backup.IncludedFiles)
 	// Iterate over all of the cleaned paths and merge them into a large object of final file
 	// paths to pass into the archiver. As directories are encountered this will drop into them
 	// and look for all of the files.
 	for _, p := range cleaned {
-		wg.Add(1)
+		f, err := os.Stat(p)
+		if err != nil {
+			fs.Server.Log().WithField("error", err).WithField("path", p).Debug("failed to stat file or directory for compression")
+			continue
+		}
 
-		go func(pa string) {
-			defer wg.Done()
+		if f.IsDir() {
+			err := fs.Walk(p, func(s string, info os.FileInfo, err error) error {
+				if !info.IsDir() {
+					inc.Push(&info, s)
+				}
 
-			f, err := os.Stat(pa)
+				return nil
+			})
+
 			if err != nil {
-				fs.Server.Log().WithField("error", err).WithField("path", pa).Warn("failed to stat file or directory for compression")
-				return
+				return nil, err
 			}
-
-			if f.IsDir() {
-				// Recursively drop into directory and get all of the additional files and directories within
-				// it that should be included in this backup.
-				w.Walk(pa, context.Background(), func(info os.FileInfo, s string) bool {
-					if !info.IsDir() {
-						inc.Push(&info, s)
-					}
-
-					return true
-				})
-			} else {
-				inc.Push(&f, pa)
-			}
-		}(p)
+		} else {
+			inc.Push(&f, p)
+		}
 	}
-
-	wg.Wait()
 
 	a := &backup.Archive{TrimPrefix: fs.Path(), Files: inc}
 
