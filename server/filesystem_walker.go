@@ -41,8 +41,6 @@ func newPooledWalker(fs *Filesystem) *PooledFileWalker {
 // Process a given path by calling the callback function for all of the files and directories within
 // the path, and then dropping into any directories that we come across.
 func (w *PooledFileWalker) process(path string) error {
-	defer w.wg.Done()
-
 	p, err := w.Filesystem.SafePath(path)
 	if err != nil {
 		return err
@@ -82,6 +80,7 @@ func (w *PooledFileWalker) process(path string) error {
 func (w *PooledFileWalker) push(path string) {
 	w.wg.Add(1)
 	w.pool.Submit(func() {
+		defer w.wg.Done()
 		w.process(path)
 	})
 }
