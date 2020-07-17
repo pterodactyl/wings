@@ -58,25 +58,29 @@ func (w *PooledFileWalker) process(path string) error {
 		sp := filepath.Join(p, f.Name())
 		i, err := os.Stat(sp)
 
-		if err = w.callback(sp, i, err); err != nil {
-			if err == filepath.SkipDir {
-				return nil
-			}
-
+		// Call the user-provided callback for this file or directory. If an error is returned that is
+		// not a SkipDir call, abort the entire process and bubble that error up.
+		if err = w.callback(sp, i, err); err != nil && err != filepath.SkipDir {
 			return err
 		}
 
-		if i.IsDir() {
+		// If this is a directory, and we didn't get a SkipDir error, continue through by pushing another
+		// job to the pool to handle it. If we requested a skip, don't do anything just continue on to the
+		// next item.
+		if i.IsDir() && err != filepath.SkipDir {
 			w.push(sp)
+		} else if !i.IsDir() && err == filepath.SkipDir {
+			// Per the spec for the callback, if we get a SkipDir error but it is returned for an item
+			// that is _not_ a directory, abort the remaining operations on the directory.
+			return nil
 		}
 	}
 
 	return nil
 }
 
-// Push a new path into the worker pool.
-//
-// @todo probably helps to handle errors.
+// Push a new path into the worker pool and increment the waitgroup so that we do not return too
+// early and cause panic's as internal directories attempt to submit to the pool.
 func (w *PooledFileWalker) push(path string) {
 	w.wg.Add(1)
 	w.pool.Submit(func() {
