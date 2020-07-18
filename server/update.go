@@ -33,6 +33,9 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 		return errors.WithStack(err)
 	}
 
+	s.Lock()
+	defer s.Unlock()
+
 	// Don't explode if we're setting CPU limits to 0. Mergo sees that as an empty value
 	// so it won't override the value we've passed through in the API call. However, we can
 	// safely assume that we're passing through valid data structures here. I foresee this

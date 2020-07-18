@@ -127,6 +127,9 @@ func (h *Handler) TokenValid() error {
 		return errors.New("jwt does not have connect permission")
 	}
 
+	h.server.RLock()
+	defer h.server.RUnlock()
+
 	if h.server.Uuid != j.ServerUUID {
 		return errors.New("jwt server uuid mismatch")
 	}
@@ -246,6 +249,9 @@ func (h *Handler) HandleInbound(m Message) error {
 			// Environment#EnableResourcePolling() will send this data to all clients.
 			if state == server.ProcessOfflineState {
 				_ = h.server.Filesystem.HasSpaceAvailable()
+
+				h.server.Resources.RLock()
+				defer h.server.Resources.RUnlock()
 
 				resources := server.ResourceUsage{
 					Memory:      0,
