@@ -63,6 +63,12 @@ func (w *PooledFileWalker) process(path string) error {
 		sp := filepath.Join(p, f.Name())
 		i, err := os.Stat(sp)
 
+		// You might end up getting an error about a file or folder not existing if the given path
+		// if it is an invalid symlink. We can safely just skip over these files I believe.
+		if os.IsNotExist(err) {
+			continue
+		}
+
 		// Call the user-provided callback for this file or directory. If an error is returned that is
 		// not a SkipDir call, abort the entire process and bubble that error up.
 		if err = w.callback(sp, i, err); err != nil && err != filepath.SkipDir {
