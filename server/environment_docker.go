@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
+	"golang.org/x/sync/semaphore"
 	"io"
 	"os"
 	"path/filepath"
@@ -28,6 +29,8 @@ import (
 
 // Defines the base environment for Docker instances running through Wings.
 type DockerEnvironment struct {
+	sync.RWMutex
+
 	Server *Server
 
 	// The Docker client being used for this instance.
@@ -46,7 +49,9 @@ type DockerEnvironment struct {
 	// it out.
 	stats io.ReadCloser
 
-	sync.RWMutex
+	// Locks when we're performing a restart to avoid trying to restart a process that is already
+	// being restarted.
+	restartSem *semaphore.Weighted
 }
 
 // Set if this process is currently attached to the process.
@@ -296,13 +301,83 @@ func (d *DockerEnvironment) Stop() error {
 	}
 
 	d.Server.SetState(ProcessStoppingState)
-	if stop.Type == api.ProcessStopCommand {
+	// Only attempt to send the stop command to the instance if we are actually attached to
+	// the instance. If we are not for some reason, just send the container stop event.
+	if d.IsAttached() && stop.Type == api.ProcessStopCommand {
 		return d.SendCommand(stop.Value)
 	}
 
 	t := time.Second * 10
 
-	return d.Client.ContainerStop(context.Background(), d.Server.Id(), &t)
+	err := d.Client.ContainerStop(context.Background(), d.Server.Id(), &t)
+	if err != nil {
+		// If the container does not exist just mark the process as stopped and return without
+		// an error.
+		if client.IsErrNotFound(err) {
+			d.SetAttached(false)
+			d.Server.SetState(ProcessOfflineState)
+
+			return nil
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+// Try to acquire a lock to restart the server. If one cannot be obtained within 5 seconds return
+// an error to the caller. You should ideally be checking IsRestarting() before calling this function
+// to avoid unnecessary delays since you can respond immediately from that.
+func (d *DockerEnvironment) acquireRestartLock() error {
+	if d.restartSem == nil {
+		d.restartSem = semaphore.NewWeighted(1)
+	}
+
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
+
+	return d.restartSem.Acquire(ctx, 1)
+}
+
+// Restarts the server process by waiting for the process to gracefully stop and then triggering a
+// start command. This will return an error if there is already a restart process executing for the
+// server. The lock is released when the process is stopped and a start has begun.
+func (d *DockerEnvironment) Restart() error {
+	d.Server.Log().Debug("attempting to acquire restart lock...")
+	if err := d.acquireRestartLock(); err != nil {
+		d.Server.Log().Warn("failed to acquire restart lock; already acquired by a different process")
+		return err
+	}
+
+	d.Server.Log().Debug("acquired restart lock")
+
+	err := d.WaitForStop(60, false)
+	if err != nil {
+		d.restartSem.Release(1)
+		return err
+	}
+
+	// Release the restart lock, it is now safe for someone to attempt restarting the server again.
+	d.restartSem.Release(1)
+
+	// Start the process.
+	return d.Start()
+}
+
+// Check if the server is currently running the restart process by checking if there is a semaphore
+// allocated, and if so, if we can aquire a lock on it.
+func (d *DockerEnvironment) IsRestarting() bool {
+	if d.restartSem == nil {
+		return false
+	}
+
+	if d.restartSem.TryAcquire(1) {
+		d.restartSem.Release(1)
+
+		return false
+	}
+
+	return true
 }
 
 // Attempts to gracefully stop a server using the defined stop command. If the server

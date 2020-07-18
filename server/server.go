@@ -411,11 +411,7 @@ func (s *Server) HandlePowerAction(action PowerAction) error {
 	case "start":
 		return s.Environment.Start()
 	case "restart":
-		if err := s.Environment.WaitForStop(60, false); err != nil {
-			return err
-		}
-
-		return s.Environment.Start()
+		return s.Environment.Restart()
 	case "stop":
 		return s.Environment.Stop()
 	case "kill":

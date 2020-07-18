@@ -283,11 +283,14 @@ func (h *Handler) HandleInbound(m Message) error {
 				break
 			case "restart":
 				if h.GetJwt().HasPermission(PermissionSendPowerRestart) {
-					if err := h.server.Environment.WaitForStop(60, false); err != nil {
-						return err
+					// If the server is alreay restarting don't do anything. Perhaps we send back an event
+					// in the future for this? For now no reason to knowingly trigger an error by trying to
+					// restart a process already restarting.
+					if h.server.Environment.IsRestarting() {
+						return nil
 					}
 
-					return h.server.Environment.Start()
+					return h.server.Environment.Restart()
 				}
 				break
 			case "kill":
