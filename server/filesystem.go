@@ -806,10 +806,7 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 // directory, otherwise return nil. Returning this error for a file will stop the walking
 // for the remainder of the directory. This is assuming an os.FileInfo struct was even returned.
 func (fs *Filesystem) handleWalkerError(err error, f os.FileInfo) error {
-	fmt.Println("handling walker error")
 	if !IsPathResolutionError(err) {
-		fmt.Println("not a path res error")
-		fmt.Println(err)
 		return err
 	}
 
