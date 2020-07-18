@@ -60,9 +60,12 @@ func (w *PooledFileWalker) process(path string) error {
 	// callback function. If we encounter a directory, push that directory onto the worker queue
 	// to be processed.
 	for _, f := range files {
-		sp := filepath.Join(p, f.Name())
-		i, err := os.Stat(sp)
+		sp, err := w.Filesystem.SafeJoin(p, f)
+		if err != nil {
+			return err
+		}
 
+		i, err := os.Stat(sp)
 		// You might end up getting an error about a file or folder not existing if the given path
 		// if it is an invalid symlink. We can safely just skip over these files I believe.
 		if os.IsNotExist(err) {

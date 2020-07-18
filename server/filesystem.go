@@ -107,6 +107,27 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 	return "", InvalidPathResolution
 }
 
+// Helper function to keep some of the codebase a little cleaner. Returns a "safe" version of the path
+// joined with a file. This is important because you cannot just assume that appending a file to a cleaned
+// path will result in a cleaned path to that file. For example, imagine you have the following scenario:
+//
+// my_bad_file -> symlink:/etc/passwd
+//
+// cleaned := SafePath("../../etc") -> "/"
+// filepath.Join(cleaned, my_bad_file) -> "/my_bad_file"
+//
+// You might think that "/my_bad_file" is fine since it isn't pointing to the original "../../etc/my_bad_file".
+// However, this doesn't account for symlinks where the file might be pointing outside of the directory, so
+// calling a function such as Chown against it would chown the symlinked location, and not the file within the
+// Wings daemon.
+func (fs *Filesystem) SafeJoin(dir string, f os.FileInfo) (string, error) {
+	if f.Mode()&os.ModeSymlink != 0 {
+		return fs.SafePath(filepath.Join(dir, f.Name()))
+	}
+
+	return filepath.Join(dir, f.Name()), nil
+}
+
 // Executes the fs.SafePath function in parallel against an array of paths. If any of the calls
 // fails an error will be returned.
 func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
@@ -456,16 +477,27 @@ func (fs *Filesystem) chownDirectory(path string) error {
 	}
 
 	for _, f := range files {
+		// Do not attempt to chmod a symlink. Go's os.Chown function will affect the symlink
+		// so if it points to a location outside the data directory the user would be able to
+		// (un)intentionally modify that files permissions.
+		if f.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+
+		p, err := fs.SafeJoin(cleaned, f)
+		if err != nil {
+			return err
+		}
+
 		if f.IsDir() {
 			wg.Add(1)
 
 			go func(p string) {
 				defer wg.Done()
 				fs.chownDirectory(p)
-			}(filepath.Join(cleaned, f.Name()))
+			}(p)
 		} else {
-			// Chown the file.
-			os.Chown(filepath.Join(cleaned, f.Name()), fs.Configuration.User.Uid, fs.Configuration.User.Gid)
+			os.Chown(p, fs.Configuration.User.Uid, fs.Configuration.User.Gid)
 		}
 	}
 
@@ -600,7 +632,14 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 
 			var m = "inode/directory"
 			if !f.IsDir() {
-				m, _, _ = mimetype.DetectFile(filepath.Join(cleaned, f.Name()))
+				cleanedp, _ := fs.SafeJoin(cleaned, f)
+				if cleanedp != "" {
+					m, _, _ = mimetype.DetectFile(filepath.Join(cleaned, f.Name()))
+				} else {
+					// Just pass this for an unknown type because the file could not safely be resolved within
+					// the server data path.
+					m = "application/octet-stream"
+				}
 			}
 
 			out[idx] = &Stat{

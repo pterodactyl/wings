@@ -52,7 +52,12 @@ func (a *Archiver) Archive() error {
 	}
 
 	for _, file := range fileInfo {
-		files = append(files, filepath.Join(path, file.Name()))
+		f, err := a.Server.Filesystem.SafeJoin(path, file)
+		if err != nil {
+			return err
+		}
+
+		files = append(files, f)
 	}
 
 	stat, err := a.Stat()
