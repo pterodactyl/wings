@@ -27,12 +27,14 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 		return errors.New("attempting to merge a data stack with an invalid UUID")
 	}
 
+	s.Lock()
 	// Merge the new data object that we have received with the existing server data object
 	// and then save it to the disk so it is persistent.
 	if err := mergo.Merge(s, src, mergo.WithOverride); err != nil {
 		return errors.WithStack(err)
 	}
 
+	// Mergo makes that previous lock disappear. Handle that by just re-locking the object.
 	s.Lock()
 	defer s.Unlock()
 

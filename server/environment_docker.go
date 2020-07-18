@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -44,6 +45,23 @@ type DockerEnvironment struct {
 	// Holds the stats stream used by the polling commands so that we can easily close
 	// it out.
 	stats io.ReadCloser
+
+	sync.RWMutex
+}
+
+// Set if this process is currently attached to the process.
+func (d *DockerEnvironment) SetAttached(a bool) {
+	d.Lock()
+	d.attached = a
+	d.Unlock()
+}
+
+// Determine if the this process is currently attached to the container.
+func (d *DockerEnvironment) IsAttached() bool {
+	d.RLock()
+	defer d.RUnlock()
+
+	return d.attached
 }
 
 // Creates a new base Docker environment. A server must still be attached to it.
@@ -72,7 +90,7 @@ func (d *DockerEnvironment) Type() string {
 
 // Determines if the container exists in this environment.
 func (d *DockerEnvironment) Exists() (bool, error) {
-	_, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
+	_, err := d.Client.ContainerInspect(context.Background(), d.Server.Id())
 
 	if err != nil {
 		// If this error is because the container instance wasn't found via Docker we
@@ -96,7 +114,7 @@ func (d *DockerEnvironment) Exists() (bool, error) {
 //
 // @see docker/client/errors.go
 func (d *DockerEnvironment) IsRunning() (bool, error) {
-	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
+	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Id())
 	if err != nil {
 		return false, err
 	}
@@ -108,7 +126,7 @@ func (d *DockerEnvironment) IsRunning() (bool, error) {
 // making any changes to the operational state of the container. This allows memory, cpu,
 // and IO limitations to be adjusted on the fly for individual instances.
 func (d *DockerEnvironment) InSituUpdate() error {
-	if _, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid); err != nil {
+	if _, err := d.Client.ContainerInspect(context.Background(), d.Server.Id()); err != nil {
 		// If the container doesn't exist for some reason there really isn't anything
 		// we can do to fix that in this process (it doesn't make sense at least). In those
 		// cases just return without doing anything since we still want to save the configuration
@@ -130,7 +148,7 @@ func (d *DockerEnvironment) InSituUpdate() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	if _, err := d.Client.ContainerUpdate(ctx, d.Server.Uuid, u); err != nil {
+	if _, err := d.Client.ContainerUpdate(ctx, d.Server.Id(), u); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -156,7 +174,7 @@ func (d *DockerEnvironment) OnBeforeStart() error {
 
 	// Always destroy and re-create the server container to ensure that synced data from
 	// the Panel is used.
-	if err := d.Client.ContainerRemove(context.Background(), d.Server.Uuid, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
+	if err := d.Client.ContainerRemove(context.Background(), d.Server.Id(), types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
 		if !client.IsErrNotFound(err) {
 			return err
 		}
@@ -204,7 +222,7 @@ func (d *DockerEnvironment) Start() error {
 		return &suspendedError{}
 	}
 
-	if c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid); err != nil {
+	if c, err := d.Client.ContainerInspect(context.Background(), d.Server.Id()); err != nil {
 		// Do nothing if the container is not found, we just don't want to continue
 		// to the next block of code here. This check was inlined here to guard againt
 		// a nil-pointer when checking c.State below.
@@ -259,7 +277,7 @@ func (d *DockerEnvironment) Start() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	if err := d.Client.ContainerStart(ctx, d.Server.Uuid, types.ContainerStartOptions{}); err != nil {
+	if err := d.Client.ContainerStart(ctx, d.Server.Id(), types.ContainerStartOptions{}); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -272,7 +290,7 @@ func (d *DockerEnvironment) Start() error {
 // Stops the container that the server is running in. This will allow up to 10
 // seconds to pass before a failure occurs.
 func (d *DockerEnvironment) Stop() error {
-	stop := d.Server.processConfiguration.Stop
+	stop := d.Server.ProcessConfiguration().Stop
 	if stop.Type == api.ProcessStopSignal {
 		return d.Terminate(os.Kill)
 	}
@@ -284,7 +302,7 @@ func (d *DockerEnvironment) Stop() error {
 
 	t := time.Second * 10
 
-	return d.Client.ContainerStop(context.Background(), d.Server.Uuid, &t)
+	return d.Client.ContainerStop(context.Background(), d.Server.Id(), &t)
 }
 
 // Attempts to gracefully stop a server using the defined stop command. If the server
@@ -305,7 +323,7 @@ func (d *DockerEnvironment) WaitForStop(seconds int, terminate bool) error {
 	// Block the return of this function until the container as been marked as no
 	// longer running. If this wait does not end by the time seconds have passed,
 	// attempt to terminate the container, or return an error.
-	ok, errChan := d.Client.ContainerWait(ctx, d.Server.Uuid, container.WaitConditionNotRunning)
+	ok, errChan := d.Client.ContainerWait(ctx, d.Server.Id(), container.WaitConditionNotRunning)
 	select {
 	case <-ctx.Done():
 		if ctxErr := ctx.Err(); ctxErr != nil {
@@ -327,7 +345,7 @@ func (d *DockerEnvironment) WaitForStop(seconds int, terminate bool) error {
 
 // Forcefully terminates the container using the signal passed through.
 func (d *DockerEnvironment) Terminate(signal os.Signal) error {
-	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
+	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Id())
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -339,7 +357,7 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 	d.Server.SetState(ProcessStoppingState)
 
 	return d.Client.ContainerKill(
-		context.Background(), d.Server.Uuid, strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed"),
+		context.Background(), d.Server.Id(), strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed"),
 	)
 }
 
@@ -349,7 +367,7 @@ func (d *DockerEnvironment) Destroy() error {
 	// Avoid crash detection firing off.
 	d.Server.SetState(ProcessStoppingState)
 
-	err := d.Client.ContainerRemove(context.Background(), d.Server.Uuid, types.ContainerRemoveOptions{
+	err := d.Client.ContainerRemove(context.Background(), d.Server.Id(), types.ContainerRemoveOptions{
 		RemoveVolumes: true,
 		RemoveLinks:   false,
 		Force:         true,
@@ -369,7 +387,7 @@ func (d *DockerEnvironment) Destroy() error {
 // Determine the container exit state and return the exit code and wether or not
 // the container was killed by the OOM killer.
 func (d *DockerEnvironment) ExitState() (uint32, bool, error) {
-	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
+	c, err := d.Client.ContainerInspect(context.Background(), d.Server.Id())
 	if err != nil {
 		// I'm not entirely sure how this can happen to be honest. I tried deleting a
 		// container _while_ a server was running and wings gracefully saw the crash and
@@ -395,7 +413,7 @@ func (d *DockerEnvironment) ExitState() (uint32, bool, error) {
 // miss important output at the beginning because of the time delay with attaching to the
 // output.
 func (d *DockerEnvironment) Attach() error {
-	if d.attached {
+	if d.IsAttached() {
 		return nil
 	}
 
@@ -404,7 +422,7 @@ func (d *DockerEnvironment) Attach() error {
 	}
 
 	var err error
-	d.stream, err = d.Client.ContainerAttach(context.Background(), d.Server.Uuid, types.ContainerAttachOptions{
+	d.stream, err = d.Client.ContainerAttach(context.Background(), d.Server.Id(), types.ContainerAttachOptions{
 		Stdin:  true,
 		Stdout: true,
 		Stderr: true,
@@ -419,7 +437,7 @@ func (d *DockerEnvironment) Attach() error {
 		Server: d.Server,
 	}
 
-	d.attached = true
+	d.SetAttached(true)
 	go func() {
 		if err := d.EnableResourcePolling(); err != nil {
 			d.Server.Log().WithField("error", errors.WithStack(err)).Warn("failed to enable resource polling on server")
@@ -430,7 +448,7 @@ func (d *DockerEnvironment) Attach() error {
 		defer d.stream.Close()
 		defer func() {
 			d.Server.SetState(ProcessOfflineState)
-			d.attached = false
+			d.SetAttached(false)
 		}()
 
 		io.Copy(console, d.stream.Reader)
@@ -448,7 +466,7 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 			return errors.WithStack(err)
 		}
 
-		return errors.New(fmt.Sprintf("no such container: %s", d.Server.Uuid))
+		return errors.New(fmt.Sprintf("no such container: %s", d.Server.Id()))
 	}
 
 	opts := types.ContainerLogsOptions{
@@ -458,7 +476,7 @@ func (d *DockerEnvironment) FollowConsoleOutput() error {
 		Since:      time.Now().Format(time.RFC3339),
 	}
 
-	reader, err := d.Client.ContainerLogs(context.Background(), d.Server.Uuid, opts)
+	reader, err := d.Client.ContainerLogs(context.Background(), d.Server.Id(), opts)
 
 	go func(r io.ReadCloser) {
 		defer r.Close()
@@ -484,7 +502,7 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 		return errors.New("cannot enable resource polling on a server that is not running")
 	}
 
-	stats, err := d.Client.ContainerStats(context.Background(), d.Server.Uuid, true)
+	stats, err := d.Client.ContainerStats(context.Background(), d.Server.Id(), true)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -621,7 +639,7 @@ func (d *DockerEnvironment) Create() error {
 	// If the container already exists don't hit the user with an error, just return
 	// the current information about it which is what we would do when creating the
 	// container anyways.
-	if _, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid); err == nil {
+	if _, err := d.Client.ContainerInspect(context.Background(), d.Server.Id()); err == nil {
 		return nil
 	} else if !client.IsErrNotFound(err) {
 		return errors.WithStack(err)
@@ -633,7 +651,7 @@ func (d *DockerEnvironment) Create() error {
 	}
 
 	conf := &container.Config{
-		Hostname:     d.Server.Uuid,
+		Hostname:     d.Server.Id(),
 		Domainname:   config.Get().Docker.Domainname,
 		User:         strconv.Itoa(config.Get().System.User.Uid),
 		AttachStdin:  true,
@@ -685,16 +703,17 @@ func (d *DockerEnvironment) Create() error {
 			break
 		}
 
-		log := log.WithFields(log.Fields{
-			"server":      d.Server.Uuid,
+		logger := log.WithFields(log.Fields{
+			"server":      d.Server.Id(),
 			"source_path": source,
 			"target_path": target,
 			"read_only":   m.ReadOnly,
 		})
+
 		if mounted {
-			log.Debug("attaching mount to server's container")
+			logger.Debug("attaching mount to server's container")
 		} else {
-			log.Warn("skipping mount because it isn't allowed")
+			logger.Warn("skipping mount because it isn't allowed")
 		}
 	}
 
@@ -738,7 +757,7 @@ func (d *DockerEnvironment) Create() error {
 		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
 	}
 
-	if _, err := d.Client.ContainerCreate(context.Background(), conf, hostConf, nil, d.Server.Uuid); err != nil {
+	if _, err := d.Client.ContainerCreate(context.Background(), conf, hostConf, nil, d.Server.Id()); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -748,7 +767,7 @@ func (d *DockerEnvironment) Create() error {
 // Sends the specified command to the stdin of the running container instance. There is no
 // confirmation that this data is sent successfully, only that it gets pushed into the stdin.
 func (d *DockerEnvironment) SendCommand(c string) error {
-	if !d.attached {
+	if !d.IsAttached() {
 		return errors.New("attempting to send command to non-attached instance")
 	}
 
@@ -760,7 +779,7 @@ func (d *DockerEnvironment) SendCommand(c string) error {
 // Reads the log file for the server. This does not care if the server is running or not, it will
 // simply try to read the last X bytes of the file and return them.
 func (d *DockerEnvironment) Readlog(len int64) ([]string, error) {
-	j, err := d.Client.ContainerInspect(context.Background(), d.Server.Uuid)
+	j, err := d.Client.ContainerInspect(context.Background(), d.Server.Id())
 	if err != nil {
 		return nil, err
 	}

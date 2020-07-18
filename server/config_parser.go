@@ -10,7 +10,8 @@ import (
 func (s *Server) UpdateConfigurationFiles() {
 	wg := new(sync.WaitGroup)
 
-	for _, v := range s.processConfiguration.ConfigurationFiles {
+	files := s.ProcessConfiguration().ConfigurationFiles
+	for _, v := range files {
 		wg.Add(1)
 
 		go func(f parser.ConfigurationFile, server *Server) {

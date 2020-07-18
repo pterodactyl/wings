@@ -127,10 +127,7 @@ func (h *Handler) TokenValid() error {
 		return errors.New("jwt does not have connect permission")
 	}
 
-	h.server.RLock()
-	defer h.server.RUnlock()
-
-	if h.server.Uuid != j.ServerUUID {
+	if h.server.Id() != j.GetServerUuid() {
 		return errors.New("jwt server uuid mismatch")
 	}
 

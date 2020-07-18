@@ -104,7 +104,7 @@ type Server struct {
 	// Defines the process configuration for the server instance. This is dynamically
 	// fetched from the Pterodactyl Server instance each time the server process is
 	// started, and then cached here.
-	processConfiguration *api.ProcessConfiguration
+	procConfig *api.ProcessConfiguration
 
 	// Tracks the installation process for this server and prevents a server from running
 	// two installer processes at the same time. This also allows us to cancel a running
@@ -151,6 +151,13 @@ type BuildSettings struct {
 
 	// Sets which CPU threads can be used by the docker instance.
 	Threads string `json:"threads"`
+}
+
+func (s *Server) Id() string {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.Uuid
 }
 
 // Converts the CPU limit for a server build into a number that can be better understood
@@ -366,7 +373,10 @@ func (s *Server) SyncWithConfiguration(cfg *api.ServerConfigurationResponse) err
 		return errors.WithStack(err)
 	}
 
-	s.processConfiguration = cfg.ProcessConfiguration
+	s.Lock()
+	s.procConfig = cfg.ProcessConfiguration
+	s.Unlock()
+
 	return nil
 }
 
