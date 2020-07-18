@@ -314,7 +314,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 
 	// Finally, chown the file to ensure the permissions don't end up out-of-whack
 	// if we had just created it.
-	return fs.Chown(p)
+	return fs.Chown(cleaned)
 }
 
 // Defines the stat struct object.
