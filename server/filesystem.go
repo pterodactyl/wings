@@ -224,6 +224,10 @@ func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
 func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 	var size int64
 	err := fs.Walk(dir, func(_ string, f os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		if !f.IsDir() {
 			atomic.AddInt64(&size, f.Size())
 		}
@@ -663,6 +667,10 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 	inc := new(backup.IncludedFiles)
 
 	if err := fs.Walk(cleaned, func(p string, f os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		// Avoid unnecessary parsing if there are no ignored files, nothing will match anyways
 		// so no reason to call the function.
 		if len(ignored) == 0 || !i.MatchesPath(strings.TrimPrefix(p, fs.Path()+"/")) {
@@ -716,6 +724,10 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 
 		if f.IsDir() {
 			err := fs.Walk(p, func(s string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+
 				if !info.IsDir() {
 					inc.Push(&info, s)
 				}
