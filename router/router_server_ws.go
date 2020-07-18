@@ -51,8 +51,10 @@ func getServerWebsocket(c *gin.Context) {
 			continue
 		}
 
-		if err := handler.HandleInbound(j); err != nil {
-			handler.SendErrorJson(j, err)
-		}
+		go func(msg websocket.Message) {
+			if err := handler.HandleInbound(msg); err != nil {
+				handler.SendErrorJson(msg, err)
+			}
+		}(j)
 	}
 }
