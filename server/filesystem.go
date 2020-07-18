@@ -26,7 +26,18 @@ import (
 )
 
 // Error returned when there is a bad path provided to one of the FS calls.
-var InvalidPathResolution = errors.New("invalid path resolution")
+type PathResolutionError struct{}
+
+// Returns the error response in a string form that can be more easily consumed.
+func (pre PathResolutionError) Error() string {
+	return "invalid path resolution"
+}
+
+func IsPathResolutionError(err error) bool {
+	_, ok := err.(PathResolutionError)
+
+	return ok
+}
 
 type Filesystem struct {
 	Server        *Server
@@ -87,7 +98,7 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 	// attempt going on, and we should NOT resolve this path for them.
 	if nonExistentPathResolution != "" {
 		if !strings.HasPrefix(nonExistentPathResolution, fs.Path()) {
-			return "", InvalidPathResolution
+			return "", PathResolutionError{}
 		}
 
 		// If the nonExistentPathResolution variable is not empty then the initial path requested
@@ -104,7 +115,7 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 		return p, nil
 	}
 
-	return "", InvalidPathResolution
+	return "", PathResolutionError{}
 }
 
 // Helper function to keep some of the codebase a little cleaner. Returns a "safe" version of the path
@@ -246,7 +257,7 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 	var size int64
 	err := fs.Walk(dir, func(_ string, f os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return fs.handleWalkerError(err, f)
 		}
 
 		if !f.IsDir() {
@@ -707,7 +718,7 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 
 	if err := fs.Walk(cleaned, func(p string, f os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return fs.handleWalkerError(err, f)
 		}
 
 		// Avoid unnecessary parsing if there are no ignored files, nothing will match anyways
@@ -764,7 +775,7 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 		if f.IsDir() {
 			err := fs.Walk(p, func(s string, info os.FileInfo, err error) error {
 				if err != nil {
-					return err
+					return fs.handleWalkerError(err, info)
 				}
 
 				if !info.IsDir() {
@@ -787,4 +798,24 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 	d := path.Join(cleanedRootDir, fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")))
 
 	return a.Create(d, context.Background())
+}
+
+// Handle errors encountered when walking through directories.
+//
+// If there is a path resolution error just skip the item entirely. Only return this for a
+// directory, otherwise return nil. Returning this error for a file will stop the walking
+// for the remainder of the directory. This is assuming an os.FileInfo struct was even returned.
+func (fs *Filesystem) handleWalkerError(err error, f os.FileInfo) error {
+	fmt.Println("handling walker error")
+	if !IsPathResolutionError(err) {
+		fmt.Println("not a path res error")
+		fmt.Println(err)
+		return err
+	}
+
+	if f != nil && f.IsDir() {
+		return filepath.SkipDir
+	}
+
+	return nil
 }

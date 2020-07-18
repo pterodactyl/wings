@@ -62,7 +62,16 @@ func (w *PooledFileWalker) process(path string) error {
 	for _, f := range files {
 		sp, err := w.Filesystem.SafeJoin(p, f)
 		if err != nil {
-			return err
+			// Let the callback function handle what to do if there is a path resolution error because a
+			// dangerous path was resolved. If there is an error returned, return from this entire process
+			// otherwise just skip over this specific file. We don't care if its a file or a directory at
+			// this point since either way we're skipping it, however, still check for the SkipDir since that
+			// would be thrown otherwise.
+			if err = w.callback(sp, f, err); err != nil && err != filepath.SkipDir {
+				return err
+			}
+
+			continue
 		}
 
 		i, err := os.Stat(sp)
