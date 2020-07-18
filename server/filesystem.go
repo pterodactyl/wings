@@ -59,12 +59,8 @@ func (fs *Filesystem) Path() string {
 func (fs *Filesystem) SafePath(p string) (string, error) {
 	var nonExistentPathResolution string
 
-	// Calling filpath.Clean on the joined directory will resolve it to the absolute path,
-	// removing any ../ type of resolution arguments, and leaving us with a direct path link.
-	//
-	// This will also trim the existing root path off the beginning of the path passed to
-	// the function since that can get a bit messy.
-	r := filepath.Clean(filepath.Join(fs.Path(), strings.TrimPrefix(p, fs.Path())))
+	// Start with a cleaned up path before checking the more complex bits.
+	r := fs.unsafeFilePath(p)
 
 	// At the same time, evaluate the symlink status and determine where this file or folder
 	// is truly pointing to.
@@ -82,7 +78,7 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 		for k := range parts {
 			try = strings.Join(parts[:(len(parts)-k)], "/")
 
-			if !strings.HasPrefix(try, fs.Path()) {
+			if !fs.unsafeIsInDataDirectory(try) {
 				break
 			}
 
@@ -97,7 +93,7 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 	// If the new path doesn't start with their root directory there is clearly an escape
 	// attempt going on, and we should NOT resolve this path for them.
 	if nonExistentPathResolution != "" {
-		if !strings.HasPrefix(nonExistentPathResolution, fs.Path()) {
+		if !fs.unsafeIsInDataDirectory(nonExistentPathResolution) {
 			return "", PathResolutionError{}
 		}
 
@@ -111,11 +107,30 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 	// If the requested directory from EvalSymlinks begins with the server root directory go
 	// ahead and return it. If not we'll return an error which will block any further action
 	// on the file.
-	if strings.HasPrefix(p, fs.Path()) {
+	if fs.unsafeIsInDataDirectory(p) {
 		return p, nil
 	}
 
 	return "", PathResolutionError{}
+}
+
+// Generate a path to the file by cleaning it up and appending the root server path to it. This
+// DOES NOT gaurantee that the file resolves within the server data directory. You'll want to use
+// the fs.unsafeIsInDataDirectory(p) function to confirm.
+func (fs *Filesystem) unsafeFilePath(p string) string {
+	// Calling filpath.Clean on the joined directory will resolve it to the absolute path,
+	// removing any ../ type of resolution arguments, and leaving us with a direct path link.
+	//
+	// This will also trim the existing root path off the beginning of the path passed to
+	// the function since that can get a bit messy.
+	return filepath.Clean(filepath.Join(fs.Path(), strings.TrimPrefix(p, fs.Path())))
+}
+
+// Check that that path string starts with the server data directory path. This function DOES NOT
+// validate that the rest of the path does not end up resolving out of this directory, or that the
+// targeted file or folder is not a symlink doing the same thing.
+func (fs *Filesystem) unsafeIsInDataDirectory(p string) bool {
+	return strings.HasPrefix(strings.TrimSuffix(p, "/")+"/", strings.TrimSuffix(fs.Path(), "/")+"/")
 }
 
 // Helper function to keep some of the codebase a little cleaner. Returns a "safe" version of the path
@@ -600,17 +615,26 @@ func (fs *Filesystem) Copy(p string) error {
 // Deletes a file or folder from the system. Prevents the user from accidentally
 // (or maliciously) removing their root server data directory.
 func (fs *Filesystem) Delete(p string) error {
-	cleaned, err := fs.SafePath(p)
-	if err != nil {
-		return errors.WithStack(err)
+	// This is one of the few (only?) places in the codebase where we're explictly not using
+	// the SafePath functionality when working with user provided input. If we did, you would
+	// not be able to delete a file that is a symlink pointing to a location outside of the data
+	// directory.
+	//
+	// We also want to avoid resolving a symlink that points _within_ the data directory and thus
+	// deleting the actual source file for the symlink rather than the symlink itself. For these
+	// purposes just resolve the actual file path using filepath.Join() and confirm that the path
+	// exists within the data directory.
+	resolved := fs.unsafeFilePath(p)
+	if !fs.unsafeIsInDataDirectory(resolved) {
+		return PathResolutionError{}
 	}
 
 	// Block any whoopsies.
-	if cleaned == fs.Path() {
+	if resolved == fs.Path() {
 		return errors.New("cannot delete root server directory")
 	}
 
-	return os.RemoveAll(cleaned)
+	return os.RemoveAll(resolved)
 }
 
 // Lists the contents of a given directory and returns stat information about each
