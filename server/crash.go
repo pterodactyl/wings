@@ -4,16 +4,30 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
+	"sync"
 	"time"
 )
 
-type CrashDetection struct {
-	// If set to false, the system will not listen for crash detection events that
-	// can indicate that the server stopped unexpectedly.
-	Enabled bool `default:"true" json:"enabled" yaml:"enabled"`
+type CrashHandler struct {
+	mu sync.RWMutex
 
 	// Tracks the time of the last server crash event.
 	lastCrash time.Time
+}
+
+// Returns the time of the last crash for this server instance.
+func (cd *CrashHandler) LastCrashTime() time.Time {
+	cd.mu.RLock()
+	defer cd.mu.RUnlock()
+
+	return cd.lastCrash
+}
+
+// Sets the last crash time for a server.
+func (cd *CrashHandler) SetLastCrash(t time.Time) {
+	cd.mu.Lock()
+	cd.lastCrash = t
+	cd.mu.Unlock()
 }
 
 // Looks at the environment exit state to determine if the process exited cleanly or
@@ -30,8 +44,8 @@ func (s *Server) handleServerCrash() error {
 	// No point in doing anything here if the server isn't currently offline, there
 	// is no reason to do a crash detection event. If the server crash detection is
 	// disabled we want to skip anything after this as well.
-	if s.GetState() != ProcessOfflineState || !s.CrashDetection.Enabled {
-		if !s.CrashDetection.Enabled {
+	if s.GetState() != ProcessOfflineState || !s.Config().CrashDetectionEnabled {
+		if !s.Config().CrashDetectionEnabled {
 			s.Log().Debug("server triggered crash detection but handler is disabled for server process")
 
 			s.PublishConsoleOutputFromDaemon("Server detected as crashed; crash detection is disabled for this instance.")
@@ -57,7 +71,7 @@ func (s *Server) handleServerCrash() error {
 	s.PublishConsoleOutputFromDaemon(fmt.Sprintf("Exit code: %d", exitCode))
 	s.PublishConsoleOutputFromDaemon(fmt.Sprintf("Out of memory: %t", oomKilled))
 
-	c := s.CrashDetection.lastCrash
+	c := s.crasher.LastCrashTime()
 	// If the last crash time was within the last 60 seconds we do not want to perform
 	// an automatic reboot of the process. Return an error that can be handled.
 	if !c.IsZero() && c.Add(time.Second * 60).After(time.Now()) {
@@ -66,7 +80,7 @@ func (s *Server) handleServerCrash() error {
 		return &crashTooFrequent{}
 	}
 
-	s.CrashDetection.lastCrash = time.Now()
+	s.crasher.SetLastCrash(time.Now())
 
 	return s.Environment.Start()
 }

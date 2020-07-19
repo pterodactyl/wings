@@ -29,12 +29,10 @@ func New(data []byte) (*Installer, error) {
 		return nil, NewValidationError("service egg provided was not in a valid format")
 	}
 
-	s := &server.Server{
+	cfg := &server.Configuration{
 		Uuid:       getString(data, "uuid"),
 		Suspended:  false,
-		State:      server.ProcessOfflineState,
 		Invocation: getString(data, "invocation"),
-		EnvVars:    make(server.EnvironmentVariables),
 		Build: server.BuildSettings{
 			MemoryLimit: getInt(data, "build", "memory"),
 			Swap:        getInt(data, "build", "swap"),
@@ -43,20 +41,18 @@ func New(data []byte) (*Installer, error) {
 			DiskSpace:   getInt(data, "build", "disk"),
 			Threads:     getString(data, "build", "threads"),
 		},
-		Allocations: server.Allocations{
-			Mappings: make(map[string][]int),
-		},
+		CrashDetectionEnabled: true,
 	}
 
-	s.Allocations.DefaultMapping.Ip = getString(data, "allocations", "default", "ip")
-	s.Allocations.DefaultMapping.Port = int(getInt(data, "allocations", "default", "port"))
+	cfg.Allocations.DefaultMapping.Ip = getString(data, "allocations", "default", "ip")
+	cfg.Allocations.DefaultMapping.Port = int(getInt(data, "allocations", "default", "port"))
 
 	// Unmarshal the environment variables from the request into the server struct.
 	if b, _, _, err := jsonparser.Get(data, "environment"); err != nil {
 		return nil, errors.WithStack(err)
 	} else {
-		s.EnvVars = make(server.EnvironmentVariables)
-		if err := json.Unmarshal(b, &s.EnvVars); err != nil {
+		cfg.EnvVars = make(server.EnvironmentVariables)
+		if err := json.Unmarshal(b, &cfg.EnvVars); err != nil {
 			return nil, errors.WithStack(err)
 		}
 	}
@@ -65,15 +61,15 @@ func New(data []byte) (*Installer, error) {
 	if b, _, _, err := jsonparser.Get(data, "allocations", "mappings"); err != nil {
 		return nil, errors.WithStack(err)
 	} else {
-		s.Allocations.Mappings = make(map[string][]int)
-		if err := json.Unmarshal(b, &s.Allocations.Mappings); err != nil {
+		cfg.Allocations.Mappings = make(map[string][]int)
+		if err := json.Unmarshal(b, &cfg.Allocations.Mappings); err != nil {
 			return nil, errors.WithStack(err)
 		}
 	}
 
-	s.Container.Image = getString(data, "container", "image")
+	cfg.Container.Image = getString(data, "container", "image")
 
-	c, rerr, err := api.NewRequester().GetServerConfiguration(s.Uuid)
+	c, rerr, err := api.NewRequester().GetServerConfiguration(cfg.Uuid)
 	if err != nil || rerr != nil {
 		if err != nil {
 			return nil, errors.WithStack(err)
@@ -82,15 +78,12 @@ func New(data []byte) (*Installer, error) {
 		return nil, errors.New(rerr.String())
 	}
 
-	// Destroy the temporary server instance.
-	s = nil
-
 	// Create a new server instance using the configuration we wrote to the disk
 	// so that everything gets instantiated correctly on the struct.
-	s2, err := server.FromConfiguration(c)
+	s, err := server.FromConfiguration(c)
 
 	return &Installer{
-		server: s2,
+		server: s,
 	}, err
 }
 

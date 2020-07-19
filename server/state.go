@@ -13,6 +13,13 @@ import (
 
 var stateMutex sync.Mutex
 
+const (
+	ProcessOfflineState  = "offline"
+	ProcessStartingState = "starting"
+	ProcessRunningState  = "running"
+	ProcessStoppingState = "stopping"
+)
+
 // Returns the state of the servers.
 func getServerStates() (map[string]string, error) {
 	// Request a lock after we check if the file exists.
@@ -60,13 +67,6 @@ func saveServerStates() error {
 	return nil
 }
 
-const (
-	ProcessOfflineState  = "offline"
-	ProcessStartingState = "starting"
-	ProcessRunningState  = "running"
-	ProcessStoppingState = "stopping"
-)
-
 // Sets the state of the server internally. This function handles crash detection as
 // well as reporting to event listeners for the server.
 func (s *Server) SetState(state string) error {
@@ -76,16 +76,14 @@ func (s *Server) SetState(state string) error {
 
 	prevState := s.GetState()
 
-	// Obtain a mutex lock and update the current state of the server.
-	s.Lock()
-	s.State = state
+	// Update the currently tracked state for the server.
+	s.Proc().setInternalState(state)
 
 	// Emit the event to any listeners that are currently registered.
-	s.Log().WithField("status", s.State).Debug("saw server status change event")
-	s.Events().Publish(StatusEvent, s.State)
-
-	// Release the lock as it is no longer needed for the following actions.
-	s.Unlock()
+	if prevState != state {
+		s.Log().WithField("status", s.Proc().State).Debug("saw server status change event")
+		s.Events().Publish(StatusEvent, s.Proc().State)
+	}
 
 	// Persist this change to the disk immediately so that should the Daemon be stopped or
 	// crash we can immediately restore the server state.
@@ -128,10 +126,7 @@ func (s *Server) SetState(state string) error {
 
 // Returns the current state of the server in a race-safe manner.
 func (s *Server) GetState() string {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.State
+	return s.Proc().State
 }
 
 // Determines if the server state is running or not. This is different than the

@@ -247,19 +247,7 @@ func (h *Handler) HandleInbound(m Message) error {
 			if state == server.ProcessOfflineState {
 				_ = h.server.Filesystem.HasSpaceAvailable()
 
-				h.server.Resources.RLock()
-				defer h.server.Resources.RUnlock()
-
-				resources := server.ResourceUsage{
-					Memory:      0,
-					MemoryLimit: 0,
-					CpuAbsolute: 0.0,
-					Disk:        h.server.Resources.Disk,
-				}
-				resources.Network.RxBytes = 0
-				resources.Network.TxBytes = 0
-
-				b, _ := json.Marshal(resources)
+				b, _ := json.Marshal(h.server.Proc())
 				h.SendJson(&Message{
 					Event: server.StatsEvent,
 					Args:  []string{string(b)},

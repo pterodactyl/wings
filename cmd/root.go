@@ -181,17 +181,13 @@ func rootCmdRun(*cobra.Command, []string) {
 		wg.Add()
 
 		go func(s *server.Server) {
-			// Required for tracing purposes.
-			var err error
+			defer wg.Done()
 
-			defer func() {
-				s.Log().Trace("ensuring server environment exists").Stop(&err)
-				wg.Done()
-			}()
+			s.Log().Info("ensuring server environment exists")
 
 			// Create a server environment if none exists currently. This allows us to recover from Docker
 			// being reinstalled on the host system for example.
-			if err = s.Environment.Create(); err != nil {
+			if err := s.Environment.Create(); err != nil {
 				s.Log().WithField("error", err).Error("failed to process environment")
 			}
 

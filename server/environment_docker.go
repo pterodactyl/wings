@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -223,7 +222,7 @@ func (d *DockerEnvironment) Start() error {
 	// Theoretically you'd have the Panel handle all of this logic, but we cannot do that
 	// because we allow the websocket to control the server power state as well, so we'll
 	// need to handle that action in here.
-	if d.Server.Suspended {
+	if d.Server.IsSuspended() {
 		return &suspendedError{}
 	}
 
@@ -604,22 +603,16 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 				return
 			}
 
-			s.Resources.Lock()
-			s.Resources.CpuAbsolute = s.Resources.CalculateAbsoluteCpu(&v.PreCPUStats, &v.CPUStats)
-			s.Resources.Memory = s.Resources.CalculateDockerMemory(v.MemoryStats)
-			s.Resources.MemoryLimit = v.MemoryStats.Limit
-			s.Resources.Unlock()
+			s.Proc().UpdateFromDocker(v)
+			for _, nw := range v.Networks {
+				s.Proc().UpdateNetworkBytes(&nw)
+			}
 
 			// Why you ask? This already has the logic for caching disk space in use and then
 			// also handles pushing that value to the resources object automatically.
 			s.Filesystem.HasSpaceAvailable()
 
-			for _, nw := range v.Networks {
-				atomic.AddUint64(&s.Resources.Network.RxBytes, nw.RxBytes)
-				atomic.AddUint64(&s.Resources.Network.TxBytes, nw.TxBytes)
-			}
-
-			b, _ := json.Marshal(s.Resources)
+			b, _ := json.Marshal(s.Proc())
 			s.Events().Publish(StatsEvent, string(b))
 		}
 	}(d.Server)
@@ -634,10 +627,14 @@ func (d *DockerEnvironment) DisableResourcePolling() error {
 	}
 
 	err := d.stats.Close()
-
-	d.Server.Resources.Empty()
+	d.Server.Proc().Empty()
 
 	return errors.WithStack(err)
+}
+
+// Returns the image to be used for the instance.
+func (d *DockerEnvironment) Image() string {
+	return d.Server.Config().Container.Image
 }
 
 // Pulls the image from Docker. If there is an error while pulling the image from the source
@@ -657,7 +654,7 @@ func (d *DockerEnvironment) ensureImageExists() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*15)
 	defer cancel()
 
-	out, err := d.Client.ImagePull(ctx, d.Server.Container.Image, types.ImagePullOptions{All: false})
+	out, err := d.Client.ImagePull(ctx, d.Image(), types.ImagePullOptions{All: false})
 	if err != nil {
 		images, ierr := d.Client.ImageList(ctx, types.ImageListOptions{})
 		if ierr != nil {
@@ -668,12 +665,12 @@ func (d *DockerEnvironment) ensureImageExists() error {
 
 		for _, img := range images {
 			for _, t := range img.RepoTags {
-				if t != d.Server.Container.Image {
+				if t != d.Image() {
 					continue
 				}
 
 				d.Server.Log().WithFields(log.Fields{
-					"image": d.Server.Container.Image,
+					"image": d.Image(),
 					"error": errors.New(err.Error()),
 				}).Warn("unable to pull requested image from remote source, however the image exists locally")
 
@@ -687,7 +684,7 @@ func (d *DockerEnvironment) ensureImageExists() error {
 	}
 	defer out.Close()
 
-	log.WithField("image", d.Server.Container.Image).Debug("pulling docker image... this could take a bit of time")
+	log.WithField("image", d.Image()).Debug("pulling docker image... this could take a bit of time")
 
 	// I'm not sure what the best approach here is, but this will block execution until the image
 	// is done being pulled, which is what we need.
@@ -734,12 +731,9 @@ func (d *DockerEnvironment) Create() error {
 		AttachStderr: true,
 		OpenStdin:    true,
 		Tty:          true,
-
 		ExposedPorts: d.exposedPorts(),
-
-		Image: d.Server.Container.Image,
-		Env:   d.Server.GetEnvironmentVariables(),
-
+		Image:        d.Image(),
+		Env:          d.Server.GetEnvironmentVariables(),
 		Labels: map[string]string{
 			"Service":       "Pterodactyl",
 			"ContainerType": "server_process",
@@ -756,7 +750,7 @@ func (d *DockerEnvironment) Create() error {
 	}
 
 	var mounted bool
-	for _, m := range d.Server.Mounts {
+	for _, m := range d.Server.Config().Mounts {
 		mounted = false
 		source := filepath.Clean(m.Source)
 		target := filepath.Clean(m.Target)
@@ -931,7 +925,7 @@ func (d *DockerEnvironment) parseLogToStrings(b []byte) ([]string, error) {
 func (d *DockerEnvironment) portBindings() nat.PortMap {
 	var out = nat.PortMap{}
 
-	for ip, ports := range d.Server.Allocations.Mappings {
+	for ip, ports := range d.Server.Config().Allocations.Mappings {
 		for _, port := range ports {
 			// Skip over invalid ports.
 			if port < 0 || port > 65535 {
@@ -981,14 +975,14 @@ func (d *DockerEnvironment) exposedPorts() nat.PortSet {
 // the same or higher than the memory limit.
 func (d *DockerEnvironment) getResourcesForServer() container.Resources {
 	return container.Resources{
-		Memory:            d.Server.Build.BoundedMemoryLimit(),
-		MemoryReservation: d.Server.Build.MemoryLimit * 1_000_000,
-		MemorySwap:        d.Server.Build.ConvertedSwap(),
-		CPUQuota:          d.Server.Build.ConvertedCpuLimit(),
+		Memory:            d.Server.Build().BoundedMemoryLimit(),
+		MemoryReservation: d.Server.Build().MemoryLimit * 1_000_000,
+		MemorySwap:        d.Server.Build().ConvertedSwap(),
+		CPUQuota:          d.Server.Build().ConvertedCpuLimit(),
 		CPUPeriod:         100_000,
 		CPUShares:         1024,
-		BlkioWeight:       d.Server.Build.IoWeight,
-		OomKillDisable:    &d.Server.Container.OomDisabled,
-		CpusetCpus:        d.Server.Build.Threads,
+		BlkioWeight:       d.Server.Build().IoWeight,
+		OomKillDisable:    &d.Server.Config().Container.OomDisabled,
+		CpusetCpus:        d.Server.Build().Threads,
 	}
 }

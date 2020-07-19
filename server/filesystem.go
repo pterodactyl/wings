@@ -208,7 +208,7 @@ func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 // Because determining the amount of space being used by a server is a taxing operation we
 // will load it all up into a cache and pull from that as long as the key is not expired.
 func (fs *Filesystem) HasSpaceAvailable() bool {
-	space := fs.Server.Build.DiskSpace
+	space := fs.Server.Build().DiskSpace
 
 	size, err := fs.getCachedDiskUsage()
 	if err != nil {
@@ -217,9 +217,7 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 
 	// Determine if their folder size, in bytes, is smaller than the amount of space they've
 	// been allocated.
-	fs.Server.Resources.Lock()
-	fs.Server.Resources.Disk = size
-	fs.Server.Resources.Unlock()
+	fs.Server.Proc().SetDisk(size)
 
 	// If space is -1 or 0 just return true, means they're allowed unlimited.
 	//
@@ -247,7 +245,7 @@ func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
 	fs.cacheDiskMu.Lock()
 	defer fs.cacheDiskMu.Unlock()
 
-	if x, exists := fs.Server.Cache.Get("disk_used"); exists {
+	if x, exists := fs.Server.cache.Get("disk_used"); exists {
 		return x.(int64), nil
 	}
 
@@ -260,7 +258,7 @@ func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
 	// Always cache the size, even if there is an error. We want to always return that value
 	// so that we don't cause an endless loop of determining the disk size if there is a temporary
 	// error encountered.
-	fs.Server.Cache.Set("disk_used", size, time.Second*60)
+	fs.Server.cache.Set("disk_used", size, time.Second*60)
 
 	return size, err
 }
