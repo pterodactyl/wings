@@ -20,11 +20,6 @@ type Server struct {
 	// writing the configuration to the disk.
 	sync.RWMutex
 
-	// The unique identifier for the server that should be used when referencing
-	// it against the Panel API (and internally). This will be used when naming
-	// docker containers as well as in log output.
-	Uuid string `json:"-"`
-
 	// Maintains the configuration for the server. This is the data that gets returned by the Panel
 	// such as build settings and container images.
 	cfg Configuration
@@ -99,7 +94,7 @@ eloop:
 }
 
 func (s *Server) Log() *log.Entry {
-	return log.WithField("server", s.Uuid)
+	return log.WithField("server", s.Id())
 }
 
 // Syncs the state of the server on the Panel with Wings. This ensures that we're always
@@ -159,7 +154,7 @@ func (s *Server) CreateEnvironment() error {
 
 // Gets the process configuration data for the server.
 func (s *Server) GetProcessConfiguration() (*api.ServerConfigurationResponse, *api.RequestError, error) {
-	return api.NewRequester().GetServerConfiguration(s.Uuid)
+	return api.NewRequester().GetServerConfiguration(s.Id())
 }
 
 // Helper function that can receieve a power action and then process the

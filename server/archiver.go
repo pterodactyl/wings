@@ -23,7 +23,7 @@ func (a *Archiver) ArchivePath() string {
 
 // ArchiveName returns the name of the server's archive.
 func (a *Archiver) ArchiveName() string {
-	return a.Server.Uuid + ".tar.gz"
+	return a.Server.Id() + ".tar.gz"
 }
 
 // Exists returns a boolean based off if the archive exists.

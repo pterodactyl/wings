@@ -47,7 +47,7 @@ func saveServerStates() error {
 	// Get the states of all servers on the daemon.
 	states := map[string]string{}
 	for _, s := range GetServers().All() {
-		states[s.Uuid] = s.GetState()
+		states[s.Id()] = s.GetState()
 	}
 
 	// Convert the map to a json object.

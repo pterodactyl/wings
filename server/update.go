@@ -23,7 +23,7 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 	// Don't allow obviously corrupted data to pass through into this function. If the UUID
 	// doesn't match something has gone wrong and the API is attempting to meld this server
 	// instance into a totally different one, which would be bad.
-	if src.Uuid != "" && s.Uuid != "" && src.Uuid != s.Uuid {
+	if src.Uuid != "" && s.Id() != "" && src.Uuid != s.Id() {
 		return errors.New("attempting to merge a data stack with an invalid UUID")
 	}
 
@@ -95,7 +95,6 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 
 	// Update the configuration once we have a lock on the configuration object.
 	s.cfg = c
-	s.Uuid = c.Uuid
 
 	if background {
 		go s.runBackgroundActions()

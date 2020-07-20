@@ -49,7 +49,7 @@ func Initialize(config *config.Configuration) error {
 
 func validatePath(fs sftp_server.FileSystem, p string) (string, error) {
 	s := server.GetServers().Find(func(server *server.Server) bool {
-		return server.Uuid == fs.UUID
+		return server.Id() == fs.UUID
 	})
 
 	if s == nil {
@@ -61,7 +61,7 @@ func validatePath(fs sftp_server.FileSystem, p string) (string, error) {
 
 func validateDiskSpace(fs sftp_server.FileSystem) bool {
 	s := server.GetServers().Find(func(server *server.Server) bool {
-		return server.Uuid == fs.UUID
+		return server.Id() == fs.UUID
 	})
 
 	if s == nil {
@@ -105,7 +105,7 @@ func validateCredentials(c sftp_server.AuthenticationRequest) (*sftp_server.Auth
 	}
 
 	s := server.GetServers().Find(func(server *server.Server) bool {
-		return server.Uuid == resp.Server
+		return server.Id() == resp.Server
 	})
 
 	if s == nil {

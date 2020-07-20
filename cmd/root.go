@@ -169,7 +169,7 @@ func rootCmdRun(*cobra.Command, []string) {
 
 	// Just for some nice log output.
 	for _, s := range server.GetServers().All() {
-		log.WithField("server", s.Uuid).Info("loaded configuration for server")
+		log.WithField("server", s.Id()).Info("loaded configuration for server")
 	}
 
 	// Create a new WaitGroup that limits us to 4 servers being bootstrapped at a time

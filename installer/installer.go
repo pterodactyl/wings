@@ -89,7 +89,7 @@ func New(data []byte) (*Installer, error) {
 
 // Returns the UUID associated with this installer instance.
 func (i *Installer) Uuid() string {
-	return i.server.Uuid
+	return i.server.Id()
 }
 
 // Return the server instance.

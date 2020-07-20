@@ -200,9 +200,9 @@ func deleteServer(c *gin.Context) {
 		}
 	}(s.Filesystem.Path())
 
-	var uuid = s.Uuid
+	var uuid = s.Id()
 	server.GetServers().Remove(func(s2 *server.Server) bool {
-		return s2.Uuid == uuid
+		return s2.Id() == uuid
 	})
 
 	// Deallocate the reference to this server.

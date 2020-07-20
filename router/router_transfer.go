@@ -98,33 +98,33 @@ func postServerArchive(c *gin.Context) {
 		start := time.Now()
 
 		if err := server.Archiver.Archive(); err != nil {
-			zap.S().Errorw("failed to get archive for server", zap.String("server", s.Uuid), zap.Error(err))
+			zap.S().Errorw("failed to get archive for server", zap.String("server", server.Id()), zap.Error(err))
 			return
 		}
 
 		zap.S().Debugw(
 			"successfully created archive for server",
-			zap.String("server", server.Uuid),
+			zap.String("server", server.Id()),
 			zap.Duration("time", time.Now().Sub(start).Round(time.Microsecond)),
 		)
 
 		r := api.NewRequester()
-		rerr, err := r.SendArchiveStatus(server.Uuid, true)
+		rerr, err := r.SendArchiveStatus(server.Id(), true)
 		if rerr != nil || err != nil {
 			if err != nil {
-				zap.S().Errorw("failed to notify panel with archive status", zap.String("server", server.Uuid), zap.Error(err))
+				zap.S().Errorw("failed to notify panel with archive status", zap.String("server", server.Id()), zap.Error(err))
 				return
 			}
 
 			zap.S().Errorw(
 				"panel returned an error when sending the archive status",
-				zap.String("server", server.Uuid),
+				zap.String("server", server.Id()),
 				zap.Error(errors.New(rerr.String())),
 			)
 			return
 		}
 
-		zap.S().Debugw("successfully notified panel about archive status", zap.String("server", server.Uuid))
+		zap.S().Debugw("successfully notified panel about archive status", zap.String("server", server.Id()))
 	}(s)
 
 	c.Status(http.StatusAccepted)

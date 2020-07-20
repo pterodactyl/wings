@@ -70,7 +70,7 @@ func (s *Server) Reinstall() error {
 
 // Internal installation function used to simplify reporting back to the Panel.
 func (s *Server) internalInstall() error {
-	script, rerr, err := api.NewRequester().GetInstallationScript(s.Uuid)
+	script, rerr, err := api.NewRequester().GetInstallationScript(s.Id())
 	if err != nil || rerr != nil {
 		if err != nil {
 			return err
@@ -170,7 +170,7 @@ func (s *Server) AbortInstallation() {
 
 // Removes the installer container for the server.
 func (ip *InstallationProcess) RemoveContainer() {
-	err := ip.client.ContainerRemove(ip.context, ip.Server.Uuid+"_installer", types.ContainerRemoveOptions{
+	err := ip.client.ContainerRemove(ip.context, ip.Server.Id()+"_installer", types.ContainerRemoveOptions{
 		RemoveVolumes: true,
 		Force:         true,
 	})
@@ -313,7 +313,7 @@ func (ip *InstallationProcess) BeforeExecute() (string, error) {
 			Force:         true,
 		}
 
-		if err := ip.client.ContainerRemove(ip.context, ip.Server.Uuid+"_installer", opts); err != nil {
+		if err := ip.client.ContainerRemove(ip.context, ip.Server.Id()+"_installer", opts); err != nil {
 			if !client.IsErrNotFound(err) {
 				e = append(e, err)
 			}
@@ -333,7 +333,7 @@ func (ip *InstallationProcess) BeforeExecute() (string, error) {
 
 // Returns the log path for the installation process.
 func (ip *InstallationProcess) GetLogPath() string {
-	return filepath.Join(config.Get().System.GetInstallLogPath(), ip.Server.Uuid+".log")
+	return filepath.Join(config.Get().System.GetInstallLogPath(), ip.Server.Id()+".log")
 }
 
 // Cleans up after the execution of the installation process. This grabs the logs from the
@@ -369,7 +369,7 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 |
 | Details
 | ------------------------------
-  Server UUID:          {{.Server.Uuid}}
+  Server UUID:          {{.Server.Id()}}
   Container Image:      {{.Script.ContainerImage}}
   Container Entrypoint: {{.Script.Entrypoint}}
 
@@ -448,7 +448,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 	}
 
 	ip.Server.Log().WithField("install_script", installPath+"/install.sh").Info("creating install container for server process")
-	r, err := ip.client.ContainerCreate(ip.context, conf, hostConf, nil, ip.Server.Uuid+"_installer")
+	r, err := ip.client.ContainerCreate(ip.context, conf, hostConf, nil, ip.Server.Id()+"_installer")
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
@@ -516,7 +516,7 @@ func (ip *InstallationProcess) StreamOutput(id string) error {
 func (s *Server) SyncInstallState(successful bool) error {
 	r := api.NewRequester()
 
-	rerr, err := r.SendInstallationStatus(s.Uuid, successful)
+	rerr, err := r.SendInstallationStatus(s.Id(), successful)
 	if rerr != nil || err != nil {
 		if err != nil {
 			return errors.WithStack(err)
