@@ -23,7 +23,7 @@ jobs:
         run: go test ./...
       
       - name: Compress binary and make it executable
-        run: upx build/wings_linux_amd64 && chmod +x build/wings_linux_amd64
+        run: upx --brute build/wings_linux_amd64 && chmod +x build/wings_linux_amd64
 
       - name: Extract changelog
         env:
