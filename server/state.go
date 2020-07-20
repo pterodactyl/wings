@@ -133,5 +133,7 @@ func (s *Server) GetState() string {
 // environment state, it is simply the tracked state from this daemon instance, and
 // not the response from Docker.
 func (s *Server) IsRunning() bool {
-	return s.GetState() == ProcessRunningState || s.GetState() == ProcessStartingState
+	st := s.GetState()
+
+	return st == ProcessRunningState || st == ProcessStartingState
 }
