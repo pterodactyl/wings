@@ -68,7 +68,7 @@ type InstallerDetails struct {
 
 // Returns the UUID for the server instance.
 func (s *Server) Id() string {
-	return s.Config().Uuid
+	return s.Config().GetUuid()
 }
 
 // Returns all of the environment variables that should be assigned to a running

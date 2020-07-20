@@ -54,6 +54,15 @@ func (s *Server) Proc() *ResourceUsage {
 	return &s.resources
 }
 
+// Returns the servers current state.
+func (ru *ResourceUsage) getInternalState() string {
+	ru.mu.RLock()
+	defer ru.mu.RUnlock()
+
+	return ru.State
+}
+
+// Sets the new state for the server.
 func (ru *ResourceUsage) setInternalState(state string) {
 	ru.mu.Lock()
 	ru.State = state

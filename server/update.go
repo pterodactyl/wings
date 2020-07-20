@@ -28,7 +28,14 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 	}
 
 	// Grab a copy of the configuration to work on.
-	c := s.Config()
+	c := *s.Config()
+
+	// Lock our copy of the configuration since the defered unlock will end up acting upon this
+	// new memory address rather than the old one. If we don't lock this, the defered unlock will
+	// cause a panic when it goes to run. However, since we only update s.cfg at the end, if there
+	// is an error before that point we'll still properly unlock the original configuration for the
+	// server.
+	c.mu.Lock()
 
 	// Lock the server configuration while we're doing this merge to avoid anything
 	// trying to overwrite it or make modifications while we're sorting out what we
@@ -38,7 +45,7 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 
 	// Merge the new data object that we have received with the existing server data object
 	// and then save it to the disk so it is persistent.
-	if err := mergo.Merge(c, src, mergo.WithOverride); err != nil {
+	if err := mergo.Merge(&c, src, mergo.WithOverride); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -87,7 +94,7 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 	}
 
 	// Update the configuration once we have a lock on the configuration object.
-	s.cfg = *c
+	s.cfg = c
 	s.Uuid = c.Uuid
 
 	if background {

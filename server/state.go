@@ -126,7 +126,7 @@ func (s *Server) SetState(state string) error {
 
 // Returns the current state of the server in a race-safe manner.
 func (s *Server) GetState() string {
-	return s.Proc().State
+	return s.Proc().getInternalState()
 }
 
 // Determines if the server state is running or not. This is different than the

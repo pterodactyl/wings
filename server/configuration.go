@@ -77,6 +77,13 @@ func (s *Server) Config() *Configuration {
 	return &s.cfg
 }
 
+func (c *Configuration) GetUuid() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.Uuid
+}
+
 func (c *Configuration) SetSuspended(s bool) {
 	c.mu.Lock()
 	c.Suspended = s
