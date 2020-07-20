@@ -41,13 +41,12 @@ func IsPathResolutionError(err error) bool {
 
 type Filesystem struct {
 	Server        *Server
-	Configuration *config.SystemConfiguration
 	cacheDiskMu   sync.Mutex
 }
 
 // Returns the root path that contains all of a server's data.
 func (fs *Filesystem) Path() string {
-	return filepath.Join(fs.Configuration.Data, fs.Server.Uuid)
+	return filepath.Join(config.Get().System.Data, fs.Server.Id())
 }
 
 // Normalizes a directory being passed in to ensure the user is not able to escape
@@ -475,7 +474,7 @@ func (fs *Filesystem) Chown(path string) error {
 	if s, err := os.Stat(cleaned); err != nil {
 		return errors.WithStack(err)
 	} else if !s.IsDir() {
-		return os.Chown(cleaned, fs.Configuration.User.Uid, fs.Configuration.User.Gid)
+		return os.Chown(cleaned, config.Get().System.User.Uid, config.Get().System.User.Gid)
 	}
 
 	return fs.chownDirectory(cleaned)
@@ -521,7 +520,7 @@ func (fs *Filesystem) chownDirectory(path string) error {
 				fs.chownDirectory(p)
 			}(p)
 		} else {
-			os.Chown(p, fs.Configuration.User.Uid, fs.Configuration.User.Gid)
+			os.Chown(p, config.Get().System.User.Uid, config.Get().System.User.Gid)
 		}
 	}
 

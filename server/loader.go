@@ -6,7 +6,6 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
-	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
 	"time"
 )
@@ -109,7 +108,6 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 		Server: s,
 	}
 	s.Filesystem = Filesystem{
-		Configuration: &config.Get().System,
 		Server:        s,
 	}
 
