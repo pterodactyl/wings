@@ -57,7 +57,7 @@ func LoadDirectory() error {
 			defer wg.Done()
 
 			log.WithField("uuid", uuid).Debug("creating server object from configuration")
-			s, err := FromConfiguration(data, false)
+			s, err := FromConfiguration(data)
 			if err != nil {
 				log.WithField("server", uuid).WithField("error", err).Error("failed to load server, skipping...")
 				return
@@ -82,7 +82,7 @@ func LoadDirectory() error {
 // Initializes a server using a data byte array. This will be marshaled into the
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
-func FromConfiguration(data *api.ServerConfigurationResponse, sync bool) (*Server, error) {
+func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	cfg := Configuration{}
 	if err := defaults.Set(&cfg); err != nil {
 		return nil, err
@@ -114,10 +114,8 @@ func FromConfiguration(data *api.ServerConfigurationResponse, sync bool) (*Serve
 	}
 
 	// Forces the configuration to be synced with the panel.
-	if sync {
-		if err := s.SyncWithConfiguration(data); err != nil {
-			return nil, err
-		}
+	if err := s.SyncWithConfiguration(data); err != nil {
+		return nil, err
 	}
 
 	return s, nil
