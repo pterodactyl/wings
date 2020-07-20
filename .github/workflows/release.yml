@@ -32,7 +32,6 @@ jobs:
           sed -n "/^## ${REF:10}/,/^## /{/^## /b;p}" CHANGELOG.md > ./RELEASE_CHANGELOG
           echo ::set-output name=version_name::`sed -nr "s/^## (${REF:10} .*)$/\1/p" CHANGELOG.md`
 
-
       - name: Create checksum and add to changelog
         run: |
           SUM=`cd build && sha256sum wings_linux_amd64`
@@ -48,8 +47,8 @@ jobs:
           git config --local user.name "Pterodactyl CI"
           git checkout -b $BRANCH
           git push -u origin $BRANCH
-          sed -i "s/	Version = \".*\"/	Version = \"${REF:11}\"/" config/app.php
-          git add config/app.php
+          sed -i "s/	Version = \".*\"/	Version = \"${REF:11}\"/" system/const.go
+          git add system/const.go
           git commit -m "bump version for release"
           git push
 
