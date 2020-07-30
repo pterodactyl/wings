@@ -13,7 +13,9 @@ import (
 
 // Returns a single server from the collection of servers.
 func getServer(c *gin.Context) {
-	c.JSON(http.StatusOK, GetServer(c.Param("server")))
+	s := GetServer(c.Param("server"))
+
+	c.JSON(http.StatusOK, s.Proc())
 }
 
 // Returns the logs for a given server instance.
