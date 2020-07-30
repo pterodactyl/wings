@@ -43,6 +43,8 @@ func (h *Handler) ListenForServerEvents(ctx context.Context) {
 		server.StatusEvent,
 		server.ConsoleOutputEvent,
 		server.InstallOutputEvent,
+		server.InstallStartedEvent,
+		server.InstallCompletedEvent,
 		server.DaemonMessageEvent,
 		server.BackupCompletedEvent,
 	}

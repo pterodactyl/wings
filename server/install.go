@@ -36,6 +36,9 @@ func (s *Server) Install(sync bool) error {
 		}
 	}
 
+	// Send the start event so the Panel can automatically update.
+	s.Events().Publish(InstallStartedEvent, "")
+
 	err := s.internalInstall()
 
 	s.Log().Debug("notifying panel of server install state")
@@ -51,6 +54,10 @@ func (s *Server) Install(sync bool) error {
 
 		l.Warn("failed to notify panel of server install state")
 	}
+
+	// Push an event to the websocket so we can auto-refresh the information in the panel once
+	// the install is completed.
+	s.Events().Publish(InstallCompletedEvent, "")
 
 	return err
 }
