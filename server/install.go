@@ -369,7 +369,7 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 |
 | Details
 | ------------------------------
-  Server UUID:          {{.Server.Id()}}
+  Server UUID:          {{.Server.Id}}
   Container Image:      {{.Script.ContainerImage}}
   Container Entrypoint: {{.Script.Entrypoint}}
 
