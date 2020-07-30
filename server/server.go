@@ -19,6 +19,7 @@ type Server struct {
 	// Internal mutex used to block actions that need to occur sequentially, such as
 	// writing the configuration to the disk.
 	sync.RWMutex
+	emitterLock sync.Mutex
 
 	// Maintains the configuration for the server. This is the data that gets returned by the Panel
 	// such as build settings and container images.

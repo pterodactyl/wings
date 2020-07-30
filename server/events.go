@@ -32,6 +32,9 @@ type EventBus struct {
 
 // Returns the server's emitter instance.
 func (s *Server) Events() *EventBus {
+	s.emitterLock.Lock()
+	defer s.emitterLock.Unlock()
+
 	if s.emitter == nil {
 		s.emitter = &EventBus{
 			subscribers: map[string][]chan Event{},
@@ -85,11 +88,27 @@ func (e *EventBus) Subscribe(topic string, ch chan Event) {
 	e.Lock()
 	defer e.Unlock()
 
-	if p, ok := e.subscribers[topic]; ok {
-		e.subscribers[topic] = append(p, ch)
-	} else {
+	p, ok := e.subscribers[topic]
+
+	// If there is nothing currently subscribed to this topic just go ahead and create
+	// the item and then return.
+	if !ok {
 		e.subscribers[topic] = append([]chan Event{}, ch)
+		return
 	}
+
+	// If this topic is already setup, first iterate over the event channels currently in there
+	// and confirm there is not a match. If there _is_ a match do nothing since that means this
+	// channel is already being tracked. This avoids registering two identical handlers for the
+	// same topic, and means the Unsubscribe function can safely assume there will only be a
+	// single match for an event.
+	for i := range e.subscribers[topic] {
+		if ch == e.subscribers[topic][i] {
+			return
+		}
+	}
+
+	e.subscribers[topic] = append(p, ch)
 }
 
 // Unsubscribe a channel from a topic.
@@ -101,6 +120,10 @@ func (e *EventBus) Unsubscribe(topic string, ch chan Event) {
 		for i := range e.subscribers[topic] {
 			if ch == e.subscribers[topic][i] {
 				e.subscribers[topic] = append(e.subscribers[topic][:i], e.subscribers[topic][i+1:]...)
+				// Subscribe enforces a unique event channel for the topic, so we can safely exit
+				// this loop once matched since there should not be any additional matches after
+				// this point.
+				break
 			}
 		}
 	}
