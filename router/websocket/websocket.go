@@ -57,7 +57,20 @@ func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request) (*Hand
 		// Ensure that the websocket request is originating from the Panel itself,
 		// and not some other location.
 		CheckOrigin: func(r *http.Request) bool {
-			return r.Header.Get("Origin") == config.Get().PanelLocation
+			o := r.Header.Get("Origin")
+			if o == config.Get().PanelLocation {
+				return true
+			}
+
+			for _, origin := range config.Get().AllowedOrigins {
+				if o != origin {
+					continue
+				}
+
+				return true
+			}
+
+			return false
 		},
 	}
 

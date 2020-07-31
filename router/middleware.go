@@ -11,8 +11,22 @@ import (
 
 // Set the access request control headers on all of the requests.
 func SetAccessControlHeaders(c *gin.Context) {
-	c.Header("Access-Control-Allow-Origin", config.Get().PanelLocation)
 	c.Header("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+
+	o := c.GetHeader("Origin")
+	if o != config.Get().PanelLocation {
+		for _, origin := range config.Get().AllowedOrigins {
+			if o != origin {
+				continue
+			}
+
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Next()
+			return
+		}
+	}
+
+	c.Header("Access-Control-Allow-Origin", config.Get().PanelLocation)
 	c.Next()
 }
 

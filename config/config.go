@@ -83,6 +83,9 @@ type Configuration struct {
 
 	// AllowedMounts .
 	AllowedMounts []string `json:"allowed_mounts" yaml:"allowed_mounts"`
+
+	// AllowedOrigins .
+	AllowedOrigins []string `json:"allowed_origins" yaml:"allowed_origins"`
 }
 
 // Defines the configuration of the internal SFTP server.

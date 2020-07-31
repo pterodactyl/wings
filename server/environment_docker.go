@@ -364,7 +364,7 @@ func (d *DockerEnvironment) Restart() error {
 }
 
 // Check if the server is currently running the restart process by checking if there is a semaphore
-// allocated, and if so, if we can aquire a lock on it.
+// allocated, and if so, if we can acquire a lock on it.
 func (d *DockerEnvironment) IsRestarting() bool {
 	if d.restartSem == nil {
 		return false
@@ -469,7 +469,7 @@ func (d *DockerEnvironment) ExitState() (uint32, bool, error) {
 		//
 		// However, someone reported an error in Discord about this scenario happening,
 		// so I guess this should prevent it? They didn't tell me how they caused it though
-		// so thats a mystery that will have to go unsolved.
+		// so that's a mystery that will have to go unsolved.
 		//
 		// @see https://github.com/pterodactyl/panel/issues/2003
 		if client.IsErrNotFound(err) {
@@ -928,7 +928,7 @@ func (d *DockerEnvironment) portBindings() nat.PortMap {
 	for ip, ports := range d.Server.Config().Allocations.Mappings {
 		for _, port := range ports {
 			// Skip over invalid ports.
-			if port < 0 || port > 65535 {
+			if port < 1 || port > 65535 {
 				continue
 			}
 
