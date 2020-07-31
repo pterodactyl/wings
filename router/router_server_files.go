@@ -3,7 +3,6 @@ package router
 import (
 	"bufio"
 	"context"
-	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/router/tokens"
@@ -83,6 +82,13 @@ func getServerListDirectory(c *gin.Context) {
 
 	stats, err := s.Filesystem.ListDirectory(d)
 	if err != nil {
+		if err.Error() == "readdirent: not a directory" {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+				"error": "The requested directory does not exist.",
+			})
+			return
+		}
+
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}
@@ -175,7 +181,7 @@ func postServerDeleteFiles(c *gin.Context) {
 
 	if len(data.Files) == 0 {
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "No files were specified for deletion.",
+			"error": "No files were specififed for deletion.",
 		})
 		return
 	}
@@ -283,6 +289,39 @@ func postServerCompressFiles(c *gin.Context) {
 	})
 }
 
+func postServerDecompressFiles(c *gin.Context) {
+	s := GetServer(c.Param("server"))
+
+	var data struct {
+		RootPath string `json:"root"`
+		File     string `json:"file"`
+	}
+
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
+
+	hasSpace, err := s.Filesystem.SpaceAvailableForDecompression(data.RootPath, data.File)
+	if err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+
+	if !hasSpace {
+		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+			"error": "This server does not have enough available disk space to decompress this archive.",
+		})
+		return
+	}
+
+	if err := s.Filesystem.DecompressFile(data.RootPath, data.File); err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 func postServerUploadFiles(c *gin.Context) {
 	token := tokens.UploadPayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
@@ -313,10 +352,6 @@ func postServerUploadFiles(c *gin.Context) {
 		return
 	}
 
-	for i := range form.File {
-		log.Debug(i)
-	}
-
 	headers, ok := form.File["files"]
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusNotModified, gin.H{
@@ -335,7 +370,6 @@ func postServerUploadFiles(c *gin.Context) {
 			c.AbortWithError(http.StatusInternalServerError, err)
 			return
 		}
-		log.Debug(p)
 
 		// We run this in a different method so I can use defer without any of
 		// the consequences caused by calling it in a loop.

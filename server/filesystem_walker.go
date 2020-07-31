@@ -2,14 +2,28 @@ package server
 
 import (
 	"context"
-	"golang.org/x/sync/errgroup"
+	"github.com/gammazero/workerpool"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 )
 
 type FileWalker struct {
 	*Filesystem
+}
+
+type PooledFileWalker struct {
+	wg       sync.WaitGroup
+	pool     *workerpool.WorkerPool
+	callback filepath.WalkFunc
+	cancel   context.CancelFunc
+
+	err     error
+	errOnce sync.Once
+
+	Filesystem *Filesystem
 }
 
 // Returns a new walker instance.
@@ -17,54 +31,111 @@ func (fs *Filesystem) NewWalker() *FileWalker {
 	return &FileWalker{fs}
 }
 
-// Iterate over all of the files and directories within a given directory. When a file is
-// found the callback will be called with the file information. If a directory is encountered
-// it will be recursively passed back through to this function.
-func (fw *FileWalker) Walk(dir string, ctx context.Context, callback func (os.FileInfo, string) bool) error {
-	cleaned, err := fw.SafePath(dir)
+// Creates a new pooled file walker that will concurrently walk over a given directory but limit itself
+// to a worker pool as to not completely flood out the system or cause a process crash.
+func newPooledWalker(fs *Filesystem) *PooledFileWalker {
+	return &PooledFileWalker{
+		Filesystem: fs,
+		// Create a worker pool that is the same size as the number of processors available on the
+		// system. Going much higher doesn't provide much of a performance boost, and is only more
+		// likely to lead to resource overloading anyways.
+		pool: workerpool.New(runtime.GOMAXPROCS(0)),
+	}
+}
+
+// Process a given path by calling the callback function for all of the files and directories within
+// the path, and then dropping into any directories that we come across.
+func (w *PooledFileWalker) process(path string) error {
+	p, err := w.Filesystem.SafePath(path)
 	if err != nil {
 		return err
 	}
 
-	// Get all of the files from this directory.
-	files, err := ioutil.ReadDir(cleaned)
+	files, err := ioutil.ReadDir(p)
 	if err != nil {
 		return err
 	}
 
-	// Create an error group that we can use to run processes in parallel while retaining
-	// the ability to cancel the entire process immediately should any of it fail.
-	g, ctx := errgroup.WithContext(ctx)
-
+	// Loop over all of the files and directories in the given directory and call the provided
+	// callback function. If we encounter a directory, push that directory onto the worker queue
+	// to be processed.
 	for _, f := range files {
-		if f.IsDir() {
-			fi := f
-			p := filepath.Join(cleaned, f.Name())
-			// Recursively call this function to continue digging through the directory tree within
-			// a seperate goroutine. If the context is canceled abort this process.
-			g.Go(func() error {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				default:
-					// If the callback returns true, go ahead and keep walking deeper. This allows
-					// us to programatically continue deeper into directories, or stop digging
-					// if that pathway knows it needs nothing else.
-					if callback(fi, p) {
-						return fw.Walk(p, ctx, callback)
-					}
+		sp, err := w.Filesystem.SafeJoin(p, f)
+		if err != nil {
+			// Let the callback function handle what to do if there is a path resolution error because a
+			// dangerous path was resolved. If there is an error returned, return from this entire process
+			// otherwise just skip over this specific file. We don't care if its a file or a directory at
+			// this point since either way we're skipping it, however, still check for the SkipDir since that
+			// would be thrown otherwise.
+			if err = w.callback(sp, f, err); err != nil && err != filepath.SkipDir {
+				return err
+			}
 
-					return nil
-				}
-			})
-		} else {
-			// If this isn't a directory, go ahead and pass the file information into the
-			// callback. We don't care about the response since we won't be stepping into
-			// anything from here.
-			callback(f, filepath.Join(cleaned, f.Name()))
+			continue
+		}
+
+		i, err := os.Stat(sp)
+		// You might end up getting an error about a file or folder not existing if the given path
+		// if it is an invalid symlink. We can safely just skip over these files I believe.
+		if os.IsNotExist(err) {
+			continue
+		}
+
+		// Call the user-provided callback for this file or directory. If an error is returned that is
+		// not a SkipDir call, abort the entire process and bubble that error up.
+		if err = w.callback(sp, i, err); err != nil && err != filepath.SkipDir {
+			return err
+		}
+
+		// If this is a directory, and we didn't get a SkipDir error, continue through by pushing another
+		// job to the pool to handle it. If we requested a skip, don't do anything just continue on to the
+		// next item.
+		if i.IsDir() && err != filepath.SkipDir {
+			w.push(sp)
+		} else if !i.IsDir() && err == filepath.SkipDir {
+			// Per the spec for the callback, if we get a SkipDir error but it is returned for an item
+			// that is _not_ a directory, abort the remaining operations on the directory.
+			return nil
 		}
 	}
 
-	// Block until all of the routines finish and have returned a value.
-	return g.Wait()
+	return nil
+}
+
+// Push a new path into the worker pool and increment the waitgroup so that we do not return too
+// early and cause panic's as internal directories attempt to submit to the pool.
+func (w *PooledFileWalker) push(path string) {
+	w.wg.Add(1)
+	w.pool.Submit(func() {
+		defer w.wg.Done()
+		if err := w.process(path); err != nil {
+			w.errOnce.Do(func() {
+				w.err = err
+				if w.cancel != nil {
+					w.cancel()
+				}
+			})
+		}
+	})
+}
+
+// Walks the given directory and executes the callback function for all of the files and directories
+// that are encountered.
+func (fs *Filesystem) Walk(dir string, callback filepath.WalkFunc) error {
+	w := newPooledWalker(fs)
+	w.callback = callback
+
+	_, cancel := context.WithCancel(context.Background())
+	w.cancel = cancel
+
+	w.push(dir)
+
+	w.wg.Wait()
+	w.pool.StopWait()
+
+	if w.err != nil {
+		return w.err
+	}
+
+	return nil
 }

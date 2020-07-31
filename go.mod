@@ -31,6 +31,7 @@ require (
 	github.com/docker/go-units v0.3.3 // indirect
 	github.com/fatih/color v1.9.0
 	github.com/gabriel-vasile/mimetype v0.1.4
+	github.com/gammazero/workerpool v0.0.0-20200608033439-1a5ca90a5753
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-rc.0
 	github.com/gin-gonic/gin v1.6.3
 	github.com/golang/protobuf v1.3.5 // indirect

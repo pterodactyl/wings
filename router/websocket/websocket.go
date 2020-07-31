@@ -127,7 +127,7 @@ func (h *Handler) TokenValid() error {
 		return errors.New("jwt does not have connect permission")
 	}
 
-	if h.server.Uuid != j.ServerUUID {
+	if h.server.Id() != j.GetServerUuid() {
 		return errors.New("jwt server uuid mismatch")
 	}
 
@@ -247,16 +247,7 @@ func (h *Handler) HandleInbound(m Message) error {
 			if state == server.ProcessOfflineState {
 				_ = h.server.Filesystem.HasSpaceAvailable()
 
-				resources := server.ResourceUsage{
-					Memory:      0,
-					MemoryLimit: 0,
-					CpuAbsolute: 0.0,
-					Disk:        h.server.Resources.Disk,
-				}
-				resources.Network.RxBytes = 0
-				resources.Network.TxBytes = 0
-
-				b, _ := json.Marshal(resources)
+				b, _ := json.Marshal(h.server.Proc())
 				h.SendJson(&Message{
 					Event: server.StatsEvent,
 					Args:  []string{string(b)},
@@ -280,11 +271,14 @@ func (h *Handler) HandleInbound(m Message) error {
 				break
 			case "restart":
 				if h.GetJwt().HasPermission(PermissionSendPowerRestart) {
-					if err := h.server.Environment.WaitForStop(60, false); err != nil {
-						return err
+					// If the server is alreay restarting don't do anything. Perhaps we send back an event
+					// in the future for this? For now no reason to knowingly trigger an error by trying to
+					// restart a process already restarting.
+					if h.server.Environment.IsRestarting() {
+						return nil
 					}
 
-					return h.server.Environment.Start()
+					return h.server.Environment.Restart()
 				}
 				break
 			case "kill":

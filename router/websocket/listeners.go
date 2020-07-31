@@ -43,6 +43,8 @@ func (h *Handler) ListenForServerEvents(ctx context.Context) {
 		server.StatusEvent,
 		server.ConsoleOutputEvent,
 		server.InstallOutputEvent,
+		server.InstallStartedEvent,
+		server.InstallCompletedEvent,
 		server.DaemonMessageEvent,
 		server.BackupCompletedEvent,
 	}
@@ -52,16 +54,15 @@ func (h *Handler) ListenForServerEvents(ctx context.Context) {
 		h.server.Events().Subscribe(event, eventChannel)
 	}
 
-	select {
-	case <-ctx.Done():
-		for _, event := range events {
-			h.server.Events().Unsubscribe(event, eventChannel)
-		}
+	for d := range eventChannel {
+		select {
+		case <-ctx.Done():
+			for _, event := range events {
+				h.server.Events().Unsubscribe(event, eventChannel)
+			}
 
-		close(eventChannel)
-	default:
-		// Listen for different events emitted by the server and respond to them appropriately.
-		for d := range eventChannel {
+			close(eventChannel)
+		default:
 			h.SendJson(&Message{
 				Event: d.Topic,
 				Args:  []string{d.Data},

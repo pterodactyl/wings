@@ -48,7 +48,7 @@ func AuthorizationMiddleware(c *gin.Context) {
 // Helper function to fetch a server out of the servers collection stored in memory.
 func GetServer(uuid string) *server.Server {
 	return server.GetServers().Find(func(s *server.Server) bool {
-		return uuid == s.Uuid
+		return uuid == s.Id()
 	})
 }
 

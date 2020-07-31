@@ -13,7 +13,9 @@ import (
 
 // Returns a single server from the collection of servers.
 func getServer(c *gin.Context) {
-	c.JSON(http.StatusOK, GetServer(c.Param("server")))
+	s := GetServer(c.Param("server"))
+
+	c.JSON(http.StatusOK, s.Proc())
 }
 
 // Returns the logs for a given server instance.
@@ -64,7 +66,7 @@ func postServerPower(c *gin.Context) {
 	//
 	// We don't really care about any of the other actions at this point, they'll all result
 	// in the process being stopped, which should have happened anyways if the server is suspended.
-	if (data.Action == "start" || data.Action == "restart") && s.Suspended {
+	if (data.Action == "start" || data.Action == "restart") && s.IsSuspended() {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error": "Cannot start or restart a server that is suspended.",
 		})
@@ -162,7 +164,7 @@ func deleteServer(c *gin.Context) {
 
 	// Immediately suspend the server to prevent a user from attempting
 	// to start it while this process is running.
-	s.Suspended = true
+	s.Config().SetSuspended(true)
 
 	// If the server is currently installing, abort it.
 	if s.IsInstalling() {
@@ -200,9 +202,9 @@ func deleteServer(c *gin.Context) {
 		}
 	}(s.Filesystem.Path())
 
-	var uuid = s.Uuid
+	var uuid = s.Id()
 	server.GetServers().Remove(func(s2 *server.Server) bool {
-		return s2.Uuid == uuid
+		return s2.Id() == uuid
 	})
 
 	// Deallocate the reference to this server.

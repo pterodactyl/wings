@@ -27,9 +27,11 @@ func (s *Server) onConsoleOutput(data string) {
 	// If the specific line of output is one that would mark the server as started,
 	// set the server to that state. Only do this if the server is not currently stopped
 	// or stopping.
-	if s.GetState() == ProcessStartingState && strings.Contains(data, s.processConfiguration.Startup.Done) {
+	match := s.ProcessConfiguration().Startup.Done
+
+	if s.GetState() == ProcessStartingState && strings.Contains(data, match) {
 		s.Log().WithFields(log.Fields{
-			"match": s.processConfiguration.Startup.Done,
+			"match": match,
 			"against": data,
 		}).Debug("detected server in running state based on console line output")
 
@@ -40,7 +42,8 @@ func (s *Server) onConsoleOutput(data string) {
 	// set the server to be in a stopping state, otherwise crash detection will kick in and
 	// cause the server to unexpectedly restart on the user.
 	if s.IsRunning() {
-		if s.processConfiguration.Stop.Type == api.ProcessStopCommand && data == s.processConfiguration.Stop.Value {
+		stop := s.ProcessConfiguration().Stop
+		if stop.Type == api.ProcessStopCommand && data == stop.Value {
 			s.SetState(ProcessStoppingState)
 		}
 	}

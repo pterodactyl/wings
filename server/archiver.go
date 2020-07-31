@@ -23,7 +23,7 @@ func (a *Archiver) ArchivePath() string {
 
 // ArchiveName returns the name of the server's archive.
 func (a *Archiver) ArchiveName() string {
-	return a.Server.Uuid + ".tar.gz"
+	return a.Server.Id() + ".tar.gz"
 }
 
 // Exists returns a boolean based off if the archive exists.
@@ -52,7 +52,12 @@ func (a *Archiver) Archive() error {
 	}
 
 	for _, file := range fileInfo {
-		files = append(files, filepath.Join(path, file.Name()))
+		f, err := a.Server.Filesystem.SafeJoin(path, file)
+		if err != nil {
+			return err
+		}
+
+		files = append(files, f)
 	}
 
 	stat, err := a.Stat()

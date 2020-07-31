@@ -81,7 +81,7 @@ func (h *Handler) HandleLog(e *log.Entry) error {
 }
 
 func getErrorStack(err error, i bool) errors.StackTrace {
-	e, ok := errors.Cause(err).(tracer)
+	e, ok := err.(tracer)
 	if !ok {
 		if i {
 			// Just abort out of this and return a stacktrace leading up to this point. It isn't perfect
@@ -89,7 +89,7 @@ func getErrorStack(err error, i bool) errors.StackTrace {
 			return errors.Wrap(err, "failed to generate stacktrace for caught error").(tracer).StackTrace()
 		}
 
-		return getErrorStack(errors.New(err.Error()), true)
+		return getErrorStack(errors.Wrap(err, err.Error()), true)
 	}
 
 	st := e.StackTrace()

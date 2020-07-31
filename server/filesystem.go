@@ -26,18 +26,27 @@ import (
 )
 
 // Error returned when there is a bad path provided to one of the FS calls.
-var InvalidPathResolution = errors.New("invalid path resolution")
+type PathResolutionError struct{}
+
+// Returns the error response in a string form that can be more easily consumed.
+func (pre PathResolutionError) Error() string {
+	return "invalid path resolution"
+}
+
+func IsPathResolutionError(err error) bool {
+	_, ok := err.(PathResolutionError)
+
+	return ok
+}
 
 type Filesystem struct {
-	// The server object associated with this Filesystem.
-	Server *Server
-
-	Configuration *config.SystemConfiguration
+	Server        *Server
+	cacheDiskMu   sync.Mutex
 }
 
 // Returns the root path that contains all of a server's data.
 func (fs *Filesystem) Path() string {
-	return filepath.Join(fs.Configuration.Data, fs.Server.Uuid)
+	return filepath.Join(config.Get().System.Data, fs.Server.Id())
 }
 
 // Normalizes a directory being passed in to ensure the user is not able to escape
@@ -49,12 +58,8 @@ func (fs *Filesystem) Path() string {
 func (fs *Filesystem) SafePath(p string) (string, error) {
 	var nonExistentPathResolution string
 
-	// Calling filpath.Clean on the joined directory will resolve it to the absolute path,
-	// removing any ../ type of resolution arguments, and leaving us with a direct path link.
-	//
-	// This will also trim the existing root path off the beginning of the path passed to
-	// the function since that can get a bit messy.
-	r := filepath.Clean(filepath.Join(fs.Path(), strings.TrimPrefix(p, fs.Path())))
+	// Start with a cleaned up path before checking the more complex bits.
+	r := fs.unsafeFilePath(p)
 
 	// At the same time, evaluate the symlink status and determine where this file or folder
 	// is truly pointing to.
@@ -72,7 +77,7 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 		for k := range parts {
 			try = strings.Join(parts[:(len(parts)-k)], "/")
 
-			if !strings.HasPrefix(try, fs.Path()) {
+			if !fs.unsafeIsInDataDirectory(try) {
 				break
 			}
 
@@ -87,8 +92,8 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 	// If the new path doesn't start with their root directory there is clearly an escape
 	// attempt going on, and we should NOT resolve this path for them.
 	if nonExistentPathResolution != "" {
-		if !strings.HasPrefix(nonExistentPathResolution, fs.Path()) {
-			return "", InvalidPathResolution
+		if !fs.unsafeIsInDataDirectory(nonExistentPathResolution) {
+			return "", PathResolutionError{}
 		}
 
 		// If the nonExistentPathResolution variable is not empty then the initial path requested
@@ -101,11 +106,51 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 	// If the requested directory from EvalSymlinks begins with the server root directory go
 	// ahead and return it. If not we'll return an error which will block any further action
 	// on the file.
-	if strings.HasPrefix(p, fs.Path()) {
+	if fs.unsafeIsInDataDirectory(p) {
 		return p, nil
 	}
 
-	return "", InvalidPathResolution
+	return "", PathResolutionError{}
+}
+
+// Generate a path to the file by cleaning it up and appending the root server path to it. This
+// DOES NOT gaurantee that the file resolves within the server data directory. You'll want to use
+// the fs.unsafeIsInDataDirectory(p) function to confirm.
+func (fs *Filesystem) unsafeFilePath(p string) string {
+	// Calling filpath.Clean on the joined directory will resolve it to the absolute path,
+	// removing any ../ type of resolution arguments, and leaving us with a direct path link.
+	//
+	// This will also trim the existing root path off the beginning of the path passed to
+	// the function since that can get a bit messy.
+	return filepath.Clean(filepath.Join(fs.Path(), strings.TrimPrefix(p, fs.Path())))
+}
+
+// Check that that path string starts with the server data directory path. This function DOES NOT
+// validate that the rest of the path does not end up resolving out of this directory, or that the
+// targeted file or folder is not a symlink doing the same thing.
+func (fs *Filesystem) unsafeIsInDataDirectory(p string) bool {
+	return strings.HasPrefix(strings.TrimSuffix(p, "/")+"/", strings.TrimSuffix(fs.Path(), "/")+"/")
+}
+
+// Helper function to keep some of the codebase a little cleaner. Returns a "safe" version of the path
+// joined with a file. This is important because you cannot just assume that appending a file to a cleaned
+// path will result in a cleaned path to that file. For example, imagine you have the following scenario:
+//
+// my_bad_file -> symlink:/etc/passwd
+//
+// cleaned := SafePath("../../etc") -> "/"
+// filepath.Join(cleaned, my_bad_file) -> "/my_bad_file"
+//
+// You might think that "/my_bad_file" is fine since it isn't pointing to the original "../../etc/my_bad_file".
+// However, this doesn't account for symlinks where the file might be pointing outside of the directory, so
+// calling a function such as Chown against it would chown the symlinked location, and not the file within the
+// Wings daemon.
+func (fs *Filesystem) SafeJoin(dir string, f os.FileInfo) (string, error) {
+	if f.Mode()&os.ModeSymlink != 0 {
+		return fs.SafePath(filepath.Join(dir, f.Name()))
+	}
+
+	return filepath.Join(dir, f.Name()), nil
 }
 
 // Executes the fs.SafePath function in parallel against an array of paths. If any of the calls
@@ -162,18 +207,45 @@ func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 // Because determining the amount of space being used by a server is a taxing operation we
 // will load it all up into a cache and pull from that as long as the key is not expired.
 func (fs *Filesystem) HasSpaceAvailable() bool {
-	var space = fs.Server.Build.DiskSpace
+	space := fs.Server.Build().DiskSpace
+
+	size, err := fs.getCachedDiskUsage()
+	if err != nil {
+		fs.Server.Log().WithField("error", err).Warn("failed to determine root server directory size")
+	}
+
+	// Determine if their folder size, in bytes, is smaller than the amount of space they've
+	// been allocated.
+	fs.Server.Proc().SetDisk(size)
 
 	// If space is -1 or 0 just return true, means they're allowed unlimited.
+	//
+	// Technically we could skip disk space calculation because we don't need to check if the server exceeds it's limit
+	// but because this method caches the disk usage it would be best to calculate the disk usage and always
+	// return true.
 	if space <= 0 {
 		return true
 	}
 
-	// If we have a match in the cache, use that value in the return. No need to perform an expensive
-	// disk operation, even if this is an empty value.
-	if x, exists := fs.Server.Cache.Get("disk_used"); exists {
-		fs.Server.Resources.Disk = x.(int64)
-		return (x.(int64) / 1000.0 / 1000.0) <= space
+	return (size / 1000.0 / 1000.0) <= space
+}
+
+// Internal helper function to allow other parts of the codebase to check the total used disk space
+// as needed without overly taxing the system. This will prioritize the value from the cache to avoid
+// excessive IO usage. We will only walk the filesystem and determine the size of the directory if there
+// is no longer a cached value.
+func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
+	// Obtain an exclusive lock on this process so that we don't unintentionally run it at the same
+	// time as another running process. Once the lock is available it'll read from the cache for the
+	// second call rather than hitting the disk in parallel.
+	//
+	// This effectively the same speed as running this call in parallel since this cache will return
+	// instantly on the second call.
+	fs.cacheDiskMu.Lock()
+	defer fs.cacheDiskMu.Unlock()
+
+	if x, exists := fs.Server.cache.Get("disk_used"); exists {
+		return x.(int64), nil
 	}
 
 	// If there is no size its either because there is no data (in which case running this function
@@ -181,37 +253,30 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 	// grab the size of their data directory. This is a taxing operation, so we want to store it in
 	// the cache once we've gotten it.
 	size, err := fs.DirectorySize("/")
-	if err != nil {
-		fs.Server.Log().WithField("error", err).Warn("failed to determine root server directory size")
-	}
 
 	// Always cache the size, even if there is an error. We want to always return that value
 	// so that we don't cause an endless loop of determining the disk size if there is a temporary
 	// error encountered.
-	fs.Server.Cache.Set("disk_used", size, time.Second*60)
+	fs.Server.cache.Set("disk_used", size, time.Second*60)
 
-	// Determine if their folder size, in bytes, is smaller than the amount of space they've
-	// been allocated.
-	fs.Server.Resources.Disk = size
-
-	return (size / 1000.0 / 1000.0) <= space
+	return size, err
 }
 
 // Determines the directory size of a given location by running parallel tasks to iterate
 // through all of the folders. Returns the size in bytes. This can be a fairly taxing operation
 // on locations with tons of files, so it is recommended that you cache the output.
 func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
-	w := fs.NewWalker()
-	ctx := context.Background()
-
 	var size int64
-	err := w.Walk(dir, ctx, func(f os.FileInfo, _ string) bool {
-		// Only increment the size when we're dealing with a file specifically, otherwise
-		// just continue digging deeper until there are no more directories to iterate over.
+	err := fs.Walk(dir, func(_ string, f os.FileInfo, err error) error {
+		if err != nil {
+			return fs.handleWalkerError(err, f)
+		}
+
 		if !f.IsDir() {
 			atomic.AddInt64(&size, f.Size())
 		}
-		return true
+
+		return nil
 	})
 
 	return size, err
@@ -293,7 +358,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 
 	// Finally, chown the file to ensure the permissions don't end up out-of-whack
 	// if we had just created it.
-	return fs.Chown(p)
+	return fs.Chown(cleaned)
 }
 
 // Defines the stat struct object.
@@ -409,7 +474,7 @@ func (fs *Filesystem) Chown(path string) error {
 	if s, err := os.Stat(cleaned); err != nil {
 		return errors.WithStack(err)
 	} else if !s.IsDir() {
-		return os.Chown(cleaned, fs.Configuration.User.Uid, fs.Configuration.User.Gid)
+		return os.Chown(cleaned, config.Get().System.User.Uid, config.Get().System.User.Gid)
 	}
 
 	return fs.chownDirectory(cleaned)
@@ -435,16 +500,27 @@ func (fs *Filesystem) chownDirectory(path string) error {
 	}
 
 	for _, f := range files {
+		// Do not attempt to chmod a symlink. Go's os.Chown function will affect the symlink
+		// so if it points to a location outside the data directory the user would be able to
+		// (un)intentionally modify that files permissions.
+		if f.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+
+		p, err := fs.SafeJoin(cleaned, f)
+		if err != nil {
+			return err
+		}
+
 		if f.IsDir() {
 			wg.Add(1)
 
 			go func(p string) {
 				defer wg.Done()
 				fs.chownDirectory(p)
-			}(filepath.Join(cleaned, f.Name()))
+			}(p)
 		} else {
-			// Chown the file.
-			os.Chown(filepath.Join(cleaned, f.Name()), fs.Configuration.User.Uid, fs.Configuration.User.Gid)
+			os.Chown(p, config.Get().System.User.Uid, config.Get().System.User.Gid)
 		}
 	}
 
@@ -536,17 +612,26 @@ func (fs *Filesystem) Copy(p string) error {
 // Deletes a file or folder from the system. Prevents the user from accidentally
 // (or maliciously) removing their root server data directory.
 func (fs *Filesystem) Delete(p string) error {
-	cleaned, err := fs.SafePath(p)
-	if err != nil {
-		return errors.WithStack(err)
+	// This is one of the few (only?) places in the codebase where we're explictly not using
+	// the SafePath functionality when working with user provided input. If we did, you would
+	// not be able to delete a file that is a symlink pointing to a location outside of the data
+	// directory.
+	//
+	// We also want to avoid resolving a symlink that points _within_ the data directory and thus
+	// deleting the actual source file for the symlink rather than the symlink itself. For these
+	// purposes just resolve the actual file path using filepath.Join() and confirm that the path
+	// exists within the data directory.
+	resolved := fs.unsafeFilePath(p)
+	if !fs.unsafeIsInDataDirectory(resolved) {
+		return PathResolutionError{}
 	}
 
 	// Block any whoopsies.
-	if cleaned == fs.Path() {
+	if resolved == fs.Path() {
 		return errors.New("cannot delete root server directory")
 	}
 
-	return os.RemoveAll(cleaned)
+	return os.RemoveAll(resolved)
 }
 
 // Lists the contents of a given directory and returns stat information about each
@@ -579,7 +664,14 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 
 			var m = "inode/directory"
 			if !f.IsDir() {
-				m, _, _ = mimetype.DetectFile(filepath.Join(cleaned, f.Name()))
+				cleanedp, _ := fs.SafeJoin(cleaned, f)
+				if cleanedp != "" {
+					m, _, _ = mimetype.DetectFile(filepath.Join(cleaned, f.Name()))
+				} else {
+					// Just pass this for an unknown type because the file could not safely be resolved within
+					// the server data path.
+					m = "application/octet-stream"
+				}
 			}
 
 			out[idx] = &Stat{
@@ -636,9 +728,6 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 		return nil, err
 	}
 
-	w := fs.NewWalker()
-	ctx := context.Background()
-
 	i, err := ignore.CompileIgnoreLines(ignored...)
 	if err != nil {
 		return nil, err
@@ -647,7 +736,12 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 	// Walk through all of the files and directories on a server. This callback only returns
 	// files found, and will keep walking deeper and deeper into directories.
 	inc := new(backup.IncludedFiles)
-	if err := w.Walk(cleaned, ctx, func(f os.FileInfo, p string) bool {
+
+	if err := fs.Walk(cleaned, func(p string, f os.FileInfo, err error) error {
+		if err != nil {
+			return fs.handleWalkerError(err, f)
+		}
+
 		// Avoid unnecessary parsing if there are no ignored files, nothing will match anyways
 		// so no reason to call the function.
 		if len(ignored) == 0 || !i.MatchesPath(strings.TrimPrefix(p, fs.Path()+"/")) {
@@ -657,7 +751,7 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 		// We can't just abort if the path is technically ignored. It is possible there is a nested
 		// file or folder that should not be excluded, so in this case we need to just keep going
 		// until we get to a final state.
-		return true
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -665,7 +759,7 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 	return inc, nil
 }
 
-// Compresses all of the files matching the given paths in the specififed directory. This function
+// Compresses all of the files matching the given paths in the specified directory. This function
 // also supports passing nested paths to only compress certain files and folders when working in
 // a larger directory. This effectively creates a local backup, but rather than ignoring specific
 // files and folders, it takes an allow-list of files and folders.
@@ -688,46 +782,58 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 		return nil, err
 	}
 
-	w := fs.NewWalker()
-	wg := new(sync.WaitGroup)
-
 	inc := new(backup.IncludedFiles)
 	// Iterate over all of the cleaned paths and merge them into a large object of final file
 	// paths to pass into the archiver. As directories are encountered this will drop into them
 	// and look for all of the files.
 	for _, p := range cleaned {
-		wg.Add(1)
+		f, err := os.Stat(p)
+		if err != nil {
+			fs.Server.Log().WithField("error", err).WithField("path", p).Debug("failed to stat file or directory for compression")
+			continue
+		}
 
-		go func(pa string) {
-			defer wg.Done()
+		if f.IsDir() {
+			err := fs.Walk(p, func(s string, info os.FileInfo, err error) error {
+				if err != nil {
+					return fs.handleWalkerError(err, info)
+				}
 
-			f, err := os.Stat(pa)
+				if !info.IsDir() {
+					inc.Push(&info, s)
+				}
+
+				return nil
+			})
+
 			if err != nil {
-				fs.Server.Log().WithField("error", err).WithField("path", pa).Warn("failed to stat file or directory for compression")
-				return
+				return nil, err
 			}
-
-			if f.IsDir() {
-				// Recursively drop into directory and get all of the additional files and directories within
-				// it that should be included in this backup.
-				w.Walk(pa, context.Background(), func(info os.FileInfo, s string) bool {
-					if !info.IsDir() {
-						inc.Push(&info, s)
-					}
-
-					return true
-				})
-			} else {
-				inc.Push(&f, pa)
-			}
-		}(p)
+		} else {
+			inc.Push(&f, p)
+		}
 	}
-
-	wg.Wait()
 
 	a := &backup.Archive{TrimPrefix: fs.Path(), Files: inc}
 
 	d := path.Join(cleanedRootDir, fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")))
 
 	return a.Create(d, context.Background())
+}
+
+// Handle errors encountered when walking through directories.
+//
+// If there is a path resolution error just skip the item entirely. Only return this for a
+// directory, otherwise return nil. Returning this error for a file will stop the walking
+// for the remainder of the directory. This is assuming an os.FileInfo struct was even returned.
+func (fs *Filesystem) handleWalkerError(err error, f os.FileInfo) error {
+	if !IsPathResolutionError(err) {
+		return err
+	}
+
+	if f != nil && f.IsDir() {
+		return filepath.SkipDir
+	}
+
+	return nil
 }
