@@ -158,7 +158,7 @@ func (s *Server) GetProcessConfiguration() (*api.ServerConfigurationResponse, *a
 	return api.NewRequester().GetServerConfiguration(s.Id())
 }
 
-// Helper function that can receieve a power action and then process the
+// Helper function that can receive a power action and then process the
 // actions that need to occur for it.
 func (s *Server) HandlePowerAction(action PowerAction) error {
 	switch action.Action {

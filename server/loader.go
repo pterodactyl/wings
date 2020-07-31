@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/remeh/sizedwaitgroup"
+	"os"
 	"time"
 )
 
@@ -108,7 +109,12 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 		Server: s,
 	}
 	s.Filesystem = Filesystem{
-		Server:        s,
+		Server: s,
+	}
+
+	// If the server's data directory exists, force disk usage calculation.
+	if _, err := os.Stat(s.Filesystem.Path()); err == nil {
+		go s.Filesystem.HasSpaceAvailable()
 	}
 
 	// Forces the configuration to be synced with the panel.
