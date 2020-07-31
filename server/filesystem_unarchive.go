@@ -73,6 +73,11 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		return errors.WithStack(err)
 	}
 
+	// Make sure the file exists basically.
+	if _, err := os.Stat(source); err != nil {
+		return errors.WithStack(err)
+	}
+
 	// Walk over all of the files spinning up an additional go-routine for each file we've encountered
 	// and then extract that file from the archive and write it to the disk. If any part of this process
 	// encounters an error the entire process will be stopped.
