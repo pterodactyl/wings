@@ -3,11 +3,12 @@ package server
 import (
 	"github.com/apex/log"
 	"github.com/creasty/defaults"
+	"github.com/gammazero/workerpool"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
-	"github.com/remeh/sizedwaitgroup"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -23,16 +24,6 @@ func LoadDirectory() error {
 	if len(servers.items) != 0 {
 		return errors.New("cannot call LoadDirectory with a non-nil collection")
 	}
-
-	// We could theoretically use a standard wait group here, however doing
-	// that introduces the potential to crash the program due to too many
-	// open files. This wouldn't happen on a small setup, but once the daemon is
-	// handling many servers you run that risk.
-	//
-	// For now just process 10 files at a time, that should be plenty fast to
-	// read and parse the YAML. We should probably make this configurable down
-	// the road to help big instances scale better.
-	wg := sizedwaitgroup.New(10)
 
 	configs, rerr, err := api.NewRequester().GetAllServerConfigurations()
 	if err != nil || rerr != nil {
@@ -50,12 +41,13 @@ func LoadDirectory() error {
 	}
 
 	log.WithField("total_configs", len(configs)).Debug("looping over received configurations from API")
+
+	pool := workerpool.New(runtime.NumCPU())
 	for uuid, data := range configs {
-		wg.Add()
+		uuid := uuid
+		data := data
 
-		go func(uuid string, data *api.ServerConfigurationResponse) {
-			defer wg.Done()
-
+		pool.Submit(func() {
 			log.WithField("uuid", uuid).Debug("creating server object from configuration")
 			s, err := FromConfiguration(data)
 			if err != nil {
@@ -69,12 +61,12 @@ func LoadDirectory() error {
 			}
 
 			servers.Add(s)
-		}(uuid, data)
+		})
 	}
 
 	// Wait until we've processed all of the configuration files in the directory
 	// before continuing.
-	wg.Wait()
+	pool.StopWait()
 
 	return nil
 }
