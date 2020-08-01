@@ -30,8 +30,8 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 	// Grab a copy of the configuration to work on.
 	c := *s.Config()
 
-	// Lock our copy of the configuration since the defered unlock will end up acting upon this
-	// new memory address rather than the old one. If we don't lock this, the defered unlock will
+	// Lock our copy of the configuration since the deferred unlock will end up acting upon this
+	// new memory address rather than the old one. If we don't lock this, the deferred unlock will
 	// cause a panic when it goes to run. However, since we only update s.cfg at the end, if there
 	// is an error before that point we'll still properly unlock the original configuration for the
 	// server.
