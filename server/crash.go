@@ -82,5 +82,5 @@ func (s *Server) handleServerCrash() error {
 
 	s.crasher.SetLastCrash(time.Now())
 
-	return s.Environment.Start()
+	return s.HandlePowerAction(PowerActionStart)
 }

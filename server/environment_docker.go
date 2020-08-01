@@ -342,13 +342,13 @@ func (d *DockerEnvironment) acquireRestartLock() error {
 // start command. This will return an error if there is already a restart process executing for the
 // server. The lock is released when the process is stopped and a start has begun.
 func (d *DockerEnvironment) Restart() error {
-	d.Server.Log().Debug("attempting to acquire restart lock...")
+	d.Server.Log().Debug("acquiring process restart lock...")
 	if err := d.acquireRestartLock(); err != nil {
 		d.Server.Log().Warn("failed to acquire restart lock; already acquired by a different process")
 		return err
 	}
 
-	d.Server.Log().Debug("acquired restart lock")
+	d.Server.Log().Info("acquired process lock; beginning restart process...")
 
 	err := d.WaitForStop(60, false)
 	if err != nil {
@@ -496,12 +496,14 @@ func (d *DockerEnvironment) Attach() error {
 	}
 
 	var err error
+	d.Lock()
 	d.stream, err = d.Client.ContainerAttach(context.Background(), d.Server.Id(), types.ContainerAttachOptions{
 		Stdin:  true,
 		Stdout: true,
 		Stderr: true,
 		Stream: true,
 	})
+	d.Unlock()
 
 	if err != nil {
 		return errors.WithStack(err)

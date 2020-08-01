@@ -2,6 +2,7 @@ package router
 
 import (
 	"bytes"
+	"context"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -47,13 +48,15 @@ func getServerLogs(c *gin.Context) {
 func postServerPower(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	var data server.PowerAction
-	// BindJSON sends 400 if the request fails, all we need to do is return
+	var data struct{
+		Action server.PowerAction `json:"action"`
+	}
+
 	if err := c.BindJSON(&data); err != nil {
 		return
 	}
 
-	if !data.IsValid() {
+	if !data.Action.IsValid() {
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
 			"error": "The power action provided was not valid, should be one of \"stop\", \"start\", \"restart\", \"kill\"",
 		})
@@ -66,7 +69,7 @@ func postServerPower(c *gin.Context) {
 	//
 	// We don't really care about any of the other actions at this point, they'll all result
 	// in the process being stopped, which should have happened anyways if the server is suspended.
-	if (data.Action == "start" || data.Action == "restart") && s.IsSuspended() {
+	if (data.Action == server.PowerActionStart || data.Action == server.PowerActionRestart) && s.IsSuspended() {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error": "Cannot start or restart a server that is suspended.",
 		})
@@ -76,10 +79,15 @@ func postServerPower(c *gin.Context) {
 	// Pass the actual heavy processing off to a seperate thread to handle so that
 	// we can immediately return a response from the server. Some of these actions
 	// can take quite some time, especially stopping or restarting.
-	go func(server *server.Server) {
-		if err := server.HandlePowerAction(data); err != nil {
-			server.Log().WithFields(log.Fields{"action": data, "error": err}).
-				Error("encountered error processing a server power action in the background")
+	go func(s *server.Server) {
+		if err := s.HandlePowerAction(data.Action, 30); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				s.Log().WithField("action", data.Action).
+					Warn("could not acquire a lock while attempting to perform a power action")
+			} else {
+				s.Log().WithFields(log.Fields{"action": data, "error": err}).
+					Error("encountered error processing a server power action in the background")
+			}
 		}
 	}(s)
 

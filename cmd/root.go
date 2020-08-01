@@ -205,7 +205,7 @@ func rootCmdRun(*cobra.Command, []string) {
 			// is that it was running, but we see that the container process is not currently running.
 			if r || (!r && s.IsRunning()) {
 				s.Log().Info("detected server is running, re-attaching to process...")
-				if err := s.Environment.Start(); err != nil {
+				if err := s.HandlePowerAction(server.PowerActionStart); err != nil {
 					s.Log().WithField("error", errors.WithStack(err)).Warn("failed to properly start server detected as already running")
 				}
 

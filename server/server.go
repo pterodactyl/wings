@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"golang.org/x/sync/semaphore"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +19,7 @@ type Server struct {
 	// writing the configuration to the disk.
 	sync.RWMutex
 	emitterLock sync.Mutex
+	powerLock   *semaphore.Weighted
 
 	// Maintains the configuration for the server. This is the data that gets returned by the Panel
 	// such as build settings and container images.
@@ -156,23 +156,6 @@ func (s *Server) CreateEnvironment() error {
 // Gets the process configuration data for the server.
 func (s *Server) GetProcessConfiguration() (*api.ServerConfigurationResponse, *api.RequestError, error) {
 	return api.NewRequester().GetServerConfiguration(s.Id())
-}
-
-// Helper function that can receive a power action and then process the
-// actions that need to occur for it.
-func (s *Server) HandlePowerAction(action PowerAction) error {
-	switch action.Action {
-	case "start":
-		return s.Environment.Start()
-	case "restart":
-		return s.Environment.Restart()
-	case "stop":
-		return s.Environment.Stop()
-	case "kill":
-		return s.Environment.Terminate(os.Kill)
-	default:
-		return errors.New("an invalid power action was provided")
-	}
 }
 
 // Checks if the server is marked as being suspended or not on the system.

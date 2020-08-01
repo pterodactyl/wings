@@ -36,7 +36,6 @@ type Environment interface {
 	// unnecessary double/triple/quad looping issues if multiple people press restart or spam the
 	// button to restart.
 	Restart() error
-	IsRestarting() bool
 
 	// Waits for a server instance to stop gracefully. If the server is still detected
 	// as running after seconds, an error will be returned, or the server will be terminated
