@@ -654,7 +654,33 @@ func (d *DockerEnvironment) ensureImageExists() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*15)
 	defer cancel()
 
-	out, err := d.Client.ImagePull(ctx, d.Image(), types.ImagePullOptions{All: false})
+	image := d.Image()
+
+	// Get a registry auth configuration from the config.
+	var registryAuth *config.RegistryConfiguration
+	for registry, c := range config.Get().Docker.Registries {
+		if !strings.HasPrefix(image, registry) {
+			continue
+		}
+
+		log.WithField("registry", registry).Debug("using authentication for repository")
+		registryAuth = &c
+		break
+	}
+
+	// Get the ImagePullOptions.
+	imagePullOptions := types.ImagePullOptions{All: false}
+	if registryAuth != nil {
+		b64, err := registryAuth.Base64()
+		if err != nil {
+			log.WithError(err).Error("failed to get registry auth credentials")
+		}
+
+		// b64 is a string so if there is an error it will just be empty, not nil.
+		imagePullOptions.RegistryAuth = b64
+	}
+
+	out, err := d.Client.ImagePull(ctx, image, imagePullOptions)
 	if err != nil {
 		images, ierr := d.Client.ImageList(ctx, types.ImageListOptions{})
 		if ierr != nil {
