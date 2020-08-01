@@ -360,11 +360,9 @@ func postServerUploadFiles(c *gin.Context) {
 		return
 	}
 
-	// TODO: Make sure directory is safe.
 	directory := c.Query("directory")
 
 	for _, header := range headers {
-		// TODO: Make sure header#Filename is clean.
 		p, err := s.Filesystem.SafePath(filepath.Join(directory, header.Filename))
 		if err != nil {
 			c.AbortWithError(http.StatusInternalServerError, err)
@@ -381,16 +379,6 @@ func postServerUploadFiles(c *gin.Context) {
 }
 
 func handleFileUpload(p string, s *server.Server, header *multipart.FileHeader) error {
-	_, err := s.Filesystem.Stat(header.Filename)
-	if err == nil {
-		// TODO: Figure out how to better handle this
-
-		// This means the file exists, not 100% sure what to do in this situation, but for now we will skip the file.
-		return nil
-	} else if !os.IsNotExist(err) {
-		return errors.WithStack(err)
-	}
-
 	file, err := header.Open()
 	if err != nil {
 		return errors.WithStack(err)
