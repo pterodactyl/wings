@@ -3,6 +3,7 @@ package cmd
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/gammazero/workerpool"
 	"net/http"
 	"os"
 	"path"
@@ -21,7 +22,6 @@ import (
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/sftp"
 	"github.com/pterodactyl/wings/system"
-	"github.com/remeh/sizedwaitgroup"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -169,17 +169,15 @@ func rootCmdRun(*cobra.Command, []string) {
 		log.Warn("server file permission checking is currently disabled on boot!")
 	}
 
-	// Create a new WaitGroup that limits us to 4 servers being bootstrapped at a time
+	// Create a new workerpool that limits us to 4 servers being bootstrapped at a time
 	// on Wings. This allows us to ensure the environment exists, write configurations,
 	// and reboot processes without causing a slow-down due to sequential booting.
-	wg := sizedwaitgroup.New(4)
+	pool := workerpool.New(4)
 
 	for _, serv := range server.GetServers().All() {
-		wg.Add()
+		s := serv
 
-		go func(s *server.Server) {
-			defer wg.Done()
-
+		pool.Submit(func() {
 			if c.System.SetPermissionsOnBoot {
 				s.Log().Info("chowning server data directory")
 				if err := s.Filesystem.Chown("/"); err != nil {
@@ -217,11 +215,11 @@ func rootCmdRun(*cobra.Command, []string) {
 			// Addresses potentially invalid data in the stored file that can cause Wings to lose
 			// track of what the actual server state is.
 			s.SetState(server.ProcessOfflineState)
-		}(serv)
+		})
 	}
 
 	// Wait until all of the servers are ready to go before we fire up the HTTP server.
-	wg.Wait()
+	pool.StopWait()
 
 	// Initalize SFTP.
 	sftp.Initialize(c)
