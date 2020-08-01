@@ -34,14 +34,9 @@ type DockerEnvironment struct {
 	// The Docker client being used for this instance.
 	Client *client.Client
 
-	// Tracks if we are currently attached to the server container. This allows us to attach
-	// once and then just use that attachment to stream logs out of the server and also stream
-	// commands back into it without constantly attaching and detaching.
-	attached bool
-
 	// Controls the hijacked response stream which exists only when we're attached to
 	// the running container instance.
-	stream types.HijackedResponse
+	stream *types.HijackedResponse
 
 	// Holds the stats stream used by the polling commands so that we can easily close
 	// it out.
@@ -49,9 +44,9 @@ type DockerEnvironment struct {
 }
 
 // Set if this process is currently attached to the process.
-func (d *DockerEnvironment) SetAttached(a bool) {
+func (d *DockerEnvironment) SetStream(s *types.HijackedResponse) {
 	d.Lock()
-	d.attached = a
+	d.stream = s
 	d.Unlock()
 }
 
@@ -60,7 +55,7 @@ func (d *DockerEnvironment) IsAttached() bool {
 	d.RLock()
 	defer d.RUnlock()
 
-	return d.attached
+	return d.stream != nil
 }
 
 // Creates a new base Docker environment. A server must still be attached to it.
@@ -308,7 +303,7 @@ func (d *DockerEnvironment) Stop() error {
 		// If the container does not exist just mark the process as stopped and return without
 		// an error.
 		if client.IsErrNotFound(err) {
-			d.SetAttached(false)
+			d.SetStream(nil)
 			d.Server.SetState(ProcessOfflineState)
 
 			return nil
@@ -449,25 +444,24 @@ func (d *DockerEnvironment) Attach() error {
 		return errors.WithStack(err)
 	}
 
-	var err error
-	d.Lock()
-	d.stream, err = d.Client.ContainerAttach(context.Background(), d.Server.Id(), types.ContainerAttachOptions{
+	opts := types.ContainerAttachOptions{
 		Stdin:  true,
 		Stdout: true,
 		Stderr: true,
 		Stream: true,
-	})
-	d.Unlock()
+	}
 
-	if err != nil {
+	// Set the stream again with the container.
+	if st, err := d.Client.ContainerAttach(context.Background(), d.Server.Id(), opts); err != nil {
 		return errors.WithStack(err)
+	} else {
+		d.SetStream(&st)
 	}
 
 	console := Console{
 		Server: d.Server,
 	}
 
-	d.SetAttached(true)
 	go func() {
 		if err := d.EnableResourcePolling(); err != nil {
 			d.Server.Log().WithField("error", errors.WithStack(err)).Warn("failed to enable resource polling on server")
@@ -478,7 +472,7 @@ func (d *DockerEnvironment) Attach() error {
 		defer d.stream.Close()
 		defer func() {
 			d.Server.SetState(ProcessOfflineState)
-			d.SetAttached(false)
+			d.SetStream(nil)
 		}()
 
 		io.Copy(console, d.stream.Reader)
@@ -818,6 +812,9 @@ func (d *DockerEnvironment) Create() error {
 // Sends the specified command to the stdin of the running container instance. There is no
 // confirmation that this data is sent successfully, only that it gets pushed into the stdin.
 func (d *DockerEnvironment) SendCommand(c string) error {
+	d.RLock()
+	defer d.RUnlock()
+
 	if !d.IsAttached() {
 		return errors.New("attempting to send command to non-attached instance")
 	}
