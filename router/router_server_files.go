@@ -5,12 +5,15 @@ import (
 	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"golang.org/x/sync/errgroup"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -341,4 +344,74 @@ func postServerDecompressFiles(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+func postServerUploadFiles(c *gin.Context) {
+	token := tokens.UploadPayload{}
+	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
+		TrackedError(err).AbortWithServerError(c)
+		return
+	}
+
+	s := GetServer(token.ServerUuid)
+	if s == nil || !token.IsUniqueRequest() {
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+			"error": "The requested resource was not found on this server.",
+		})
+		return
+	}
+
+	if !s.Filesystem.HasSpaceAvailable() {
+		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+			"error": "This server does not have enough available disk space to accept any file uploads.",
+		})
+		return
+	}
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Failed to get multipart form.",
+		})
+		return
+	}
+
+	headers, ok := form.File["files"]
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusNotModified, gin.H{
+			"error": "No files were attached to the request.",
+		})
+		return
+	}
+
+	directory := c.Query("directory")
+
+	for _, header := range headers {
+		p, err := s.Filesystem.SafePath(filepath.Join(directory, header.Filename))
+		if err != nil {
+			c.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+
+		// We run this in a different method so I can use defer without any of
+		// the consequences caused by calling it in a loop.
+		if err := handleFileUpload(p, s, header); err != nil {
+			c.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+	}
+}
+
+func handleFileUpload(p string, s *server.Server, header *multipart.FileHeader) error {
+	file, err := header.Open()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer file.Close()
+
+	if err := s.Filesystem.Writefile(p, file); err != nil {
+		return errors.WithStack(err)
+	}
+
+	return nil
 }
