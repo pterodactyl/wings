@@ -1,5 +1,12 @@
 package config
 
+import (
+	"encoding/base64"
+	"encoding/json"
+	"github.com/docker/docker/api/types"
+	"github.com/pkg/errors"
+)
+
 type dockerNetworkInterfaces struct {
 	V4 struct {
 		Subnet  string `default:"172.18.0.0/16"`
@@ -53,4 +60,28 @@ type DockerConfiguration struct {
 	// Defines the location of the timezone file on the host system that should
 	// be mounted into the created containers so that they all use the same time.
 	TimezonePath string `default:"/etc/timezone" json:"timezone_path" yaml:"timezone_path"`
+
+	// Registries .
+	Registries map[string]RegistryConfiguration `json:"registries" yaml:"registries"`
+}
+
+// RegistryConfiguration .
+type RegistryConfiguration struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+}
+
+// Base64 .
+func (c RegistryConfiguration) Base64() (string, error) {
+	authConfig := types.AuthConfig{
+		Username: c.Username,
+		Password: c.Password,
+	}
+
+	b, err := json.Marshal(authConfig)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to marshal AuthConfig")
+	}
+
+	return base64.URLEncoding.EncodeToString(b), nil
 }

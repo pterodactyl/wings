@@ -40,8 +40,8 @@ func IsPathResolutionError(err error) bool {
 }
 
 type Filesystem struct {
-	Server        *Server
-	cacheDiskMu   sync.Mutex
+	Server      *Server
+	cacheDiskMu sync.Mutex
 }
 
 // Returns the root path that contains all of a server's data.
@@ -114,10 +114,10 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 }
 
 // Generate a path to the file by cleaning it up and appending the root server path to it. This
-// DOES NOT gaurantee that the file resolves within the server data directory. You'll want to use
+// DOES NOT guarantee that the file resolves within the server data directory. You'll want to use
 // the fs.unsafeIsInDataDirectory(p) function to confirm.
 func (fs *Filesystem) unsafeFilePath(p string) string {
-	// Calling filpath.Clean on the joined directory will resolve it to the absolute path,
+	// Calling filepath.Clean on the joined directory will resolve it to the absolute path,
 	// removing any ../ type of resolution arguments, and leaving us with a direct path link.
 	//
 	// This will also trim the existing root path off the beginning of the path passed to
