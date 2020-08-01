@@ -3,8 +3,8 @@ package router
 import (
 	"bufio"
 	"context"
-	"errors"
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/server"
 	"golang.org/x/sync/errgroup"
 	"net/http"
