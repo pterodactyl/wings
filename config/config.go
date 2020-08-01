@@ -304,7 +304,7 @@ func (c *Configuration) EnsureFilePermissions() error {
 		return errors.WithStack(err)
 	}
 
-	pool := workerpool.New(runtime.GOMAXPROCS(0))
+	pool := workerpool.New(runtime.NumCPU())
 
 	for _, file := range files {
 		f := file

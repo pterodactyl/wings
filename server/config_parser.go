@@ -8,7 +8,7 @@ import (
 // Parent function that will update all of the defined configuration files for a server
 // automatically to ensure that they always use the specified values.
 func (s *Server) UpdateConfigurationFiles() {
-	pool := workerpool.New(runtime.GOMAXPROCS(0))
+	pool := workerpool.New(runtime.NumCPU())
 
 	files := s.ProcessConfiguration().ConfigurationFiles
 	for _, cf := range files {

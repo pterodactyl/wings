@@ -39,7 +39,7 @@ func newPooledWalker(fs *Filesystem) *PooledFileWalker {
 		// Create a worker pool that is the same size as the number of processors available on the
 		// system. Going much higher doesn't provide much of a performance boost, and is only more
 		// likely to lead to resource overloading anyways.
-		pool: workerpool.New(runtime.GOMAXPROCS(0)),
+		pool: workerpool.New(runtime.NumCPU()),
 	}
 }
 
