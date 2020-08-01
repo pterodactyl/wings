@@ -3,6 +3,7 @@ package router
 import (
 	"bufio"
 	"context"
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/server"
 	"golang.org/x/sync/errgroup"
@@ -129,7 +130,17 @@ func putServerRenameFiles(c *gin.Context) {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				return s.Filesystem.Rename(pf, pt)
+				if err := s.Filesystem.Rename(pf, pt); err != nil {
+					// Return nil if the error is an is not exists.
+					// NOTE: os.IsNotExist() does not work if the error is wrapped.
+					if errors.Is(err, os.ErrNotExist) {
+						return nil
+					}
+
+					return err
+				}
+
+				return nil
 			}
 		})
 	}
@@ -155,6 +166,13 @@ func postServerCopyFile(c *gin.Context) {
 	}
 
 	if err := s.Filesystem.Copy(data.Location); err != nil {
+		// Check if the file does not exist.
+		// NOTE: os.IsNotExist() does not work if the error is wrapped.
+		if errors.Is(err, os.ErrNotExist) {
+			c.Status(http.StatusNotFound)
+			return
+		}
+
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}
@@ -177,7 +195,7 @@ func postServerDeleteFiles(c *gin.Context) {
 
 	if len(data.Files) == 0 {
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "No files were specififed for deletion.",
+			"error": "No files were specified for deletion.",
 		})
 		return
 	}
@@ -311,6 +329,13 @@ func postServerDecompressFiles(c *gin.Context) {
 	}
 
 	if err := s.Filesystem.DecompressFile(data.RootPath, data.File); err != nil {
+		// Check if the file does not exist.
+		// NOTE: os.IsNotExist() does not work if the error is wrapped.
+		if errors.Is(err, os.ErrNotExist) {
+			c.Status(http.StatusNotFound)
+			return
+		}
+
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}

@@ -40,8 +40,8 @@ func IsPathResolutionError(err error) bool {
 }
 
 type Filesystem struct {
-	Server        *Server
-	cacheDiskMu   sync.Mutex
+	Server      *Server
+	cacheDiskMu sync.Mutex
 }
 
 // Returns the root path that contains all of a server's data.
@@ -424,7 +424,7 @@ func (fs *Filesystem) unsafeStat(p string) (*Stat, error) {
 	return st, nil
 }
 
-// Creates a new directory (name) at a specificied path (p) for the server.
+// Creates a new directory (name) at a specified path (p) for the server.
 func (fs *Filesystem) CreateDirectory(name string, p string) error {
 	cleaned, err := fs.SafePath(path.Join(p, name))
 	if err != nil {
@@ -540,7 +540,7 @@ func (fs *Filesystem) Copy(p string) error {
 	}
 
 	if s, err := os.Stat(cleaned); err != nil {
-		return err
+		return errors.WithStack(err)
 	} else if s.IsDir() || !s.Mode().IsRegular() {
 		// If this is a directory or not a regular file, just throw a not-exist error
 		// since anything calling this function should understand what that means.
