@@ -463,70 +463,46 @@ func (fs *Filesystem) Rename(from string, to string) error {
 	return os.Rename(cleanedFrom, cleanedTo)
 }
 
-// Recursively iterates over a directory and sets the permissions on all of the
-// underlying files.
+// Recursively iterates over a file or directory and sets the permissions on all of the
+// underlying files. Iterate over all of the files and directories. If it is a file just
+// go ahead and perform the chown operation. Otherwise dig deeper into the directory until
+// we've run out of directories to dig into.
 func (fs *Filesystem) Chown(path string) error {
 	cleaned, err := fs.SafePath(path)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	if s, err := os.Stat(cleaned); err != nil {
-		return errors.WithStack(err)
-	} else if !s.IsDir() {
-		return os.Chown(cleaned, config.Get().System.User.Uid, config.Get().System.User.Gid)
-	}
+	uid := config.Get().System.User.Uid
+	gid := config.Get().System.User.Gid
 
-	return fs.chownDirectory(cleaned)
-}
-
-// Iterate over all of the files and directories. If it is a file just go ahead and perform
-// the chown operation. Otherwise dig deeper into the directory until we've run out of
-// directories to dig into.
-func (fs *Filesystem) chownDirectory(path string) error {
-	var wg sync.WaitGroup
-
-	cleaned, err := fs.SafePath(path)
-	if err != nil {
+	// Start by just chowning the initial path that we received.
+	if err := os.Chown(cleaned, uid, gid); err != nil {
 		return errors.WithStack(err)
 	}
 
-	// Chown the directory itself.
-	os.Chown(cleaned, config.Get().System.User.Uid, config.Get().System.User.Gid)
-
-	files, err := ioutil.ReadDir(cleaned)
-	if err != nil {
-		return errors.WithStack(err)
+	// If this is not a directory we can now return from the function, there is nothing
+	// left that we need to do.
+	if st, _ := os.Stat(cleaned); !st.IsDir() {
+		return nil
 	}
 
-	for _, f := range files {
+	// If this was a directory, begin walking over its contents recursively and ensure that all
+	// of the subfiles and directories get their permissions updated as well.
+	return fs.Walk(cleaned, func(path string, f os.FileInfo, err error) error {
+		if err != nil {
+			return fs.handleWalkerError(err, f)
+		}
+
 		// Do not attempt to chmod a symlink. Go's os.Chown function will affect the symlink
 		// so if it points to a location outside the data directory the user would be able to
 		// (un)intentionally modify that files permissions.
 		if f.Mode()&os.ModeSymlink != 0 {
-			continue
+			return nil
 		}
 
-		p, err := fs.SafeJoin(cleaned, f)
-		if err != nil {
-			return err
-		}
-
-		if f.IsDir() {
-			wg.Add(1)
-
-			go func(p string) {
-				defer wg.Done()
-				fs.chownDirectory(p)
-			}(p)
-		} else {
-			os.Chown(p, config.Get().System.User.Uid, config.Get().System.User.Gid)
-		}
-	}
-
-	wg.Wait()
-
-	return nil
+		return os.Chown(path, uid, gid)
+	})
 }
 
 // Copies a given file to the same location and appends a suffix to the file to indicate that
