@@ -1,12 +1,13 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/cobaugh/osrelease"
 	"github.com/creasty/defaults"
+	"github.com/gammazero/workerpool"
 	"github.com/gbrlsnchs/jwt/v3"
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"os/user"
 	"path"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -154,7 +156,7 @@ func ReadConfiguration(path string) (*Configuration, error) {
 	return c, nil
 }
 
-var Mutex sync.RWMutex
+var mu sync.RWMutex
 
 var _config *Configuration
 var _jwtAlgo *jwt.HMACSHA
@@ -164,14 +166,14 @@ var _debugViaFlag bool
 // anything trying to set a different configuration value, or read the configuration
 // will be paused until it is complete.
 func Set(c *Configuration) {
-	Mutex.Lock()
+	mu.Lock()
 
 	if _config == nil || _config.AuthenticationToken != c.AuthenticationToken {
 		_jwtAlgo = jwt.NewHS256([]byte(c.AuthenticationToken))
 	}
 
 	_config = c
-	Mutex.Unlock()
+	mu.Unlock()
 }
 
 func SetDebugViaFlag(d bool) {
@@ -181,16 +183,16 @@ func SetDebugViaFlag(d bool) {
 // Get the global configuration instance. This is a read-safe operation that will block
 // if the configuration is presently being modified.
 func Get() *Configuration {
-	Mutex.RLock()
-	defer Mutex.RUnlock()
+	mu.RLock()
+	defer mu.RUnlock()
 
 	return _config
 }
 
 // Returns the in-memory JWT algorithm.
 func GetJwtAlgorithm() *jwt.HMACSHA {
-	Mutex.RLock()
-	defer Mutex.RUnlock()
+	mu.RLock()
+	defer mu.RUnlock()
 
 	return _jwtAlgo
 }
@@ -199,7 +201,7 @@ func GetJwtAlgorithm() *jwt.HMACSHA {
 func NewFromPath(path string) (*Configuration, error) {
 	c := new(Configuration)
 	if err := defaults.Set(c); err != nil {
-		return c, err
+		return c, errors.WithStack(err)
 	}
 
 	c.unsafeSetPath(path)
@@ -237,12 +239,12 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 	if err == nil {
 		return u, c.setSystemUser(u)
 	} else if _, ok := err.(user.UnknownUserError); !ok {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	sysName, err := getSystemName()
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	var command = fmt.Sprintf("useradd --system --no-create-home --shell /bin/false %s", c.System.Username)
@@ -255,17 +257,17 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 		// We have to create the group first on Alpine, so do that here before continuing on
 		// to the user creation process.
 		if _, err := exec.Command("addgroup", "-S", c.System.Username).Output(); err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 	}
 
 	split := strings.Split(command, " ")
 	if _, err := exec.Command(split[0], split[1:]...).Output(); err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	if u, err := user.Lookup(c.System.Username); err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	} else {
 		return u, c.setSystemUser(u)
 	}
@@ -286,6 +288,8 @@ func (c *Configuration) setSystemUser(u *user.User) error {
 	return c.WriteToDisk()
 }
 
+var uuid4Regex = regexp.MustCompile("^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$")
+
 // Ensures that the configured data directory has the correct permissions assigned to
 // all of the files and folders within.
 func (c *Configuration) EnsureFilePermissions() error {
@@ -295,45 +299,27 @@ func (c *Configuration) EnsureFilePermissions() error {
 		return nil
 	}
 
-	r := regexp.MustCompile("^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$")
-
 	files, err := ioutil.ReadDir(c.System.Data)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
-	su, err := user.Lookup(c.System.Username)
-	if err != nil {
-		return err
-	}
-
-	wg := new(sync.WaitGroup)
+	pool := workerpool.New(runtime.GOMAXPROCS(0))
 
 	for _, file := range files {
-		wg.Add(1)
+		f := file
+		if !f.IsDir() || !uuid4Regex.MatchString(f.Name()) {
+			continue
+		}
 
-		// Asynchronously run through the list of files and folders in the data directory. If
-		// the item is not a folder, or is not a folder that matches the expected UUIDv4 format
-		// skip over it.
-		//
-		// If we do have a positive match, run a chown against the directory.
-		go func(f os.FileInfo) {
-			defer wg.Done()
-
-			if !f.IsDir() || !r.MatchString(f.Name()) {
-				return
-			}
-
-			uid, _ := strconv.Atoi(su.Uid)
-			gid, _ := strconv.Atoi(su.Gid)
-
-			if err := os.Chown(path.Join(c.System.Data, f.Name()), uid, gid); err != nil {
+		pool.Submit(func() {
+			if err := os.Chown(path.Join(c.System.Data, f.Name()), c.System.User.Uid, c.System.User.Gid); err != nil {
 				log.WithField("error", err).WithField("directory", f.Name()).Warn("failed to chown server directory")
 			}
-		}(file)
+		})
 	}
 
-	wg.Wait()
+	pool.StopWait()
 
 	return nil
 }
@@ -359,11 +345,11 @@ func (c *Configuration) WriteToDisk() error {
 
 	b, err := yaml.Marshal(&ccopy)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	if err := ioutil.WriteFile(c.GetPath(), b, 0644); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -373,7 +359,7 @@ func (c *Configuration) WriteToDisk() error {
 func getSystemName() (string, error) {
 	// use osrelease to get release version and ID
 	if release, err := osrelease.Read(); err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	} else {
 		return release["ID"], nil
 	}
