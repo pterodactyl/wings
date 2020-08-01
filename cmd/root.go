@@ -146,13 +146,6 @@ func rootCmdRun(*cobra.Command, []string) {
 		}).Info("configured system user successfully")
 	}
 
-	log.Info("beginning file permission setting on server data directories")
-	if err := c.EnsureFilePermissions(); err != nil {
-		log.WithField("error", err).Error("failed to properly chown data directories")
-	} else {
-		log.Info("finished ensuring file permissions")
-	}
-
 	if err := server.LoadDirectory(); err != nil {
 		log.WithField("error", err).Fatal("failed to load server configurations")
 		return
@@ -172,6 +165,10 @@ func rootCmdRun(*cobra.Command, []string) {
 		log.WithField("server", s.Id()).Info("loaded configuration for server")
 	}
 
+	if !c.System.SetPermissionsOnBoot {
+		log.Warn("server file permission checking is currently disabled on boot!")
+	}
+
 	// Create a new WaitGroup that limits us to 4 servers being bootstrapped at a time
 	// on Wings. This allows us to ensure the environment exists, write configurations,
 	// and reboot processes without causing a slow-down due to sequential booting.
@@ -183,8 +180,14 @@ func rootCmdRun(*cobra.Command, []string) {
 		go func(s *server.Server) {
 			defer wg.Done()
 
-			s.Log().Info("ensuring server environment exists")
+			if c.System.SetPermissionsOnBoot {
+				s.Log().Info("chowning server data directory")
+				if err := s.Filesystem.Chown("/"); err != nil {
+					s.Log().WithField("error", err).Warn("error during server data directory chown")
+				}
+			}
 
+			s.Log().Info("ensuring server environment exists")
 			// Create a server environment if none exists currently. This allows us to recover from Docker
 			// being reinstalled on the host system for example.
 			if err := s.Environment.Create(); err != nil {

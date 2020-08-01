@@ -2,10 +2,8 @@ package config
 
 import (
 	"fmt"
-	"github.com/apex/log"
 	"github.com/cobaugh/osrelease"
 	"github.com/creasty/defaults"
-	"github.com/gammazero/workerpool"
 	"github.com/gbrlsnchs/jwt/v3"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
@@ -13,9 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"path"
-	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -286,42 +281,6 @@ func (c *Configuration) setSystemUser(u *user.User) error {
 	c.Unlock()
 
 	return c.WriteToDisk()
-}
-
-var uuid4Regex = regexp.MustCompile("^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$")
-
-// Ensures that the configured data directory has the correct permissions assigned to
-// all of the files and folders within.
-func (c *Configuration) EnsureFilePermissions() error {
-	// Don't run this unless it is configured to be run. On large system this can often slow
-	// things down dramatically during the boot process.
-	if !c.System.SetPermissionsOnBoot {
-		return nil
-	}
-
-	files, err := ioutil.ReadDir(c.System.Data)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	pool := workerpool.New(runtime.NumCPU())
-
-	for _, file := range files {
-		f := file
-		if !f.IsDir() || !uuid4Regex.MatchString(f.Name()) {
-			continue
-		}
-
-		pool.Submit(func() {
-			if err := os.Chown(path.Join(c.System.Data, f.Name()), c.System.User.Uid, c.System.User.Gid); err != nil {
-				log.WithField("error", err).WithField("directory", f.Name()).Warn("failed to chown server directory")
-			}
-		})
-	}
-
-	pool.StopWait()
-
-	return nil
 }
 
 // Writes the configuration to the disk as a blocking operation by obtaining an exclusive
