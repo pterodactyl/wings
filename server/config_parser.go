@@ -1,34 +1,32 @@
 package server
 
 import (
-	"github.com/pterodactyl/wings/parser"
-	"sync"
+	"github.com/gammazero/workerpool"
+	"runtime"
 )
 
 // Parent function that will update all of the defined configuration files for a server
 // automatically to ensure that they always use the specified values.
 func (s *Server) UpdateConfigurationFiles() {
-	wg := new(sync.WaitGroup)
+	pool := workerpool.New(runtime.GOMAXPROCS(0))
 
 	files := s.ProcessConfiguration().ConfigurationFiles
-	for _, v := range files {
-		wg.Add(1)
+	for _, cf := range files {
+		f := cf
 
-		go func(f parser.ConfigurationFile, server *Server) {
-			defer wg.Done()
-
-			p, err := server.Filesystem.SafePath(f.FileName)
+		pool.Submit(func() {
+			p, err := s.Filesystem.SafePath(f.FileName)
 			if err != nil {
-				server.Log().WithField("error", err).Error("failed to generate safe path for configuration file")
+				s.Log().WithField("error", err).Error("failed to generate safe path for configuration file")
 
 				return
 			}
 
 			if err := f.Parse(p, false); err != nil {
-				server.Log().WithField("error", err).Error("failed to parse and update server configuration file")
+				s.Log().WithField("error", err).Error("failed to parse and update server configuration file")
 			}
-		}(v, s)
+		})
 	}
 
-	wg.Wait()
+	pool.StopWait()
 }
