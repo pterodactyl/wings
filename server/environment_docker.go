@@ -716,49 +716,25 @@ func (d *DockerEnvironment) Create() error {
 		},
 	}
 
-	mounts := []mount.Mount{
-		{
-			Target:   "/home/container",
-			Source:   d.Server.Filesystem.Path(),
-			Type:     mount.TypeBind,
-			ReadOnly: false,
-		},
+	mounts, err := d.getContainerMounts()
+	if err != nil {
+		return errors.WithMessage(err, "could not build container mount points slice")
 	}
 
-	var mounted bool
-	for _, m := range d.Server.Config().Mounts {
-		mounted = false
-		source := filepath.Clean(m.Source)
-		target := filepath.Clean(m.Target)
+	customMounts, err := d.getCustomMounts()
+	if err != nil {
+		return errors.WithMessage(err, "could not build custom container mount points slice")
+	}
 
-		for _, allowed := range config.Get().AllowedMounts {
-			if !strings.HasPrefix(source, allowed) {
-				continue
-			}
+	if len(customMounts) > 0 {
+		mounts = append(mounts, customMounts...)
 
-			mounts = append(mounts, mount.Mount{
-				Type: mount.TypeBind,
-
-				Source:   source,
-				Target:   target,
-				ReadOnly: m.ReadOnly,
-			})
-
-			mounted = true
-			break
-		}
-
-		logger := log.WithFields(log.Fields{
-			"server":      d.Server.Id(),
-			"source_path": source,
-			"target_path": target,
-			"read_only":   m.ReadOnly,
-		})
-
-		if mounted {
-			logger.Debug("attaching mount to server's container")
-		} else {
-			logger.Warn("skipping mount because it isn't allowed")
+		for _, m := range customMounts {
+			d.Server.Log().WithFields(log.Fields{
+				"source_path": m.Source,
+				"target_path": m.Target,
+				"read_only": m.ReadOnly,
+			}).Debug("attaching custom server mount point to container")
 		}
 	}
 
@@ -807,6 +783,90 @@ func (d *DockerEnvironment) Create() error {
 	}
 
 	return nil
+}
+
+// Returns the default container mounts for the server instance. This includes the data directory
+// for the server as well as any timezone related files if they exist on the host system so that
+// servers running within the container will use the correct time.
+func (d *DockerEnvironment) getContainerMounts() ([]mount.Mount, error) {
+	var m []mount.Mount
+
+	m = append(m, mount.Mount{
+		Target:   "/home/container",
+		Source:   d.Server.Filesystem.Path(),
+		Type:     mount.TypeBind,
+		ReadOnly: false,
+	})
+
+	// Try to mount in /etc/localtime and /etc/timezone if they exist on the host system.
+	if _, err := os.Stat("/etc/localtime"); err != nil {
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+	} else {
+		m = append(m, mount.Mount{
+			Target:   "/etc/localtime",
+			Source:   "/etc/localtime",
+			Type:     mount.TypeBind,
+			ReadOnly: true,
+		})
+	}
+
+	if _, err := os.Stat("/etc/timezone"); err != nil {
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+	} else {
+		m = append(m, mount.Mount{
+			Target:   "/etc/timezone",
+			Source:   "/etc/timezone",
+			Type:     mount.TypeBind,
+			ReadOnly: true,
+		})
+	}
+
+	return m, nil
+}
+
+// Returns the custom mounts for a given server after verifying that they are within a list of
+// allowed mount points for the node.
+func (d *DockerEnvironment) getCustomMounts() ([]mount.Mount, error) {
+	var mounts []mount.Mount
+
+	// TODO: probably need to handle things trying to mount directories that do not exist.
+	for _, m := range d.Server.Config().Mounts {
+		source := filepath.Clean(m.Source)
+		target := filepath.Clean(m.Target)
+
+		logger := d.Server.Log().WithFields(log.Fields{
+			"source_path": source,
+			"target_path": target,
+			"read_only":   m.ReadOnly,
+		})
+
+		mounted := false
+		for _, allowed := range config.Get().AllowedMounts {
+			if !strings.HasPrefix(source, allowed) {
+				continue
+			}
+
+			mounted = true
+			mounts = append(mounts, mount.Mount{
+				Source:   source,
+				Target:   target,
+				Type:     mount.TypeBind,
+				ReadOnly: m.ReadOnly,
+			})
+
+			break
+		}
+
+		if !mounted {
+			logger.Warn("skipping custom server mount, not in list of allowed mount points")
+		}
+	}
+
+	return mounts, nil
 }
 
 // Sends the specified command to the stdin of the running container instance. There is no
