@@ -31,11 +31,11 @@ func (s *Server) onConsoleOutput(data string) {
 
 	if s.GetState() == ProcessStartingState && strings.Contains(data, match) {
 		s.Log().WithFields(log.Fields{
-			"match": match,
+			"match":   match,
 			"against": data,
 		}).Debug("detected server in running state based on console line output")
 
-		s.SetState(ProcessRunningState)
+		_ = s.SetState(ProcessRunningState)
 	}
 
 	// If the command sent to the server is one that should stop the server we will need to
@@ -43,8 +43,9 @@ func (s *Server) onConsoleOutput(data string) {
 	// cause the server to unexpectedly restart on the user.
 	if s.IsRunning() {
 		stop := s.ProcessConfiguration().Stop
+
 		if stop.Type == api.ProcessStopCommand && data == stop.Value {
-			s.SetState(ProcessStoppingState)
+			_ = s.SetState(ProcessStoppingState)
 		}
 	}
 }
