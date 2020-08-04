@@ -3,10 +3,13 @@ package cmd
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/NYTimes/logrotate"
+	"github.com/apex/log/handlers/multi"
 	"github.com/gammazero/workerpool"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/apex/log"
@@ -111,14 +114,14 @@ func rootCmdRun(*cobra.Command, []string) {
 	}
 
 	printLogo()
-	if err := configureLogging(c.Debug); err != nil {
+	if err := configureLogging(c.System.LogDirectory, c.Debug); err != nil {
 		panic(err)
 	}
 
 	log.WithField("path", c.GetPath()).Info("loading configuration from path")
 	if c.Debug {
 		log.Debug("running in debug mode")
-		log.Info("certificate checking is disabled")
+		log.Warn("certificate checking is disabled")
 
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
 			InsecureSkipVerify: true,
@@ -284,7 +287,7 @@ func Execute() error {
 
 // Configures the global logger for Zap so that we can call it from any location
 // in the code without having to pass around a logger instance.
-func configureLogging(debug bool) error {
+func configureLogging(logDir string, debug bool) error {
 	cfg := zap.NewProductionConfig()
 	if debug {
 		cfg = zap.NewDevelopmentConfig()
@@ -302,27 +305,42 @@ func configureLogging(debug bool) error {
 
 	zap.ReplaceGlobals(logger)
 
-	log.SetHandler(cli.Default)
+	p := filepath.Join(logDir, "/wings.log")
+	w, err := logrotate.NewFile(p)
+	if err != nil {
+		panic(errors.WithMessage(err, "failed to open process log file"))
+	}
+
 	log.SetLevel(log.DebugLevel)
+	log.SetHandler(multi.New(
+		cli.Default,
+		cli.New(w.File, false),
+	))
+
+	log.WithField("path", p).Info("writing log files to disk")
 
 	return nil
 }
 
 // Prints the wings logo, nothing special here!
 func printLogo() {
-	fmt.Println()
-	fmt.Println(`                     ____`)
-	fmt.Println(`__ Pterodactyl _____/___/_______ _______ ______`)
-	fmt.Println(`\_____\    \/\/    /   /       /  __   /   ___/`)
-	fmt.Println(`   \___\          /   /   /   /  /_/  /___   /`)
-	fmt.Println(`        \___/\___/___/___/___/___    /______/`)
-	fmt.Println(`                            /_______/ v` + system.Version)
-	fmt.Println()
-	fmt.Println(`Website: https://pterodactyl.io`)
-	fmt.Println(`Source: https://github.com/pterodactyl/wings`)
-	fmt.Println()
-	fmt.Println(`Copyright © 2018 - 2020 Dane Everitt & Contributors`)
-	fmt.Println()
+	fmt.Printf(colorstring.Color(`
+                     ____
+__ [blue][bold]Pterodactyl[reset] _____/___/_______ _______ ______
+\_____\    \/\/    /   /       /  __   /   ___/
+   \___\          /   /   /   /  /_/  /___   /
+        \___/\___/___/___/___/___    /______/
+                            /_______/ [bold]v%s[reset]
+
+Copyright © 2018 - 2020 Dane Everitt & Contributors
+
+Website:  https://pterodactyl.io
+ Source:  https://github.com/pterodactyl/wings
+License:  https://github.com/pterodactyl/wings/blob/develop/LICENSE
+
+This software is made available under the terms of the MIT license.
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.%s`), system.Version, "\n\n")
 }
 
 func exitWithConfigurationNotice() {

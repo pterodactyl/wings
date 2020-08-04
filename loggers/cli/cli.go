@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-var Default = New(os.Stderr)
+var Default = New(os.Stderr, true)
 
 var bold = color2.New(color2.Bold)
 
@@ -31,12 +31,14 @@ type Handler struct {
 	Padding int
 }
 
-func New(w io.Writer) *Handler {
+func New(w io.Writer, useColors bool) *Handler {
 	if f, ok := w.(*os.File); ok {
-		return &Handler{Writer: colorable.NewColorable(f), Padding: 2}
+		if useColors {
+			return &Handler{Writer: colorable.NewColorable(f), Padding: 2}
+		}
 	}
 
-	return &Handler{Writer: w, Padding: 2}
+	return &Handler{Writer: colorable.NewNonColorable(w), Padding: 2}
 }
 
 type tracer interface {

@@ -15,6 +15,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Jeffail/gabs/v2 v2.2.0
 	github.com/Microsoft/go-winio v0.4.7 // indirect
+	github.com/NYTimes/logrotate v1.0.0
 	github.com/apex/log v1.3.0
 	github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a
 	github.com/beevik/etree v1.1.0

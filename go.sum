@@ -9,6 +9,8 @@ github.com/Jeffail/gabs/v2 v2.2.0 h1:7touC+WzbQ7LO5+mwgxT44miyTqAVCOlIWLA6PiIB5w
 github.com/Jeffail/gabs/v2 v2.2.0/go.mod h1:xCn81vdHKxFUuWWAaD5jCTQDNPBMh5pPs9IJ+NcziBI=
 github.com/Microsoft/go-winio v0.4.7 h1:vOvDiY/F1avSWlCWiKJjdYKz2jVjTK3pWPHndeG4OAY=
 github.com/Microsoft/go-winio v0.4.7/go.mod h1:VhR8bwka0BXejwEJY73c50VrPtXAaKcyvVC4A4RozmA=
+github.com/NYTimes/logrotate v1.0.0 h1:6jFGbon6jOtpy3t3kwZZKS4Gdmf1C/Wv5J4ll4Xn5yk=
+github.com/NYTimes/logrotate v1.0.0/go.mod h1:GxNz1cSw1c6t99PXoZlw+nm90H6cyQyrH66pjVv7x88=
 github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8 h1:xzYJEypr/85nBpB11F9br+3HUrpgb+fcm5iADzXXYEw=
 github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8/go.mod h1:oX5x61PbNXchhh0oikYAH+4Pcfw5LKv21+Jnpr6r6Pc=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
