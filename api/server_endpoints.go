@@ -33,11 +33,15 @@ type ProcessConfiguration struct {
 	Startup struct {
 		Done            string   `json:"done"`
 		UserInteraction []string `json:"userInteraction"`
+		SplitCharacter  string   `json:"splitCharacter"`
+		StripAnsi       bool     `json:"stripAnsi"`
 	} `json:"startup"`
+
 	Stop struct {
 		Type  string `json:"type"`
 		Value string `json:"value"`
 	} `json:"stop"`
+
 	ConfigurationFiles []parser.ConfigurationFile `json:"configs"`
 }
 
