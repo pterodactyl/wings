@@ -5,6 +5,7 @@ import (
 	"github.com/pterodactyl/wings/api"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // Adds all of the internal event listeners we want to use for a server.
@@ -22,7 +23,12 @@ func (s *Server) AddEventListeners() {
 	}()
 }
 
-var stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
+var (
+	stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
+
+	regexpCacheMx sync.RWMutex
+	regexpCache   map[string]*regexp.Regexp
+)
 
 // Custom listener for console output events that will check if the given line
 // of output matches one that should mark the server as started or not.
@@ -36,22 +42,39 @@ func (s *Server) onConsoleOutput(data string) {
 		// set the server to that state. Only do this if the server is not currently stopped
 		// or stopping.
 
-		var matches []string
-		if processConfiguration.Startup.SplitCharacter != "" {
-			matches = strings.Split(processConfiguration.Startup.Done, processConfiguration.Startup.SplitCharacter)
-		} else {
-			matches = []string{processConfiguration.Startup.Done}
-		}
-
 		// Check if we should strip ansi color codes.
 		if processConfiguration.Startup.StripAnsi {
 			// Strip ansi color codes from the data string.
 			data = stripAnsiRegex.ReplaceAllString(data, "")
 		}
 
-		// Iterate over all the matches.
-		for _, match := range matches {
-			if !strings.Contains(data, match) {
+		// Iterate over all the done lines.
+		for _, match := range processConfiguration.Startup.Done {
+			if strings.HasPrefix(match, "regex:") && len(match) > 6 {
+				match = match[6:]
+
+				regexpCacheMx.RLock()
+				rxp, ok := regexpCache[match]
+				regexpCacheMx.RUnlock()
+
+				if !ok {
+					var err error
+
+					rxp, err = regexp.Compile(match)
+					if err != nil {
+						log.WithError(err).Warn("failed to compile regexp")
+						break
+					}
+
+					regexpCacheMx.Lock()
+					regexpCache[match] = rxp
+					regexpCacheMx.Unlock()
+				}
+
+				if !rxp.MatchString(data) {
+					continue
+				}
+			} else if !strings.Contains(data, match) {
 				continue
 			}
 
