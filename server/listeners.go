@@ -26,7 +26,7 @@ func (s *Server) AddEventListeners() {
 var (
 	stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
 
-	regexpCacheMx sync.RWMutex
+	regexpCacheMu sync.RWMutex
 	regexpCache   map[string]*regexp.Regexp
 )
 
@@ -53,25 +53,24 @@ func (s *Server) onConsoleOutput(data string) {
 			if strings.HasPrefix(match, "regex:") && len(match) > 6 {
 				match = match[6:]
 
-				regexpCacheMx.RLock()
-				rxp, ok := regexpCache[match]
-				regexpCacheMx.RUnlock()
+				regexpCacheMu.RLock()
+				r, ok := regexpCache[match]
+				regexpCacheMu.RUnlock()
 
 				if !ok {
 					var err error
-
-					rxp, err = regexp.Compile(match)
+					r, err = regexp.Compile(match)
 					if err != nil {
 						log.WithError(err).Warn("failed to compile regexp")
 						break
 					}
 
-					regexpCacheMx.Lock()
-					regexpCache[match] = rxp
-					regexpCacheMx.Unlock()
+					regexpCacheMu.Lock()
+					regexpCache[match] = r
+					regexpCacheMu.Unlock()
 				}
 
-				if !rxp.MatchString(data) {
+				if !r.MatchString(data) {
 					continue
 				}
 			} else if !strings.Contains(data, match) {
