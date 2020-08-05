@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
-	"github.com/pterodactyl/wings/parser"
 )
 
 const (
@@ -24,24 +23,6 @@ const (
 type ServerConfigurationResponse struct {
 	Settings             json.RawMessage       `json:"settings"`
 	ProcessConfiguration *ProcessConfiguration `json:"process_configuration"`
-}
-
-// Defines the process configuration for a given server instance. This sets what the
-// daemon is looking for to mark a server as done starting, what to do when stopping,
-// and what changes to make to the configuration file for a server.
-type ProcessConfiguration struct {
-	Startup struct {
-		Done            []string `json:"done"`
-		UserInteraction []string `json:"user_interaction"`
-		StripAnsi       bool     `json:"strip_ansi"`
-	} `json:"startup"`
-
-	Stop struct {
-		Type  string `json:"type"`
-		Value string `json:"value"`
-	} `json:"stop"`
-
-	ConfigurationFiles []parser.ConfigurationFile `json:"configs"`
 }
 
 // Defines installation script information for a server process. This is used when

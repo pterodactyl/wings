@@ -4,8 +4,6 @@ import (
 	"github.com/apex/log"
 	"github.com/pterodactyl/wings/api"
 	"regexp"
-	"strings"
-	"sync"
 )
 
 // Adds all of the internal event listeners we want to use for a server.
@@ -23,12 +21,7 @@ func (s *Server) AddEventListeners() {
 	}()
 }
 
-var (
-	stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
-
-	regexpCacheMx sync.RWMutex
-	regexpCache   map[string]*regexp.Regexp
-)
+var stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
 
 // Custom listener for console output events that will check if the given line
 // of output matches one that should mark the server as started or not.
@@ -38,10 +31,6 @@ func (s *Server) onConsoleOutput(data string) {
 
 	// Check if the server is currently starting.
 	if s.GetState() == ProcessStartingState {
-		// If the specific line of output is one that would mark the server as started,
-		// set the server to that state. Only do this if the server is not currently stopped
-		// or stopping.
-
 		// Check if we should strip ansi color codes.
 		if processConfiguration.Startup.StripAnsi {
 			// Strip ansi color codes from the data string.
@@ -49,40 +38,19 @@ func (s *Server) onConsoleOutput(data string) {
 		}
 
 		// Iterate over all the done lines.
-		for _, match := range processConfiguration.Startup.Done {
-			if strings.HasPrefix(match, "regex:") && len(match) > 6 {
-				match = match[6:]
-
-				regexpCacheMx.RLock()
-				rxp, ok := regexpCache[match]
-				regexpCacheMx.RUnlock()
-
-				if !ok {
-					var err error
-
-					rxp, err = regexp.Compile(match)
-					if err != nil {
-						log.WithError(err).Warn("failed to compile regexp")
-						break
-					}
-
-					regexpCacheMx.Lock()
-					regexpCache[match] = rxp
-					regexpCacheMx.Unlock()
-				}
-
-				if !rxp.MatchString(data) {
-					continue
-				}
-			} else if !strings.Contains(data, match) {
+		for _, l := range processConfiguration.Startup.Done {
+			if !l.Matches(data) {
 				continue
 			}
 
 			s.Log().WithFields(log.Fields{
-				"match":   match,
+				"match":   l.String(),
 				"against": data,
 			}).Debug("detected server in running state based on console line output")
 
+			// If the specific line of output is one that would mark the server as started,
+			// set the server to that state. Only do this if the server is not currently stopped
+			// or stopping.
 			_ = s.SetState(ProcessRunningState)
 			break
 		}
