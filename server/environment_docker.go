@@ -201,8 +201,8 @@ func (d *DockerEnvironment) Start() error {
 			// If we don't set it to stopping first, you'll trigger crash detection which
 			// we don't want to do at this point since it'll just immediately try to do the
 			// exact same action that lead to it crashing in the first place...
-			d.Server.SetState(ProcessStoppingState)
-			d.Server.SetState(ProcessOfflineState)
+			_ = d.Server.SetState(ProcessStoppingState)
+			_ = d.Server.SetState(ProcessOfflineState)
 		}
 	}()
 
@@ -228,7 +228,7 @@ func (d *DockerEnvironment) Start() error {
 	} else {
 		// If the server is running update our internal state and continue on with the attach.
 		if c.State.Running {
-			d.Server.SetState(ProcessRunningState)
+			_ = d.Server.SetState(ProcessRunningState)
 
 			return d.Attach()
 		}
@@ -243,7 +243,8 @@ func (d *DockerEnvironment) Start() error {
 		}
 	}
 
-	d.Server.SetState(ProcessStartingState)
+	_ = d.Server.SetState(ProcessStartingState)
+
 	// Set this to true for now, we will set it to false once we reach the
 	// end of this chain.
 	sawError = true
@@ -289,7 +290,8 @@ func (d *DockerEnvironment) Stop() error {
 		return d.Terminate(os.Kill)
 	}
 
-	d.Server.SetState(ProcessStoppingState)
+	_ = d.Server.SetState(ProcessStoppingState)
+
 	// Only attempt to send the stop command to the instance if we are actually attached to
 	// the instance. If we are not for some reason, just send the container stop event.
 	if d.IsAttached() && stop.Type == api.ProcessStopCommand {
@@ -304,7 +306,7 @@ func (d *DockerEnvironment) Stop() error {
 		// an error.
 		if client.IsErrNotFound(err) {
 			d.SetStream(nil)
-			d.Server.SetState(ProcessOfflineState)
+			_ = d.Server.SetState(ProcessOfflineState)
 
 			return nil
 		}
@@ -333,8 +335,10 @@ func (d *DockerEnvironment) Restart() error {
 // will be terminated forcefully depending on the value of the second argument.
 func (d *DockerEnvironment) WaitForStop(seconds int, terminate bool) error {
 	if d.Server.GetState() == ProcessOfflineState {
+		log.WithField("server", d.Server.Id()).Debug("server is already offline, not waiting for stop.")
 		return nil
 	}
+	log.WithField("server", d.Server.Id()).Debug("waiting for server to stop")
 
 	if err := d.Stop(); err != nil {
 		return errors.WithStack(err)
@@ -377,7 +381,9 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 		return nil
 	}
 
-	d.Server.SetState(ProcessStoppingState)
+	// We set it to stopping than offline to prevent crash detection from being triggered.
+	_ = d.Server.SetState(ProcessStoppingState)
+	_ = d.Server.SetState(ProcessOfflineState)
 
 	return d.Client.ContainerKill(
 		context.Background(), d.Server.Id(), strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed"),
@@ -387,8 +393,9 @@ func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 // Remove the Docker container from the machine. If the container is currently running
 // it will be forcibly stopped by Docker.
 func (d *DockerEnvironment) Destroy() error {
-	// Avoid crash detection firing off.
-	d.Server.SetState(ProcessStoppingState)
+	// We set it to stopping than offline to prevent crash detection from being triggered.
+	_ = d.Server.SetState(ProcessStoppingState)
+	_ = d.Server.SetState(ProcessOfflineState)
 
 	err := d.Client.ContainerRemove(context.Background(), d.Server.Id(), types.ContainerRemoveOptions{
 		RemoveVolumes: true,
@@ -471,11 +478,11 @@ func (d *DockerEnvironment) Attach() error {
 	go func() {
 		defer d.stream.Close()
 		defer func() {
-			d.Server.SetState(ProcessOfflineState)
+			_ = d.Server.SetState(ProcessOfflineState)
 			d.SetStream(nil)
 		}()
 
-		io.Copy(console, d.stream.Reader)
+		_, _ = io.Copy(console, d.stream.Reader)
 	}()
 
 	return nil
@@ -542,14 +549,14 @@ func (d *DockerEnvironment) EnableResourcePolling() error {
 					d.Server.Log().WithField("error", err).Warn("encountered error processing server stats, stopping collection")
 				}
 
-				d.DisableResourcePolling()
+				_ = d.DisableResourcePolling()
 				return
 			}
 
 			// Disable collection if the server is in an offline state and this process is
 			// still running.
 			if s.GetState() == ProcessOfflineState {
-				d.DisableResourcePolling()
+				_ = d.DisableResourcePolling()
 				return
 			}
 
@@ -613,7 +620,7 @@ func (d *DockerEnvironment) ensureImageExists() error {
 			continue
 		}
 
-		log.WithField("registry", registry).Debug("using authentication for repository")
+		log.WithField("registry", registry).Debug("using authentication for registry")
 		registryAuth = &c
 		break
 	}
@@ -733,7 +740,7 @@ func (d *DockerEnvironment) Create() error {
 			d.Server.Log().WithFields(log.Fields{
 				"source_path": m.Source,
 				"target_path": m.Target,
-				"read_only": m.ReadOnly,
+				"read_only":   m.ReadOnly,
 			}).Debug("attaching custom server mount point to container")
 		}
 	}

@@ -31,13 +31,16 @@ type ServerConfigurationResponse struct {
 // and what changes to make to the configuration file for a server.
 type ProcessConfiguration struct {
 	Startup struct {
-		Done            string   `json:"done"`
-		UserInteraction []string `json:"userInteraction"`
+		Done            []string `json:"done"`
+		UserInteraction []string `json:"user_interaction"`
+		StripAnsi       bool     `json:"strip_ansi"`
 	} `json:"startup"`
+
 	Stop struct {
 		Type  string `json:"type"`
 		Value string `json:"value"`
 	} `json:"stop"`
+
 	ConfigurationFiles []parser.ConfigurationFile `json:"configs"`
 }
 

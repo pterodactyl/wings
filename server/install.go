@@ -55,6 +55,12 @@ func (s *Server) Install(sync bool) error {
 		l.Warn("failed to notify panel of server install state")
 	}
 
+	// Some how these publish events are sent to clients in reverse order,
+	// this is probably due to channels having the most recently sent item first.
+
+	// Ensure that the server is marked as offline.
+	s.Events().Publish(StatusEvent, ProcessOfflineState)
+
 	// Push an event to the websocket so we can auto-refresh the information in the panel once
 	// the install is completed.
 	s.Events().Publish(InstallCompletedEvent, "")
