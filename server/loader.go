@@ -104,14 +104,14 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 		Server: s,
 	}
 
-	// If the server's data directory exists, force disk usage calculation.
-	if _, err := os.Stat(s.Filesystem.Path()); err == nil {
-		go s.Filesystem.HasSpaceAvailable()
-	}
-
 	// Forces the configuration to be synced with the panel.
 	if err := s.SyncWithConfiguration(data); err != nil {
 		return nil, err
+	}
+
+	// If the server's data directory exists, force disk usage calculation.
+	if _, err := os.Stat(s.Filesystem.Path()); err == nil {
+		go s.Filesystem.HasSpaceAvailable()
 	}
 
 	return s, nil
