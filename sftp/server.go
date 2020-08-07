@@ -39,7 +39,7 @@ func Initialize(config *config.Configuration) error {
 	// Initialize the SFTP server in a background thread since this is
 	// a long running operation.
 	go func(instance *sftp_server.Server) {
-		if err := c.Initalize(); err != nil {
+		if err := c.Initialize(); err != nil {
 			log.WithField("subsystem", "sftp").WithField("error", errors.WithStack(err)).Error("failed to initialize SFTP subsystem")
 		}
 	}(c)

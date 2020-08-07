@@ -408,17 +408,22 @@ func (fs *Filesystem) unsafeStat(p string) (*Stat, error) {
 		return nil, err
 	}
 
-	var m = "inode/directory"
+	var m *mimetype.MIME
 	if !s.IsDir() {
-		m, _, err = mimetype.DetectFile(p)
+		m, err = mimetype.DetectFile(p)
 		if err != nil {
 			return nil, err
 		}
 	}
 
+
 	st := &Stat{
 		Info:     s,
-		Mimetype: m,
+		Mimetype: "inode/directory",
+	}
+
+	if m != nil {
+		st.Mimetype = m.String()
 	}
 
 	return st, nil
@@ -638,22 +643,29 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 		go func(idx int, f os.FileInfo) {
 			defer wg.Done()
 
-			var m = "inode/directory"
+			var m *mimetype.MIME
+			var d = "inode/directory"
 			if !f.IsDir() {
 				cleanedp, _ := fs.SafeJoin(cleaned, f)
 				if cleanedp != "" {
-					m, _, _ = mimetype.DetectFile(filepath.Join(cleaned, f.Name()))
+					m, _ = mimetype.DetectFile(filepath.Join(cleaned, f.Name()))
 				} else {
 					// Just pass this for an unknown type because the file could not safely be resolved within
 					// the server data path.
-					m = "application/octet-stream"
+					d = "application/octet-stream"
 				}
 			}
 
-			out[idx] = &Stat{
+			st := &Stat{
 				Info:     f,
-				Mimetype: m,
+				Mimetype: d,
 			}
+
+			if m != nil {
+				st.Mimetype = m.String()
+			}
+
+			out[idx] = st
 		}(i, file)
 	}
 
