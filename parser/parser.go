@@ -3,6 +3,7 @@ package parser
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"github.com/apex/log"
 	"github.com/beevik/etree"
 	"github.com/buger/jsonparser"
@@ -454,7 +455,20 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 		return err
 	}
 
-	_, err = p.Write(w, properties.UTF8)
+	var s string
+	// This is a copy of the properties.String() func except we don't plop spaces around
+	// the key=value configurations since people like to complain about that.
+	// func (p *Properties) String() string
+	for _, key := range p.Keys() {
+		value, _ := p.Get(key)
 
-	return err
+		s = fmt.Sprintf("%s%s=%s\n", s, key, value)
+	}
+
+	// Can't use the properties.Write() function since that doesn't apply our nicer formatting.
+	if _, err := w.Write([]byte(s)); err != nil {
+		return err
+	}
+
+	return nil
 }
