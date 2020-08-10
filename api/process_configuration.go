@@ -47,20 +47,22 @@ func (olm *OutputLineMatcher) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type ProcessStopConfiguration struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
 // Defines the process configuration for a given server instance. This sets what the
 // daemon is looking for to mark a server as done starting, what to do when stopping,
 // and what changes to make to the configuration file for a server.
 type ProcessConfiguration struct {
 	Startup struct {
 		Done            []*OutputLineMatcher `json:"done"`
-		UserInteraction []string            `json:"user_interaction"`
-		StripAnsi       bool                `json:"strip_ansi"`
+		UserInteraction []string             `json:"user_interaction"`
+		StripAnsi       bool                 `json:"strip_ansi"`
 	} `json:"startup"`
 
-	Stop struct {
-		Type  string `json:"type"`
-		Value string `json:"value"`
-	} `json:"stop"`
+	Stop ProcessStopConfiguration `json:"stop"`
 
 	ConfigurationFiles []parser.ConfigurationFile `json:"configs"`
 }

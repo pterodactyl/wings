@@ -18,8 +18,9 @@ type Server struct {
 	// Internal mutex used to block actions that need to occur sequentially, such as
 	// writing the configuration to the disk.
 	sync.RWMutex
-	emitterLock sync.Mutex
-	powerLock   *semaphore.Weighted
+	emitterLock  sync.Mutex
+	powerLock    *semaphore.Weighted
+	throttleLock sync.RWMutex
 
 	// Maintains the configuration for the server. This is the data that gets returned by the Panel
 	// such as build settings and container images.
@@ -50,6 +51,9 @@ type Server struct {
 	// installation process, for example when a server is deleted from the panel while the
 	// installer process is still running.
 	installer InstallerDetails
+
+	// The console throttler instance used to control outputs.
+	throttler *ConsoleThrottler
 }
 
 type InstallerDetails struct {
