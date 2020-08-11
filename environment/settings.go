@@ -37,7 +37,7 @@ type Limits struct {
 	// Sets which CPU threads can be used by the docker instance.
 	Threads string `json:"threads"`
 
-	OOMDisabled *bool `json:"oom_disabled"`
+	OOMDisabled bool `json:"oom_disabled"`
 }
 
 // Converts the CPU limit for a server build into a number that can be better understood

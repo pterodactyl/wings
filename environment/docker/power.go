@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
@@ -143,9 +144,15 @@ func (e *Environment) Restart() error {
 // Stops the container that the server is running in. This will allow up to 10
 // seconds to pass before a failure occurs.
 func (e *Environment) Stop() error {
+	e.mu.RLock()
 	s := e.meta.Stop
+	e.mu.RUnlock()
 
-	if s.Type == api.ProcessStopSignal {
+	if s == nil || s.Type == api.ProcessStopSignal {
+		if s == nil {
+			log.WithField("container_id", e.Id).Warn("no stop configuration detected for environment, using termination proceedure")
+		}
+
 		return e.Terminate(os.Kill)
 	}
 

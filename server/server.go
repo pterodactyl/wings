@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/environment/docker"
 	"github.com/pterodactyl/wings/events"
 	"golang.org/x/sync/semaphore"
 	"strings"
@@ -136,6 +137,13 @@ func (s *Server) SyncWithConfiguration(cfg *api.ServerConfigurationResponse) err
 	s.Lock()
 	s.procConfig = cfg.ProcessConfiguration
 	s.Unlock()
+
+	// If this is a Docker environment we need to sync the stop configuration with it so that
+	// the process isn't just terminated when a user requests it be stopped.
+	if e, ok := s.Environment.(*docker.Environment); ok {
+		s.Log().Debug("syncing stop configuration with configured docker environment")
+		e.SetStopConfiguration(&cfg.ProcessConfiguration.Stop)
+	}
 
 	return nil
 }

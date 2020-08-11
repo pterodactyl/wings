@@ -15,7 +15,7 @@ import (
 type Metadata struct {
 	Invocation string
 	Image      string
-	Stop       api.ProcessStopConfiguration
+	Stop       *api.ProcessStopConfiguration
 }
 
 // Ensure that the Docker environment is always implementing all of the methods
@@ -69,6 +69,12 @@ func New(id string, m *Metadata, c *environment.Configuration) (*Environment, er
 	}
 
 	return e, nil
+}
+
+func (e *Environment) SetStopConfiguration(c *api.ProcessStopConfiguration) {
+	e.mu.Lock()
+	e.meta.Stop = c
+	e.mu.Unlock()
 }
 
 func (e *Environment) Type() string {

@@ -98,7 +98,6 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	meta := docker.Metadata{
 		Invocation: s.Config().Invocation,
 		Image:      s.Config().Container.Image,
-		Stop:       s.procConfig.Stop,
 	}
 
 	if env, err := docker.New(s.Id(), &meta, envCfg); err != nil {

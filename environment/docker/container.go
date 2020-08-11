@@ -75,7 +75,7 @@ func (e *Environment) resources() container.Resources {
 		CPUPeriod:         100_000,
 		CPUShares:         1024,
 		BlkioWeight:       l.IoWeight,
-		OomKillDisable:    l.OOMDisabled,
+		OomKillDisable:    &l.OOMDisabled,
 		CpusetCpus:        l.Threads,
 	}
 }
