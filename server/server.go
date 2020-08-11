@@ -156,7 +156,11 @@ func (s *Server) IsBootable() bool {
 // Initalizes a server instance. This will run through and ensure that the environment
 // for the server is setup, and that all of the necessary files are created.
 func (s *Server) CreateEnvironment() error {
-	// TODO: ensure data directory exists.
+	// Ensure the data directory exists before getting too far through this process.
+	if err := s.Filesystem.EnsureDataDirectory(); err != nil {
+		return errors.WithStack(err)
+	}
+
 	return s.Environment.Create()
 }
 

@@ -1,4 +1,4 @@
-package environment
+package docker
 
 import (
 	"bufio"
@@ -24,12 +24,12 @@ import (
 // of the process stream. This should not be used for reading console data as you *will*
 // miss important output at the beginning because of the time delay with attaching to the
 // output.
-func (d *DockerEnvironment) Attach() error {
-	if d.IsAttached() {
+func (e *Environment) Attach() error {
+	if e.IsAttached() {
 		return nil
 	}
 
-	if err := d.followOutput(); err != nil {
+	if err := e.followOutput(); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -41,10 +41,10 @@ func (d *DockerEnvironment) Attach() error {
 	}
 
 	// Set the stream again with the container.
-	if st, err := d.client.ContainerAttach(context.Background(), d.Id, opts); err != nil {
+	if st, err := e.client.ContainerAttach(context.Background(), e.Id, opts); err != nil {
 		return errors.WithStack(err)
 	} else {
-		d.SetStream(&st)
+		e.SetStream(&st)
 	}
 
 	console := new(Console)
@@ -52,20 +52,20 @@ func (d *DockerEnvironment) Attach() error {
 	// TODO: resource polling should be handled by the server itself and just call a function
 	//  on the environment that can return the data. Same for disabling polling.
 	go func() {
-		defer d.stream.Close()
+		defer e.stream.Close()
 		defer func() {
-			d.setState(system.ProcessOfflineState)
-			d.SetStream(nil)
+			e.setState(system.ProcessOfflineState)
+			e.SetStream(nil)
 		}()
 
-		_, _ = io.Copy(console, d.stream.Reader)
+		_, _ = io.Copy(console, e.stream.Reader)
 	}()
 
 	return nil
 }
 
-func (d *DockerEnvironment) resources() container.Resources {
-	l := d.Configuration.Limits()
+func (e *Environment) resources() container.Resources {
+	l := e.Configuration.Limits()
 
 	return container.Resources{
 		Memory:            l.BoundedMemoryLimit(),
@@ -83,8 +83,8 @@ func (d *DockerEnvironment) resources() container.Resources {
 // Performs an in-place update of the Docker container's resource limits without actually
 // making any changes to the operational state of the container. This allows memory, cpu,
 // and IO limitations to be adjusted on the fly for individual instances.
-func (d *DockerEnvironment) InSituUpdate() error {
-	if _, err := d.client.ContainerInspect(context.Background(), d.Id); err != nil {
+func (e *Environment) InSituUpdate() error {
+	if _, err := e.client.ContainerInspect(context.Background(), e.Id); err != nil {
 		// If the container doesn't exist for some reason there really isn't anything
 		// we can do to fix that in this process (it doesn't make sense at least). In those
 		// cases just return without doing anything since we still want to save the configuration
@@ -99,12 +99,12 @@ func (d *DockerEnvironment) InSituUpdate() error {
 	}
 
 	u := container.UpdateConfig{
-		Resources: d.resources(),
+		Resources: e.resources(),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	if _, err := d.client.ContainerUpdate(ctx, d.Id, u); err != nil {
+	if _, err := e.client.ContainerUpdate(ctx, e.Id, u); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -112,26 +112,26 @@ func (d *DockerEnvironment) InSituUpdate() error {
 }
 
 // Creates a new container for the server using all of the data that is currently
-// available for it. If the container already exists it will be returned.
-func (d *DockerEnvironment) Create(invocation string) error {
+// available for it. If the container already exists it will be returnee.
+func (e *Environment) Create() error {
 	// If the container already exists don't hit the user with an error, just return
 	// the current information about it which is what we would do when creating the
 	// container anyways.
-	if _, err := d.client.ContainerInspect(context.Background(), d.Id); err == nil {
+	if _, err := e.client.ContainerInspect(context.Background(), e.Id); err == nil {
 		return nil
 	} else if !client.IsErrNotFound(err) {
 		return errors.WithStack(err)
 	}
 
 	// Try to pull the requested image before creating the container.
-	if err := d.ensureImageExists(d.image); err != nil {
+	if err := e.ensureImageExists(e.meta.Image); err != nil {
 		return errors.WithStack(err)
 	}
 
-	a := d.Configuration.Allocations()
+	a := e.Configuration.Allocations()
 
 	conf := &container.Config{
-		Hostname:     d.Id,
+		Hostname:     e.Id,
 		Domainname:   config.Get().Docker.Domainname,
 		User:         strconv.Itoa(config.Get().System.User.Uid),
 		AttachStdin:  true,
@@ -140,8 +140,8 @@ func (d *DockerEnvironment) Create(invocation string) error {
 		OpenStdin:    true,
 		Tty:          true,
 		ExposedPorts: a.Exposed(),
-		Image:        d.image,
-		Env:          d.Configuration.EnvironmentVariables(invocation),
+		Image:        e.meta.Image,
+		Env:          e.variables(),
 		Labels: map[string]string{
 			"Service":       "Pterodactyl",
 			"ContainerType": "server_process",
@@ -152,8 +152,8 @@ func (d *DockerEnvironment) Create(invocation string) error {
 		PortBindings: a.Bindings(),
 
 		// Configure the mounts for this container. First mount the server data directory
-		// into the container as a r/w bind.
-		Mounts: d.convertMounts(),
+		// into the container as a r/w bine.
+		Mounts: e.convertMounts(),
 
 		// Configure the /tmp folder mapping in containers. This is necessary for some
 		// games that need to make use of it for downloads and other installation processes.
@@ -163,7 +163,7 @@ func (d *DockerEnvironment) Create(invocation string) error {
 
 		// Define resource limits for the container based on the data passed through
 		// from the Panel.
-		Resources: d.resources(),
+		Resources: e.resources(),
 
 		DNS: config.Get().Docker.Network.Dns,
 
@@ -188,22 +188,28 @@ func (d *DockerEnvironment) Create(invocation string) error {
 		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
 	}
 
-	if _, err := d.client.ContainerCreate(context.Background(), conf, hostConf, nil, d.Id); err != nil {
+	if _, err := e.client.ContainerCreate(context.Background(), conf, hostConf, nil, e.Id); err != nil {
 		return errors.WithStack(err)
 	}
 
 	return nil
 }
 
-func (d *DockerEnvironment) convertMounts() []mount.Mount {
+func (e *Environment) variables() []string {
+	v := e.Configuration.EnvironmentVariables()
+
+	return append(v, fmt.Sprintf("STARTUP=%s", e.meta.Invocation))
+}
+
+func (e *Environment) convertMounts() []mount.Mount {
 	var out []mount.Mount
 
-	for _, m := range d.Configuration.Mounts() {
+	for _, m := range e.Configuration.Mounts() {
 		out = append(out, mount.Mount{
-			Type:          mount.TypeBind,
-			Source:        m.Source,
-			Target:        m.Target,
-			ReadOnly:      m.ReadOnly,
+			Type:     mount.TypeBind,
+			Source:   m.Source,
+			Target:   m.Target,
+			ReadOnly: m.ReadOnly,
 		})
 	}
 
@@ -212,11 +218,11 @@ func (d *DockerEnvironment) convertMounts() []mount.Mount {
 
 // Remove the Docker container from the machine. If the container is currently running
 // it will be forcibly stopped by Docker.
-func (d *DockerEnvironment) Destroy() error {
-	// We set it to stopping than offline to prevent crash detection from being triggered.
-	d.setState(system.ProcessStoppingState)
+func (e *Environment) Destroy() error {
+	// We set it to stopping than offline to prevent crash detection from being triggeree.
+	e.setState(system.ProcessStoppingState)
 
-	err := d.client.ContainerRemove(context.Background(), d.Id, types.ContainerRemoveOptions{
+	err := e.client.ContainerRemove(context.Background(), e.Id, types.ContainerRemoveOptions{
 		RemoveVolumes: true,
 		RemoveLinks:   false,
 		Force:         true,
@@ -230,7 +236,7 @@ func (d *DockerEnvironment) Destroy() error {
 		return nil
 	}
 
-	d.setState(system.ProcessOfflineState)
+	e.setState(system.ProcessOfflineState)
 
 	return err
 }
@@ -238,13 +244,13 @@ func (d *DockerEnvironment) Destroy() error {
 // Attaches to the log for the container. This avoids us missing cruicial output that
 // happens in the split seconds before the code moves from 'Starting' to 'Attaching'
 // on the process.
-func (d *DockerEnvironment) followOutput() error {
-	if exists, err := d.Exists(); !exists {
+func (e *Environment) followOutput() error {
+	if exists, err := e.Exists(); !exists {
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		return errors.New(fmt.Sprintf("no such container: %s", d.Id))
+		return errors.New(fmt.Sprintf("no such container: %s", e.Id))
 	}
 
 	opts := types.ContainerLogsOptions{
@@ -254,18 +260,18 @@ func (d *DockerEnvironment) followOutput() error {
 		Since:      time.Now().Format(time.RFC3339),
 	}
 
-	reader, err := d.client.ContainerLogs(context.Background(), d.Id, opts)
+	reader, err := e.client.ContainerLogs(context.Background(), e.Id, opts)
 
 	go func(r io.ReadCloser) {
 		defer r.Close()
 
 		s := bufio.NewScanner(r)
 		for s.Scan() {
-			d.Events().Publish(environment.ConsoleOutputEvent, s.Text())
+			e.Events().Publish(environment.ConsoleOutputEvent, s.Text())
 		}
 
 		if err := s.Err(); err != nil {
-			log.WithField("error", err).WithField("container_id", d.Id).Warn("error processing scanner line in console output")
+			log.WithField("error", err).WithField("container_id", e.Id).Warn("error processing scanner line in console output")
 		}
 	}(reader)
 
@@ -282,7 +288,7 @@ func (d *DockerEnvironment) followOutput() error {
 // correctly if anything.
 //
 // TODO: handle authorization & local images
-func (d *DockerEnvironment) ensureImageExists(image string) error {
+func (e *Environment) ensureImageExists(image string) error {
 	// Give it up to 15 minutes to pull the image. I think this should cover 99.8% of cases where an
 	// image pull might fail. I can't imagine it will ever take more than 15 minutes to fully pull
 	// an image. Let me know when I am inevitably wrong here...
@@ -313,9 +319,9 @@ func (d *DockerEnvironment) ensureImageExists(image string) error {
 		imagePullOptions.RegistryAuth = b64
 	}
 
-	out, err := d.client.ImagePull(ctx, image, imagePullOptions)
+	out, err := e.client.ImagePull(ctx, image, imagePullOptions)
 	if err != nil {
-		images, ierr := d.client.ImageList(ctx, types.ImageListOptions{})
+		images, ierr := e.client.ImageList(ctx, types.ImageListOptions{})
 		if ierr != nil {
 			// Well damn, something has gone really wrong here, just go ahead and abort there
 			// isn't much anything we can do to try and self-recover from this.
@@ -330,7 +336,7 @@ func (d *DockerEnvironment) ensureImageExists(image string) error {
 
 				log.WithFields(log.Fields{
 					"image":        image,
-					"container_id": d.Id,
+					"container_id": e.Id,
 					"error":        errors.New(err.Error()),
 				}).Warn("unable to pull requested image from remote source, however the image exists locally")
 
@@ -347,7 +353,7 @@ func (d *DockerEnvironment) ensureImageExists(image string) error {
 	log.WithField("image", image).Debug("pulling docker image... this could take a bit of time")
 
 	// I'm not sure what the best approach here is, but this will block execution until the image
-	// is done being pulled, which is what we need.
+	// is done being pulled, which is what we neee.
 	scanner := bufio.NewScanner(out)
 	for scanner.Scan() {
 		continue

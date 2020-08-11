@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/server"
 	"os"
 	"path"
@@ -33,7 +34,7 @@ func New(data []byte) (*Installer, error) {
 		Uuid:       getString(data, "uuid"),
 		Suspended:  false,
 		Invocation: getString(data, "invocation"),
-		Build: server.BuildSettings{
+		Build: environment.Limits{
 			MemoryLimit: getInt(data, "build", "memory"),
 			Swap:        getInt(data, "build", "swap"),
 			IoWeight:    uint16(getInt(data, "build", "io")),
@@ -51,7 +52,7 @@ func New(data []byte) (*Installer, error) {
 	if b, _, _, err := jsonparser.Get(data, "environment"); err != nil {
 		return nil, errors.WithStack(err)
 	} else {
-		cfg.EnvVars = make(server.EnvironmentVariables)
+		cfg.EnvVars = make(environment.Variables)
 		if err := json.Unmarshal(b, &cfg.EnvVars); err != nil {
 			return nil, errors.WithStack(err)
 		}

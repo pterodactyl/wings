@@ -193,7 +193,6 @@ func rootCmdRun(*cobra.Command, []string) {
 			s.Log().Info("ensuring server environment exists")
 			// Create a server environment if none exists currently. This allows us to recover from Docker
 			// being reinstalled on the host system for example.
-			// TODO: ensure data directory exists.
 			if err := s.Environment.Create(); err != nil {
 				s.Log().WithField("error", err).Error("failed to process environment")
 			}

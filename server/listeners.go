@@ -3,12 +3,13 @@ package server
 import (
 	"github.com/apex/log"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/events"
 	"regexp"
 )
 
 // Adds all of the internal event listeners we want to use for a server.
 func (s *Server) AddEventListeners() {
-	consoleChannel := make(chan Event)
+	consoleChannel := make(chan events.Event)
 	s.Events().Subscribe(ConsoleOutputEvent, consoleChannel)
 
 	go func() {

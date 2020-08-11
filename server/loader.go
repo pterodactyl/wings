@@ -7,6 +7,8 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/environment/docker"
 	"os"
 	"runtime"
 	"time"
@@ -92,8 +94,17 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	// Right now we only support a Docker based environment, so I'm going to hard code
 	// this logic in. When we're ready to support other environment we'll need to make
 	// some modifications here obviously.
-	if err := NewDockerEnvironment(s); err != nil {
+	envCfg := environment.NewConfiguration(s.cfg.Mounts, s.cfg.Allocations, s.cfg.Build, s.cfg.EnvVars)
+	meta := docker.Metadata{
+		Invocation: s.Config().Invocation,
+		Image:      s.Config().Container.Image,
+		Stop:       s.procConfig.Stop,
+	}
+
+	if env, err := docker.New(s.Id(), &meta, envCfg); err != nil {
 		return nil, err
+	} else {
+		s.Environment = env
 	}
 
 	s.cache = cache.New(time.Minute*10, time.Minute*15)

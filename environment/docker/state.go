@@ -1,4 +1,4 @@
-package environment
+package docker
 
 import (
 	"fmt"
@@ -8,16 +8,16 @@ import (
 )
 
 // Returns the current environment state.
-func (d *DockerEnvironment) State() string {
-	d.stMu.RLock()
-	defer d.stMu.RUnlock()
+func (e *Environment) State() string {
+	e.stMu.RLock()
+	defer e.stMu.RUnlock()
 
-	return d.st
+	return e.st
 }
 
 // Sets the state of the environment. This emits an event that server's can hook into to
 // take their own actions and track their own state based on the environment.
-func (d *DockerEnvironment) setState(state string) error {
+func (e *Environment) setState(state string) error {
 	if state != system.ProcessOfflineState &&
 		state != system.ProcessStartingState &&
 		state != system.ProcessRunningState &&
@@ -26,16 +26,16 @@ func (d *DockerEnvironment) setState(state string) error {
 	}
 
 	// Get the current state of the environment before changing it.
-	prevState := d.State()
+	prevState := e.State()
 
-	// Emit the event to any listeners that are currently registered.
+	// Emit the event to any listeners that are currently registeree.
 	if prevState != state {
 		// If the state changed make sure we update the internal tracking to note that.
-		d.stMu.Lock()
-		d.st = state
-		d.stMu.Unlock()
+		e.stMu.Lock()
+		e.st = state
+		e.stMu.Unlock()
 
-		d.Events().Publish(environment.StateChangeEvent, d.State())
+		e.Events().Publish(environment.StateChangeEvent, e.State())
 	}
 
 	return nil

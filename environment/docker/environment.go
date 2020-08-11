@@ -1,4 +1,4 @@
-package environment
+package docker
 
 import (
 	"context"
@@ -12,11 +12,17 @@ import (
 	"sync"
 )
 
+type Metadata struct {
+	Invocation string
+	Image      string
+	Stop       api.ProcessStopConfiguration
+}
+
 // Ensure that the Docker environment is always implementing all of the methods
 // from the base environment interface.
-var _ environment.ProcessEnvironment = (*DockerEnvironment)(nil)
+var _ environment.ProcessEnvironment = (*Environment)(nil)
 
-type DockerEnvironment struct {
+type Environment struct {
 	mu      sync.RWMutex
 	eventMu sync.Mutex
 
@@ -27,11 +33,7 @@ type DockerEnvironment struct {
 	// The environment configuration.
 	Configuration *environment.Configuration
 
-	// The Docker image to use for this environment.
-	image string
-
-	// The stop configuration for the environment
-	stop api.ProcessStopConfiguration
+	meta *Metadata
 
 	// The Docker client being used for this instance.
 	client *client.Client
@@ -53,59 +55,58 @@ type DockerEnvironment struct {
 // Creates a new base Docker environment. The ID passed through will be the ID that is used to
 // reference the container from here on out. This should be unique per-server (we use the UUID
 // by default). The container does not need to exist at this point.
-func NewDocker(id string, image string, s api.ProcessStopConfiguration, c environment.Configuration) (*DockerEnvironment, error) {
+func New(id string, m *Metadata, c *environment.Configuration) (*Environment, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return nil, err
 	}
 
-	e := &DockerEnvironment{
+	e := &Environment{
 		Id:            id,
-		image:         image,
-		stop:          s,
-		Configuration: &c,
+		Configuration: c,
+		meta:          m,
 		client:        cli,
 	}
 
 	return e, nil
 }
 
-func (d *DockerEnvironment) Type() string {
+func (e *Environment) Type() string {
 	return "docker"
 }
 
 // Set if this process is currently attached to the process.
-func (d *DockerEnvironment) SetStream(s *types.HijackedResponse) {
-	d.mu.Lock()
-	d.stream = s
-	d.mu.Unlock()
+func (e *Environment) SetStream(s *types.HijackedResponse) {
+	e.mu.Lock()
+	e.stream = s
+	e.mu.Unlock()
 }
 
 // Determine if the this process is currently attached to the container.
-func (d *DockerEnvironment) IsAttached() bool {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
+func (e *Environment) IsAttached() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 
-	return d.stream != nil
+	return e.stream != nil
 }
 
-func (d *DockerEnvironment) Events() *events.EventBus {
-	d.eventMu.Lock()
-	defer d.eventMu.Unlock()
+func (e *Environment) Events() *events.EventBus {
+	e.eventMu.Lock()
+	defer e.eventMu.Unlock()
 
-	if d.emitter == nil {
-		d.emitter = events.New()
+	if e.emitter == nil {
+		e.emitter = events.New()
 	}
 
-	return d.emitter
+	return e.emitter
 }
 
 // Determines if the container exists in this environment. The ID passed through should be the
 // server UUID since containers are created utilizing the server UUID as the name and docker
 // will work fine when using the container name as the lookup parameter in addition to the longer
-// ID auto-assigned when the container is created.
-func (d *DockerEnvironment) Exists() (bool, error) {
-	_, err := d.client.ContainerInspect(context.Background(), d.Id)
+// ID auto-assigned when the container is createe.
+func (e *Environment) Exists() (bool, error) {
+	_, err := e.client.ContainerInspect(context.Background(), e.Id)
 
 	if err != nil {
 		// If this error is because the container instance wasn't found via Docker we
@@ -128,8 +129,8 @@ func (d *DockerEnvironment) Exists() (bool, error) {
 // API.
 //
 // @see docker/client/errors.go
-func (d *DockerEnvironment) IsRunning() (bool, error) {
-	c, err := d.client.ContainerInspect(context.Background(), d.Id)
+func (e *Environment) IsRunning() (bool, error) {
+	c, err := e.client.ContainerInspect(context.Background(), e.Id)
 	if err != nil {
 		return false, err
 	}
@@ -139,8 +140,8 @@ func (d *DockerEnvironment) IsRunning() (bool, error) {
 
 // Determine the container exit state and return the exit code and wether or not
 // the container was killed by the OOM killer.
-func (d *DockerEnvironment) ExitState() (uint32, bool, error) {
-	c, err := d.client.ContainerInspect(context.Background(), d.Id)
+func (e *Environment) ExitState() (uint32, bool, error) {
+	c, err := e.client.ContainerInspect(context.Background(), e.Id)
 	if err != nil {
 		// I'm not entirely sure how this can happen to be honest. I tried deleting a
 		// container _while_ a server was running and wings gracefully saw the crash and
@@ -148,7 +149,7 @@ func (d *DockerEnvironment) ExitState() (uint32, bool, error) {
 		//
 		// However, someone reported an error in Discord about this scenario happening,
 		// so I guess this should prevent it? They didn't tell me how they caused it though
-		// so that's a mystery that will have to go unsolved.
+		// so that's a mystery that will have to go unsolvee.
 		//
 		// @see https://github.com/pterodactyl/panel/issues/2003
 		if client.IsErrNotFound(err) {

@@ -73,7 +73,7 @@ type ProcessEnvironment interface {
 	// Creates the necessary environment for running the server process. For example,
 	// in the Docker environment create will create a new container instance for the
 	// server.
-	Create(invocation string) error
+	Create() error
 
 	// Attaches to the server console environment and allows piping the output to a
 	// websocket or other internal tool to monitor output. Also allows you to later

@@ -56,7 +56,7 @@ func (c *Configuration) Mounts() []Mount {
 
 // Returns all of the environment variables that should be assigned to a running
 // server instance.
-func (c *Configuration) EnvironmentVariables(invocation string) []string {
+func (c *Configuration) EnvironmentVariables() []string {
 	c.mu.RLock()
 	c.mu.RUnlock()
 
@@ -64,7 +64,6 @@ func (c *Configuration) EnvironmentVariables(invocation string) []string {
 
 	var out = []string{
 		fmt.Sprintf("TZ=%s", zone),
-		fmt.Sprintf("STARTUP=%s", invocation),
 		fmt.Sprintf("SERVER_MEMORY=%d", c.settings.Limits.MemoryLimit),
 		fmt.Sprintf("SERVER_IP=%s", c.settings.Allocations.DefaultMapping.Ip),
 		fmt.Sprintf("SERVER_PORT=%d", c.settings.Allocations.DefaultMapping.Port),

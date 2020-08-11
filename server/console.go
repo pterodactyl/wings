@@ -49,7 +49,7 @@ func (ct *ConsoleThrottler) RemoveActivation() uint64 {
 
 // Increment the total count of lines that we have processed so far.
 func (ct *ConsoleThrottler) IncrementLineCount() uint64 {
-	atomic.AddUint64(&ct.lines, 1)
+	return atomic.AddUint64(&ct.lines, 1)
 }
 
 // Reset the line count to zero.
