@@ -1,6 +1,8 @@
 package server
 
-import "github.com/pterodactyl/wings/events"
+import (
+	"github.com/pterodactyl/wings/events"
+)
 
 // Defines all of the possible output events for a server.
 // noinspection GoNameStartsWithPackageName

@@ -89,8 +89,6 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 		return nil, err
 	}
 
-	s.AddEventListeners()
-
 	// Right now we only support a Docker based environment, so I'm going to hard code
 	// this logic in. When we're ready to support other environment we'll need to make
 	// some modifications here obviously.
@@ -105,6 +103,8 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	} else {
 		s.Environment = env
 	}
+
+	s.StartEventListeners()
 
 	s.cache = cache.New(time.Minute*10, time.Minute*15)
 	s.Archiver = Archiver{

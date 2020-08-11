@@ -3,20 +3,34 @@ package server
 import (
 	"github.com/apex/log"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
 	"regexp"
 )
 
 // Adds all of the internal event listeners we want to use for a server.
-func (s *Server) AddEventListeners() {
+func (s *Server) StartEventListeners() {
 	consoleChannel := make(chan events.Event)
-	s.Events().Subscribe(ConsoleOutputEvent, consoleChannel)
+	stateChannel := make(chan events.Event)
 
+	s.Environment.Events().Subscribe(environment.ConsoleOutputEvent, consoleChannel)
+	s.Environment.Events().Subscribe(environment.StateChangeEvent, stateChannel)
+
+	// TODO: this is leaky I imagine since the routines aren't destroyed when the server is?
 	go func() {
 		for {
 			select {
 			case data := <-consoleChannel:
+				// Immediately emit this event back over the server event stream since it is
+				// being called from the environment event stream and things probably aren't
+				// listening to that event.
+				s.Events().Publish(ConsoleOutputEvent, data.Data)
+
+				// Also pass the data along to the console output channel.
 				s.onConsoleOutput(data.Data)
+			case data := <-stateChannel:
+				s.SetState(data.Data)
+
 			}
 		}
 	}()
