@@ -52,7 +52,7 @@ func (s *Server) Mounts() []environment.Mount {
 			ReadOnly: true,
 		})
 	}
-	
+
 	// Also include any of this server's custom mounts when returning them.
 	return append(m, s.customMounts()...)
 }
