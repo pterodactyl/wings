@@ -5,9 +5,14 @@ import (
 	"os"
 )
 
+const (
+	ConsoleOutputEvent = "console output"
+	StateChangeEvent   = "state change"
+)
+
 // Defines the basic interface that all environments need to implement so that
 // a server can be properly controlled.
-type WingsEnvironment interface {
+type ProcessEnvironment interface {
 	// Returns the name of the environment.
 	Type() string
 

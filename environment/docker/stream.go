@@ -1,4 +1,4 @@
-package docker
+package environment
 
 import (
 	"bufio"
@@ -15,7 +15,7 @@ type dockerLogLine struct {
 	Log string `json:"log"`
 }
 
-func (d *Environment) setStream(s *types.HijackedResponse) {
+func (d *DockerEnvironment) setStream(s *types.HijackedResponse) {
 	d.mu.Lock()
 	d.stream = s
 	d.mu.Unlock()
@@ -23,7 +23,7 @@ func (d *Environment) setStream(s *types.HijackedResponse) {
 
 // Sends the specified command to the stdin of the running container instance. There is no
 // confirmation that this data is sent successfully, only that it gets pushed into the stdin.
-func (d *Environment) SendCommand(c string) error {
+func (d *DockerEnvironment) SendCommand(c string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -38,7 +38,7 @@ func (d *Environment) SendCommand(c string) error {
 
 // Reads the log file for the server. This does not care if the server is running or not, it will
 // simply try to read the last X bytes of the file and return them.
-func (d *Environment) Readlog(len int64) ([]string, error) {
+func (d *DockerEnvironment) Readlog(len int64) ([]string, error) {
 	j, err := d.client.ContainerInspect(context.Background(), d.Id)
 	if err != nil {
 		return nil, err
@@ -80,7 +80,7 @@ func (d *Environment) Readlog(len int64) ([]string, error) {
 
 // Docker stores the logs for server output in a JSON format. This function will iterate over the JSON
 // that was read from the log file and parse it into a more human readable format.
-func (d *Environment) parseLogToStrings(b []byte) ([]string, error) {
+func (d *DockerEnvironment) parseLogToStrings(b []byte) ([]string, error) {
 	var hasError = false
 	var out []string
 

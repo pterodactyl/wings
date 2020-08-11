@@ -1,4 +1,4 @@
-package docker
+package environment
 
 import (
 	"context"
@@ -21,7 +21,7 @@ import (
 // This process will also confirm that the server environment exists and is in a bootable
 // state. This ensures that unexpected container deletion while Wings is running does
 // not result in the server becoming unbootable.
-func (d *Environment) OnBeforeStart() error {
+func (d *DockerEnvironment) OnBeforeStart() error {
 	// d.Server.Log().Info("syncing server configuration with panel")
 	// if err := d.Server.Sync(); err != nil {
 	// 	return err
@@ -58,7 +58,7 @@ func (d *Environment) OnBeforeStart() error {
 // call to OnBeforeStart().
 //
 // TODO: check if the server is suspended before calling this.
-func (d *Environment) Start() error {
+func (d *DockerEnvironment) Start() error {
 	sawError := false
 	// If sawError is set to true there was an error somewhere in the pipeline that
 	// got passed up, but we also want to ensure we set the server to be offline at
@@ -142,7 +142,7 @@ func (d *Environment) Start() error {
 // Restarts the server process by waiting for the process to gracefully stop and then triggering a
 // start command. This will return an error if there is already a restart process executing for the
 // server. The lock is released when the process is stopped and a start has begun.
-func (d *Environment) Restart() error {
+func (d *DockerEnvironment) Restart() error {
 	err := d.WaitForStop(60, false)
 	if err != nil {
 		return err
@@ -154,7 +154,7 @@ func (d *Environment) Restart() error {
 
 // Stops the container that the server is running in. This will allow up to 10
 // seconds to pass before a failure occurs.
-func (d *Environment) Stop(c api.ProcessStopConfiguration) error {
+func (d *DockerEnvironment) Stop(c api.ProcessStopConfiguration) error {
 	if c.Type == api.ProcessStopSignal {
 		return d.Terminate(os.Kill)
 	}
@@ -189,7 +189,7 @@ func (d *Environment) Stop(c api.ProcessStopConfiguration) error {
 // Attempts to gracefully stop a server using the defined stop command. If the server
 // does not stop after seconds have passed, an error will be returned, or the instance
 // will be terminated forcefully depending on the value of the second argument.
-func (d *Environment) WaitForStop(c api.ProcessStopConfiguration, seconds int, terminate bool) error {
+func (d *DockerEnvironment) WaitForStop(c api.ProcessStopConfiguration, seconds int, terminate bool) error {
 	if err := d.Stop(c); err != nil {
 		return errors.WithStack(err)
 	}
@@ -221,7 +221,7 @@ func (d *Environment) WaitForStop(c api.ProcessStopConfiguration, seconds int, t
 }
 
 // Forcefully terminates the container using the signal passed through.
-func (d *Environment) Terminate(signal os.Signal) error {
+func (d *DockerEnvironment) Terminate(signal os.Signal) error {
 	c, err := d.client.ContainerInspect(context.Background(), d.Id)
 	if err != nil {
 		return errors.WithStack(err)

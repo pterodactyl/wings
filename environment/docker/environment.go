@@ -1,4 +1,4 @@
-package docker
+package environment
 
 import (
 	"context"
@@ -13,9 +13,9 @@ import (
 
 // Ensure that the Docker environment is always implementing all of the methods
 // from the base environment interface.
-var _ environment.WingsEnvironment = (*Environment)(nil)
+var _ environment.ProcessEnvironment = (*DockerEnvironment)(nil)
 
-type Environment struct {
+type DockerEnvironment struct {
 	mu      sync.RWMutex
 	eventMu sync.Mutex
 
@@ -43,13 +43,13 @@ type Environment struct {
 // Creates a new base Docker environment. The ID passed through will be the ID that is used to
 // reference the container from here on out. This should be unique per-server (we use the UUID
 // by default). The container does not need to exist at this point.
-func New(id string) (*Environment, error) {
+func NewDocker(id string) (*DockerEnvironment, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return nil, err
 	}
 
-	e := &Environment{
+	e := &DockerEnvironment{
 		Id:       id,
 		client:   cli,
 	}
@@ -57,26 +57,26 @@ func New(id string) (*Environment, error) {
 	return e, nil
 }
 
-func (d *Environment) Type() string {
+func (d *DockerEnvironment) Type() string {
 	return "docker"
 }
 
 // Set if this process is currently attached to the process.
-func (d *Environment) SetStream(s *types.HijackedResponse) {
+func (d *DockerEnvironment) SetStream(s *types.HijackedResponse) {
 	d.mu.Lock()
 	d.stream = s
 	d.mu.Unlock()
 }
 
 // Determine if the this process is currently attached to the container.
-func (d *Environment) IsAttached() bool {
+func (d *DockerEnvironment) IsAttached() bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	return d.stream != nil
 }
 
-func (d *Environment) Events() *events.EventBus {
+func (d *DockerEnvironment) Events() *events.EventBus {
 	d.eventMu.Lock()
 	defer d.eventMu.Unlock()
 
@@ -91,7 +91,7 @@ func (d *Environment) Events() *events.EventBus {
 // server UUID since containers are created utilizing the server UUID as the name and docker
 // will work fine when using the container name as the lookup parameter in addition to the longer
 // ID auto-assigned when the container is created.
-func (d *Environment) Exists() (bool, error) {
+func (d *DockerEnvironment) Exists() (bool, error) {
 	_, err := d.client.ContainerInspect(context.Background(), d.Id)
 
 	if err != nil {
@@ -115,7 +115,7 @@ func (d *Environment) Exists() (bool, error) {
 // API.
 //
 // @see docker/client/errors.go
-func (d *Environment) IsRunning() (bool, error) {
+func (d *DockerEnvironment) IsRunning() (bool, error) {
 	c, err := d.client.ContainerInspect(context.Background(), d.Id)
 	if err != nil {
 		return false, err
@@ -126,7 +126,7 @@ func (d *Environment) IsRunning() (bool, error) {
 
 // Determine the container exit state and return the exit code and wether or not
 // the container was killed by the OOM killer.
-func (d *Environment) ExitState() (uint32, bool, error) {
+func (d *DockerEnvironment) ExitState() (uint32, bool, error) {
 	c, err := d.client.ContainerInspect(context.Background(), d.Id)
 	if err != nil {
 		// I'm not entirely sure how this can happen to be honest. I tried deleting a
