@@ -32,6 +32,10 @@ func (pa PowerAction) IsValid() bool {
 		pa == PowerActionRestart
 }
 
+func (pa PowerAction) IsStart() bool {
+	return pa == PowerActionStart || pa == PowerActionRestart
+}
+
 // Helper function that can receive a power action and then process the actions that need
 // to occur for it. This guards against someone calling Start() twice at the same time, or
 // trying to restart while another restart process is currently running.
@@ -40,6 +44,11 @@ func (pa PowerAction) IsValid() bool {
 // function rather than making direct calls to the start/stop/restart functions on the
 // environment struct.
 func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error {
+	// Disallow start & restart if the server is suspended.
+	if action.IsStart() && s.IsSuspended() {
+		return new(suspendedError)
+	}
+
 	if s.powerLock == nil {
 		s.powerLock = semaphore.NewWeighted(1)
 	}
@@ -64,6 +73,17 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 
 	// Release the lock once the process being requested has finished executing.
 	defer s.powerLock.Release(1)
+
+	if action.IsStart() {
+		s.Log().Info("syncing server configuration with panel")
+		if err := s.Sync(); err != nil {
+			return errors.WithStack(err)
+		}
+
+		if !s.Filesystem.HasSpaceAvailable() {
+			return errors.New("cannot start server, not enough disk space available")
+		}
+	}
 
 	switch action {
 	case PowerActionStart:

@@ -67,7 +67,7 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 			return errors.WithStack(err)
 		}
 	} else {
-		c.Container.OomDisabled = v
+		c.Build.OOMDisabled = v
 	}
 
 	// Mergo also cannot handle this boolean value.

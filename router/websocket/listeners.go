@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/server"
 	"time"
 )
@@ -38,7 +39,7 @@ func (h *Handler) ListenForExpiration(ctx context.Context) {
 // Listens for different events happening on a server and sends them along
 // to the connected websocket.
 func (h *Handler) ListenForServerEvents(ctx context.Context) {
-	events := []string{
+	e := []string{
 		server.StatsEvent,
 		server.StatusEvent,
 		server.ConsoleOutputEvent,
@@ -49,15 +50,15 @@ func (h *Handler) ListenForServerEvents(ctx context.Context) {
 		server.BackupCompletedEvent,
 	}
 
-	eventChannel := make(chan server.Event)
-	for _, event := range events {
+	eventChannel := make(chan events.Event)
+	for _, event := range e {
 		h.server.Events().Subscribe(event, eventChannel)
 	}
 
 	for d := range eventChannel {
 		select {
 		case <-ctx.Done():
-			for _, event := range events {
+			for _, event := range e {
 				h.server.Events().Unsubscribe(event, eventChannel)
 			}
 

@@ -7,6 +7,8 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/environment/docker"
 	"os"
 	"runtime"
 	"time"
@@ -87,21 +89,24 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 		return nil, err
 	}
 
-	s.AddEventListeners()
+	s.cache = cache.New(time.Minute*10, time.Minute*15)
+	s.Archiver = Archiver{Server: s}
+	s.Filesystem = Filesystem{Server: s}
 
 	// Right now we only support a Docker based environment, so I'm going to hard code
 	// this logic in. When we're ready to support other environment we'll need to make
 	// some modifications here obviously.
-	if err := NewDockerEnvironment(s); err != nil {
-		return nil, err
+	envCfg := environment.NewConfiguration(s.Mounts(), s.cfg.Allocations, s.cfg.Build, s.cfg.EnvVars)
+	meta := docker.Metadata{
+		Invocation: s.Config().Invocation,
+		Image:      s.Config().Container.Image,
 	}
 
-	s.cache = cache.New(time.Minute*10, time.Minute*15)
-	s.Archiver = Archiver{
-		Server: s,
-	}
-	s.Filesystem = Filesystem{
-		Server: s,
+	if env, err := docker.New(s.Id(), &meta, envCfg); err != nil {
+		return nil, err
+	} else {
+		s.Environment = env
+		s.StartEventListeners()
 	}
 
 	// Forces the configuration to be synced with the panel.

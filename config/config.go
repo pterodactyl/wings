@@ -55,24 +55,7 @@ type Configuration struct {
 
 	// Defines internal throttling configurations for server processes to prevent
 	// someone from running an endless loop that spams data to logs.
-	Throttles struct {
-		// The number of data overage warnings (inclusive) that can accumulate
-		// before a process is terminated.
-		KillAtCount int `default:"5" yaml:"kill_at_count"`
-
-		// The number of seconds that must elapse before the internal counter
-		// begins decrementing warnings assigned to a process that is outputting
-		// too much data.
-		DecaySeconds int `default:"10" json:"decay" yaml:"decay"`
-
-		// The total number of bytes allowed to be output by a server process
-		// per interval.
-		BytesPerInterval int `default:"4096" json:"bytes" yaml:"bytes"`
-
-		// The amount of time that should lapse between data output throttle
-		// checks. This should be defined in milliseconds.
-		CheckInterval int `default:"100" yaml:"check_interval"`
-	}
+	Throttles ConsoleThrottles
 
 	// The location where the panel is running that this daemon should connect to
 	// to collect data and send events.

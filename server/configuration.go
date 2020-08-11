@@ -1,40 +1,9 @@
 package server
 
 import (
-	"fmt"
-	"strconv"
+	"github.com/pterodactyl/wings/environment"
 	"sync"
 )
-
-type EnvironmentVariables map[string]interface{}
-
-// Ugly hacky function to handle environment variables that get passed through as not-a-string
-// from the Panel. Ideally we'd just say only pass strings, but that is a fragile idea and if a
-// string wasn't passed through you'd cause a crash or the server to become unavailable. For now
-// try to handle the most likely values from the JSON and hope for the best.
-func (ev EnvironmentVariables) Get(key string) string {
-	val, ok := ev[key]
-	if !ok {
-		return ""
-	}
-
-	switch val.(type) {
-	case int:
-		return strconv.Itoa(val.(int))
-	case int32:
-		return strconv.FormatInt(val.(int64), 10)
-	case int64:
-		return strconv.FormatInt(val.(int64), 10)
-	case float32:
-		return fmt.Sprintf("%f", val.(float32))
-	case float64:
-		return fmt.Sprintf("%f", val.(float64))
-	case bool:
-		return strconv.FormatBool(val.(bool))
-	}
-
-	return val.(string)
-}
 
 type Configuration struct {
 	mu sync.RWMutex
@@ -53,20 +22,17 @@ type Configuration struct {
 
 	// An array of environment variables that should be passed along to the running
 	// server process.
-	EnvVars EnvironmentVariables `json:"environment"`
+	EnvVars environment.Variables `json:"environment"`
 
-	Allocations           Allocations   `json:"allocations"`
-	Build                 BuildSettings `json:"build"`
-	CrashDetectionEnabled bool          `default:"true" json:"enabled" yaml:"enabled"`
-	Mounts                []Mount       `json:"mounts"`
-	Resources             ResourceUsage `json:"resources"`
+	Allocations           environment.Allocations `json:"allocations"`
+	Build                 environment.Limits      `json:"build"`
+	CrashDetectionEnabled bool                    `default:"true" json:"enabled" yaml:"enabled"`
+	Mounts                []Mount                 `json:"mounts"`
+	Resources             ResourceUsage           `json:"resources"`
 
 	Container struct {
 		// Defines the Docker image that will be used for this server
 		Image string `json:"image,omitempty"`
-		// If set to true, OOM killer will be disabled on the server's Docker container.
-		// If not present (nil) we will default to disabling it.
-		OomDisabled bool `default:"true" json:"oom_disabled"`
 	} `json:"container,omitempty"`
 }
 
