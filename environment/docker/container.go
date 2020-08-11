@@ -7,12 +7,12 @@ import (
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/daemon/logger/jsonfilelog"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
-	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/system"
 	"io"
 	"strconv"
@@ -64,6 +64,22 @@ func (d *DockerEnvironment) Attach() error {
 	return nil
 }
 
+func (d *DockerEnvironment) resources() container.Resources {
+	l := d.Configuration.Limits()
+
+	return container.Resources{
+		Memory:            l.BoundedMemoryLimit(),
+		MemoryReservation: l.MemoryLimit * 1_000_000,
+		MemorySwap:        l.ConvertedSwap(),
+		CPUQuota:          l.ConvertedCpuLimit(),
+		CPUPeriod:         100_000,
+		CPUShares:         1024,
+		BlkioWeight:       l.IoWeight,
+		OomKillDisable:    l.OOMDisabled,
+		CpusetCpus:        l.Threads,
+	}
+}
+
 // Performs an in-place update of the Docker container's resource limits without actually
 // making any changes to the operational state of the container. This allows memory, cpu,
 // and IO limitations to be adjusted on the fly for individual instances.
@@ -83,9 +99,7 @@ func (d *DockerEnvironment) InSituUpdate() error {
 	}
 
 	u := container.UpdateConfig{
-		// TODO: get the resources from the server. I suppose they should be passed through
-		//  in a struct.
-		// Resources: d.getResourcesForServer(),
+		Resources: d.resources(),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
@@ -99,9 +113,7 @@ func (d *DockerEnvironment) InSituUpdate() error {
 
 // Creates a new container for the server using all of the data that is currently
 // available for it. If the container already exists it will be returned.
-func (d *DockerEnvironment) Create(image string) error {
-	// TODO: ensure data directory exists.
-
+func (d *DockerEnvironment) Create(invocation string) error {
 	// If the container already exists don't hit the user with an error, just return
 	// the current information about it which is what we would do when creating the
 	// container anyways.
@@ -112,9 +124,11 @@ func (d *DockerEnvironment) Create(image string) error {
 	}
 
 	// Try to pull the requested image before creating the container.
-	if err := d.ensureImageExists(); err != nil {
+	if err := d.ensureImageExists(d.image); err != nil {
 		return errors.WithStack(err)
 	}
+
+	a := d.Configuration.Allocations()
 
 	conf := &container.Config{
 		Hostname:     d.Id,
@@ -125,44 +139,21 @@ func (d *DockerEnvironment) Create(image string) error {
 		AttachStderr: true,
 		OpenStdin:    true,
 		Tty:          true,
-		ExposedPorts: d.exposedPorts(),
-		Image:        image,
-		Env:          d.Server.GetEnvironmentVariables(),
+		ExposedPorts: a.Exposed(),
+		Image:        d.image,
+		Env:          d.Configuration.EnvironmentVariables(invocation),
 		Labels: map[string]string{
 			"Service":       "Pterodactyl",
 			"ContainerType": "server_process",
 		},
 	}
 
-	mounts, err := d.getContainerMounts()
-	if err != nil {
-		return errors.WithMessage(err, "could not build container mount points slice")
-	}
-
-	customMounts, err := d.getCustomMounts()
-	if err != nil {
-		return errors.WithMessage(err, "could not build custom container mount points slice")
-	}
-
-	if len(customMounts) > 0 {
-		mounts = append(mounts, customMounts...)
-
-		for _, m := range customMounts {
-			log.WithFields(log.Fields{
-				"container_id": d.Id,
-				"source_path":  m.Source,
-				"target_path":  m.Target,
-				"read_only":    m.ReadOnly,
-			}).Debug("attaching custom server mount point to container")
-		}
-	}
-
 	hostConf := &container.HostConfig{
-		PortBindings: d.portBindings(),
+		PortBindings: a.Bindings(),
 
 		// Configure the mounts for this container. First mount the server data directory
 		// into the container as a r/w bind.
-		Mounts: mounts,
+		Mounts: d.convertMounts(),
 
 		// Configure the /tmp folder mapping in containers. This is necessary for some
 		// games that need to make use of it for downloads and other installation processes.
@@ -172,7 +163,7 @@ func (d *DockerEnvironment) Create(image string) error {
 
 		// Define resource limits for the container based on the data passed through
 		// from the Panel.
-		Resources: d.getResourcesForServer(),
+		Resources: d.resources(),
 
 		DNS: config.Get().Docker.Network.Dns,
 
@@ -202,6 +193,21 @@ func (d *DockerEnvironment) Create(image string) error {
 	}
 
 	return nil
+}
+
+func (d *DockerEnvironment) convertMounts() []mount.Mount {
+	var out []mount.Mount
+
+	for _, m := range d.Configuration.Mounts() {
+		out = append(out, mount.Mount{
+			Type:          mount.TypeBind,
+			Source:        m.Source,
+			Target:        m.Target,
+			ReadOnly:      m.ReadOnly,
+		})
+	}
+
+	return out
 }
 
 // Remove the Docker container from the machine. If the container is currently running

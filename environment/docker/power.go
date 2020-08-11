@@ -154,8 +154,12 @@ func (d *DockerEnvironment) Restart() error {
 
 // Stops the container that the server is running in. This will allow up to 10
 // seconds to pass before a failure occurs.
-func (d *DockerEnvironment) Stop(c api.ProcessStopConfiguration) error {
-	if c.Type == api.ProcessStopSignal {
+func (d *DockerEnvironment) Stop() error {
+	d.mu.RLock()
+	s := d.stop
+	d.mu.RUnlock()
+
+	if s.Type == api.ProcessStopSignal {
 		return d.Terminate(os.Kill)
 	}
 
@@ -163,8 +167,8 @@ func (d *DockerEnvironment) Stop(c api.ProcessStopConfiguration) error {
 
 	// Only attempt to send the stop command to the instance if we are actually attached to
 	// the instance. If we are not for some reason, just send the container stop event.
-	if d.IsAttached() && c.Type == api.ProcessStopCommand {
-		return d.SendCommand(c.Value)
+	if d.IsAttached() && s.Type == api.ProcessStopCommand {
+		return d.SendCommand(s.Value)
 	}
 
 	t := time.Second * 10
@@ -189,8 +193,8 @@ func (d *DockerEnvironment) Stop(c api.ProcessStopConfiguration) error {
 // Attempts to gracefully stop a server using the defined stop command. If the server
 // does not stop after seconds have passed, an error will be returned, or the instance
 // will be terminated forcefully depending on the value of the second argument.
-func (d *DockerEnvironment) WaitForStop(c api.ProcessStopConfiguration, seconds int, terminate bool) error {
-	if err := d.Stop(c); err != nil {
+func (d *DockerEnvironment) WaitForStop(seconds int, terminate bool) error {
+	if err := d.Stop(); err != nil {
 		return errors.WithStack(err)
 	}
 

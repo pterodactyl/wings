@@ -7,6 +7,8 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/events"
 	"golang.org/x/sync/semaphore"
 	"strings"
 	"sync"
@@ -30,16 +32,16 @@ type Server struct {
 	crasher CrashHandler
 
 	resources   ResourceUsage
-	Archiver    Archiver    `json:"-"`
-	Environment Environment `json:"-"`
-	Filesystem  Filesystem  `json:"-"`
+	Archiver    Archiver                       `json:"-"`
+	Environment environment.ProcessEnvironment `json:"-"`
+	Filesystem  Filesystem                     `json:"-"`
 
 	// Server cache used to store frequently requested information in memory and make
 	// certain long operations return faster. For example, FS disk space usage.
 	cache *cache.Cache
 
 	// Events emitted by the server instance.
-	emitter *EventBus
+	emitter *events.EventBus
 
 	// Defines the process configuration for the server instance. This is dynamically
 	// fetched from the Pterodactyl Server instance each time the server process is
@@ -154,6 +156,7 @@ func (s *Server) IsBootable() bool {
 // Initalizes a server instance. This will run through and ensure that the environment
 // for the server is setup, and that all of the necessary files are created.
 func (s *Server) CreateEnvironment() error {
+	// TODO: ensure data directory exists.
 	return s.Environment.Create()
 }
 
@@ -165,4 +168,8 @@ func (s *Server) GetProcessConfiguration() (*api.ServerConfigurationResponse, *a
 // Checks if the server is marked as being suspended or not on the system.
 func (s *Server) IsSuspended() bool {
 	return s.Config().Suspended
+}
+
+func (s *Server) Build() *environment.Limits {
+	return &s.Config().Build
 }

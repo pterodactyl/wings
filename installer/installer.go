@@ -116,6 +116,7 @@ func (i *Installer) Execute() {
 	}
 
 	l.Debug("creating required environment for server instance")
+	// TODO: ensure data directory exists.
 	if err := i.server.Environment.Create(); err != nil {
 		l.WithField("error", err).Error("failed to create environment for server")
 		return

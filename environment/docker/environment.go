@@ -5,6 +5,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
 	"io"
@@ -22,6 +23,15 @@ type DockerEnvironment struct {
 	// The public identifier for this environment. In this case it is the Docker container
 	// name that will be used for all instances created under it.
 	Id string
+
+	// The environment configuration.
+	Configuration *environment.Configuration
+
+	// The Docker image to use for this environment.
+	image string
+
+	// The stop configuration for the environment
+	stop api.ProcessStopConfiguration
 
 	// The Docker client being used for this instance.
 	client *client.Client
@@ -43,15 +53,18 @@ type DockerEnvironment struct {
 // Creates a new base Docker environment. The ID passed through will be the ID that is used to
 // reference the container from here on out. This should be unique per-server (we use the UUID
 // by default). The container does not need to exist at this point.
-func NewDocker(id string) (*DockerEnvironment, error) {
+func NewDocker(id string, image string, s api.ProcessStopConfiguration, c environment.Configuration) (*DockerEnvironment, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return nil, err
 	}
 
 	e := &DockerEnvironment{
-		Id:       id,
-		client:   cli,
+		Id:            id,
+		image:         image,
+		stop:          s,
+		Configuration: &c,
+		client:        cli,
 	}
 
 	return e, nil
