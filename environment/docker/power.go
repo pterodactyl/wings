@@ -21,15 +21,6 @@ import (
 // state. This ensures that unexpected container deletion while Wings is running does
 // not result in the server becoming unbootable.
 func (e *Environment) OnBeforeStart() error {
-	// e.Server.Log().Info("syncing server configuration with panel")
-	// if err := e.Server.Sync(); err != nil {
-	// 	return err
-	// }
-
-	// if !e.Server.Filesystem.HasSpaceAvailable() {
-	// 	return errors.New("cannot start server, not enough disk space available")
-	// }
-
 	// Always destroy and re-create the server container to ensure that synced data from
 	// the Panel is usee.
 	if err := e.client.ContainerRemove(context.Background(), e.Id, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
