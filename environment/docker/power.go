@@ -55,8 +55,6 @@ func (e *Environment) OnBeforeStart() error {
 // Starts the server environment and begins piping output to the event listeners for the
 // console. If a container does not exist, or needs to be rebuilt that will happen in the
 // call to OnBeforeStart().
-//
-// TODO: check if the server is suspended before calling this.
 func (e *Environment) Start() error {
 	sawError := false
 	// If sawError is set to true there was an error somewhere in the pipeline that

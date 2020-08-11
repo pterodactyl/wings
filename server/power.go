@@ -40,6 +40,13 @@ func (pa PowerAction) IsValid() bool {
 // function rather than making direct calls to the start/stop/restart functions on the
 // environment struct.
 func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error {
+	// Disallow start & restart if the server is suspended.
+	if action == PowerActionStart || action == PowerActionRestart {
+		if s.IsSuspended() {
+			return new(suspendedError)
+		}
+	}
+
 	if s.powerLock == nil {
 		s.powerLock = semaphore.NewWeighted(1)
 	}
