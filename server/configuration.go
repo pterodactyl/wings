@@ -33,9 +33,6 @@ type Configuration struct {
 	Container struct {
 		// Defines the Docker image that will be used for this server
 		Image string `json:"image,omitempty"`
-		// If set to true, OOM killer will be disabled on the server's Docker container.
-		// If not present (nil) we will default to disabling it.
-		OomDisabled bool `default:"true" json:"oom_disabled"`
 	} `json:"container,omitempty"`
 }
 
