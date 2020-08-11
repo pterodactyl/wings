@@ -89,10 +89,14 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 		return nil, err
 	}
 
+	s.cache = cache.New(time.Minute*10, time.Minute*15)
+	s.Archiver = Archiver{Server: s}
+	s.Filesystem = Filesystem{Server: s}
+
 	// Right now we only support a Docker based environment, so I'm going to hard code
 	// this logic in. When we're ready to support other environment we'll need to make
 	// some modifications here obviously.
-	envCfg := environment.NewConfiguration(s.cfg.Mounts, s.cfg.Allocations, s.cfg.Build, s.cfg.EnvVars)
+	envCfg := environment.NewConfiguration(s.Mounts(), s.cfg.Allocations, s.cfg.Build, s.cfg.EnvVars)
 	meta := docker.Metadata{
 		Invocation: s.Config().Invocation,
 		Image:      s.Config().Container.Image,
@@ -102,16 +106,7 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 		return nil, err
 	} else {
 		s.Environment = env
-	}
-
-	s.StartEventListeners()
-
-	s.cache = cache.New(time.Minute*10, time.Minute*15)
-	s.Archiver = Archiver{
-		Server: s,
-	}
-	s.Filesystem = Filesystem{
-		Server: s,
+		s.StartEventListeners()
 	}
 
 	// Forces the configuration to be synced with the panel.

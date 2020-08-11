@@ -7,9 +7,23 @@ import (
 )
 
 type Mount struct {
-	Target   string `json:"target"`
-	Source   string `json:"source"`
-	ReadOnly bool   `json:"read_only"`
+	// In Docker environments this makes no difference, however in a non-Docker environment you
+	// should treat the "Default" mount as the root directory for the server. All other mounts
+	// are just in addition to that one, and generally things like shared maps or timezone data.
+	Default bool `json:"-"`
+
+	// The target path on the system. This is "/home/container" for all server's Default mount
+	// but in non-container environments you can likely ignore the target and just work with the
+	// source.
+	Target string `json:"target"`
+
+	// The directory from which the files will be read. In Docker environments this is the directory
+	// that we're mounting into the container at the Target location.
+	Source string `json:"source"`
+
+	// Wether or not the directory is being mounted as read-only. It is up to the environment to
+	// handle this value correctly and ensure security expectations are met with its usage.
+	ReadOnly bool `json:"read_only"`
 }
 
 // The build settings for a given server that impact docker container creation and

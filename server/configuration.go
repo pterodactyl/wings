@@ -27,7 +27,7 @@ type Configuration struct {
 	Allocations           environment.Allocations `json:"allocations"`
 	Build                 environment.Limits      `json:"build"`
 	CrashDetectionEnabled bool                    `default:"true" json:"enabled" yaml:"enabled"`
-	Mounts                []environment.Mount     `json:"mounts"`
+	Mounts                []Mount                 `json:"mounts"`
 	Resources             ResourceUsage           `json:"resources"`
 
 	Container struct {
