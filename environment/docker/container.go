@@ -148,6 +148,8 @@ func (e *Environment) Create() error {
 		},
 	}
 
+	tmpfsSize := strconv.Itoa(int(config.Get().Docker.TmpfsSize))
+
 	hostConf := &container.HostConfig{
 		PortBindings: a.Bindings(),
 
@@ -158,7 +160,7 @@ func (e *Environment) Create() error {
 		// Configure the /tmp folder mapping in containers. This is necessary for some
 		// games that need to make use of it for downloads and other installation processes.
 		Tmpfs: map[string]string{
-			"/tmp": "rw,exec,nosuid,size=50M",
+			"/tmp": "rw,exec,nosuid,size="+tmpfsSize+"M",
 		},
 
 		// Define resource limits for the container based on the data passed through

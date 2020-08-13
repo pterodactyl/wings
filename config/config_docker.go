@@ -63,6 +63,11 @@ type DockerConfiguration struct {
 
 	// Registries .
 	Registries map[string]RegistryConfiguration `json:"registries" yaml:"registries"`
+
+	// The size of the /tmp directory when mounted into a container. Please be aware that Docker
+	// utilizes host memory for this value, and that we do not keep track of the space used here
+	// so avoid allocating too much to a server.
+	TmpfsSize uint `default:"100" json:"tmpfs_size" yaml:"tmpfs_size"`
 }
 
 // RegistryConfiguration .

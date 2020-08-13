@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -429,6 +430,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 		},
 	}
 
+	tmpfsSize := strconv.Itoa(int(config.Get().Docker.TmpfsSize))
 	hostConf := &container.HostConfig{
 		Mounts: []mount.Mount{
 			{
@@ -445,7 +447,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 			},
 		},
 		Tmpfs: map[string]string{
-			"/tmp": "rw,exec,nosuid,size=50M",
+			"/tmp": "rw,exec,nosuid,size="+tmpfsSize+"M",
 		},
 		DNS: config.Get().Docker.Network.Dns,
 		LogConfig: container.LogConfig{
