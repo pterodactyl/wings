@@ -47,12 +47,6 @@ type ProcessEnvironment interface {
 	// not be returned.
 	Stop() error
 
-	// Restart a server instance. If already stopped the process will be started. Pass the number
-	// of seconds to wait for the server to stop, and wether or not the process should be terminated
-	// if not stopped within that time period. If you pass "false" as the terminate option the server
-	// will not be started but the lock on the process will be released.
-	Restart(seconds uint, terminate bool) error
-
 	// Waits for a server instance to stop gracefully. If the server is still detected
 	// as running after seconds, an error will be returned, or the server will be terminated
 	// depending on the value of the second argument.

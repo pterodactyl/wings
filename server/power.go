@@ -44,11 +44,6 @@ func (pa PowerAction) IsStart() bool {
 // function rather than making direct calls to the start/stop/restart functions on the
 // environment struct.
 func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error {
-	// Disallow start & restart if the server is suspended.
-	if action.IsStart() && s.IsSuspended() {
-		return new(suspendedError)
-	}
-
 	if s.powerLock == nil {
 		s.powerLock = semaphore.NewWeighted(1)
 	}
@@ -89,33 +84,66 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 		}
 	}
 
-	// Ensure the server data is properly synced before attempting to start the process, and that there
-	// is enough disk space available.
-	if action.IsStart() {
-		s.Log().Info("syncing server configuration with panel")
-		if err := s.Sync(); err != nil {
-			return errors.WithStack(err)
-		}
-
-		if !s.Filesystem.HasSpaceAvailable() {
-			return errors.New("cannot start server, not enough disk space available")
-		}
-	}
-
 	switch action {
 	case PowerActionStart:
+		// Run the pre-boot logic for the server before processing the environment start.
+		if err := s.onBeforeStart(); err != nil {
+			return err
+		}
+
 		return s.Environment.Start()
 	case PowerActionStop:
 		// We're specificially waiting for the process to be stopped here, otherwise the lock is released
 		// too soon, and you can rack up all sorts of issues.
 		return s.Environment.WaitForStop(10 * 60, true)
 	case PowerActionRestart:
-		// Same as stopping, give the process up to 10 minutes to stop before just forcibly terminating
-		// the process and moving on with things.
-		return s.Environment.Restart(10 * 60, true)
+		// Only try to wait for stop if the process is currently running, otherwise just skip right to the
+		// start event.
+		if r, _ := s.Environment.IsRunning(); !r {
+			if err := s.Environment.WaitForStop(10 * 60, true); err != nil {
+				// Even timeout errors should be bubbled back up the stack. If the process didn't stop
+				// nicely, but the terminate argument was passed then the server is stopped without an
+				// error being returned.
+				//
+				// However, if terminate is not passed you'll get a context deadline error. We could
+				// probably handle that nicely here, but I'd rather just pass it back up the stack for now.
+				// Either way, any type of error indicates we should not attempt to start the server back
+				// up.
+				return err
+			}
+		}
+
+		// Now actually try to start the process by executing the normal pre-boot logic.
+		if err := s.onBeforeStart(); err != nil {
+			return err
+		}
+
+		return s.Environment.Start()
 	case PowerActionTerminate:
 		return s.Environment.Terminate(os.Kill)
 	}
 
 	return errors.New("attempting to handle unknown power action")
+}
+
+// Execute a few functions before actually calling the environment start commands. This ensures
+// that everything is ready to go for environment booting, and that the server can even be started.
+func (s *Server) onBeforeStart() error {
+	// Disallow start & restart if the server is suspended.
+	if s.IsSuspended() {
+		return new(suspendedError)
+	}
+
+	s.Log().Info("syncing server configuration with panel")
+	if err := s.Sync(); err != nil {
+		return errors.WithMessage(err, "unable to sync server data from Panel instance")
+	}
+
+	if !s.Filesystem.HasSpaceAvailable() {
+		return errors.New("cannot start server, not enough disk space available")
+	}
+
+	s.UpdateConfigurationFiles()
+
+	return nil
 }

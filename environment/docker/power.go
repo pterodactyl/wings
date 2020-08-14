@@ -128,29 +128,6 @@ func (e *Environment) Start() error {
 	return e.Attach()
 }
 
-// Restarts the server process by waiting for the process to gracefully stop and then triggering a
-// start command. This works identially to how
-func (e *Environment) Restart(seconds uint, terminate bool) error {
-	// Only try to wait for stop if the process is currently running, otherwise just skip right to the
-	// start event.
-	if r, _ := e.IsRunning(); !r {
-		if err := e.WaitForStop(seconds, terminate); err != nil {
-			// Even timeout errors should be bubbled back up the stack. If the process didn't stop
-			// nicely, but the terminate argument was passed then the server is stopped without an
-			// error being returned.
-			//
-			// However, if terminate is not passed you'll get a context deadline error. We could
-			// probably handle that nicely here, but I'd rather just pass it back up the stack for now.
-			// Either way, any type of error indicates we should not attempt to start the server back
-			// up.
-			return err
-		}
-	}
-
-	// Start the process.
-	return e.Start()
-}
-
 // Stops the container that the server is running in. This will allow up to 30 seconds to pass
 // before the container is forcefully terminated if we are trying to stop it without using a command
 // sent into the instance.
