@@ -106,9 +106,13 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 	case PowerActionStart:
 		return s.Environment.Start()
 	case PowerActionStop:
-		return s.Environment.Stop()
+		// We're specificially waiting for the process to be stopped here, otherwise the lock is released
+		// too soon, and you can rack up all sorts of issues.
+		return s.Environment.WaitForStop(10 * 60, true)
 	case PowerActionRestart:
-		return s.Environment.Restart()
+		// Same as stopping, give the process up to 10 minutes to stop before just forcibly terminating
+		// the process and moving on with things.
+		return s.Environment.Restart(10 * 60, true)
 	case PowerActionTerminate:
 		return s.Environment.Terminate(os.Kill)
 	}

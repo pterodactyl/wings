@@ -47,16 +47,16 @@ type ProcessEnvironment interface {
 	// not be returned.
 	Stop() error
 
-	// Restart a server instance. If already stopped the process will be started. This function
-	// will return an error if the server is already performing a restart process as to avoid
-	// unnecessary double/triple/quad looping issues if multiple people press restart or spam the
-	// button to restart.
-	Restart() error
+	// Restart a server instance. If already stopped the process will be started. Pass the number
+	// of seconds to wait for the server to stop, and wether or not the process should be terminated
+	// if not stopped within that time period. If you pass "false" as the terminate option the server
+	// will not be started but the lock on the process will be released.
+	Restart(seconds uint, terminate bool) error
 
 	// Waits for a server instance to stop gracefully. If the server is still detected
 	// as running after seconds, an error will be returned, or the server will be terminated
 	// depending on the value of the second argument.
-	WaitForStop(seconds int, terminate bool) error
+	WaitForStop(seconds uint, terminate bool) error
 
 	// Terminates a running server instance using the provided signal. If the server
 	// is not running no error should be returned.

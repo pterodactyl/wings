@@ -129,20 +129,34 @@ func (e *Environment) Start() error {
 }
 
 // Restarts the server process by waiting for the process to gracefully stop and then triggering a
-// start commane. This will return an error if there is already a restart process executing for the
-// server. The lock is released when the process is stopped and a start has begun.
-func (e *Environment) Restart() error {
-	err := e.WaitForStop(60, false)
-	if err != nil {
-		return err
+// start command. This works identially to how
+func (e *Environment) Restart(seconds uint, terminate bool) error {
+	// Only try to wait for stop if the process is currently running, otherwise just skip right to the
+	// start event.
+	if r, _ := e.IsRunning(); !r {
+		if err := e.WaitForStop(seconds, terminate); err != nil {
+			// Even timeout errors should be bubbled back up the stack. If the process didn't stop
+			// nicely, but the terminate argument was passed then the server is stopped without an
+			// error being returned.
+			//
+			// However, if terminate is not passed you'll get a context deadline error. We could
+			// probably handle that nicely here, but I'd rather just pass it back up the stack for now.
+			// Either way, any type of error indicates we should not attempt to start the server back
+			// up.
+			return err
+		}
 	}
 
 	// Start the process.
 	return e.Start()
 }
 
-// Stops the container that the server is running in. This will allow up to 10
-// seconds to pass before a failure occurs.
+// Stops the container that the server is running in. This will allow up to 30 seconds to pass
+// before the container is forcefully terminated if we are trying to stop it without using a command
+// sent into the instance.
+//
+// You most likely want to be using WaitForStop() rather than this function, since this will return
+// as soon as the command is sent, rather than waiting for the process to be completed stopped.
 func (e *Environment) Stop() error {
 	e.mu.RLock()
 	s := e.meta.Stop
@@ -164,8 +178,7 @@ func (e *Environment) Stop() error {
 		return e.SendCommand(s.Value)
 	}
 
-	t := time.Second * 10
-
+	t := time.Second * 30
 	err := e.client.ContainerStop(context.Background(), e.Id, &t)
 	if err != nil {
 		// If the container does not exist just mark the process as stopped and return without
@@ -183,10 +196,10 @@ func (e *Environment) Stop() error {
 	return nil
 }
 
-// Attempts to gracefully stop a server using the defined stop commane. If the server
+// Attempts to gracefully stop a server using the defined stop command. If the server
 // does not stop after seconds have passed, an error will be returned, or the instance
 // will be terminated forcefully depending on the value of the second argument.
-func (e *Environment) WaitForStop(seconds int, terminate bool) error {
+func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 	if err := e.Stop(); err != nil {
 		return errors.WithStack(err)
 	}
