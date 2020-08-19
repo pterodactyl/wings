@@ -33,19 +33,6 @@ type SystemConfiguration struct {
 		Gid int
 	}
 
-	// Determines if permissions for a server should be set automatically on
-	// daemon boot. This can take a long time on systems with many servers, or on
-	// systems with servers containing thousands of files.
-	//
-	// Setting this to true by default helps us avoid a lot of support requests
-	// from people that keep trying to move files around as a root user leading
-	// to server permission issues.
-	//
-	// In production and heavy use environments where boot speed is essential,
-	// this should be set to false as servers will self-correct permissions on
-	// boot anyways.
-	SetPermissionsOnBoot bool `default:"true" yaml:"set_permissions_on_boot"`
-
 	// Determines if Wings should detect a server that stops with a normal exit code of
 	// "0" as being crashed if the process stopped without any Wings interaction. E.g.
 	// the user did not press the stop button, but the process stopped cleanly.
