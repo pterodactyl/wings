@@ -16,7 +16,9 @@ import (
 func getServer(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	c.JSON(http.StatusOK, s.Proc())
+	p := *s.Proc()
+
+	c.JSON(http.StatusOK, p)
 }
 
 // Returns the logs for a given server instance.

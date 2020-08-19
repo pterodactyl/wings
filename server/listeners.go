@@ -50,7 +50,7 @@ func (s *Server) StartEventListeners() {
 				//  cause it to block until the first call is done calculating disk usage, which will
 				//  case stat events to pile up for the server.
 				s.Filesystem.HasSpaceAvailable()
-				
+
 				s.emitProcUsage()
 			}
 		}
