@@ -134,7 +134,11 @@ func (e *Environment) Stop() error {
 		return e.Terminate(os.Kill)
 	}
 
-	e.setState(system.ProcessStoppingState)
+	// If the process is already offline don't switch it back to stopping. Just leave it how
+	// it is and continue through to the stop handling for the process.
+	if e.State() != system.ProcessOfflineState {
+		e.setState(system.ProcessStoppingState)
+	}
 
 	// Only attempt to send the stop command to the instance if we are actually attached to
 	// the instance. If we are not for some reason, just send the container stop event.
@@ -202,6 +206,14 @@ func (e *Environment) Terminate(signal os.Signal) error {
 	}
 
 	if !c.State.Running {
+		// If the container is not running but we're not already in a stopped state go ahead
+		// and update things to indicate we should be completely stopped now. Set to stopping
+		// first so crash detection is not triggered.
+		if e.State() != system.ProcessOfflineState {
+			e.setState(system.ProcessStoppingState)
+			e.setState(system.ProcessOfflineState)
+		}
+
 		return nil
 	}
 

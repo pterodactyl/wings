@@ -95,22 +95,18 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 	case PowerActionStop:
 		// We're specificially waiting for the process to be stopped here, otherwise the lock is released
 		// too soon, and you can rack up all sorts of issues.
-		return s.Environment.WaitForStop(10 * 60, true)
+		return s.Environment.WaitForStop(10*60, true)
 	case PowerActionRestart:
-		// Only try to wait for stop if the process is currently running, otherwise just skip right to the
-		// start event.
-		if r, _ := s.Environment.IsRunning(); !r {
-			if err := s.Environment.WaitForStop(10 * 60, true); err != nil {
-				// Even timeout errors should be bubbled back up the stack. If the process didn't stop
-				// nicely, but the terminate argument was passed then the server is stopped without an
-				// error being returned.
-				//
-				// However, if terminate is not passed you'll get a context deadline error. We could
-				// probably handle that nicely here, but I'd rather just pass it back up the stack for now.
-				// Either way, any type of error indicates we should not attempt to start the server back
-				// up.
-				return err
-			}
+		if err := s.Environment.WaitForStop(10*60, true); err != nil {
+			// Even timeout errors should be bubbled back up the stack. If the process didn't stop
+			// nicely, but the terminate argument was passed then the server is stopped without an
+			// error being returned.
+			//
+			// However, if terminate is not passed you'll get a context deadline error. We could
+			// probably handle that nicely here, but I'd rather just pass it back up the stack for now.
+			// Either way, any type of error indicates we should not attempt to start the server back
+			// up.
+			return err
 		}
 
 		// Now actually try to start the process by executing the normal pre-boot logic.
