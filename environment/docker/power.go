@@ -102,19 +102,6 @@ func (e *Environment) Start() error {
 		return errors.WithStack(err)
 	}
 
-	// Update the configuration files defined for the server before beginning the boot process.
-	// This process executes a bunch of parallel updates, so we just block until that process
-	// is completee. Any errors as a result of this will just be bubbled out in the logger,
-	// we don't need to actively do anything about it at this point, worst comes to worst the
-	// server starts in a weird state and the user can manually adjust.
-	// e.Server.UpdateConfigurationFiles()
-	//
-	// // Reset the permissions on files for the server before actually trying
-	// // to start it.
-	// if err := e.Server.Filesystem.Chown("/"); err != nil {
-	// 	return errors.WithStack(err)
-	// }
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
