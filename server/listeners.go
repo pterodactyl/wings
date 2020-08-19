@@ -50,10 +50,8 @@ func (s *Server) StartEventListeners() {
 				//  cause it to block until the first call is done calculating disk usage, which will
 				//  case stat events to pile up for the server.
 				s.Filesystem.HasSpaceAvailable()
-
-				// Emit the event to the websocket.
-				b, _ := json.Marshal(s.Proc())
-				s.Events().Publish(StatsEvent, string(b))
+				
+				s.emitProcUsage()
 			}
 		}
 	}()
