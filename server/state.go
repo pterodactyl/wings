@@ -103,10 +103,11 @@ func (s *Server) SetState(state string) error {
 	// Reset the resource usage to 0 when the process fully stops so that all of the UI
 	// views in the Panel correctly display 0.
 	if state == system.ProcessOfflineState {
+		s.resources.mu.Lock()
 		s.resources.Empty()
+		s.resources.mu.Unlock()
 
-		b, _ := json.Marshal(s.Proc())
-		s.Events().Publish(StatsEvent, string(b))
+		s.emitProcUsage()
 	}
 
 	// If server was in an online state, and is now in an offline state we should handle

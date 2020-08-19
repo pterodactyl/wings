@@ -1,9 +1,9 @@
 package server
 
 import (
+	"encoding/json"
 	"github.com/pterodactyl/wings/environment"
 	"sync"
-	"sync/atomic"
 )
 
 // Defines the current resource usage for a given server instance. If a server is offline you
@@ -35,6 +35,14 @@ func (s *Server) Proc() *ResourceUsage {
 	return &s.resources
 }
 
+func (s *Server) emitProcUsage() {
+	s.resources.mu.RLock()
+	defer s.resources.mu.RUnlock()
+
+	b, _ := json.Marshal(s.resources)
+	s.Events().Publish(StatsEvent, string(b))
+}
+
 // Returns the servers current state.
 func (ru *ResourceUsage) getInternalState() string {
 	ru.mu.RLock()
@@ -51,5 +59,7 @@ func (ru *ResourceUsage) setInternalState(state string) {
 }
 
 func (ru *ResourceUsage) SetDisk(i int64) {
-	atomic.SwapInt64(&ru.Disk, i)
+	ru.mu.Lock()
+	ru.Disk = i
+	ru.mu.Unlock()
 }
