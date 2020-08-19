@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/system"
 	"io"
 	"io/ioutil"
 	"os"
@@ -98,6 +99,15 @@ func (s *Server) SetState(state string) error {
 			s.Log().WithField("error", err).Warn("failed to write server states to disk")
 		}
 	}()
+
+	// Reset the resource usage to 0 when the process fully stops so that all of the UI
+	// views in the Panel correctly display 0.
+	if state == system.ProcessOfflineState {
+		s.resources.Empty()
+
+		b, _ := json.Marshal(s.Proc())
+		s.Events().Publish(StatsEvent, string(b))
+	}
 
 	// If server was in an online state, and is now in an offline state we should handle
 	// that as a crash event. In that scenario, check the last crash time, and the crash

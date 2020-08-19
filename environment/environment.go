@@ -8,6 +8,7 @@ import (
 const (
 	ConsoleOutputEvent = "console output"
 	StateChangeEvent   = "state change"
+	ResourceEvent      = "resources"
 )
 
 // Defines the basic interface that all environments need to implement so that

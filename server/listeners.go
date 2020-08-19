@@ -1,7 +1,9 @@
 package server
 
 import (
+	"encoding/json"
 	"github.com/apex/log"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
@@ -10,17 +12,19 @@ import (
 
 // Adds all of the internal event listeners we want to use for a server.
 func (s *Server) StartEventListeners() {
-	consoleChannel := make(chan events.Event)
-	stateChannel := make(chan events.Event)
+	console := make(chan events.Event)
+	state := make(chan events.Event)
+	stats := make(chan events.Event)
 
-	s.Environment.Events().Subscribe(environment.ConsoleOutputEvent, consoleChannel)
-	s.Environment.Events().Subscribe(environment.StateChangeEvent, stateChannel)
+	s.Environment.Events().Subscribe(environment.ConsoleOutputEvent, console)
+	s.Environment.Events().Subscribe(environment.StateChangeEvent, state)
+	s.Environment.Events().Subscribe(environment.ResourceEvent, stats)
 
 	// TODO: this is leaky I imagine since the routines aren't destroyed when the server is?
 	go func() {
 		for {
 			select {
-			case data := <-consoleChannel:
+			case data := <-console:
 				// Immediately emit this event back over the server event stream since it is
 				// being called from the environment event stream and things probably aren't
 				// listening to that event.
@@ -28,9 +32,28 @@ func (s *Server) StartEventListeners() {
 
 				// Also pass the data along to the console output channel.
 				s.onConsoleOutput(data.Data)
-			case data := <-stateChannel:
+			case data := <-state:
 				s.SetState(data.Data)
+			case data := <-stats:
+				st := new(environment.Stats)
+				if err := json.Unmarshal([]byte(data.Data), st); err != nil {
+					s.Log().WithField("error", errors.WithStack(err)).Warn("failed to unmarshal server environment stats")
+					continue
+				}
 
+				// Update the server resource tracking object with the resources we got here.
+				s.resources.mu.Lock()
+				s.resources.Stats = *st
+				s.resources.mu.Unlock()
+
+				// TODO: we'll need to handle this better since calling it in rapid succession will
+				//  cause it to block until the first call is done calculating disk usage, which will
+				//  case stat events to pile up for the server.
+				s.Filesystem.HasSpaceAvailable()
+
+				// Emit the event to the websocket.
+				b, _ := json.Marshal(s.Proc())
+				s.Events().Publish(StatsEvent, string(b))
 			}
 		}
 	}()

@@ -47,19 +47,27 @@ func (e *Environment) Attach() error {
 		e.SetStream(&st)
 	}
 
-	console := new(Console)
+	c := new(Console)
+	go func(console *Console) {
+		ctx, cancel := context.WithCancel(context.Background())
 
-	// TODO: resource polling should be handled by the server itself and just call a function
-	//  on the environment that can return the data. Same for disabling polling.
-	go func() {
+		defer cancel()
 		defer e.stream.Close()
 		defer func() {
 			e.setState(system.ProcessOfflineState)
 			e.SetStream(nil)
 		}()
 
+		// Poll resources in a seperate thread since this will block the copy call below
+		// from being reached until it is completed if not run in a seperate process. However,
+		// we still want it to be stopped when the copy operation below is finished running which
+		// indicates that the container is no longer running.
+		go e.pollResources(ctx)
+
+		// Stream the reader output to the console which will then fire off events and handle console
+		// throttling and sending the output to the user.
 		_, _ = io.Copy(console, e.stream.Reader)
-	}()
+	}(c)
 
 	return nil
 }
