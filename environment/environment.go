@@ -11,6 +11,13 @@ const (
 	ResourceEvent      = "resources"
 )
 
+const (
+	ProcessOfflineState  = "offline"
+	ProcessStartingState = "starting"
+	ProcessRunningState  = "running"
+	ProcessStoppingState = "stopping"
+)
+
 // Defines the basic interface that all environments need to implement so that
 // a server can be properly controlled.
 type ProcessEnvironment interface {

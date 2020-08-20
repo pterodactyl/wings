@@ -66,7 +66,7 @@ func (s *Server) onConsoleOutput(data string) {
 	processConfiguration := s.ProcessConfiguration()
 
 	// Check if the server is currently starting.
-	if s.GetState() == ProcessStartingState {
+	if s.GetState() == environment.ProcessStartingState {
 		// Check if we should strip ansi color codes.
 		if processConfiguration.Startup.StripAnsi {
 			// Strip ansi color codes from the data string.
@@ -87,7 +87,7 @@ func (s *Server) onConsoleOutput(data string) {
 			// If the specific line of output is one that would mark the server as started,
 			// set the server to that state. Only do this if the server is not currently stopped
 			// or stopping.
-			_ = s.SetState(ProcessRunningState)
+			_ = s.SetState(environment.ProcessRunningState)
 			break
 		}
 	}
@@ -99,7 +99,7 @@ func (s *Server) onConsoleOutput(data string) {
 		stop := processConfiguration.Stop
 
 		if stop.Type == api.ProcessStopCommand && data == stop.Value {
-			_ = s.SetState(ProcessStoppingState)
+			_ = s.SetState(environment.ProcessOfflineState)
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/environment"
 	"sync"
 	"time"
 )
@@ -44,7 +45,7 @@ func (s *Server) handleServerCrash() error {
 	// No point in doing anything here if the server isn't currently offline, there
 	// is no reason to do a crash detection event. If the server crash detection is
 	// disabled we want to skip anything after this as well.
-	if s.GetState() != ProcessOfflineState || !s.Config().CrashDetectionEnabled {
+	if s.GetState() != environment.ProcessOfflineState || !s.Config().CrashDetectionEnabled {
 		if !s.Config().CrashDetectionEnabled {
 			s.Log().Debug("server triggered crash detection but handler is disabled for server process")
 

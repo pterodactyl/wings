@@ -13,7 +13,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
-	"github.com/pterodactyl/wings/system"
 	"io"
 	"strconv"
 	"strings"
@@ -54,7 +53,7 @@ func (e *Environment) Attach() error {
 		defer cancel()
 		defer e.stream.Close()
 		defer func() {
-			e.setState(system.ProcessOfflineState)
+			e.setState(environment.ProcessOfflineState)
 			e.SetStream(nil)
 		}()
 
@@ -230,7 +229,7 @@ func (e *Environment) convertMounts() []mount.Mount {
 // it will be forcibly stopped by Docker.
 func (e *Environment) Destroy() error {
 	// We set it to stopping than offline to prevent crash detection from being triggeree.
-	e.setState(system.ProcessStoppingState)
+	e.setState(environment.ProcessStoppingState)
 
 	err := e.client.ContainerRemove(context.Background(), e.Id, types.ContainerRemoveOptions{
 		RemoveVolumes: true,
@@ -246,7 +245,7 @@ func (e *Environment) Destroy() error {
 		return nil
 	}
 
-	e.setState(system.ProcessOfflineState)
+	e.setState(environment.ProcessOfflineState)
 
 	return err
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"net/http"
@@ -259,7 +260,7 @@ func (h *Handler) HandleInbound(m Message) error {
 
 			// Only send the current disk usage if the server is offline, if docker container is running,
 			// Environment#EnableResourcePolling() will send this data to all clients.
-			if state == server.ProcessOfflineState {
+			if state == environment.ProcessOfflineState {
 				_ = h.server.Filesystem.HasSpaceAvailable()
 
 				b, _ := json.Marshal(h.server.Proc())
@@ -328,7 +329,7 @@ func (h *Handler) HandleInbound(m Message) error {
 				return nil
 			}
 
-			if h.server.GetState() == server.ProcessOfflineState {
+			if h.server.GetState() == environment.ProcessOfflineState {
 				return nil
 			}
 

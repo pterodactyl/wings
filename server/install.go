@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/environment"
 	"golang.org/x/sync/semaphore"
 	"html/template"
 	"io"
@@ -58,9 +59,8 @@ func (s *Server) Install(sync bool) error {
 
 	// Some how these publish events are sent to clients in reverse order,
 	// this is probably due to channels having the most recently sent item first.
-
 	// Ensure that the server is marked as offline.
-	s.Events().Publish(StatusEvent, ProcessOfflineState)
+	s.Events().Publish(StatusEvent, environment.ProcessOfflineState)
 
 	// Push an event to the websocket so we can auto-refresh the information in the panel once
 	// the install is completed.
@@ -72,7 +72,7 @@ func (s *Server) Install(sync bool) error {
 // Reinstalls a server's software by utilizing the install script for the server egg. This
 // does not touch any existing files for the server, other than what the script modifies.
 func (s *Server) Reinstall() error {
-	if s.GetState() != ProcessOfflineState {
+	if s.GetState() != environment.ProcessOfflineState {
 		s.Log().Debug("waiting for server instance to enter a stopped state")
 		if err := s.Environment.WaitForStop(10, true); err != nil {
 			return err

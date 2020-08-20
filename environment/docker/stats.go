@@ -7,7 +7,6 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/environment"
-	"github.com/pterodactyl/wings/system"
 	"io"
 	"math"
 	"sync/atomic"
@@ -16,7 +15,7 @@ import (
 // Attach to the instance and then automatically emit an event whenever the resource usage for the
 // server process changes.
 func (e *Environment) pollResources(ctx context.Context) error {
-	if e.State() == system.ProcessOfflineState {
+	if e.State() == environment.ProcessOfflineState {
 		return errors.New("attempting to enable resource polling on a stopped server instance")
 	}
 
@@ -43,7 +42,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 			}
 
 			// Disable collection if the server is in an offline state and this process is still running.
-			if e.State() == system.ProcessOfflineState {
+			if e.State() == environment.ProcessOfflineState {
 				return nil
 			}
 

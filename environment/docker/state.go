@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/environment"
-	"github.com/pterodactyl/wings/system"
 )
 
 // Returns the current environment state.
@@ -18,10 +17,10 @@ func (e *Environment) State() string {
 // Sets the state of the environment. This emits an event that server's can hook into to
 // take their own actions and track their own state based on the environment.
 func (e *Environment) setState(state string) error {
-	if state != system.ProcessOfflineState &&
-		state != system.ProcessStartingState &&
-		state != system.ProcessRunningState &&
-		state != system.ProcessStoppingState {
+	if state != environment.ProcessOfflineState &&
+		state != environment.ProcessStartingState &&
+		state != environment.ProcessRunningState &&
+		state != environment.ProcessStoppingState {
 		return errors.New(fmt.Sprintf("invalid server state received: %s", state))
 	}
 

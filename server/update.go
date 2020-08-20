@@ -5,6 +5,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/environment"
 )
 
 // Merges data passed through in JSON form into the existing server object.
@@ -112,7 +113,7 @@ func (s *Server) UpdateDataStructure(data []byte, background bool) error {
 func (s *Server) runBackgroundActions() {
 	// Check if the s is now suspended, and if so and the process is not terminated
 	// yet, do it immediately.
-	if s.IsSuspended() && s.GetState() != ProcessOfflineState {
+	if s.IsSuspended() && s.GetState() != environment.ProcessOfflineState {
 		s.Log().Info("server suspended with running process state, terminating now")
 
 		if err := s.Environment.WaitForStop(10, true); err != nil {

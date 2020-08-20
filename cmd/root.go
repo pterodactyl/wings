@@ -208,7 +208,7 @@ func rootCmdRun(*cobra.Command, []string) {
 
 			// Addresses potentially invalid data in the stored file that can cause Wings to lose
 			// track of what the actual server state is.
-			_ = s.SetState(server.ProcessOfflineState)
+			_ = s.SetState(environment.ProcessOfflineState)
 		})
 	}
 
