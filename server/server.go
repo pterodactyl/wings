@@ -185,3 +185,10 @@ func (s *Server) IsSuspended() bool {
 func (s *Server) Build() *environment.Limits {
 	return &s.Config().Build
 }
+
+func (s *Server) ProcessConfiguration() *api.ProcessConfiguration {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.procConfig
+}
