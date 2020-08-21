@@ -94,6 +94,13 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 			}).Warn("failed to notify panel of failed backup state")
 		}
 
+		s.Events().PublishJson(BackupCompletedEvent+":"+b.Identifier(), map[string]interface{}{
+			"uuid":          b.Identifier(),
+			"is_successful": false,
+			"sha256_hash":   "",
+			"file_size":     0,
+		})
+
 		return errors.WithStack(err)
 	}
 
@@ -108,9 +115,10 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 	// Emit an event over the socket so we can update the backup in realtime on
 	// the frontend for the server.
 	s.Events().PublishJson(BackupCompletedEvent+":"+b.Identifier(), map[string]interface{}{
-		"uuid":        b.Identifier(),
-		"sha256_hash": ad.Checksum,
-		"file_size":   ad.Size,
+		"uuid":          b.Identifier(),
+		"is_successful": true,
+		"sha256_hash":   ad.Checksum,
+		"file_size":     ad.Size,
 	})
 
 	return nil
