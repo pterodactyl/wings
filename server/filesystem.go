@@ -616,6 +616,19 @@ func (fs *Filesystem) Delete(p string) error {
 		return errors.New("cannot delete root server directory")
 	}
 
+	if st, err := os.Stat(resolved); err != nil {
+		if !os.IsNotExist(err) {
+			fs.Server.Log().WithField("error", err).WithField("path", resolved).Warn("error while attempting to stat file before deletion")
+		}
+	} else {
+		// TODO: handle deleting a directory by finding its current size.
+		go func (st os.FileInfo) {
+			if !st.IsDir() {
+				atomic.SwapInt64(&fs.diskUsage, fs.diskUsage - st.Size())
+			}
+		}(st)
+	}
+
 	return os.RemoveAll(resolved)
 }
 
