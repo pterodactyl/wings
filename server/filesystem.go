@@ -305,17 +305,21 @@ func (fs *Filesystem) Readfile(p string) (io.Reader, error) {
 }
 
 // Writes a file to the system. If the file does not already exist one will be created.
-//
-// @todo should probably have a write lock here so we don't write twice at once.
 func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
+	var currentSize int64
+
 	// If the file does not exist on the system already go ahead and create the pathway
 	// to it and an empty file. We'll then write to it later on after this completes.
-	if stat, err := os.Stat(cleaned); err != nil && os.IsNotExist(err) {
+	if stat, err := os.Stat(cleaned); err != nil {
+		if !os.IsNotExist(err) {
+			return errors.WithStack(err)
+		}
+
 		if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
 			return errors.WithStack(err)
 		}
@@ -323,10 +327,12 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 		if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
 			return errors.WithStack(err)
 		}
-	} else if err != nil {
-		return errors.WithStack(err)
-	} else if stat.IsDir() {
-		return errors.New("cannot use a directory as a file for writing")
+	} else {
+		if stat.IsDir() {
+			return errors.New("cannot write file contents to a directory")
+		}
+
+		currentSize = stat.Size()
 	}
 
 	// This will either create the file if it does not already exist, or open and
@@ -340,8 +346,10 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	// Create a new buffered writer that will write to the file we just opened
 	// and stream in the contents from the reader.
 	w := bufio.NewWriter(file)
-
 	buf := make([]byte, 1024)
+
+	var sizeWritten int
+
 	for {
 		n, err := r.Read(buf)
 		if err != nil && err != io.EOF {
@@ -352,14 +360,19 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 			break
 		}
 
-		if _, err := w.Write(buf[:n]); err != nil {
+		if sz, err := w.Write(buf[:n]); err != nil {
 			return errors.WithStack(err)
+		} else {
+			sizeWritten += sz
 		}
 	}
 
 	if err := w.Flush(); err != nil {
 		return errors.WithStack(err)
 	}
+
+	// Adjust the disk usage to account for the old size and the new size of the file.
+	atomic.AddInt64(&fs.diskUsage, int64(sizeWritten) - currentSize)
 
 	// Finally, chown the file to ensure the permissions don't end up out-of-whack
 	// if we had just created it.

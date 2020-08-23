@@ -129,7 +129,12 @@ func (fs *Filesystem) extractFileFromArchive(f archiver.File) error {
 
 	defer o.Close()
 
-	_, cerr := io.Copy(o, f)
+	sz, cerr := io.Copy(o, f)
+	if cerr != nil {
+		return errors.WithStack(err)
+	}
 
-	return cerr
+	atomic.AddInt64(&fs.diskUsage, sz)
+
+	return nil
 }
