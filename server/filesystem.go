@@ -621,12 +621,15 @@ func (fs *Filesystem) Delete(p string) error {
 			fs.Server.Log().WithField("error", err).WithField("path", resolved).Warn("error while attempting to stat file before deletion")
 		}
 	} else {
-		// TODO: handle deleting a directory by finding its current size.
-		go func (st os.FileInfo) {
-			if !st.IsDir() {
-				atomic.SwapInt64(&fs.diskUsage, fs.diskUsage - st.Size())
-			}
-		}(st)
+		if !st.IsDir() {
+			atomic.SwapInt64(&fs.diskUsage, -st.Size())
+		} else {
+			go func(st os.FileInfo, resolved string) {
+				if s, err := fs.DirectorySize(resolved); err == nil {
+					atomic.AddInt64(&fs.diskUsage, -s)
+				}
+			}(st, resolved)
+		}
 	}
 
 	return os.RemoveAll(resolved)
