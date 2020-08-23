@@ -21,7 +21,6 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -215,14 +214,14 @@ func (ip *InstallationProcess) Run() error {
 
 	installPath, err := ip.BeforeExecute()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	cid, err := ip.Execute(installPath)
 	if err != nil {
 		ip.RemoveContainer()
 
-		return err
+		return errors.WithStack(err)
 	}
 
 	// If this step fails, log a warning but don't exit out of the process. This is completely
@@ -294,51 +293,24 @@ func (ip *InstallationProcess) pullInstallationImage() error {
 // as well as writes the installation script to the disk. This process is executed in an async
 // manner, if either one fails the error is returned.
 func (ip *InstallationProcess) BeforeExecute() (string, error) {
-	wg := sync.WaitGroup{}
-	wg.Add(3)
+	fileName, err := ip.writeScriptToDisk()
+	if err != nil {
+		return "", errors.WithMessage(err, "failed to write installation script to disk")
+	}
 
-	var e []error
-	var fileName string
+	if err := ip.pullInstallationImage(); err != nil {
+		return "", errors.WithMessage(err, "failed to pull updated installation container image for server")
+	}
 
-	go func() {
-		defer wg.Done()
-		name, err := ip.writeScriptToDisk()
-		if err != nil {
-			e = append(e, err)
-			return
+	opts := types.ContainerRemoveOptions{
+		RemoveVolumes: true,
+		Force:         true,
+	}
+
+	if err := ip.client.ContainerRemove(ip.context, ip.Server.Id()+"_installer", opts); err != nil {
+		if !client.IsErrNotFound(err) {
+			return "", errors.WithMessage(err, "failed to remove existing install container for server")
 		}
-
-		fileName = name
-	}()
-
-	go func() {
-		defer wg.Done()
-		if err := ip.pullInstallationImage(); err != nil {
-			e = append(e, err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		opts := types.ContainerRemoveOptions{
-			RemoveVolumes: true,
-			Force:         true,
-		}
-
-		if err := ip.client.ContainerRemove(ip.context, ip.Server.Id()+"_installer", opts); err != nil {
-			if !client.IsErrNotFound(err) {
-				e = append(e, err)
-			}
-		}
-	}()
-
-	wg.Wait()
-
-	// Maybe a better way to handle this, but if there is at least one error
-	// just bail out of the process now.
-	if len(e) > 0 {
-		return "", errors.WithStack(e[0])
 	}
 
 	return fileName, nil
@@ -446,7 +418,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 			},
 		},
 		Tmpfs: map[string]string{
-			"/tmp": "rw,exec,nosuid,size="+tmpfsSize+"M",
+			"/tmp": "rw,exec,nosuid,size=" + tmpfsSize + "M",
 		},
 		DNS: config.Get().Docker.Network.Dns,
 		LogConfig: container.LogConfig{
