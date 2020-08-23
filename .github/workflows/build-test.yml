@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
-          go-version: '^1.14.2'
+          go-version: '^1.15'
       
       - name: Build
         run: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -ldflags "-X github.com/pterodactyl/wings/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_linux_amd64 -v wings.go
