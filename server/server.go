@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/apex/log"
-	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/environment"
@@ -36,10 +35,6 @@ type Server struct {
 	Archiver    Archiver                       `json:"-"`
 	Environment environment.ProcessEnvironment `json:"-"`
 	Filesystem  Filesystem                     `json:"-"`
-
-	// Server cache used to store frequently requested information in memory and make
-	// certain long operations return faster. For example, FS disk space usage.
-	cache *cache.Cache
 
 	// Events emitted by the server instance.
 	emitter *events.EventBus

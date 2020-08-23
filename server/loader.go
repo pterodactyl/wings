@@ -5,7 +5,6 @@ import (
 	"github.com/apex/log"
 	"github.com/creasty/defaults"
 	"github.com/gammazero/workerpool"
-	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/environment"
@@ -98,7 +97,6 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 		return nil, err
 	}
 
-	s.cache = cache.New(time.Minute*10, time.Minute*15)
 	s.Archiver = Archiver{Server: s}
 	s.Filesystem = Filesystem{Server: s}
 

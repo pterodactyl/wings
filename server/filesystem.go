@@ -40,8 +40,12 @@ func IsPathResolutionError(err error) bool {
 }
 
 type Filesystem struct {
-	Server      *Server
-	cacheDiskMu sync.Mutex
+	mu sync.RWMutex
+
+	lastLookupTime time.Time
+	diskUsage      int64
+
+	Server *Server
 }
 
 // Returns the root path that contains all of a server's data.
@@ -241,11 +245,11 @@ func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
 	//
 	// This effectively the same speed as running this call in parallel since this cache will return
 	// instantly on the second call.
-	fs.cacheDiskMu.Lock()
-	defer fs.cacheDiskMu.Unlock()
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 
-	if x, exists := fs.Server.cache.Get("disk_used"); exists {
-		return x.(int64), nil
+	if fs.lastLookupTime.After(time.Now().Add(time.Second * -60)) {
+		return fs.diskUsage, nil
 	}
 
 	// If there is no size its either because there is no data (in which case running this function
@@ -257,7 +261,8 @@ func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
 	// Always cache the size, even if there is an error. We want to always return that value
 	// so that we don't cause an endless loop of determining the disk size if there is a temporary
 	// error encountered.
-	fs.Server.cache.Set("disk_used", size, time.Second*60)
+	fs.lastLookupTime = time.Now()
+	atomic.StoreInt64(&fs.diskUsage, size)
 
 	return size, err
 }
@@ -415,7 +420,6 @@ func (fs *Filesystem) unsafeStat(p string) (*Stat, error) {
 			return nil, err
 		}
 	}
-
 
 	st := &Stat{
 		Info:     s,
