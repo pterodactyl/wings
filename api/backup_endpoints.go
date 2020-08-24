@@ -7,9 +7,10 @@ import (
 )
 
 type BackupRequest struct {
-	Checksum string `json:"checksum"`
-	Size     int64  `json:"size"`
-	Successful bool `json:"successful"`
+	Checksum     string `json:"checksum"`
+	ChecksumType string `json:"checksum_type"`
+	Size         int64  `json:"size"`
+	Successful   bool   `json:"successful"`
 }
 
 // Notifies the panel that a specific backup has been completed and is now

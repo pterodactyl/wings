@@ -19,16 +19,18 @@ const (
 )
 
 type ArchiveDetails struct {
-	Checksum string `json:"checksum"`
-	Size     int64  `json:"size"`
+	Checksum     string `json:"checksum"`
+	ChecksumType string `json:"checksum_type"`
+	Size         int64  `json:"size"`
 }
 
 // Returns a request object.
 func (ad *ArchiveDetails) ToRequest(successful bool) api.BackupRequest {
 	return api.BackupRequest{
-		Checksum:   ad.Checksum,
-		Size:       ad.Size,
-		Successful: successful,
+		Checksum:     ad.Checksum,
+		ChecksumType: ad.ChecksumType,
+		Size:         ad.Size,
+		Successful:   successful,
 	}
 }
 
@@ -145,8 +147,9 @@ func (b *Backup) Details() *ArchiveDetails {
 	wg.Wait()
 
 	return &ArchiveDetails{
-		Checksum: checksum,
-		Size:     sz,
+		Checksum:     checksum,
+		ChecksumType: "sha1",
+		Size:         sz,
 	}
 }
 
