@@ -19,6 +19,8 @@ services:
       - "/var/lib/pterodactyl/:/var/lib/pterodactyl/"
       - "/var/log/pterodactyl/:/var/log/pterodactyl/"
       - "/tmp/pterodactyl/:/tmp/pterodactyl/"
+      ## you may need /srv/daemon-data if you are upgrading from an old daemon
+      ## - "/srv/daemon-data/:/srv/daemon-data/"
       ## Required for ssl if you user let's encrypt. uncomment to use.
       ## - "/etc/letsencrypt/:/etc/letsencrypt/"
 
