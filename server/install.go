@@ -16,9 +16,7 @@ import (
 	"golang.org/x/sync/semaphore"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -212,12 +210,11 @@ func (ip *InstallationProcess) Run() error {
 		ip.Server.installer.cancel = nil
 	}()
 
-	installPath, err := ip.BeforeExecute()
-	if err != nil {
+	if err := ip.BeforeExecute(); err != nil {
 		return errors.WithStack(err)
 	}
 
-	cid, err := ip.Execute(installPath)
+	cid, err := ip.Execute()
 	if err != nil {
 		ip.RemoveContainer()
 
@@ -233,23 +230,23 @@ func (ip *InstallationProcess) Run() error {
 	return nil
 }
 
+// Returns the location of the temporary data for the installation process.
+func (ip *InstallationProcess) tempDir() string {
+	return filepath.Join(os.TempDir(), "pterodactyl/", ip.Server.Id())
+}
+
 // Writes the installation script to a temporary file on the host machine so that it
 // can be properly mounted into the installation container and then executed.
-func (ip *InstallationProcess) writeScriptToDisk() (string, error) {
+func (ip *InstallationProcess) writeScriptToDisk() error {
 	// Make sure the temp directory root exists before trying to make a directory within it. The
 	// ioutil.TempDir call expects this base to exist, it won't create it for you.
-	if err := os.MkdirAll(path.Join(os.TempDir(), "pterodactyl"), 0700); err != nil {
-		return "", errors.WithStack(err)
+	if err := os.MkdirAll(ip.tempDir(), 0700); err != nil {
+		return errors.Wrap(err, "could not create temporary directory for install process")
 	}
 
-	d, err := ioutil.TempDir("", "pterodactyl")
+	f, err := os.OpenFile(filepath.Join(ip.tempDir(), "install.sh"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return "", errors.WithStack(err)
-	}
-
-	f, err := os.OpenFile(filepath.Join(d, "install.sh"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return "", errors.WithStack(err)
+		return errors.Wrap(err, "failed to write server installation script to disk before mount")
 	}
 	defer f.Close()
 
@@ -261,12 +258,12 @@ func (ip *InstallationProcess) writeScriptToDisk() (string, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return "", errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 
 	w.Flush()
 
-	return d, nil
+	return nil
 }
 
 // Pulls the docker image to be used for the installation container.
@@ -292,14 +289,13 @@ func (ip *InstallationProcess) pullInstallationImage() error {
 // Runs before the container is executed. This pulls down the required docker container image
 // as well as writes the installation script to the disk. This process is executed in an async
 // manner, if either one fails the error is returned.
-func (ip *InstallationProcess) BeforeExecute() (string, error) {
-	fileName, err := ip.writeScriptToDisk()
-	if err != nil {
-		return "", errors.Wrap(err, "failed to write installation script to disk")
+func (ip *InstallationProcess) BeforeExecute() error {
+	if err := ip.writeScriptToDisk(); err != nil {
+		return errors.Wrap(err, "failed to write installation script to disk")
 	}
 
 	if err := ip.pullInstallationImage(); err != nil {
-		return "", errors.Wrap(err, "failed to pull updated installation container image for server")
+		return errors.Wrap(err, "failed to pull updated installation container image for server")
 	}
 
 	opts := types.ContainerRemoveOptions{
@@ -309,11 +305,11 @@ func (ip *InstallationProcess) BeforeExecute() (string, error) {
 
 	if err := ip.client.ContainerRemove(ip.context, ip.Server.Id()+"_installer", opts); err != nil {
 		if !client.IsErrNotFound(err) {
-			return "", errors.Wrap(err, "failed to remove existing install container for server")
+			return errors.Wrap(err, "failed to remove existing install container for server")
 		}
 	}
 
-	return fileName, nil
+	return nil
 }
 
 // Returns the log path for the installation process.
@@ -384,7 +380,7 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 }
 
 // Executes the installation process inside a specially created docker container.
-func (ip *InstallationProcess) Execute(installPath string) (string, error) {
+func (ip *InstallationProcess) Execute() (string, error) {
 	conf := &container.Config{
 		Hostname:     "installer",
 		AttachStdout: true,
@@ -412,7 +408,7 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 			},
 			{
 				Target:   "/mnt/install",
-				Source:   installPath,
+				Source:   ip.tempDir(),
 				Type:     mount.TypeBind,
 				ReadOnly: false,
 			},
@@ -433,7 +429,16 @@ func (ip *InstallationProcess) Execute(installPath string) (string, error) {
 		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
 	}
 
-	ip.Server.Log().WithField("install_script", installPath+"/install.sh").Info("creating install container for server process")
+	ip.Server.Log().WithField("install_script", ip.tempDir()+"/install.sh").Info("creating install container for server process")
+	// Remove the temporary directory when the installation process finishes for this server container.
+	defer func() {
+		if err := os.RemoveAll(ip.tempDir()); err != nil {
+			if !os.IsNotExist(err) {
+				ip.Server.Log().WithField("error", err).Warn("failed to remove temporary data directory after install process")
+			}
+		}
+	}()
+
 	r, err := ip.client.ContainerCreate(ip.context, conf, hostConf, nil, ip.Server.Id()+"_installer")
 	if err != nil {
 		return "", errors.WithStack(err)
