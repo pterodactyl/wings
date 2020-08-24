@@ -28,7 +28,7 @@ func (a *Archive) Create(dst string, ctx context.Context) (os.FileInfo, error) {
 	}
 	defer f.Close()
 
-	gzw := gzip.NewWriter(f)
+	gzw, _ := gzip.NewWriterLevel(f, gzip.BestSpeed)
 	defer gzw.Flush()
 	defer gzw.Close()
 

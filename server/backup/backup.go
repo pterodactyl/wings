@@ -1,7 +1,7 @@
 package backup
 
 import (
-	"crypto/sha256"
+	"crypto/sha1"
 	"encoding/hex"
 	"github.com/apex/log"
 	"github.com/pkg/errors"
@@ -93,7 +93,7 @@ func (b *Backup) Size() (int64, error) {
 
 // Returns the SHA256 checksum of a backup.
 func (b *Backup) Checksum() ([]byte, error) {
-	h := sha256.New()
+	h := sha1.New()
 
 	f, err := os.Open(b.Path())
 	if err != nil {
