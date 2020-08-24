@@ -7,11 +7,9 @@ import (
 	"fmt"
 	"github.com/mholt/archiver/v3"
 	"github.com/pkg/errors"
-	"io"
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -88,53 +86,19 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 			return nil
 		}
 
-		return fs.extractFileFromArchive(f)
+		var name string
+
+		switch s := f.Sys().(type) {
+		case *tar.Header:
+			name = s.Name
+		case *gzip.Header:
+			name = s.Name
+		case *zip.FileHeader:
+			name = s.Name
+		default:
+			return errors.New(fmt.Sprintf("could not parse underlying data source with type %s", reflect.TypeOf(s).String()))
+		}
+
+		return errors.Wrap(fs.Writefile(name, f), "could not extract file from archive")
 	})
-}
-
-// Extracts a single file from the archive and writes it to the disk after verifying that it will end
-// up in the server data directory.
-func (fs *Filesystem) extractFileFromArchive(f archiver.File) error {
-	var name string
-
-	switch s := f.Sys().(type) {
-	case *tar.Header:
-		name = s.Name
-	case *gzip.Header:
-		name = s.Name
-	case *zip.FileHeader:
-		name = s.Name
-	default:
-		return errors.New(fmt.Sprintf("could not parse underlying data source with type %s", reflect.TypeOf(s).String()))
-	}
-
-	// Guard against a zip-slip attack and prevent writing a file to a destination outside of
-	// the server root directory.
-	p, err := fs.SafePath(name)
-	if err != nil {
-		return err
-	}
-
-	// Ensure the directory structure for this file exists before trying to write the file
-	// to the disk, otherwise we'll have some unexpected fun.
-	if err := os.MkdirAll(strings.TrimSuffix(p, filepath.Base(p)), 0755); err != nil {
-		return err
-	}
-
-	// Open the file and truncate it if it already exists.
-	o, err := os.OpenFile(p, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		return err
-	}
-
-	defer o.Close()
-
-	sz, cerr := io.Copy(o, f)
-	if cerr != nil {
-		return errors.WithStack(err)
-	}
-
-	atomic.AddInt64(&fs.diskUsage, sz)
-
-	return nil
 }

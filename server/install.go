@@ -295,11 +295,11 @@ func (ip *InstallationProcess) pullInstallationImage() error {
 func (ip *InstallationProcess) BeforeExecute() (string, error) {
 	fileName, err := ip.writeScriptToDisk()
 	if err != nil {
-		return "", errors.WithMessage(err, "failed to write installation script to disk")
+		return "", errors.Wrap(err, "failed to write installation script to disk")
 	}
 
 	if err := ip.pullInstallationImage(); err != nil {
-		return "", errors.WithMessage(err, "failed to pull updated installation container image for server")
+		return "", errors.Wrap(err, "failed to pull updated installation container image for server")
 	}
 
 	opts := types.ContainerRemoveOptions{
@@ -309,7 +309,7 @@ func (ip *InstallationProcess) BeforeExecute() (string, error) {
 
 	if err := ip.client.ContainerRemove(ip.context, ip.Server.Id()+"_installer", opts); err != nil {
 		if !client.IsErrNotFound(err) {
-			return "", errors.WithMessage(err, "failed to remove existing install container for server")
+			return "", errors.Wrap(err, "failed to remove existing install container for server")
 		}
 	}
 

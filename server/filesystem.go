@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -343,36 +342,11 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	}
 	defer file.Close()
 
-	// Create a new buffered writer that will write to the file we just opened
-	// and stream in the contents from the reader.
-	w := bufio.NewWriter(file)
-	buf := make([]byte, 1024)
-
-	var sizeWritten int
-
-	for {
-		n, err := r.Read(buf)
-		if err != nil && err != io.EOF {
-			return errors.WithStack(err)
-		}
-
-		if n == 0 {
-			break
-		}
-
-		if sz, err := w.Write(buf[:n]); err != nil {
-			return errors.WithStack(err)
-		} else {
-			sizeWritten += sz
-		}
-	}
-
-	if err := w.Flush(); err != nil {
-		return errors.WithStack(err)
-	}
+	buf := make([]byte, 1024*4)
+	sz, err := io.CopyBuffer(file, r, buf)
 
 	// Adjust the disk usage to account for the old size and the new size of the file.
-	atomic.AddInt64(&fs.diskUsage, int64(sizeWritten) - currentSize)
+	atomic.AddInt64(&fs.diskUsage, sz-currentSize)
 
 	// Finally, chown the file to ensure the permissions don't end up out-of-whack
 	// if we had just created it.

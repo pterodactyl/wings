@@ -357,7 +357,7 @@ func configureLogging(logDir string, debug bool) error {
 	p := filepath.Join(logDir, "/wings.log")
 	w, err := logrotate.NewFile(p)
 	if err != nil {
-		panic(errors.WithMessage(err, "failed to open process log file"))
+		panic(errors.Wrap(err, "failed to open process log file"))
 	}
 
 	log.SetLevel(log.DebugLevel)

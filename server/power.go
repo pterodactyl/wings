@@ -62,13 +62,13 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 			// time than that passes an error will be propagated back up the chain and this
 			// request will be aborted.
 			if err := s.powerLock.Acquire(ctx, 1); err != nil {
-				return errors.WithMessage(err, "could not acquire lock on power state")
+				return errors.Wrap(err, "could not acquire lock on power state")
 			}
 		} else {
 			// If no wait duration was provided we will attempt to immediately acquire the lock
 			// and bail out with a context deadline error if it is not acquired immediately.
 			if ok := s.powerLock.TryAcquire(1); !ok {
-				return errors.WithMessage(context.DeadlineExceeded, "could not acquire lock on power state")
+				return errors.Wrap(context.DeadlineExceeded, "could not acquire lock on power state")
 			}
 		}
 
@@ -132,7 +132,7 @@ func (s *Server) onBeforeStart() error {
 
 	s.Log().Info("syncing server configuration with panel")
 	if err := s.Sync(); err != nil {
-		return errors.WithMessage(err, "unable to sync server data from Panel instance")
+		return errors.Wrap(err, "unable to sync server data from Panel instance")
 	}
 
 	if !s.Filesystem.HasSpaceAvailable() {
@@ -150,7 +150,7 @@ func (s *Server) onBeforeStart() error {
 	s.PublishConsoleOutputFromDaemon("Ensuring file permissions are set correctly, this could take a few seconds...")
 	// Ensure all of the server file permissions are set correctly before booting the process.
 	if err := s.Filesystem.Chown("/"); err != nil {
-		return errors.WithMessage(err, "failed to chown root server directory during pre-boot process")
+		return errors.Wrap(err, "failed to chown root server directory during pre-boot process")
 	}
 
 	return nil

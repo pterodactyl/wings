@@ -220,7 +220,8 @@ func postTransfer(c *gin.Context) {
 		}
 
 		// Copy the file.
-		_, err = io.Copy(file, res.Body)
+		buf := make([]byte, 1024 * 4)
+		_, err = io.CopyBuffer(file, res.Body, buf)
 		if err != nil {
 			zap.S().Errorw("failed to copy file to disk", zap.Error(err))
 			return
@@ -242,7 +243,8 @@ func postTransfer(c *gin.Context) {
 
 		// Compute the sha256 checksum of the file.
 		hash := sha256.New()
-		if _, err := io.Copy(hash, file); err != nil {
+		buf = make([]byte, 1024 * 4)
+		if _, err := io.CopyBuffer(hash, file, buf); err != nil {
 			zap.S().Errorw("failed to copy file for checksum verification", zap.Error(err))
 			return
 		}

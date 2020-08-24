@@ -29,9 +29,11 @@ func (a *Archive) Create(dst string, ctx context.Context) (os.FileInfo, error) {
 	defer f.Close()
 
 	gzw := gzip.NewWriter(f)
+	defer gzw.Flush()
 	defer gzw.Close()
 
 	tw := tar.NewWriter(gzw)
+	defer tw.Flush()
 	defer tw.Close()
 
 	wg := sizedwaitgroup.New(10)
@@ -108,7 +110,8 @@ func (a *Archive) addToArchive(p string, s *os.FileInfo, w *tar.Writer) error {
 		return err
 	}
 
-	if _, err := io.Copy(w, f); err != nil {
+	buf := make([]byte, 4*1024)
+	if _, err := io.CopyBuffer(w, f, buf); err != nil {
 		return err
 	}
 

@@ -101,7 +101,9 @@ func (a *Archiver) Checksum() (string, error) {
 	defer file.Close()
 
 	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
+
+	buf := make([]byte, 1024*4)
+	if _, err := io.CopyBuffer(hash, file, buf); err != nil {
 		return "", err
 	}
 

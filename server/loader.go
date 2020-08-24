@@ -84,12 +84,12 @@ func LoadDirectory() error {
 func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	cfg := Configuration{}
 	if err := defaults.Set(&cfg); err != nil {
-		return nil, errors.WithMessage(err, "failed to set struct defaults for server configuration")
+		return nil, errors.Wrap(err, "failed to set struct defaults for server configuration")
 	}
 
 	s := new(Server)
 	if err := defaults.Set(s); err != nil {
-		return nil, errors.WithMessage(err, "failed to set struct defaults for server")
+		return nil, errors.Wrap(err, "failed to set struct defaults for server")
 	}
 
 	s.cfg = cfg
