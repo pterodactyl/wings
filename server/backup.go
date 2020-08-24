@@ -97,7 +97,8 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 		s.Events().PublishJson(BackupCompletedEvent+":"+b.Identifier(), map[string]interface{}{
 			"uuid":          b.Identifier(),
 			"is_successful": false,
-			"sha256_hash":   "",
+			"checksum":      "",
+			"checksum_type": "sha1",
 			"file_size":     0,
 		})
 
@@ -117,7 +118,8 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 	s.Events().PublishJson(BackupCompletedEvent+":"+b.Identifier(), map[string]interface{}{
 		"uuid":          b.Identifier(),
 		"is_successful": true,
-		"sha256_hash":   ad.Checksum,
+		"checksum":      ad.Checksum,
+		"checksum_type": "sha1",
 		"file_size":     ad.Size,
 	})
 
