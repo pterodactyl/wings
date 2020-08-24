@@ -11,14 +11,14 @@ services:
     tty: true
     environment:
       - "DEBUG=false"
+      - "TZ=UTC" # change to the three letter timezone of your choosing
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/lib/docker/containers/:/var/lib/docker/containers/"
       - "/etc/pterodactyl/:/etc/pterodactyl/"
+      - "/var/lib/pterodactyl/:/var/lib/pterodactyl/"
       - "/var/log/pterodactyl/:/var/log/pterodactyl/"
-      - "/srv/daemon-data/:/srv/daemon-data/"
       - "/tmp/pterodactyl/:/tmp/pterodactyl/"
-      - "/etc/timezone:/etc/timezone:ro"
       ## Required for ssl if you user let's encrypt. uncomment to use.
       ## - "/etc/letsencrypt/:/etc/letsencrypt/"
 
