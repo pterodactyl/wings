@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 )
@@ -28,7 +29,14 @@ func (a *Archive) Create(dst string, ctx context.Context) (os.FileInfo, error) {
 	}
 	defer f.Close()
 
+	maxCpu := runtime.NumCPU() / 2
+	if maxCpu > 4 {
+		maxCpu = 4
+	}
+
 	gzw, _ := gzip.NewWriterLevel(f, gzip.BestSpeed)
+	_ = gzw.SetConcurrency(1 << 20, maxCpu)
+
 	defer gzw.Flush()
 	defer gzw.Close()
 
