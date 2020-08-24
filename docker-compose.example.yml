@@ -1,9 +1,10 @@
-version: '3'
+version: '3.5'
 services:
   daemon:
     build: .
     restart: always
-    hostname: daemon
+    networks:
+      - daemon0
     ports:
       - "8080:8080"
       - "2022:2022"
@@ -13,14 +14,20 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/lib/docker/containers/:/var/lib/docker/containers/"
-      - "/var/lib/pterodactyl/:/var/lib/pterodactyl/"
+      - "/etc/pterodactyl/:/etc/pterodactyl/"
+      - "/var/log/pterodactyl/:/var/log/pterodactyl/"
       - "/srv/daemon-data/:/srv/daemon-data/"
       - "/tmp/pterodactyl/:/tmp/pterodactyl/"
       - "/etc/timezone:/etc/timezone:ro"
       ## Required for ssl if you user let's encrypt. uncomment to use.
       ## - "/etc/letsencrypt/:/etc/letsencrypt/"
+
 networks:
-  default:
+  daemon0:
+    name: daemon0
+    driver: bridge
     ipam:
       config:
-        - subnet: 172.21.0.0/16
+        - subnet: "172.21.0.0/16"
+    driver_opts:
+      com.docker.network.bridge.name: daemon0

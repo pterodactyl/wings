@@ -11,4 +11,4 @@ RUN apk add --no-cache upx \
 
 FROM alpine:latest
 COPY --from=0 /go/wings/wings /usr/bin/
-CMD ["wings","--config", "/var/lib/pterodactyl/config.yml"]
+CMD ["wings","--config", "/etc/pterodactyl/config.yml"]
