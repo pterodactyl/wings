@@ -5,6 +5,7 @@ import (
 	"context"
 	"github.com/apex/log"
 	gzip "github.com/klauspost/pgzip"
+	"github.com/pkg/errors"
 	"github.com/remeh/sizedwaitgroup"
 	"golang.org/x/sync/errgroup"
 	"io"
@@ -49,14 +50,8 @@ func (a *Archive) Create(dst string, ctx context.Context) (os.FileInfo, error) {
 	// Iterate over all of the files to be included and put them into the archive. This is
 	// done as a concurrent goroutine to speed things along. If an error is encountered at
 	// any step, the entire process is aborted.
-	for p, s := range a.Files.All() {
-		if (*s).IsDir() {
-			continue
-		}
-
-		pa := p
-		st := s
-
+	for _, p := range a.Files.All() {
+		p := p
 		g.Go(func() error {
 			wg.Add()
 			defer wg.Done()
@@ -65,7 +60,7 @@ func (a *Archive) Create(dst string, ctx context.Context) (os.FileInfo, error) {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				return a.addToArchive(pa, st, tw)
+				return a.addToArchive(p, tw)
 			}
 		})
 	}
@@ -92,21 +87,25 @@ func (a *Archive) Create(dst string, ctx context.Context) (os.FileInfo, error) {
 }
 
 // Adds a single file to the existing tar archive writer.
-func (a *Archive) addToArchive(p string, s *os.FileInfo, w *tar.Writer) error {
+func (a *Archive) addToArchive(p string, w *tar.Writer) error {
 	f, err := os.Open(p)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	st := *s
+	s, err := f.Stat()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
 	header := &tar.Header{
 		// Trim the long server path from the name of the file so that the resulting
 		// archive is exactly how the user would see it in the panel file manager.
 		Name:    strings.TrimPrefix(p, a.TrimPrefix),
-		Size:    st.Size(),
-		Mode:    int64(st.Mode()),
-		ModTime: st.ModTime(),
+		Size:    s.Size(),
+		Mode:    int64(s.Mode()),
+		ModTime: s.ModTime(),
 	}
 
 	// These actions must occur sequentially, even if this function is called multiple

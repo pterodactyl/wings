@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/karrick/godirwalk"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server/backup"
@@ -21,6 +22,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -210,28 +212,32 @@ func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 // Because determining the amount of space being used by a server is a taxing operation we
 // will load it all up into a cache and pull from that as long as the key is not expired.
 func (fs *Filesystem) HasSpaceAvailable() bool {
-	space := fs.Server.Build().DiskSpace
-
-	size, err := fs.getCachedDiskUsage()
-	if err != nil {
-		fs.Server.Log().WithField("error", err).Warn("failed to determine root server directory size")
-	}
-
-	// Determine if their folder size, in bytes, is smaller than the amount of space they've
-	// been allocated.
-	fs.Server.Proc().SetDisk(size)
-
-	// If space is -1 or 0 just return true, means they're allowed unlimited.
-	//
-	// Technically we could skip disk space calculation because we don't need to check if the server exceeds it's limit
-	// but because this method caches the disk usage it would be best to calculate the disk usage and always
-	// return true.
-	if space <= 0 {
-		return true
-	}
-
-	return (size / 1000.0 / 1000.0) <= space
+	return true
 }
+
+// func (fs *Filesystem) HasSpaceAvailable() bool {
+// 	space := fs.Server.Build().DiskSpace
+//
+// 	size, err := fs.getCachedDiskUsage()
+// 	if err != nil {
+// 		fs.Server.Log().WithField("error", err).Warn("failed to determine root server directory size")
+// 	}
+//
+// 	// Determine if their folder size, in bytes, is smaller than the amount of space they've
+// 	// been allocated.
+// 	fs.Server.Proc().SetDisk(size)
+//
+// 	// If space is -1 or 0 just return true, means they're allowed unlimited.
+// 	//
+// 	// Technically we could skip disk space calculation because we don't need to check if the server exceeds it's limit
+// 	// but because this method caches the disk usage it would be best to calculate the disk usage and always
+// 	// return true.
+// 	if space <= 0 {
+// 		return true
+// 	}
+//
+// 	return (size / 1000.0 / 1000.0) <= space
+// }
 
 // Internal helper function to allow other parts of the codebase to check the total used disk space
 // as needed without overly taxing the system. This will prioritize the value from the cache to avoid
@@ -270,20 +276,40 @@ func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
 // through all of the folders. Returns the size in bytes. This can be a fairly taxing operation
 // on locations with tons of files, so it is recommended that you cache the output.
 func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
+	d, err := fs.SafePath(dir)
+	if err != nil {
+		return 0, errors.WithStack(err)
+	}
+
 	var size int64
-	err := fs.Walk(dir, func(_ string, f os.FileInfo, err error) error {
-		if err != nil {
-			return fs.handleWalkerError(err, f)
-		}
+	var st syscall.Stat_t
 
-		if !f.IsDir() {
-			atomic.AddInt64(&size, f.Size())
-		}
+	err = godirwalk.Walk(d, &godirwalk.Options{
+		Unsorted: true,
+		Callback: func(p string, e *godirwalk.Dirent) error {
+			// If this is a symlink then resolve the final destination of it before trying to continue walking
+			// over its contents. If it resolves outside the server data directory just skip everything else for
+			// it. Otherwise, allow it to continue.
+			if e.IsSymlink() {
+				if _, err := fs.SafePath(p); err != nil {
+					if IsPathResolutionError(err) {
+						return godirwalk.SkipThis
+					}
 
-		return nil
+					return err
+				}
+			}
+
+			if !e.IsDir() {
+				syscall.Lstat(p, &st)
+				atomic.AddInt64(&size, st.Size)
+			}
+
+			return nil
+		},
 	})
 
-	return size, err
+	return size, errors.WithStack(err)
 }
 
 // Reads a file on the system and returns it as a byte representation in a file
@@ -485,19 +511,22 @@ func (fs *Filesystem) Chown(path string) error {
 
 	// If this was a directory, begin walking over its contents recursively and ensure that all
 	// of the subfiles and directories get their permissions updated as well.
-	return fs.Walk(cleaned, func(path string, f os.FileInfo, err error) error {
-		if err != nil {
-			return fs.handleWalkerError(err, f)
-		}
+	return godirwalk.Walk(cleaned, &godirwalk.Options{
+		Unsorted: true,
+		Callback: func(p string, e *godirwalk.Dirent) error {
+			// Do not attempt to chmod a symlink. Go's os.Chown function will affect the symlink
+			// so if it points to a location outside the data directory the user would be able to
+			// (un)intentionally modify that files permissions.
+			if e.IsSymlink() {
+				if e.IsDir() {
+					return godirwalk.SkipThis
+				}
 
-		// Do not attempt to chmod a symlink. Go's os.Chown function will affect the symlink
-		// so if it points to a location outside the data directory the user would be able to
-		// (un)intentionally modify that files permissions.
-		if f.Mode()&os.ModeSymlink != 0 {
-			return nil
-		}
+				return nil
+			}
 
-		return os.Chown(path, uid, gid)
+			return os.Chown(p, uid, gid)
+		},
 	})
 }
 
@@ -733,26 +762,35 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 	// files found, and will keep walking deeper and deeper into directories.
 	inc := new(backup.IncludedFiles)
 
-	if err := fs.Walk(cleaned, func(p string, f os.FileInfo, err error) error {
-		if err != nil {
-			return fs.handleWalkerError(err, f)
-		}
+	err = godirwalk.Walk(cleaned, &godirwalk.Options{
+		Unsorted: true,
+		Callback: func(p string, e *godirwalk.Dirent) error {
+			sp := p
+			if e.IsSymlink() {
+				sp, err = fs.SafePath(p)
+				if err != nil {
+					if IsPathResolutionError(err) {
+						return godirwalk.SkipThis
+					}
 
-		// Avoid unnecessary parsing if there are no ignored files, nothing will match anyways
-		// so no reason to call the function.
-		if len(ignored) == 0 || !i.MatchesPath(strings.TrimPrefix(p, fs.Path()+"/")) {
-			inc.Push(&f, p)
-		}
+					return err
+				}
+			}
 
-		// We can't just abort if the path is technically ignored. It is possible there is a nested
-		// file or folder that should not be excluded, so in this case we need to just keep going
-		// until we get to a final state.
-		return nil
-	}); err != nil {
-		return nil, err
-	}
+			// Avoid unnecessary parsing if there are no ignored files, nothing will match anyways
+			// so no reason to call the function.
+			if len(ignored) == 0 || !i.MatchesPath(strings.TrimPrefix(sp, fs.Path()+"/")) {
+				inc.Push(sp)
+			}
 
-	return inc, nil
+			// We can't just abort if the path is technically ignored. It is possible there is a nested
+			// file or folder that should not be excluded, so in this case we need to just keep going
+			// until we get to a final state.
+			return nil
+		},
+	})
+
+	return inc, errors.WithStack(err)
 }
 
 // Compresses all of the files matching the given paths in the specified directory. This function
@@ -789,24 +827,38 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 			continue
 		}
 
-		if f.IsDir() {
-			err := fs.Walk(p, func(s string, info os.FileInfo, err error) error {
-				if err != nil {
-					return fs.handleWalkerError(err, info)
-				}
+		if !f.IsDir() {
+			inc.Push(p)
+		} else {
+			err := godirwalk.Walk(p, &godirwalk.Options{
+				Unsorted: true,
+				Callback: func(p string, e *godirwalk.Dirent) error {
+					sp := p
+					if e.IsSymlink() {
+						// Ensure that any symlinks are properly resolved to their final destination. If
+						// that destination is outside the server directory skip over this entire item, otherwise
+						// use the resolved location for the rest of this function.
+						sp, err = fs.SafePath(p)
+						if err != nil {
+							if IsPathResolutionError(err) {
+								return godirwalk.SkipThis
+							}
 
-				if !info.IsDir() {
-					inc.Push(&info, s)
-				}
+							return err
+						}
+					}
 
-				return nil
+					if !e.IsDir() {
+						inc.Push(sp)
+					}
+
+					return nil
+				},
 			})
 
 			if err != nil {
 				return nil, err
 			}
-		} else {
-			inc.Push(&f, p)
 		}
 	}
 
