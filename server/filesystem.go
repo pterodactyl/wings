@@ -212,8 +212,6 @@ func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 // Because determining the amount of space being used by a server is a taxing operation we
 // will load it all up into a cache and pull from that as long as the key is not expired.
 func (fs *Filesystem) HasSpaceAvailable() bool {
-	space := fs.Server.Build().DiskSpace
-
 	size, err := fs.getCachedDiskUsage()
 	if err != nil {
 		fs.Server.Log().WithField("error", err).Warn("failed to determine root server directory size")
@@ -223,6 +221,7 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 	// been allocated.
 	fs.Server.Proc().SetDisk(size)
 
+	space := fs.Server.Build().DiskSpace
 	// If space is -1 or 0 just return true, means they're allowed unlimited.
 	//
 	// Technically we could skip disk space calculation because we don't need to check if the server exceeds it's limit
@@ -249,7 +248,8 @@ func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	if fs.lastLookupTime.After(time.Now().Add(time.Second * -60)) {
+	// Expire the cache after 2.5 minutes.
+	if fs.lastLookupTime.After(time.Now().Add(time.Second * -150)) {
 		return fs.diskUsage, nil
 	}
 
