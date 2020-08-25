@@ -212,32 +212,28 @@ func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 // Because determining the amount of space being used by a server is a taxing operation we
 // will load it all up into a cache and pull from that as long as the key is not expired.
 func (fs *Filesystem) HasSpaceAvailable() bool {
-	return true
-}
+	space := fs.Server.Build().DiskSpace
 
-// func (fs *Filesystem) HasSpaceAvailable() bool {
-// 	space := fs.Server.Build().DiskSpace
-//
-// 	size, err := fs.getCachedDiskUsage()
-// 	if err != nil {
-// 		fs.Server.Log().WithField("error", err).Warn("failed to determine root server directory size")
-// 	}
-//
-// 	// Determine if their folder size, in bytes, is smaller than the amount of space they've
-// 	// been allocated.
-// 	fs.Server.Proc().SetDisk(size)
-//
-// 	// If space is -1 or 0 just return true, means they're allowed unlimited.
-// 	//
-// 	// Technically we could skip disk space calculation because we don't need to check if the server exceeds it's limit
-// 	// but because this method caches the disk usage it would be best to calculate the disk usage and always
-// 	// return true.
-// 	if space <= 0 {
-// 		return true
-// 	}
-//
-// 	return (size / 1000.0 / 1000.0) <= space
-// }
+	size, err := fs.getCachedDiskUsage()
+	if err != nil {
+		fs.Server.Log().WithField("error", err).Warn("failed to determine root server directory size")
+	}
+
+	// Determine if their folder size, in bytes, is smaller than the amount of space they've
+	// been allocated.
+	fs.Server.Proc().SetDisk(size)
+
+	// If space is -1 or 0 just return true, means they're allowed unlimited.
+	//
+	// Technically we could skip disk space calculation because we don't need to check if the server exceeds it's limit
+	// but because this method caches the disk usage it would be best to calculate the disk usage and always
+	// return true.
+	if space <= 0 {
+		return true
+	}
+
+	return (size / 1000.0 / 1000.0) <= space
+}
 
 // Internal helper function to allow other parts of the codebase to check the total used disk space
 // as needed without overly taxing the system. This will prioritize the value from the cache to avoid
