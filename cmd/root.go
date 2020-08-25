@@ -337,7 +337,7 @@ func Execute() error {
 // Configures the global logger for Zap so that we can call it from any location
 // in the code without having to pass around a logger instance.
 func configureLogging(logDir string, debug bool) error {
-	if err := os.MkdirAll(path.Join(config.Get().System.LogDirectory, "/install"), 0700); err != nil {
+	if err := os.MkdirAll(path.Join(logDir, "/install"), 0700); err != nil {
 		return errors.WithStack(err)
 	}
 
