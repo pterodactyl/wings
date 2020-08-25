@@ -49,11 +49,6 @@ func (sc *SystemConfiguration) ConfigureDirectories() error {
 		return err
 	}
 
-	log.WithField("path", sc.LogDirectory).Debug("ensuring log directory exists")
-	if err := os.MkdirAll(path.Join(sc.LogDirectory, "/install"), 0700); err != nil {
-		return err
-	}
-
 	log.WithField("path", sc.Data).Debug("ensuring server data directory exists")
 	if err := os.MkdirAll(sc.Data, 0700); err != nil {
 		return err
