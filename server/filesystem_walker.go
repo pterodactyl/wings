@@ -3,10 +3,10 @@ package server
 import (
 	"context"
 	"github.com/gammazero/workerpool"
+	"github.com/pkg/errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 )
 
@@ -36,21 +36,14 @@ func (fs *Filesystem) NewWalker() *FileWalker {
 func newPooledWalker(fs *Filesystem) *PooledFileWalker {
 	return &PooledFileWalker{
 		Filesystem: fs,
-		// Create a worker pool that is the same size as the number of processors available on the
-		// system. Going much higher doesn't provide much of a performance boost, and is only more
-		// likely to lead to resource overloading anyways.
-		pool: workerpool.New(runtime.NumCPU()),
+		// Run the walker as a single threaded process to optimize disk I/O and avoid CPU issues.
+		pool: workerpool.New(1),
 	}
 }
 
 // Process a given path by calling the callback function for all of the files and directories within
 // the path, and then dropping into any directories that we come across.
-func (w *PooledFileWalker) process(path string) error {
-	p, err := w.Filesystem.SafePath(path)
-	if err != nil {
-		return err
-	}
-
+func (w *PooledFileWalker) process(p string) error {
 	files, err := ioutil.ReadDir(p)
 	if err != nil {
 		return err
@@ -74,11 +67,19 @@ func (w *PooledFileWalker) process(path string) error {
 			continue
 		}
 
-		i, err := os.Stat(sp)
-		// You might end up getting an error about a file or folder not existing if the given path
-		// if it is an invalid symlink. We can safely just skip over these files I believe.
-		if os.IsNotExist(err) {
-			continue
+		var i os.FileInfo
+		// Re-stat the file or directory if it is determined to be a symlink by statting the result of the
+		// symlink resolution rather than the initial path we received. Only do this on files we _know_
+		// will be returning a different value.
+		if f.Mode()&os.ModeSymlink != 0 {
+			i, err = os.Stat(sp)
+			// You might end up getting an error about a file or folder not existing if the given path
+			// if it is an invalid symlink. We can safely just skip over these files I believe.
+			if os.IsNotExist(err) {
+				continue
+			}
+		} else {
+			i = f
 		}
 
 		// Call the user-provided callback for this file or directory. If an error is returned that is
@@ -128,8 +129,12 @@ func (fs *Filesystem) Walk(dir string, callback filepath.WalkFunc) error {
 	_, cancel := context.WithCancel(context.Background())
 	w.cancel = cancel
 
-	w.push(dir)
+	p, err := w.Filesystem.SafePath(dir)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
+	w.push(p)
 	w.wg.Wait()
 	w.pool.StopWait()
 
