@@ -574,7 +574,8 @@ func (fs *Filesystem) Copy(p string) error {
 	}
 	defer dest.Close()
 
-	if _, err := io.Copy(dest, source); err != nil {
+	buf := make([]byte, 1024*4)
+	if _, err := io.CopyBuffer(dest, source, buf); err != nil {
 		return errors.WithStack(err)
 	}
 
