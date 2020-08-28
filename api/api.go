@@ -144,7 +144,7 @@ type RequestError struct {
 
 // Returns the error response in a string form that can be more easily consumed.
 func (re *RequestError) Error() string {
-	return fmt.Sprintf("%s: %s (HTTP/%s)", re.Code, re.Detail, re.Status)
+	return fmt.Sprintf("Error response from Panel: %s: %s (HTTP/%s)", re.Code, re.Detail, re.Status)
 }
 
 func (re *RequestError) String() string {

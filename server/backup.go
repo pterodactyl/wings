@@ -20,12 +20,10 @@ func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, suc
 			s.Log().WithFields(log.Fields{
 				"backup": uuid,
 				"error":  err,
-			}).Error("failed to notify panel of backup status due to internal code error")
+			}).Error("failed to notify panel of backup status due to wings error")
 
 			return err
 		}
-
-		s.Log().WithField("backup", uuid).Warn(rerr.String())
 
 		return errors.New(rerr.String())
 	}
@@ -90,7 +88,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 		if notifyError := s.notifyPanelOfBackup(b.Identifier(), &backup.ArchiveDetails{}, false); notifyError != nil {
 			s.Log().WithFields(log.Fields{
 				"backup": b.Identifier(),
-				"error":  err,
+				"error":  notifyError,
 			}).Warn("failed to notify panel of failed backup state")
 		}
 
@@ -102,7 +100,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 			"file_size":     0,
 		})
 
-		return errors.WithStack(err)
+		return errors.Wrap(err, "error while generating server backup")
 	}
 
 	// Try to notify the panel about the status of this backup. If for some reason this request
