@@ -26,7 +26,7 @@ type Archive struct {
 func (a *Archive) Create(dst string, ctx context.Context) (os.FileInfo, error) {
 	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	defer f.Close()
 
@@ -58,7 +58,7 @@ func (a *Archive) Create(dst string, ctx context.Context) (os.FileInfo, error) {
 
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return errors.WithStack(ctx.Err())
 			default:
 				return a.addToArchive(p, tw)
 			}
@@ -75,12 +75,12 @@ func (a *Archive) Create(dst string, ctx context.Context) (os.FileInfo, error) {
 			log.WithField("location", dst).Warn("failed to delete corrupted backup archive")
 		}
 
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	st, err := f.Stat()
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return st, nil
@@ -91,6 +91,7 @@ func (a *Archive) addToArchive(p string, w *tar.Writer) error {
 	f, err := os.Open(p)
 	if err != nil {
 		return err
+		return errors.WithStack(err)
 	}
 	defer f.Close()
 
@@ -114,12 +115,12 @@ func (a *Archive) addToArchive(p string, w *tar.Writer) error {
 	defer a.Unlock()
 
 	if err := w.WriteHeader(header); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	buf := make([]byte, 4*1024)
 	if _, err := io.CopyBuffer(w, f, buf); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	return nil

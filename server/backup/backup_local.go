@@ -24,7 +24,7 @@ func LocateLocal(uuid string) (*LocalBackup, os.FileInfo, error) {
 
 	st, err := os.Stat(b.Path())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.WithStack(err)
 	}
 
 	if st.IsDir() {
@@ -48,7 +48,7 @@ func (b *LocalBackup) Generate(included *IncludedFiles, prefix string) (*Archive
 	}
 
 	if _, err := a.Create(b.Path(), context.Background()); err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return b.Details(), nil

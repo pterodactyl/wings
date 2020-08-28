@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/apex/log"
+	"github.com/pkg/errors"
 	"io"
 	"net/http"
 	"os"
@@ -33,17 +34,17 @@ func (s *S3Backup) Generate(included *IncludedFiles, prefix string) (*ArchiveDet
 	}
 
 	if _, err := a.Create(s.Path(), context.Background()); err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	rc, err := os.Open(s.Path())
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	defer rc.Close()
 
 	if resp, err := s.generateRemoteRequest(rc); err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	} else {
 		resp.Body.Close()
 
