@@ -148,7 +148,7 @@ func (e *Environment) Create() error {
 		Tty:          true,
 		ExposedPorts: a.Exposed(),
 		Image:        e.meta.Image,
-		Env:          e.variables(),
+		Env:          e.Configuration.EnvironmentVariables(),
 		Labels: map[string]string{
 			"Service":       "Pterodactyl",
 			"ContainerType": "server_process",
@@ -202,12 +202,6 @@ func (e *Environment) Create() error {
 	}
 
 	return nil
-}
-
-func (e *Environment) variables() []string {
-	v := e.Configuration.EnvironmentVariables()
-
-	return append(v, fmt.Sprintf("STARTUP=%s", e.meta.Invocation))
 }
 
 func (e *Environment) convertMounts() []mount.Mount {

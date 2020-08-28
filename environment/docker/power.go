@@ -26,7 +26,7 @@ func (e *Environment) OnBeforeStart() error {
 	// the Panel is usee.
 	if err := e.client.ContainerRemove(context.Background(), e.Id, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
 		if !client.IsErrNotFound(err) {
-			return err
+			return errors.Wrap(err, "failed to remove server docker container during pre-boot")
 		}
 	}
 

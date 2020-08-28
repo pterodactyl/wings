@@ -13,7 +13,6 @@ import (
 )
 
 type Metadata struct {
-	Invocation string
 	Image      string
 	Stop       *api.ProcessStopConfiguration
 }
