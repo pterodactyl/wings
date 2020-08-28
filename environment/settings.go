@@ -2,6 +2,7 @@ package environment
 
 import (
 	"fmt"
+	"github.com/apex/log"
 	"math"
 	"strconv"
 )
@@ -118,7 +119,13 @@ func (v Variables) Get(key string) string {
 		return fmt.Sprintf("%f", val.(float64))
 	case bool:
 		return strconv.FormatBool(val.(bool))
+	case string:
+		return val.(string)
 	}
 
-	return val.(string)
+	// TODO: I think we can add a check for val == nil and return an empty string for those
+	//  and this warning should theoretically never happen?
+	log.Warn(fmt.Sprintf("failed to marshal environment variable \"%s\" of type %+v into string", key, val))
+
+	return ""
 }
