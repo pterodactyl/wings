@@ -773,10 +773,13 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 				}
 			}
 
-			// Avoid unnecessary parsing if there are no ignored files, nothing will match anyways
-			// so no reason to call the function.
-			if len(ignored) == 0 || !i.MatchesPath(strings.TrimPrefix(sp, fs.Path()+"/")) {
-				inc.Push(sp)
+			// Only push files into the result array since archives can't create an empty directory within them.
+			if !e.IsDir() {
+				// Avoid unnecessary parsing if there are no ignored files, nothing will match anyways
+				// so no reason to call the function.
+				if len(ignored) == 0 || !i.MatchesPath(strings.TrimPrefix(sp, fs.Path()+"/")) {
+					inc.Push(sp)
+				}
 			}
 
 			// We can't just abort if the path is technically ignored. It is possible there is a nested
