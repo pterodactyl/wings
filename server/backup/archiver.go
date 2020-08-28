@@ -90,13 +90,23 @@ func (a *Archive) Create(dst string, ctx context.Context) (os.FileInfo, error) {
 func (a *Archive) addToArchive(p string, w *tar.Writer) error {
 	f, err := os.Open(p)
 	if err != nil {
-		return err
+		// If you try to backup something that no longer exists (got deleted somewhere during the process
+		// but not by this process), just skip over it and don't kill the entire backup.
+		if os.IsNotExist(err) {
+			return nil
+		}
+
 		return errors.WithStack(err)
 	}
 	defer f.Close()
 
 	s, err := f.Stat()
 	if err != nil {
+		// Same as above, don't kill the process just because the file no longer exists.
+		if os.IsNotExist(err) {
+			return nil
+		}
+
 		return errors.WithStack(err)
 	}
 
