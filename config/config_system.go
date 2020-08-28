@@ -38,6 +38,12 @@ type SystemConfiguration struct {
 	// the user did not press the stop button, but the process stopped cleanly.
 	DetectCleanExitAsCrash bool `default:"true" yaml:"detect_clean_exit_as_crash"`
 
+	// If set to true, file permissions for a server will be checked when the process is
+	// booted. This can cause boot delays if the server has a large amount of files. In most
+	// cases disabling this should not have any major impact unless external processes are
+	// frequently modifying a servers' files.
+	CheckPermissionsOnBoot bool `default:"true" yaml:"check_permissions_on_boot"`
+
 	Sftp SftpConfiguration `yaml:"sftp"`
 }
 

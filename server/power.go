@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/config"
 	"golang.org/x/sync/semaphore"
 	"os"
 	"time"
@@ -147,10 +148,12 @@ func (s *Server) onBeforeStart() error {
 	s.PublishConsoleOutputFromDaemon("Updating process configuration files...")
 	s.UpdateConfigurationFiles()
 
-	s.PublishConsoleOutputFromDaemon("Ensuring file permissions are set correctly, this could take a few seconds...")
-	// Ensure all of the server file permissions are set correctly before booting the process.
-	if err := s.Filesystem.Chown("/"); err != nil {
-		return errors.Wrap(err, "failed to chown root server directory during pre-boot process")
+	if config.Get().System.CheckPermissionsOnBoot {
+		s.PublishConsoleOutputFromDaemon("Ensuring file permissions are set correctly, this could take a few seconds...")
+		// Ensure all of the server file permissions are set correctly before booting the process.
+		if err := s.Filesystem.Chown("/"); err != nil {
+			return errors.Wrap(err, "failed to chown root server directory during pre-boot process")
+		}
 	}
 
 	return nil
