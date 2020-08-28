@@ -221,7 +221,7 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 	// been allocated.
 	fs.Server.Proc().SetDisk(size)
 
-	space := fs.Server.Build().DiskSpace
+	space := fs.Server.DiskSpace()
 	// If space is -1 or 0 just return true, means they're allowed unlimited.
 	//
 	// Technically we could skip disk space calculation because we don't need to check if the server exceeds it's limit

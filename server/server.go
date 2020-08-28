@@ -77,7 +77,7 @@ func (s *Server) GetEnvironmentVariables() []string {
 	var out = []string{
 		fmt.Sprintf("TZ=%s", zone),
 		fmt.Sprintf("STARTUP=%s", s.Config().Invocation),
-		fmt.Sprintf("SERVER_MEMORY=%d", s.Build().MemoryLimit),
+		fmt.Sprintf("SERVER_MEMORY=%d", s.MemoryLimit()),
 		fmt.Sprintf("SERVER_IP=%s", s.Config().Allocations.DefaultMapping.Ip),
 		fmt.Sprintf("SERVER_PORT=%d", s.Config().Allocations.DefaultMapping.Port),
 	}
@@ -125,7 +125,7 @@ func (s *Server) Sync() error {
 
 func (s *Server) SyncWithConfiguration(cfg *api.ServerConfigurationResponse) error {
 	// Update the data structure and persist it to the disk.
-	if err := s.UpdateDataStructure(cfg.Settings, false); err != nil {
+	if err := s.UpdateDataStructure(cfg.Settings); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -175,10 +175,6 @@ func (s *Server) GetProcessConfiguration() (*api.ServerConfigurationResponse, *a
 // Checks if the server is marked as being suspended or not on the system.
 func (s *Server) IsSuspended() bool {
 	return s.Config().Suspended
-}
-
-func (s *Server) Build() *environment.Limits {
-	return &s.Config().Build
 }
 
 func (s *Server) ProcessConfiguration() *api.ProcessConfiguration {

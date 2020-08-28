@@ -126,15 +126,20 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 // Execute a few functions before actually calling the environment start commands. This ensures
 // that everything is ready to go for environment booting, and that the server can even be started.
 func (s *Server) onBeforeStart() error {
-	// Disallow start & restart if the server is suspended.
-	if s.IsSuspended() {
-		return new(suspendedError)
-	}
-
 	s.Log().Info("syncing server configuration with panel")
 	if err := s.Sync(); err != nil {
 		return errors.Wrap(err, "unable to sync server data from Panel instance")
 	}
+
+	// Disallow start & restart if the server is suspended. Do this check after performing a sync
+	// action with the Panel to ensure that we have the most up-to-date information for that server.
+	if s.IsSuspended() {
+		return new(suspendedError)
+	}
+
+	// Ensure we sync the server information with the environment so that any new environment variables
+	// and process resource limits are correctly applied.
+	s.SyncWithEnvironment()
 
 	if !s.Filesystem.HasSpaceAvailable() {
 		return errors.New("cannot start server, not enough disk space available")

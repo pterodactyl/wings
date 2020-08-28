@@ -19,7 +19,7 @@ import (
 func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (bool, error) {
 	// Don't waste time trying to determine this if we know the server will have the space for
 	// it since there is no limit.
-	if fs.Server.Build().DiskSpace <= 0 {
+	if fs.Server.DiskSpace() <= 0 {
 		return true, nil
 	}
 
@@ -58,7 +58,7 @@ func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (b
 
 	wg.Wait()
 
-	return ((dirSize + size) / 1000.0 / 1000.0) <= fs.Server.Build().DiskSpace, cErr
+	return ((dirSize + size) / 1000.0 / 1000.0) <= fs.Server.DiskSpace(), cErr
 }
 
 // Decompress a file in a given directory by using the archiver tool to infer the file

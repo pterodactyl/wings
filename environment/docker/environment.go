@@ -70,12 +70,6 @@ func New(id string, m *Metadata, c *environment.Configuration) (*Environment, er
 	return e, nil
 }
 
-func (e *Environment) SetStopConfiguration(c *api.ProcessStopConfiguration) {
-	e.mu.Lock()
-	e.meta.Stop = c
-	e.mu.Unlock()
-}
-
 func (e *Environment) Type() string {
 	return "docker"
 }
@@ -165,4 +159,20 @@ func (e *Environment) ExitState() (uint32, bool, error) {
 	}
 
 	return uint32(c.State.ExitCode), c.State.OOMKilled, nil
+}
+
+// Returns the environment configuration allowing a process to make modifications of the
+// environment on the fly.
+func (e *Environment) Config() *environment.Configuration {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	return e.Configuration
+}
+
+// Sets the stop configuration for the environment.
+func (e *Environment) SetStopConfiguration(c *api.ProcessStopConfiguration) {
+	e.mu.Lock()
+	e.meta.Stop = c
+	e.mu.Unlock()
 }

@@ -93,7 +93,7 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	}
 
 	s.cfg = cfg
-	if err := s.UpdateDataStructure(data.Settings, false); err != nil {
+	if err := s.UpdateDataStructure(data.Settings); err != nil {
 		return nil, err
 	}
 
@@ -103,7 +103,13 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	// Right now we only support a Docker based environment, so I'm going to hard code
 	// this logic in. When we're ready to support other environment we'll need to make
 	// some modifications here obviously.
-	envCfg := environment.NewConfiguration(s.Mounts(), s.cfg.Allocations, s.cfg.Build, s.GetEnvironmentVariables())
+	settings := environment.Settings{
+		Mounts:      s.Mounts(),
+		Allocations: s.cfg.Allocations,
+		Limits:      s.cfg.Build,
+	}
+
+	envCfg := environment.NewConfiguration(settings, s.GetEnvironmentVariables())
 	meta := docker.Metadata{
 		Image:      s.Config().Container.Image,
 	}

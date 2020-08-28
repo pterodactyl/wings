@@ -4,7 +4,7 @@ import (
 	"sync"
 )
 
-type configurationSettings struct {
+type Settings struct {
 	Mounts      []Mount
 	Allocations Allocations
 	Limits      Limits
@@ -16,20 +16,35 @@ type Configuration struct {
 	mu sync.RWMutex
 
 	environmentVariables []string
-	settings             configurationSettings
+	settings             Settings
 }
 
-func NewConfiguration(m []Mount, a Allocations, l Limits, envVars []string) *Configuration {
+// Returns a new environment configuration with the given settings and environment variables
+// defined within it.
+func NewConfiguration(s Settings, envVars []string) *Configuration {
 	return &Configuration{
 		environmentVariables: envVars,
-		settings: configurationSettings{
-			Mounts:      m,
-			Allocations: a,
-			Limits:      l,
-		},
+		settings:             s,
 	}
 }
 
+// Updates the settings struct for this environment on the fly. This allows modified servers to
+// automatically push those changes to the environment.
+func (c *Configuration) SetSettings(s Settings) {
+	c.mu.Lock()
+	c.settings = s
+	c.mu.Unlock()
+}
+
+// Updates the environment variables associated with this environment by replacing the entire
+// array of them with a new one.
+func (c *Configuration) SetEnvironmentVariables(ev []string) {
+	c.mu.Lock()
+	c.environmentVariables = ev
+	c.mu.Unlock()
+}
+
+// Returns the limits assigned to this environment.
 func (c *Configuration) Limits() Limits {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -37,6 +52,7 @@ func (c *Configuration) Limits() Limits {
 	return c.settings.Limits
 }
 
+// Rturns the allocations associated with this environment.
 func (c *Configuration) Allocations() Allocations {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -44,6 +60,7 @@ func (c *Configuration) Allocations() Allocations {
 	return c.settings.Allocations
 }
 
+// Returns all of the mounts associated with this environment.
 func (c *Configuration) Mounts() []Mount {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -51,6 +68,7 @@ func (c *Configuration) Mounts() []Mount {
 	return c.settings.Mounts
 }
 
+// Returns the environment variables associated with this instance.
 func (c *Configuration) EnvironmentVariables() []string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

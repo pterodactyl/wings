@@ -24,6 +24,9 @@ type ProcessEnvironment interface {
 	// Returns the name of the environment.
 	Type() string
 
+	// Returns the environment configuration to the caller.
+	Config() *Configuration
+
 	// Returns an event emitter instance that can be hooked into to listen for different
 	// events that are fired by the environment. This should not allow someone to publish
 	// events, only subscribe to them.

@@ -43,6 +43,20 @@ func (s *Server) Config() *Configuration {
 	return &s.cfg
 }
 
+func (s *Server) DiskSpace() int64 {
+	s.cfg.mu.RLock()
+	defer s.cfg.mu.RUnlock()
+
+	return s.cfg.Build.DiskSpace
+}
+
+func (s *Server) MemoryLimit() int64 {
+	s.cfg.mu.RLock()
+	defer s.cfg.mu.RUnlock()
+
+	return s.cfg.Build.MemoryLimit
+}
+
 func (c *Configuration) GetUuid() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

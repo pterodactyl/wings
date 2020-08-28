@@ -134,10 +134,12 @@ func patchServer(c *gin.Context) {
 	buf := bytes.Buffer{}
 	buf.ReadFrom(c.Request.Body)
 
-	if err := s.UpdateDataStructure(buf.Bytes(), true); err != nil {
+	if err := s.UpdateDataStructure(buf.Bytes()); err != nil {
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}
+
+	s.SyncWithEnvironment()
 
 	c.Status(http.StatusNoContent)
 }
