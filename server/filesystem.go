@@ -284,7 +284,6 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	fs.lookupInProgress = false
 
 	return size, err
-
 }
 
 // Determines the directory size of a given location by running parallel tasks to iterate
