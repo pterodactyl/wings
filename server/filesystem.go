@@ -266,6 +266,9 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
+	// Always clear the in progress flag
+	defer atomic.StoreInt32(&fs.lookupInProgress, 0)
+
 	// Signal that we're currently updating the disk size, to prevent other routines to block on this.
 	atomic.StoreInt32(&fs.lookupInProgress, 1)
 
@@ -280,9 +283,6 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	// error encountered.
 	fs.lastLookupTime = time.Now()
 	atomic.StoreInt64(&fs.diskUsage, size)
-
-	// Always clear the in progress flag
-	defer atomic.StoreInt32(&fs.lookupInProgress, 0)
 
 	return size, err
 }
