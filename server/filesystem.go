@@ -41,7 +41,7 @@ func IsPathResolutionError(err error) bool {
 }
 
 type Filesystem struct {
-	mu sync.RWMutex
+	mu sync.Mutex
 
 	lastLookupTime   time.Time
 	lookupInProgress bool
