@@ -18,14 +18,14 @@ func Initialize(config *config.Configuration) error {
 			Gid: config.System.User.Gid,
 		},
 		Settings: sftp_server.Settings{
-			BasePath:         config.System.Data,
-			ReadOnly:         config.System.Sftp.ReadOnly,
-			BindAddress:      config.System.Sftp.Address,
-			BindPort:         config.System.Sftp.Port,
+			BasePath:    config.System.Data,
+			ReadOnly:    config.System.Sftp.ReadOnly,
+			BindAddress: config.System.Sftp.Address,
+			BindPort:    config.System.Sftp.Port,
 		},
 		CredentialValidator: validateCredentials,
-		PathValidator: validatePath,
-		DiskSpaceValidator: validateDiskSpace,
+		PathValidator:       validatePath,
+		DiskSpaceValidator:  validateDiskSpace,
 	}
 
 	if err := sftp_server.New(c); err != nil {
@@ -68,7 +68,7 @@ func validateDiskSpace(fs sftp_server.FileSystem) bool {
 		return false
 	}
 
-	return s.Filesystem.HasSpaceAvailable()
+	return s.Filesystem.HasSpaceAvailable(false)
 }
 
 var validUsernameRegexp = regexp.MustCompile(`^(?i)(.+)\.([a-z0-9]{8})$`)

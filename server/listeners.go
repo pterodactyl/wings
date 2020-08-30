@@ -49,7 +49,7 @@ func (s *Server) StartEventListeners() {
 				// TODO: we'll need to handle this better since calling it in rapid succession will
 				//  cause it to block until the first call is done calculating disk usage, which will
 				//  case stat events to pile up for the server.
-				s.Filesystem.HasSpaceAvailable()
+				s.Filesystem.HasSpaceAvailable(false)
 
 				s.emitProcUsage()
 			}
