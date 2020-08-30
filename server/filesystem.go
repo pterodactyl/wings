@@ -243,7 +243,7 @@ func (fs *Filesystem) getCachedDiskUsage(avoidCache bool) (int64, error) {
 
 	// Expire the cache after 2.5 minutes, and used the last cached value if we're currently sizing.
 	if !avoidCache && (fs.lastLookupTime.After(time.Now().Add(time.Second*-150)) || atomic.LoadInt32(&fs.lookupInProgress) == 1) {
-		return fs.diskUsage, nil
+		return atomic.LoadInt64(&fs.diskUsage), nil
 	}
 
 	// Cache expired, and we're not currently updating it.
@@ -255,7 +255,7 @@ func (fs *Filesystem) getCachedDiskUsage(avoidCache bool) (int64, error) {
 	// otherwise trigger the update in the background and return stale value
 	go fs.updateCachedDiskUsage()
 
-	return fs.diskUsage, nil
+	return atomic.LoadInt64(&fs.diskUsage), nil
 }
 
 func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
