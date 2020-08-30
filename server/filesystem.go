@@ -239,23 +239,28 @@ func (fs *Filesystem) HasSpaceAvailable(avoidCache bool) bool {
 // as needed without overly taxing the system. This will prioritize the value from the cache to avoid
 // excessive IO usage. We will only walk the filesystem and determine the size of the directory if there
 // is no longer a cached value.
-func (fs *Filesystem) getCachedDiskUsage(avoidCache bool) (int64, error) {
+// This will potentially block unless nonBlocking is true.
+func (fs *Filesystem) getCachedDiskUsage(nonBlocking bool) (int64, error) {
 
-	// Expire the cache after 2.5 minutes, and used the last cached value if we're currently sizing.
-	if !avoidCache && (fs.lastLookupTime.After(time.Now().Add(time.Second*-150)) || atomic.LoadInt32(&fs.lookupInProgress) == 1) {
-		return atomic.LoadInt64(&fs.diskUsage), nil
+	// Load the cached disk usage ahead of time
+	cachedDiskUsage := atomic.LoadInt64(&fs.diskUsage)
+
+	// Cache is expired
+	if !fs.lastLookupTime.After(time.Now().Add(time.Second * -150)) {
+		// We're OK with blocking, so go ahead and block
+		if !nonBlocking {
+			return fs.updateCachedDiskUsage()
+		}
+
+		// Otherwise, we're fine with not blocking, but still need to update the cache. (If it isn't being done already)
+		if atomic.LoadInt32(&fs.lookupInProgress) != 1 {
+			go fs.updateCachedDiskUsage()
+		}
+
 	}
 
-	// Cache expired, and we're not currently updating it.
-	// If we NEED the value now, block.
-	if avoidCache {
-		return fs.updateCachedDiskUsage()
-	}
-
-	// otherwise trigger the update in the background and return stale value
-	go fs.updateCachedDiskUsage()
-
-	return atomic.LoadInt64(&fs.diskUsage), nil
+	// Go ahead and return the cached value
+	return cachedDiskUsage, nil
 }
 
 func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
