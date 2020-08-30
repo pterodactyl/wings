@@ -27,9 +27,9 @@ func New(data []byte) (*Installer, error) {
 	}
 
 	cfg := &server.Configuration{
-		Uuid:       getString(data, "uuid"),
-		Suspended:  false,
-		Invocation: getString(data, "invocation"),
+		Uuid:           getString(data, "uuid"),
+		Suspended:      false,
+		Invocation:     getString(data, "invocation"),
 		SkipEggScripts: getBoolean(data, "skip_egg_scripts"),
 		Build: environment.Limits{
 			MemoryLimit: getInt(data, "build", "memory"),
