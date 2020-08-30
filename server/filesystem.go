@@ -44,7 +44,7 @@ type Filesystem struct {
 	mu sync.RWMutex
 
 	lastLookupTime   time.Time
-	lookupInProgress bool `default:"false"`
+	lookupInProgress bool
 	diskUsage        int64
 
 	Server *Server
