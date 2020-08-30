@@ -44,7 +44,7 @@ type Filesystem struct {
 	mu sync.Mutex
 
 	lastLookupTime   time.Time
-	lookupInProgress bool
+	lookupInProgress int32
 	diskUsage        int64
 
 	Server *Server
@@ -242,7 +242,7 @@ func (fs *Filesystem) HasSpaceAvailable(avoidCache bool) bool {
 func (fs *Filesystem) getCachedDiskUsage(avoidCache bool) (int64, error) {
 
 	// Expire the cache after 2.5 minutes, and used the last cached value if we're currently sizing.
-	if !avoidCache && (fs.lastLookupTime.After(time.Now().Add(time.Second*-150)) || fs.lookupInProgress) {
+	if !avoidCache && (fs.lastLookupTime.After(time.Now().Add(time.Second*-150)) || atomic.LoadInt32(&fs.lookupInProgress) == 1) {
 		return fs.diskUsage, nil
 	}
 
@@ -267,7 +267,7 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	defer fs.mu.Unlock()
 
 	// Signal that we're currently updating the disk size, to prevent other routines to block on this.
-	fs.lookupInProgress = true
+	atomic.StoreInt32(&fs.lookupInProgress, 1)
 
 	// If there is no size its either because there is no data (in which case running this function
 	// will have effectively no impact), or there is nothing in the cache, in which case we need to
@@ -281,7 +281,8 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	fs.lastLookupTime = time.Now()
 	atomic.StoreInt64(&fs.diskUsage, size)
 
-	fs.lookupInProgress = false
+	// Always clear the in progress flag
+	defer atomic.StoreInt32(&fs.lookupInProgress, 0)
 
 	return size, err
 }
