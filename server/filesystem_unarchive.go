@@ -38,7 +38,7 @@ func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (b
 		wg.Add(1)
 		defer wg.Done()
 
-		dirSize, cErr = fs.getCachedDiskUsage()
+		dirSize, cErr = fs.getCachedDiskUsage(true)
 	}()
 
 	var size int64
