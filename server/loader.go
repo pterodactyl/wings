@@ -128,7 +128,7 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 
 	// If the server's data directory exists, force disk usage calculation.
 	if _, err := os.Stat(s.Filesystem.Path()); err == nil {
-		go s.Filesystem.HasSpaceAvailable(true)
+		s.Filesystem.HasSpaceAvailable(true)
 	}
 
 	return s, nil
