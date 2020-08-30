@@ -20,6 +20,10 @@ type Configuration struct {
 	// The command that should be used when booting up the server instance.
 	Invocation string `json:"invocation"`
 
+	// By default this is false, however if selected within the Panel while installing or re-installing a
+	// server, specific installation scripts will be skipped for the server process.
+	SkipEggScripts bool `default:"false" json:"skip_egg_scripts"`
+
 	// An array of environment variables that should be passed along to the running
 	// server process.
 	EnvVars environment.Variables `json:"environment"`

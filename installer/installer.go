@@ -26,14 +26,11 @@ func New(data []byte) (*Installer, error) {
 		return nil, NewValidationError("uuid provided was not in a valid format")
 	}
 
-	if !govalidator.IsUUIDv4(getString(data, "service", "egg")) {
-		return nil, NewValidationError("service egg provided was not in a valid format")
-	}
-
 	cfg := &server.Configuration{
 		Uuid:       getString(data, "uuid"),
 		Suspended:  false,
 		Invocation: getString(data, "invocation"),
+		SkipEggScripts: getBoolean(data, "skip_egg_scripts"),
 		Build: environment.Limits{
 			MemoryLimit: getInt(data, "build", "memory"),
 			Swap:        getInt(data, "build", "swap"),
@@ -117,7 +114,6 @@ func (i *Installer) Execute() {
 	}
 
 	l.Debug("creating required environment for server instance")
-	// TODO: ensure data directory exists.
 	if err := i.server.Environment.Create(); err != nil {
 		l.WithField("error", err).Error("failed to create environment for server")
 		return
@@ -136,6 +132,12 @@ func getString(data []byte, key ...string) string {
 // Returns an int value from the JSON data provided.
 func getInt(data []byte, key ...string) int64 {
 	value, _ := jsonparser.GetInt(data, key...)
+
+	return value
+}
+
+func getBoolean(data []byte, key ...string) bool {
+	value, _ := jsonparser.GetBoolean(data, key...)
 
 	return value
 }
