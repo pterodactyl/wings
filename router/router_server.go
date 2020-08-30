@@ -12,13 +12,19 @@ import (
 	"strconv"
 )
 
+type serverProcData struct {
+	server.ResourceUsage
+	Suspended bool `json:"suspended"`
+}
+
 // Returns a single server from the collection of servers.
 func getServer(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	p := *s.Proc()
-
-	c.JSON(http.StatusOK, p)
+	c.JSON(http.StatusOK, serverProcData{
+		ResourceUsage: *s.Proc(),
+		Suspended:     s.IsSuspended(),
+	})
 }
 
 // Returns the logs for a given server instance.
@@ -50,7 +56,7 @@ func getServerLogs(c *gin.Context) {
 func postServerPower(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	var data struct{
+	var data struct {
 		Action server.PowerAction `json:"action"`
 	}
 
@@ -208,7 +214,7 @@ func deleteServer(c *gin.Context) {
 	go func(p string) {
 		if err := os.RemoveAll(p); err != nil {
 			log.WithFields(log.Fields{
-				"path": p,
+				"path":  p,
 				"error": errors.WithStack(err),
 			}).Warn("failed to remove server files during deletion process")
 		}

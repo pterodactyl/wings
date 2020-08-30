@@ -80,6 +80,14 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 		c.Suspended = v
 	}
 
+	if v, err := jsonparser.GetBoolean(data, "skip_egg_scripts"); err != nil {
+		if err != jsonparser.KeyPathNotFoundError {
+			return errors.WithStack(err)
+		}
+	} else {
+		c.SkipEggScripts = v
+	}
+
 	// Environment and Mappings should be treated as a full update at all times, never a
 	// true patch, otherwise we can't know what we're passing along.
 	if src.EnvVars != nil && len(src.EnvVars) > 0 {
