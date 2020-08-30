@@ -246,6 +246,20 @@ func (fs *Filesystem) getCachedDiskUsage(avoidCache bool) (int64, error) {
 		return fs.diskUsage, nil
 	}
 
+	// Cache expired, and we're not currently updating it.
+	// If we NEED the value now, block.
+	if avoidCache {
+		return fs.updateCachedDiskUsage()
+	}
+
+	// otherwise trigger the update in the background and return stale value
+	go fs.updateCachedDiskUsage()
+
+	return fs.diskUsage, nil
+}
+
+func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
+
 	// Obtain an exclusive lock on this process so that we don't unintentionally run it at the same
 	// time as another running process. Once the lock is available it'll read from the cache for the
 	// second call rather than hitting the disk in parallel.
@@ -270,6 +284,7 @@ func (fs *Filesystem) getCachedDiskUsage(avoidCache bool) (int64, error) {
 	fs.lookupInProgress = false
 
 	return size, err
+
 }
 
 // Determines the directory size of a given location by running parallel tasks to iterate
