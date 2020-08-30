@@ -43,8 +43,9 @@ func IsPathResolutionError(err error) bool {
 type Filesystem struct {
 	mu sync.RWMutex
 
-	lastLookupTime time.Time
-	diskUsage      int64
+	lastLookupTime   time.Time
+	lookupInProgress bool `default:"false"`
+	diskUsage        int64
 
 	Server *Server
 }
@@ -239,19 +240,20 @@ func (fs *Filesystem) HasSpaceAvailable() bool {
 // excessive IO usage. We will only walk the filesystem and determine the size of the directory if there
 // is no longer a cached value.
 func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
+
+	// Expire the cache after 2.5 minutes, and used the last cached value if we're currently sizing.
+	if fs.lastLookupTime.After(time.Now().Add(time.Second*-150)) || fs.lookupInProgress {
+		return fs.diskUsage, nil
+	}
+
 	// Obtain an exclusive lock on this process so that we don't unintentionally run it at the same
 	// time as another running process. Once the lock is available it'll read from the cache for the
 	// second call rather than hitting the disk in parallel.
-	//
-	// This effectively the same speed as running this call in parallel since this cache will return
-	// instantly on the second call.
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	// Expire the cache after 2.5 minutes.
-	if fs.lastLookupTime.After(time.Now().Add(time.Second * -150)) {
-		return fs.diskUsage, nil
-	}
+	// Signal that we're currently updating the disk size, to prevent other routines to block on this.
+	fs.lookupInProgress = true
 
 	// If there is no size its either because there is no data (in which case running this function
 	// will have effectively no impact), or there is nothing in the cache, in which case we need to
@@ -264,6 +266,8 @@ func (fs *Filesystem) getCachedDiskUsage() (int64, error) {
 	// error encountered.
 	fs.lastLookupTime = time.Now()
 	atomic.StoreInt64(&fs.diskUsage, size)
+
+	fs.lookupInProgress = false
 
 	return size, err
 }
