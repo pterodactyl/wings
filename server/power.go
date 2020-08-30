@@ -141,6 +141,7 @@ func (s *Server) onBeforeStart() error {
 	// and process resource limits are correctly applied.
 	s.SyncWithEnvironment()
 
+	s.PublishConsoleOutputFromDaemon("Checking server disk space usage, this could take a few seconds...")
 	if !s.Filesystem.HasSpaceAvailable() {
 		return errors.New("cannot start server, not enough disk space available")
 	}
