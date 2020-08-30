@@ -242,10 +242,7 @@ func (fs *Filesystem) HasSpaceAvailable(avoidCache bool) bool {
 // This will potentially block unless nonBlocking is true.
 func (fs *Filesystem) getCachedDiskUsage(nonBlocking bool) (int64, error) {
 
-	// Load the cached disk usage ahead of time
-	cachedDiskUsage := atomic.LoadInt64(&fs.diskUsage)
-
-	// Cache is expired
+	// Check if cache is expired...
 	if !fs.lastLookupTime.After(time.Now().Add(time.Second * -150)) {
 		// We're OK with blocking, so go ahead and block
 		if !nonBlocking {
@@ -260,7 +257,7 @@ func (fs *Filesystem) getCachedDiskUsage(nonBlocking bool) (int64, error) {
 	}
 
 	// Go ahead and return the cached value
-	return cachedDiskUsage, nil
+	return atomic.LoadInt64(&fs.diskUsage), nil
 }
 
 func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
