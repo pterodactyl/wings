@@ -46,10 +46,7 @@ func (s *Server) StartEventListeners() {
 				s.resources.Stats = *st
 				s.resources.mu.Unlock()
 
-				// TODO: we'll need to handle this better since calling it in rapid succession will
-				//  cause it to block until the first call is done calculating disk usage, which will
-				//  case stat events to pile up for the server.
-				s.Filesystem.HasSpaceAvailable(false)
+				s.Filesystem.HasSpaceAvailable(true)
 
 				s.emitProcUsage()
 			}

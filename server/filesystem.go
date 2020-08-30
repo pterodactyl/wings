@@ -212,8 +212,10 @@ func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 //
 // Because determining the amount of space being used by a server is a taxing operation we
 // will load it all up into a cache and pull from that as long as the key is not expired.
-func (fs *Filesystem) HasSpaceAvailable(avoidCache bool) bool {
-	size, err := fs.getCachedDiskUsage(avoidCache)
+//
+// This operation will potentially block unless nonBlocking is true
+func (fs *Filesystem) HasSpaceAvailable(nonBlocking bool) bool {
+	size, err := fs.getCachedDiskUsage(nonBlocking)
 	if err != nil {
 		fs.Server.Log().WithField("error", err).Warn("failed to determine root server directory size")
 	}

@@ -68,7 +68,7 @@ func validateDiskSpace(fs sftp_server.FileSystem) bool {
 		return false
 	}
 
-	return s.Filesystem.HasSpaceAvailable(false)
+	return s.Filesystem.HasSpaceAvailable(true)
 }
 
 var validUsernameRegexp = regexp.MustCompile(`^(?i)(.+)\.([a-z0-9]{8})$`)

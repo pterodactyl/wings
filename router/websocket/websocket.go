@@ -261,7 +261,7 @@ func (h *Handler) HandleInbound(m Message) error {
 			// Only send the current disk usage if the server is offline, if docker container is running,
 			// Environment#EnableResourcePolling() will send this data to all clients.
 			if state == environment.ProcessOfflineState {
-				_ = h.server.Filesystem.HasSpaceAvailable(true)
+				_ = h.server.Filesystem.HasSpaceAvailable(false)
 
 				b, _ := json.Marshal(h.server.Proc())
 				h.SendJson(&Message{
