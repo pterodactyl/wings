@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sync"
 	"sync/atomic"
 )
 
@@ -28,37 +27,19 @@ func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (b
 		return false, err
 	}
 
-	wg := new(sync.WaitGroup)
-
-	var dirSize int64
-	var cErr error
 	// Get the cached size in a parallel process so that if it is not cached we are not
 	// waiting an unnecessary amount of time on this call.
-	go func() {
-		wg.Add(1)
-		defer wg.Done()
-
-		dirSize, cErr = fs.getCachedDiskUsage(true)
-	}()
+	dirSize, err := fs.DiskUsage(false)
 
 	var size int64
-	// In a seperate thread, walk over the archive and figure out just how large the final
-	// output would be from dearchiving it.
-	go func() {
-		wg.Add(1)
-		defer wg.Done()
+	// Walk over the archive and figure out just how large the final output would be from unarchiving it.
+	archiver.Walk(source, func(f archiver.File) error {
+		atomic.AddInt64(&size, f.Size())
 
-		// Walk all of the files and calculate the total decompressed size of this archive.
-		archiver.Walk(source, func(f archiver.File) error {
-			atomic.AddInt64(&size, f.Size())
+		return nil
+	})
 
-			return nil
-		})
-	}()
-
-	wg.Wait()
-
-	return ((dirSize + size) / 1000.0 / 1000.0) <= fs.Server.DiskSpace(), cErr
+	return ((dirSize + size) / 1000.0 / 1000.0) <= fs.Server.DiskSpace(), errors.WithStack(err)
 }
 
 // Decompress a file in a given directory by using the archiver tool to infer the file
