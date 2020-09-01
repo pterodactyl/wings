@@ -28,7 +28,7 @@ func LocateLocal(uuid string) (*LocalBackup, os.FileInfo, error) {
 	}
 
 	if st.IsDir() {
-		return nil, nil, errors.New("invalid archive found; is directory")
+		return nil, nil, errors.New("invalid archive, is directory")
 	}
 
 	return b, st, nil

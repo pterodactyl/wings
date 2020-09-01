@@ -7,6 +7,7 @@ import (
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/backup"
 	"net/http"
+	"os"
 )
 
 // Backs up a server.
@@ -46,19 +47,34 @@ func postServerBackup(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
-// Deletes a local backup of a server.
+// Deletes a local backup of a server. If the backup is not found on the machine just return
+// a 404 error. The service calling this endpoint can make its own decisions as to how it wants
+// to handle that response.
 func deleteServerBackup(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
 	b, _, err := backup.LocateLocal(c.Param("backup"))
 	if err != nil {
+		// Just return from the function at this point if the backup was not located.
+		if errors.Is(err, os.ErrNotExist) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+				"error": "The requested backup was not found on this server.",
+			})
+			return
+		}
+
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}
 
 	if err := b.Remove(); err != nil {
-		TrackedServerError(err, s).AbortWithServerError(c)
-		return
+		// I'm not entirely sure how likely this is to happen, however if we did manage to locate
+		// the backup previously and it is now missing when we go to delete, just treat it as having
+		// been successful, rather than returning a 404.
+		if !errors.Is(err, os.ErrNotExist) {
+			TrackedServerError(err, s).AbortWithServerError(c)
+			return
+		}
 	}
 
 	c.Status(http.StatusNoContent)

@@ -2,14 +2,6 @@ module github.com/pterodactyl/wings
 
 go 1.13
 
-// Uncomment this in development environments to make changes to the core SFTP
-// server software. This assumes you're using the official Pterodactyl Environment
-// otherwise this path will not work.
-//
-// @see https://github.com/pterodactyl/development
-//
-// replace github.com/pterodactyl/sftp-server => ../sftp-server
-
 require (
 	github.com/AlecAivazis/survey/v2 v2.1.0
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
@@ -32,6 +24,7 @@ require (
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/fatih/color v1.9.0
+	github.com/frankban/quicktest v1.10.2 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gabriel-vasile/mimetype v1.1.1
 	github.com/gammazero/deque v0.0.0-20200721202602-07291166fe33 // indirect
@@ -40,7 +33,6 @@ require (
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-playground/validator/v10 v10.3.0 // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
-	github.com/golang/gddo v0.0.0-20200715224205-051695c33a3f // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/gorilla/websocket v1.4.2
@@ -66,15 +58,12 @@ require (
 	github.com/pierrec/lz4 v2.5.2+incompatible // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/profile v1.5.0
-	github.com/pkg/sftp v1.11.0 // indirect
+	github.com/pkg/sftp v1.11.0
 	github.com/prometheus/common v0.11.1 // indirect
-	github.com/pterodactyl/sftp-server v1.1.5
 	github.com/remeh/sizedwaitgroup v1.0.0
 	github.com/sabhiram/go-gitignore v0.0.0-20180611051255-d3107576ba94
-	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/uber-go/zap v1.9.1 // indirect
 	github.com/ulikunitz/xz v0.5.7 // indirect
 	go.uber.org/zap v1.15.0
 	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de
@@ -84,7 +73,6 @@ require (
 	golang.org/x/text v0.3.3 // indirect
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 	golang.org/x/tools v0.0.0-20200509030707-2212a7e161a5 // indirect
-	golang.org/x/tools/gopls v0.1.3 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/genproto v0.0.0-20200806141610-86f49bd18e98 // indirect
 	google.golang.org/grpc v1.31.0 // indirect
