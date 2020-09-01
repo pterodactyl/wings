@@ -63,7 +63,7 @@ func validateDiskSpace(fs FileSystem) bool {
 		return false
 	}
 
-	return s.Filesystem.HasSpaceAvailable()
+	return s.Filesystem.HasSpaceAvailable(true)
 }
 
 // Validates a set of credentials for a SFTP login aganist Pterodactyl Panel and returns
