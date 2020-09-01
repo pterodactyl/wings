@@ -496,17 +496,22 @@ func (fs *Filesystem) Rename(from string, to string) error {
 		return errors.WithStack(err)
 	}
 
-	if f, err := os.Stat(cleanedFrom); err != nil {
-		return errors.WithStack(err)
-	} else {
-		d := cleanedTo
-		if !f.IsDir() {
-			d = strings.TrimSuffix(d, path.Base(cleanedTo))
-		}
+	// If the target file or directory already exists the rename function will fail, so just
+	// bail out now.
+	if _, err := os.Stat(cleanedTo); err == nil {
+		return os.ErrExist
+	}
 
-		// Ensure that the directory we're moving into exists correctly on the system.
+	if cleanedTo == fs.Path() {
+		return errors.New("attempting to rename into an invalid directory space")
+	}
+
+	d := strings.TrimSuffix(cleanedTo, path.Base(cleanedTo))
+	// Ensure that the directory we're moving into exists correctly on the system. Only do this if
+	// we're not at the root directory level.
+	if d != fs.Path() {
 		if mkerr := os.MkdirAll(d, 0644); mkerr != nil {
-			return errors.WithStack(mkerr)
+			return errors.Wrap(mkerr, "failed to create directory structure for file rename")
 		}
 	}
 
