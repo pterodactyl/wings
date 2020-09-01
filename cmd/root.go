@@ -218,9 +218,8 @@ func rootCmdRun(*cobra.Command, []string) {
 	pool.StopWait()
 
 	// Initialize the SFTP server.
-	if err := sftp.Initialize(c); err != nil {
-		log.WithError(err).Error("failed to initialize the sftp server")
-		os.Exit(1)
+	if err := sftp.Initialize(c.System); err != nil {
+		log.WithError(err).Fatal("failed to initialize the sftp server")
 		return
 	}
 
