@@ -287,7 +287,7 @@ func postServerCompressFiles(c *gin.Context) {
 		return
 	}
 
-	if !s.Filesystem.HasSpaceAvailable() {
+	if !s.Filesystem.HasSpaceAvailable(true) {
 		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
 			"error": "This server does not have enough available disk space to generate a compressed archive.",
 		})
@@ -361,7 +361,7 @@ func postServerUploadFiles(c *gin.Context) {
 		return
 	}
 
-	if !s.Filesystem.HasSpaceAvailable() {
+	if !s.Filesystem.HasSpaceAvailable(true) {
 		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
 			"error": "This server does not have enough available disk space to accept any file uploads.",
 		})

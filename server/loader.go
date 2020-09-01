@@ -111,7 +111,7 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 
 	envCfg := environment.NewConfiguration(settings, s.GetEnvironmentVariables())
 	meta := docker.Metadata{
-		Image:      s.Config().Container.Image,
+		Image: s.Config().Container.Image,
 	}
 
 	if env, err := docker.New(s.Id(), &meta, envCfg); err != nil {
@@ -128,7 +128,7 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 
 	// If the server's data directory exists, force disk usage calculation.
 	if _, err := os.Stat(s.Filesystem.Path()); err == nil {
-		go s.Filesystem.HasSpaceAvailable()
+		s.Filesystem.HasSpaceAvailable(true)
 	}
 
 	return s, nil
