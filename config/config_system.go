@@ -2,8 +2,10 @@ package config
 
 import (
 	"github.com/apex/log"
+	"github.com/pkg/errors"
 	"os"
 	"path"
+	"path/filepath"
 )
 
 // Defines basic system configuration settings.
@@ -53,6 +55,22 @@ func (sc *SystemConfiguration) ConfigureDirectories() error {
 	log.WithField("path", sc.RootDirectory).Debug("ensuring root data directory exists")
 	if err := os.MkdirAll(sc.RootDirectory, 0700); err != nil {
 		return err
+	}
+
+	// There are a non-trivial number of users out there whose data directories are actually a
+	// symlink to another location on the disk. If we do not resolve that final destination at this
+	// point things will appear to work, but endless errors whill be encountered when we try to
+	// verify accessed paths since they will all end up resolving outside the expected data directory.
+	//
+	// For the sake of automating away as much of this as possible, see if the data directory is a
+	// symlink, and if so resolve to its final real path, and then update the configuration to use
+	// that.
+	if d, err := filepath.EvalSymlinks(sc.Data); err != nil {
+		if !os.IsNotExist(err) {
+			return errors.WithStack(err)
+		}
+	} else if d != sc.Data {
+		sc.Data = d
 	}
 
 	log.WithField("path", sc.Data).Debug("ensuring server data directory exists")
