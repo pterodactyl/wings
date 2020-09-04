@@ -8,6 +8,7 @@ import (
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
 	"regexp"
+	"strconv"
 )
 
 // Adds all of the internal event listeners we want to use for a server.
@@ -78,7 +79,7 @@ func (s *Server) onConsoleOutput(data string) {
 
 			s.Log().WithFields(log.Fields{
 				"match":   l.String(),
-				"against": data,
+				"against": strconv.QuoteToASCII(data),
 			}).Debug("detected server in running state based on console line output")
 
 			// If the specific line of output is one that would mark the server as started,
