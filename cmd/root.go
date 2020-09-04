@@ -133,8 +133,12 @@ func rootCmdRun(*cobra.Command, []string) {
 	config.SetDebugViaFlag(debug)
 
 	if err := c.System.ConfigureDirectories(); err != nil {
-		log.WithError(err).Fatal("failed to configure system directories for pterodactyl")
-		os.Exit(1)
+		log.WithField("error", err).Fatal("failed to configure system directories for pterodactyl")
+		return
+	}
+
+	if err := c.System.EnableLogRotation(); err != nil {
+		log.WithField("error", err).Fatal("failed to configure log rotation on the system")
 		return
 	}
 

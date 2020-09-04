@@ -3,6 +3,7 @@ package config
 import (
 	"github.com/apex/log"
 	"github.com/pkg/errors"
+	"html/template"
 	"os"
 	"path"
 	"path/filepath"
@@ -45,6 +46,10 @@ type SystemConfiguration struct {
 	// cases disabling this should not have any major impact unless external processes are
 	// frequently modifying a servers' files.
 	CheckPermissionsOnBoot bool `default:"true" yaml:"check_permissions_on_boot"`
+
+	// If set to false Wings will not attempt to write a log rotate configuration to the disk
+	// when it boots and one is not detected.
+	EnableLogRotate bool `default:"true" yaml:"enable_log_rotate"`
 
 	Sftp SftpConfiguration `yaml:"sftp"`
 }
@@ -89,6 +94,47 @@ func (sc *SystemConfiguration) ConfigureDirectories() error {
 	}
 
 	return nil
+}
+
+// Writes a logrotate file for wings to the system logrotate configuration directory if one
+// exists and a logrotate file is not found. This allows us to basically automate away the log
+// rotatation for most installs, but also enable users to make modifications on their own.
+func (sc *SystemConfiguration) EnableLogRotation() error {
+	// Do nothing if not enabled.
+	if sc.EnableLogRotate == false {
+		log.Info("skipping log rotate configuration, disabled in wings config file")
+
+		return nil
+	}
+
+	if st, err := os.Stat("/etc/logrotate.d"); err != nil && !os.IsNotExist(err) {
+		return errors.WithStack(err)
+	} else if (err != nil && os.IsNotExist(err)) || !st.IsDir() {
+		return nil
+	}
+
+	if _, err := os.Stat("/etc/logrotate.d/wings"); err != nil && !os.IsNotExist(err) {
+		return errors.WithStack(err)
+	} else if err == nil {
+		return nil
+	}
+
+	log.Info("no log rotation configuration found, system is configured to support it, adding file now")
+	// If we've gotten to this point it means the logrotate directory exists on the system
+	// but there is not a file for wings already. In that case, let us write a new file to
+	// it so files can be rotated easily.
+	f, err := os.Create("/etc/logrotate.d/wings")
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer f.Close()
+
+	t, err := template.ParseFiles("templates/logrotate.tpl")
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	return errors.Wrap(t.Execute(f, sc), "failed to write logrotate file to disk")
 }
 
 // Returns the location of the JSON file that tracks server states.
