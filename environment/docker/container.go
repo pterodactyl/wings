@@ -69,7 +69,9 @@ func (e *Environment) Attach() error {
 
 		// Stream the reader output to the console which will then fire off events and handle console
 		// throttling and sending the output to the user.
-		_, _ = io.Copy(console, e.stream.Reader)
+		if _, err := io.Copy(console, e.stream.Reader); err != nil {
+			log.WithField("environment_id", e.Id).WithField("error", errors.WithStack(err)).Error("error while copying environment output to console")
+		}
 	}(c)
 
 	return nil
