@@ -28,7 +28,7 @@ func (h *Handler) ListenForExpiration(ctx context.Context) {
 			if jwt != nil {
 				if jwt.ExpirationTime.Unix()-time.Now().Unix() <= 0 {
 					_ = h.SendJson(&Message{Event: TokenExpiredEvent})
-				} else if jwt.ExpirationTime.Unix()-time.Now().Unix() <= 180 {
+				} else if jwt.ExpirationTime.Unix()-time.Now().Unix() <= 60 {
 					_ = h.SendJson(&Message{Event: TokenExpiringEvent})
 				}
 			}

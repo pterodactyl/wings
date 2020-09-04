@@ -38,11 +38,14 @@ func (e *Environment) pollResources(ctx context.Context) error {
 					log.WithField("container_id", e.Id).Warn("encountered error processing docker stats output, stopping collection")
 				}
 
+				log.WithField("container_id", e.Id).Debug("detected io.EOF, stopping resource polling")
 				return nil
 			}
 
 			// Disable collection if the server is in an offline state and this process is still running.
 			if e.State() == environment.ProcessOfflineState {
+				log.WithField("container_id", e.Id).Debug("process in offline state while resource polling is still active; stopping poll")
+
 				return nil
 			}
 
@@ -66,8 +69,11 @@ func (e *Environment) pollResources(ctx context.Context) error {
 				},
 			}
 
-			b, _ := json.Marshal(st)
-			e.Events().Publish(environment.ResourceEvent, string(b))
+			if b, err := json.Marshal(st); err != nil {
+				log.WithField("container_id", e.Id).WithField("error", errors.WithStack(err)).Warn("error while marshaling stats object for environment")
+			} else {
+				e.Events().Publish(environment.ResourceEvent, string(b))
+			}
 		}
 	}
 }

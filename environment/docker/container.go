@@ -61,7 +61,11 @@ func (e *Environment) Attach() error {
 		// from being reached until it is completed if not run in a seperate process. However,
 		// we still want it to be stopped when the copy operation below is finished running which
 		// indicates that the container is no longer running.
-		go e.pollResources(ctx)
+		go func(ctx context.Context) {
+			if err := e.pollResources(ctx); err != nil {
+				log.WithField("environment_id", e.Id).WithField("error", errors.WithStack(err)).Error("error during environment resource polling")
+			}
+		}(ctx)
 
 		// Stream the reader output to the console which will then fire off events and handle console
 		// throttling and sending the output to the user.
