@@ -5,16 +5,16 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
+	"github.com/apex/log"
 	"github.com/buger/jsonparser"
 	"github.com/gin-gonic/gin"
 	"github.com/mholt/archiver/v3"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func getServerArchive(c *gin.Context) {
@@ -94,45 +93,34 @@ func getServerArchive(c *gin.Context) {
 func postServerArchive(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	go func(server *server.Server) {
-		start := time.Now()
-
-		if err := server.Archiver.Archive(); err != nil {
-			zap.S().Errorw("failed to get archive for server", zap.String("server", server.Id()), zap.Error(err))
+	go func(s *server.Server) {
+		if err := s.Archiver.Archive(); err != nil {
+			s.Log().WithField("error", err).Error("failed to get archive for server")
 			return
 		}
 
-		zap.S().Debugw(
-			"successfully created archive for server",
-			zap.String("server", server.Id()),
-			zap.Duration("time", time.Now().Sub(start).Round(time.Microsecond)),
-		)
+		s.Log().Debug("successfully created server archive, notifying panel")
 
 		r := api.NewRequester()
-		rerr, err := r.SendArchiveStatus(server.Id(), true)
+		rerr, err := r.SendArchiveStatus(s.Id(), true)
 		if rerr != nil || err != nil {
 			if err != nil {
-				zap.S().Errorw("failed to notify panel with archive status", zap.String("server", server.Id()), zap.Error(err))
+				s.Log().WithField("error", err).Error("failed to notify panel of archive status")
 				return
 			}
 
-			zap.S().Errorw(
-				"panel returned an error when sending the archive status",
-				zap.String("server", server.Id()),
-				zap.Error(errors.New(rerr.String())),
-			)
+			s.Log().WithField("error", rerr.String()).Error("panel returned an error when sending the archive status")
+
 			return
 		}
 
-		zap.S().Debugw("successfully notified panel about archive status", zap.String("server", server.Id()))
+		s.Log().Debug("successfully notified panel of archive status")
 	}(s)
 
 	c.Status(http.StatusAccepted)
 }
 
 func postTransfer(c *gin.Context) {
-	zap.S().Debug("incoming transfer from panel")
-
 	buf := bytes.Buffer{}
 	buf.ReadFrom(c.Request.Body)
 
@@ -141,6 +129,7 @@ func postTransfer(c *gin.Context) {
 		url, _ := jsonparser.GetString(data, "url")
 		token, _ := jsonparser.GetString(data, "token")
 
+		l := log.WithField("server", serverID)
 		// Create an http client with no timeout.
 		client := &http.Client{Timeout: 0}
 
@@ -150,25 +139,25 @@ func postTransfer(c *gin.Context) {
 				return
 			}
 
-			zap.S().Errorw("server transfer has failed", zap.String("server", serverID))
+			l.Info("server transfer failed, notifying panel")
 			rerr, err := api.NewRequester().SendTransferFailure(serverID)
 			if rerr != nil || err != nil {
 				if err != nil {
-					zap.S().Errorw("failed to notify panel with transfer failure", zap.String("server", serverID), zap.Error(err))
+					l.WithField("error", err).Error("failed to notify panel with transfer failure")
 					return
 				}
 
-				zap.S().Errorw("panel returned an error when notifying of a transfer failure", zap.String("server", serverID), zap.Error(errors.New(rerr.String())))
+				l.WithField("error", errors.WithStack(rerr)).Error("recieved error response from panel while notifying of transfer failure")
 				return
 			}
 
-			zap.S().Debugw("successfully notified panel about transfer failure", zap.String("server", serverID))
+			l.Debug("notified panel of tranfer failure")
 		}()
 
 		// Make a new GET request to the URL the panel gave us.
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
-			zap.S().Errorw("failed to create http request", zap.Error(err))
+			log.WithField("error", errors.WithStack(err)).Error("failed to create http request for archive transfer")
 			return
 		}
 
@@ -178,36 +167,39 @@ func postTransfer(c *gin.Context) {
 		// Execute the http request.
 		res, err := client.Do(req)
 		if err != nil {
-			zap.S().Errorw("failed to send http request", zap.Error(err))
+			l.WithField("error", errors.WithStack(err)).Error("failed to send archive http request")
 			return
 		}
 		defer res.Body.Close()
 
 		// Handle non-200 status codes.
 		if res.StatusCode != 200 {
-			body, err := ioutil.ReadAll(res.Body)
+			_, err := ioutil.ReadAll(res.Body)
 			if err != nil {
-				zap.S().Errorw("failed to read response body", zap.Int("status", res.StatusCode), zap.Error(err))
+				l.WithField("error", errors.WithStack(err)).WithField("status", res.StatusCode).Error("failed read transfer response body")
+
 				return
 			}
 
-			zap.S().Errorw("failed to request server archive", zap.Int("status", res.StatusCode), zap.String("body", string(body)))
+			l.WithField("error", errors.WithStack(err)).WithField("status", res.StatusCode).Error("failed to request server archive")
+
 			return
 		}
 
 		// Get the path to the archive.
-		archivePath := filepath.Join(config.Get().System.ArchiveDirectory, serverID + ".tar.gz")
+		archivePath := filepath.Join(config.Get().System.ArchiveDirectory, serverID+".tar.gz")
 
 		// Check if the archive already exists and delete it if it does.
 		_, err = os.Stat(archivePath)
 		if err != nil {
 			if !os.IsNotExist(err) {
-				zap.S().Errorw("failed to stat file", zap.Error(err))
+				l.WithField("error", errors.WithStack(err)).Error("failed to stat archive file")
 				return
 			}
 		} else {
 			if err := os.Remove(archivePath); err != nil {
-				zap.S().Errorw("failed to delete old file", zap.Error(err))
+				l.WithField("error", errors.WithStack(err)).Warn("failed to remove old archive file")
+
 				return
 			}
 		}
@@ -215,65 +207,69 @@ func postTransfer(c *gin.Context) {
 		// Create the file.
 		file, err := os.Create(archivePath)
 		if err != nil {
-			zap.S().Errorw("failed to open file on disk", zap.Error(err))
+			l.WithField("error", errors.WithStack(err)).Error("failed to open archive on disk")
+
 			return
 		}
 
 		// Copy the file.
-		buf := make([]byte, 1024 * 4)
+		buf := make([]byte, 1024*4)
 		_, err = io.CopyBuffer(file, res.Body, buf)
 		if err != nil {
-			zap.S().Errorw("failed to copy file to disk", zap.Error(err))
+			l.WithField("error", errors.WithStack(err)).Error("failed to copy archive file to disk")
+
 			return
 		}
 
 		// Close the file so it can be opened to verify the checksum.
 		if err := file.Close(); err != nil {
-			zap.S().Errorw("failed to close archive file", zap.Error(err))
+			l.WithField("error", errors.WithStack(err)).Error("failed to close archive file")
+
 			return
 		}
-		zap.S().Debug("server archive has been downloaded, computing checksum..", zap.String("server", serverID))
+
+		l.WithField("server", serverID).Debug("server archive downloaded, computing checksum...")
 
 		// Open the archive file for computing a checksum.
 		file, err = os.Open(archivePath)
 		if err != nil {
-			zap.S().Errorw("failed to open file on disk", zap.Error(err))
+			l.WithField("error", errors.WithStack(err)).Error("failed to open archive on disk")
 			return
 		}
 
 		// Compute the sha256 checksum of the file.
 		hash := sha256.New()
-		buf = make([]byte, 1024 * 4)
+		buf = make([]byte, 1024*4)
 		if _, err := io.CopyBuffer(hash, file, buf); err != nil {
-			zap.S().Errorw("failed to copy file for checksum verification", zap.Error(err))
+			l.WithField("error", errors.WithStack(err)).Error("failed to copy archive file for checksum verification")
 			return
 		}
 
 		// Verify the two checksums.
 		if hex.EncodeToString(hash.Sum(nil)) != res.Header.Get("X-Checksum") {
-			zap.S().Errorw("checksum failed verification")
+			l.Error("checksum verification failed for archive")
 			return
 		}
 
 		// Close the file.
 		if err := file.Close(); err != nil {
-			zap.S().Errorw("failed to close archive file", zap.Error(err))
+			l.WithField("error", errors.WithStack(err)).Error("failed to close archive file after calculating checksum")
 			return
 		}
 
-		zap.S().Infow("server archive transfer was successful", zap.String("server", serverID))
+		l.Info("server archive transfer was successful")
 
 		// Get the server data from the request.
 		serverData, t, _, _ := jsonparser.Get(data, "server")
 		if t != jsonparser.Object {
-			zap.S().Errorw("invalid server data passed in request")
+			l.Error("invalid server data passed in request")
 			return
 		}
 
 		// Create a new server installer (note this does not execute the install script)
 		i, err := installer.New(serverData)
 		if err != nil {
-			zap.S().Warnw("failed to validate the received server data", zap.Error(err))
+			l.WithField("error", errors.WithStack(err)).Error("failed to validate received server data")
 			return
 		}
 
@@ -285,7 +281,7 @@ func postTransfer(c *gin.Context) {
 
 		// Un-archive the archive. That sounds weird..
 		if err := archiver.NewTarGz().Unarchive(archivePath, i.Server().Filesystem.Path()); err != nil {
-			zap.S().Errorw("failed to extract archive", zap.String("server", serverID), zap.Error(err))
+			l.WithField("error", errors.WithStack(err)).Error("failed to extract server archive")
 			return
 		}
 
@@ -300,15 +296,16 @@ func postTransfer(c *gin.Context) {
 		rerr, err := api.NewRequester().SendTransferSuccess(serverID)
 		if rerr != nil || err != nil {
 			if err != nil {
-				zap.S().Errorw("failed to notify panel with transfer success", zap.String("server", serverID), zap.Error(err))
+				l.WithField("error", errors.WithStack(err)).Error("failed to notify panel of transfer success")
 				return
 			}
 
-			zap.S().Errorw("panel returned an error when notifying of a transfer success", zap.String("server", serverID), zap.Error(errors.New(rerr.String())))
+			l.WithField("error", errors.WithStack(rerr)).Error("panel responded with error after transfer success")
+
 			return
 		}
 
-		zap.S().Debugw("successfully notified panel about transfer success", zap.String("server", serverID))
+		l.Info("successfully notified panel of transfer success")
 	}(buf.Bytes())
 
 	c.Status(http.StatusAccepted)

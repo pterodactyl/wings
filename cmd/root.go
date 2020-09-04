@@ -27,7 +27,6 @@ import (
 	"github.com/pterodactyl/wings/sftp"
 	"github.com/pterodactyl/wings/system"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
 var configPath = config.DefaultLocation
@@ -144,8 +143,7 @@ func rootCmdRun(*cobra.Command, []string) {
 
 	log.WithField("username", c.System.Username).Info("checking for pterodactyl system user")
 	if su, err := c.EnsurePterodactylUser(); err != nil {
-		log.WithError(err).Error("failed to create pterodactyl system user")
-		os.Exit(1)
+		log.WithField("error", err).Fatal("failed to create pterodactyl system user")
 		return
 	} else {
 		log.WithFields(log.Fields{
@@ -162,7 +160,7 @@ func rootCmdRun(*cobra.Command, []string) {
 
 	if err := environment.ConfigureDocker(&c.Docker); err != nil {
 		log.WithField("error", err).Fatal("failed to configure docker environment")
-		os.Exit(1)
+		return
 	}
 
 	if err := c.WriteToDisk(); err != nil {
@@ -344,30 +342,18 @@ func configureLogging(logDir string, debug bool) error {
 		return errors.WithStack(err)
 	}
 
-	cfg := zap.NewProductionConfig()
-	if debug {
-		cfg = zap.NewDevelopmentConfig()
-	}
-
-	cfg.Encoding = "console"
-	cfg.OutputPaths = []string{
-		"stdout",
-	}
-
-	logger, err := cfg.Build()
-	if err != nil {
-		return err
-	}
-
-	zap.ReplaceGlobals(logger)
-
 	p := filepath.Join(logDir, "/wings.log")
 	w, err := logrotate.NewFile(p)
 	if err != nil {
 		panic(errors.Wrap(err, "failed to open process log file"))
 	}
 
-	log.SetLevel(log.DebugLevel)
+	if debug {
+		log.SetLevel(log.DebugLevel)
+	} else {
+		log.SetLevel(log.InfoLevel)
+	}
+
 	log.SetHandler(multi.New(
 		cli.Default,
 		cli.New(w.File, false),
