@@ -7,8 +7,7 @@ import (
 	"encoding/json"
 	"github.com/docker/docker/api/types"
 	"github.com/pkg/errors"
-	"io"
-	"os"
+	"strconv"
 )
 
 type dockerLogLine struct {
@@ -38,44 +37,25 @@ func (e *Environment) SendCommand(c string) error {
 
 // Reads the log file for the server. This does not care if the server is running or not, it will
 // simply try to read the last X bytes of the file and return them.
-func (e *Environment) Readlog(len int64) ([]string, error) {
-	j, err := e.client.ContainerInspect(context.Background(), e.Id)
+func (e *Environment) Readlog(lines int) ([]string, error) {
+	r, err := e.client.ContainerLogs(context.Background(), e.Id, types.ContainerLogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Tail:       strconv.Itoa(lines),
+	})
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
+	}
+	defer r.Close()
+
+	var out []string
+
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		out = append(out, scanner.Text())
 	}
 
-	if j.LogPath == "" {
-		return nil, errors.New("empty log path defined for server")
-	}
-
-	f, err := os.Open(j.LogPath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	// Check if the length of the file is smaller than the amount of data that was requested
-	// for reading. If so, adjust the length to be the total length of the file. If this is not
-	// done an error is thrown since we're reading backwards, and not forwards.
-	if stat, err := os.Stat(j.LogPath); err != nil {
-		return nil, err
-	} else if stat.Size() < len {
-		len = stat.Size()
-	}
-
-	// Seed to the end of the file and then move backwards until the length is met to avoid
-	// reading the entirety of the file into memory.
-	if _, err := f.Seek(-len, io.SeekEnd); err != nil {
-		return nil, err
-	}
-
-	b := make([]byte, len)
-
-	if _, err := f.Read(b); err != nil && err != io.EOF {
-		return nil, err
-	}
-
-	return e.parseLogToStrings(b)
+	return out, nil
 }
 
 // Docker stores the logs for server output in a JSON format. This function will iterate over the JSON
@@ -87,6 +67,7 @@ func (e *Environment) parseLogToStrings(b []byte) ([]string, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(b))
 	for scanner.Scan() {
 		var l dockerLogLine
+
 		// Unmarshal the contents and allow up to a single error before bailing out of the process. We
 		// do this because if you're arbitrarily reading a length of the file you'll likely end up
 		// with the first line in the output being improperly formatted JSON. In those cases we want to

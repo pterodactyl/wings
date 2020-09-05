@@ -31,9 +31,11 @@ func getServer(c *gin.Context) {
 func getServerLogs(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	l, _ := strconv.ParseInt(c.DefaultQuery("size", "8192"), 10, 64)
+	l, _ := strconv.Atoi(c.DefaultQuery("size", "100"))
 	if l <= 0 {
-		l = 2048
+		l = 100
+	} else if l > 100 {
+		l = 100
 	}
 
 	out, err := s.ReadLogfile(l)
