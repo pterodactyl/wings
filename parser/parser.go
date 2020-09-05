@@ -3,7 +3,6 @@ package parser
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"github.com/apex/log"
 	"github.com/beevik/etree"
 	"github.com/buger/jsonparser"
@@ -16,6 +15,7 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -426,15 +426,46 @@ func (f *ConfigurationFile) parseTextFile(path string) error {
 // Parses a properties file and updates the values within it to match those that
 // are passed. Writes the file once completed.
 func (f *ConfigurationFile) parsePropertiesFile(path string) error {
-	p, err := properties.LoadFile(path, properties.UTF8)
+	// Open the file.
+	f2, err := os.Open(path)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
+	var s strings.Builder
+
+	// Get any header comments from the file.
+	scanner := bufio.NewScanner(f2)
+	for scanner.Scan() {
+		text := scanner.Text()
+
+		if text[0] != '#' {
+			break
+		}
+
+		s.WriteString(text)
+		s.WriteString("\n")
+	}
+
+	// Close the file.
+	_ = f2.Close()
+
+	// Handle any scanner errors.
+	if err := scanner.Err(); err != nil {
+		return errors.WithStack(err)
+	}
+
+	// Decode the properties file.
+	p, err := properties.LoadFile(path, properties.UTF8)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// Replace any values that need to be replaced.
 	for _, replace := range f.Replace {
 		data, err := f.LookupConfigurationValue(replace)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		v, ok := p.Get(replace.Match)
@@ -446,27 +477,32 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 		}
 
 		if _, _, err := p.Set(replace.Match, data); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 
+	// Add the new file content to the string builder.
+	for _, key := range p.Keys() {
+		value, ok := p.Get(key)
+		if !ok {
+			continue
+		}
+
+		s.WriteString(key)
+		s.WriteByte('=')
+		s.WriteString(strings.Trim(strconv.QuoteToASCII(value), `"`))
+		s.WriteString("\n")
+	}
+
+	// Open the file for writing.
 	w, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
+	defer w.Close()
 
-	var s string
-	// This is a copy of the properties.String() func except we don't plop spaces around
-	// the key=value configurations since people like to complain about that.
-	// func (p *Properties) String() string
-	for _, key := range p.Keys() {
-		value, _ := p.Get(key)
-
-		s = fmt.Sprintf("%s%s=%s\n", s, key, value)
-	}
-
-	// Can't use the properties.Write() function since that doesn't apply our nicer formatting.
-	if _, err := w.Write([]byte(s)); err != nil {
+	// Write the data to the file.
+	if _, err := w.Write([]byte(s.String())); err != nil {
 		return err
 	}
 
