@@ -35,7 +35,7 @@ func (cd *CrashHandler) SetLastCrash(t time.Time) {
 // if it was the result of an event that we should try to recover from.
 //
 // This function assumes it is called under circumstances where a crash is suspected
-// of occuring. It will not do anything to determine if it was actually a crash, just
+// of occurring. It will not do anything to determine if it was actually a crash, just
 // look at the exit state and check if it meets the criteria of being called a crash
 // by Wings.
 //
@@ -75,7 +75,7 @@ func (s *Server) handleServerCrash() error {
 	c := s.crasher.LastCrashTime()
 	// If the last crash time was within the last 60 seconds we do not want to perform
 	// an automatic reboot of the process. Return an error that can be handled.
-	if !c.IsZero() && c.Add(time.Second * 60).After(time.Now()) {
+	if !c.IsZero() && c.Add(time.Second*60).After(time.Now()) {
 		s.PublishConsoleOutputFromDaemon("Aborting automatic reboot: last crash occurred less than 60 seconds ago.")
 
 		return &crashTooFrequent{}

@@ -27,7 +27,7 @@ type Settings struct {
 	BindAddress string
 }
 
-type SftpUser struct {
+type User struct {
 	Uid int
 	Gid int
 }
@@ -36,7 +36,7 @@ type Server struct {
 	cache *cache.Cache
 
 	Settings Settings
-	User     SftpUser
+	User     User
 
 	PathValidator      func(fs FileSystem, p string) (string, error)
 	DiskSpaceValidator func(fs FileSystem) bool

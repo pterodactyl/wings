@@ -25,7 +25,7 @@ import (
 // Executes the installation stack for a server process. Bubbles any errors up to the calling
 // function which should handle contacting the panel to notify it of the server state.
 //
-// Pass true as the first arugment in order to execute a server sync before the process to
+// Pass true as the first argument in order to execute a server sync before the process to
 // ensure the latest information is used.
 func (s *Server) Install(sync bool) error {
 	if sync {
@@ -197,7 +197,7 @@ func (ip *InstallationProcess) RemoveContainer() {
 	}
 }
 
-// Runs the installation process, this is done as a backgrounded thread. This will configure
+// Runs the installation process, this is done as in a background thread. This will configure
 // the required environment, and then spin up the installation container.
 //
 // Once the container finishes installing the results will be stored in an installation
@@ -210,7 +210,7 @@ func (ip *InstallationProcess) Run() error {
 
 	// We now have an exclusive lock on this installation process. Ensure that whenever this
 	// process is finished that the semaphore is released so that other processes and be executed
-	// without encounting a wait timeout.
+	// without encountering a wait timeout.
 	defer func() {
 		ip.Server.Log().Debug("releasing installation process lock")
 		ip.Server.installer.sem.Release(1)
@@ -464,13 +464,13 @@ func (ip *InstallationProcess) Execute() (string, error) {
 		ip.Server.Events().Publish(DaemonMessageEvent, "Installation process completed.")
 	}(r.ID)
 
-	sChann, eChann := ip.client.ContainerWait(ip.context, r.ID, container.WaitConditionNotRunning)
+	sChan, eChan := ip.client.ContainerWait(ip.context, r.ID, container.WaitConditionNotRunning)
 	select {
-	case err := <-eChann:
+	case err := <-eChan:
 		if err != nil {
 			return "", errors.WithStack(err)
 		}
-	case <-sChann:
+	case <-sChan:
 	}
 
 	return r.ID, nil

@@ -71,7 +71,7 @@ func postCreateServer(c *gin.Context) {
 func postUpdateConfiguration(c *gin.Context) {
 	// A backup of the configuration for error purposes.
 	ccopy := *config.Get()
-	// A copy of the configuration we're using to bind the data recevied into.
+	// A copy of the configuration we're using to bind the data received into.
 	cfg := *config.Get()
 
 	// BindJSON sends 400 if the request fails, all we need to do is return

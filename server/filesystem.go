@@ -183,14 +183,14 @@ func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 		pi := p
 
 		// Recursively call this function to continue digging through the directory tree within
-		// a seperate goroutine. If the context is canceled abort this process.
+		// a separate goroutine. If the context is canceled abort this process.
 		g.Go(func() error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
 				// If the callback returns true, go ahead and keep walking deeper. This allows
-				// us to programatically continue deeper into directories, or stop digging
+				// us to programmatically continue deeper into directories, or stop digging
 				// if that pathway knows it needs nothing else.
 				if c, err := fs.SafePath(pi); err != nil {
 					return err
@@ -647,7 +647,7 @@ func (fs *Filesystem) Copy(p string) error {
 // Deletes a file or folder from the system. Prevents the user from accidentally
 // (or maliciously) removing their root server data directory.
 func (fs *Filesystem) Delete(p string) error {
-	// This is one of the few (only?) places in the codebase where we're explictly not using
+	// This is one of the few (only?) places in the codebase where we're explicitly not using
 	// the SafePath functionality when working with user provided input. If we did, you would
 	// not be able to delete a file that is a symlink pointing to a location outside of the data
 	// directory.

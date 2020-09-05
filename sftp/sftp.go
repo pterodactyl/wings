@@ -12,7 +12,7 @@ var noMatchingServerError = errors.New("no matching server with that UUID was fo
 
 func Initialize(config config.SystemConfiguration) error {
 	s := &Server{
-		User: SftpUser{
+		User: User{
 			Uid: config.User.Uid,
 			Gid: config.User.Gid,
 		},
@@ -66,7 +66,7 @@ func validateDiskSpace(fs FileSystem) bool {
 	return s.Filesystem.HasSpaceAvailable(true)
 }
 
-// Validates a set of credentials for a SFTP login aganist Pterodactyl Panel and returns
+// Validates a set of credentials for a SFTP login against Pterodactyl Panel and returns
 // the server's UUID if the credentials were valid.
 func validateCredentials(c api.SftpAuthRequest) (*api.SftpAuthResponse, error) {
 	f := log.Fields{"subsystem": "sftp", "username": c.User, "ip": c.IP}

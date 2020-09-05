@@ -94,7 +94,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 
 		return s.Environment.Start()
 	case PowerActionStop:
-		// We're specificially waiting for the process to be stopped here, otherwise the lock is released
+		// We're specifically waiting for the process to be stopped here, otherwise the lock is released
 		// too soon, and you can rack up all sorts of issues.
 		return s.Environment.WaitForStop(10*60, true)
 	case PowerActionRestart:
@@ -148,7 +148,7 @@ func (s *Server) onBeforeStart() error {
 
 	// Update the configuration files defined for the server before beginning the boot process.
 	// This process executes a bunch of parallel updates, so we just block until that process
-	// is completee. Any errors as a result of this will just be bubbled out in the logger,
+	// is complete. Any errors as a result of this will just be bubbled out in the logger,
 	// we don't need to actively do anything about it at this point, worst comes to worst the
 	// server starts in a weird state and the user can manually adjust.
 	s.PublishConsoleOutputFromDaemon("Updating process configuration files...")

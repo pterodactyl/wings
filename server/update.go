@@ -145,7 +145,7 @@ func (s *Server) SyncWithEnvironment() {
 		// will be gracefully stopped (and terminated if it refuses to stop).
 		s.Log().Info("server suspended with running process state, terminating now")
 
-		go func (s *Server) {
+		go func(s *Server) {
 			if err := s.Environment.WaitForStop(60, true); err != nil {
 				s.Log().WithField("error", err).Warn("failed to terminate server environment after suspension")
 			}

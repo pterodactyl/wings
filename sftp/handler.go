@@ -16,7 +16,7 @@ type FileSystem struct {
 	UUID        string
 	Permissions []string
 	ReadOnly    bool
-	User        SftpUser
+	User        User
 	Cache       *cache.Cache
 
 	PathValidator func(fs FileSystem, p string) (string, error)
@@ -107,7 +107,7 @@ func (fs FileSystem) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 		// Create all of the directories leading up to the location where this file is being created.
 		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
 			l.WithFields(log.Fields{
-				"path": filepath.Dir(p),
+				"path":  filepath.Dir(p),
 				"error": errors.WithStack(err),
 			}).Error("error making path for file")
 
@@ -351,7 +351,7 @@ func (fs FileSystem) Filelist(request *sftp.Request) (sftp.ListerAt, error) {
 	default:
 		// Before adding readlink support we need to evaluate any potential security risks
 		// as a result of navigating around to a location that is outside the home directory
-		// for the logged in user. I don't forsee it being much of a problem, but I do want to
+		// for the logged in user. I don't foresee it being much of a problem, but I do want to
 		// check it out before slapping some code here. Until then, we'll just return an
 		// unsupported response code.
 		return nil, sftp.ErrSshFxOpUnsupported

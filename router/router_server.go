@@ -84,7 +84,7 @@ func postServerPower(c *gin.Context) {
 		return
 	}
 
-	// Pass the actual heavy processing off to a seperate thread to handle so that
+	// Pass the actual heavy processing off to a separate thread to handle so that
 	// we can immediately return a response from the server. Some of these actions
 	// can take quite some time, especially stopping or restarting.
 	go func(s *server.Server) {
@@ -176,7 +176,7 @@ func postServerReinstall(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
-// Deletes a server from the wings daemon and deassociates its objects.
+// Deletes a server from the wings daemon and dissociate it's objects.
 func deleteServer(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 

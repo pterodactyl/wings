@@ -77,10 +77,10 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) (*http.Response, erro
 	}
 
 	r.Body = rc
-	
+
 	log.WithFields(log.Fields{
 		"endpoint": s.PresignedUrl,
-		"headers": r.Header,
+		"headers":  r.Header,
 	}).Debug("uploading backup to remote S3 endpoint")
 
 	return http.DefaultClient.Do(r)

@@ -22,7 +22,7 @@ type Mount struct {
 	// that we're mounting into the container at the Target location.
 	Source string `json:"source"`
 
-	// Wether or not the directory is being mounted as read-only. It is up to the environment to
+	// Whether or not the directory is being mounted as read-only. It is up to the environment to
 	// handle this value correctly and ensure security expectations are met with its usage.
 	ReadOnly bool `json:"read_only"`
 }

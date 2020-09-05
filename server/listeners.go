@@ -33,8 +33,10 @@ func (s *Server) StartEventListeners() {
 
 				// Also pass the data along to the console output channel.
 				s.onConsoleOutput(data.Data)
+
 			case data := <-state:
 				s.SetState(data.Data)
+
 			case data := <-stats:
 				st := new(environment.Stats)
 				if err := json.Unmarshal([]byte(data.Data), st); err != nil {

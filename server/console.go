@@ -96,7 +96,6 @@ func (s *Server) Throttler() *ConsoleThrottler {
 	}
 }
 
-
 // Sends output to the server console formatted to appear correctly as being sent
 // from Wings.
 func (s *Server) PublishConsoleOutputFromDaemon(data string) {

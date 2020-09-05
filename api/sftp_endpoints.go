@@ -41,13 +41,13 @@ var validUsernameRegexp = regexp.MustCompile(`^(?i)(.+)\.([a-z0-9]{8})$`)
 
 func (r *PanelRequest) ValidateSftpCredentials(request SftpAuthRequest) (*SftpAuthResponse, error) {
 	// If the username doesn't meet the expected format that the Panel would even recognize just go ahead
-	// and bail out of the process here to avoid accidentially brute forcing the panel if a bot decides
+	// and bail out of the process here to avoid accidentally brute forcing the panel if a bot decides
 	// to connect to spam username attempts.
 	if !validUsernameRegexp.MatchString(request.User) {
 		log.WithFields(log.Fields{
 			"subsystem": "sftp",
-			"username": request.User,
-			"ip": request.IP,
+			"username":  request.User,
+			"ip":        request.IP,
 		}).Warn("failed to validate user credentials (invalid format)")
 
 		return nil, new(sftpInvalidCredentialsError)

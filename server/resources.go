@@ -39,8 +39,12 @@ func (s *Server) emitProcUsage() {
 	s.resources.mu.RLock()
 	defer s.resources.mu.RUnlock()
 
-	b, _ := json.Marshal(s.resources)
-	s.Events().Publish(StatsEvent, string(b))
+	b, err := json.Marshal(s.resources)
+	if err == nil {
+		s.Events().Publish(StatsEvent, string(b))
+	}
+
+	// TODO: This might be a good place to add a debug log if stats are not sending.
 }
 
 // Returns the servers current state.

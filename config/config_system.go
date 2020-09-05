@@ -64,7 +64,7 @@ func (sc *SystemConfiguration) ConfigureDirectories() error {
 
 	// There are a non-trivial number of users out there whose data directories are actually a
 	// symlink to another location on the disk. If we do not resolve that final destination at this
-	// point things will appear to work, but endless errors whill be encountered when we try to
+	// point things will appear to work, but endless errors will be encountered when we try to
 	// verify accessed paths since they will all end up resolving outside the expected data directory.
 	//
 	// For the sake of automating away as much of this as possible, see if the data directory is a
@@ -98,7 +98,7 @@ func (sc *SystemConfiguration) ConfigureDirectories() error {
 
 // Writes a logrotate file for wings to the system logrotate configuration directory if one
 // exists and a logrotate file is not found. This allows us to basically automate away the log
-// rotatation for most installs, but also enable users to make modifications on their own.
+// rotation for most installs, but also enable users to make modifications on their own.
 func (sc *SystemConfiguration) EnableLogRotation() error {
 	// Do nothing if not enabled.
 	if sc.EnableLogRotate == false {

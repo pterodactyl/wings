@@ -1,7 +1,7 @@
 package config
 
 type ConsoleThrottles struct {
-	// Wether or not the throttler is enabled for this instance.
+	// Whether or not the throttler is enabled for this instance.
 	Enabled bool `json:"enabled" yaml:"enabled" default:"true"`
 
 	// The total number of throttle activations that must accumulate before a server is

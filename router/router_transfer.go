@@ -147,11 +147,11 @@ func postTransfer(c *gin.Context) {
 					return
 				}
 
-				l.WithField("error", errors.WithStack(rerr)).Error("recieved error response from panel while notifying of transfer failure")
+				l.WithField("error", errors.WithStack(rerr)).Error("received error response from panel while notifying of transfer failure")
 				return
 			}
 
-			l.Debug("notified panel of tranfer failure")
+			l.Debug("notified panel of transfer failure")
 		}()
 
 		// Make a new GET request to the URL the panel gave us.

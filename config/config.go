@@ -188,7 +188,7 @@ func NewFromPath(path string) (*Configuration, error) {
 }
 
 // Sets the path where the configuration file is located on the server. This function should
-// not be called except by processes that are generating the configuration such as the configration
+// not be called except by processes that are generating the configuration such as the configuration
 // command shipped with this software.
 func (c *Configuration) unsafeSetPath(path string) {
 	c.Lock()

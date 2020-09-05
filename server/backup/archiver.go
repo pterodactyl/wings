@@ -36,7 +36,7 @@ func (a *Archive) Create(dst string, ctx context.Context) (os.FileInfo, error) {
 	}
 
 	gzw, _ := gzip.NewWriterLevel(f, gzip.BestSpeed)
-	_ = gzw.SetConcurrency(1 << 20, maxCpu)
+	_ = gzw.SetConcurrency(1<<20, maxCpu)
 
 	defer gzw.Flush()
 	defer gzw.Close()

@@ -27,7 +27,7 @@ func (e *Environment) setState(state string) error {
 	// Get the current state of the environment before changing it.
 	prevState := e.State()
 
-	// Emit the event to any listeners that are currently registeree.
+	// Emit the event to any listeners that are currently registered.
 	if prevState != state {
 		// If the state changed make sure we update the internal tracking to note that.
 		e.stMu.Lock()

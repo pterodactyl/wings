@@ -52,7 +52,7 @@ func (c *Configuration) Limits() Limits {
 	return c.settings.Limits
 }
 
-// Rturns the allocations associated with this environment.
+// Returns the allocations associated with this environment.
 func (c *Configuration) Allocations() Allocations {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

@@ -66,7 +66,7 @@ func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
 			Name: "ReviewBeforeUpload",
 			Prompt: &survey.Confirm{
 				Message: "Do you want to review the collected data before uploading to hastebin.com?",
-				Help:    "The data, especially the logs, might contain sensitive information, so you should review it. You will be asked again if you want to uplaod.",
+				Help:    "The data, especially the logs, might contain sensitive information, so you should review it. You will be asked again if you want to upload.",
 				Default: true,
 			},
 		},
@@ -82,7 +82,7 @@ func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
 	_ = dockerInfo
 
 	output := &strings.Builder{}
-	fmt.Fprintln(output, "Pterodactly Wings - Diagnostics Report")
+	fmt.Fprintln(output, "Pterodactyl Wings - Diagnostics Report")
 	printHeader(output, "Versions")
 	fmt.Fprintln(output, "wings:", system.Version)
 	if dockerErr == nil {
@@ -210,7 +210,7 @@ func uploadToHastebin(hbUrl, content string) (string, error) {
 		u.Path = path.Join(u.Path, key)
 		return u.String(), nil
 	}
-	return "", errors.New("Couldn't find key in response")
+	return "", errors.New("failed to find key in response")
 }
 
 func redact(s string) string {

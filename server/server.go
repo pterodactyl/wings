@@ -156,7 +156,7 @@ func (s *Server) IsBootable() bool {
 	return exists
 }
 
-// Initalizes a server instance. This will run through and ensure that the environment
+// Initializes a server instance. This will run through and ensure that the environment
 // for the server is setup, and that all of the necessary files are created.
 func (s *Server) CreateEnvironment() error {
 	// Ensure the data directory exists before getting too far through this process.

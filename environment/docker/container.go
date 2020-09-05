@@ -57,8 +57,8 @@ func (e *Environment) Attach() error {
 			e.SetStream(nil)
 		}()
 
-		// Poll resources in a seperate thread since this will block the copy call below
-		// from being reached until it is completed if not run in a seperate process. However,
+		// Poll resources in a separate thread since this will block the copy call below
+		// from being reached until it is completed if not run in a separate process. However,
 		// we still want it to be stopped when the copy operation below is finished running which
 		// indicates that the container is no longer running.
 		go func(ctx context.Context) {
@@ -167,13 +167,13 @@ func (e *Environment) Create() error {
 		PortBindings: a.Bindings(),
 
 		// Configure the mounts for this container. First mount the server data directory
-		// into the container as a r/w bine.
+		// into the container as a r/w bind.
 		Mounts: e.convertMounts(),
 
 		// Configure the /tmp folder mapping in containers. This is necessary for some
 		// games that need to make use of it for downloads and other installation processes.
 		Tmpfs: map[string]string{
-			"/tmp": "rw,exec,nosuid,size="+tmpfsSize+"M",
+			"/tmp": "rw,exec,nosuid,size=" + tmpfsSize + "M",
 		},
 
 		// Define resource limits for the container based on the data passed through
@@ -228,7 +228,7 @@ func (e *Environment) convertMounts() []mount.Mount {
 // Remove the Docker container from the machine. If the container is currently running
 // it will be forcibly stopped by Docker.
 func (e *Environment) Destroy() error {
-	// We set it to stopping than offline to prevent crash detection from being triggeree.
+	// We set it to stopping than offline to prevent crash detection from being triggered.
 	e.setState(environment.ProcessStoppingState)
 
 	err := e.client.ContainerRemove(context.Background(), e.Id, types.ContainerRemoveOptions{
@@ -250,7 +250,7 @@ func (e *Environment) Destroy() error {
 	return err
 }
 
-// Attaches to the log for the container. This avoids us missing cruicial output that
+// Attaches to the log for the container. This avoids us missing crucial output that
 // happens in the split seconds before the code moves from 'Starting' to 'Attaching'
 // on the process.
 func (e *Environment) followOutput() error {
@@ -296,7 +296,7 @@ func (e *Environment) followOutput() error {
 // cases an outage shouldn't affect users too badly. It'll at least keep existing servers working
 // correctly if anything.
 //
-// TODO: handle authorization & local images
+// TODO: local images
 func (e *Environment) ensureImageExists(image string) error {
 	// Give it up to 15 minutes to pull the image. I think this should cover 99.8% of cases where an
 	// image pull might fail. I can't imagine it will ever take more than 15 minutes to fully pull
@@ -362,7 +362,7 @@ func (e *Environment) ensureImageExists(image string) error {
 	log.WithField("image", image).Debug("pulling docker image... this could take a bit of time")
 
 	// I'm not sure what the best approach here is, but this will block execution until the image
-	// is done being pulled, which is what we neee.
+	// is done being pulled, which is what we need.
 	scanner := bufio.NewScanner(out)
 	for scanner.Scan() {
 		continue

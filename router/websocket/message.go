@@ -16,7 +16,7 @@ type Message struct {
 	//
 	// - status : Returns the server's power state.
 	// - logs : Returns the server log data at the time of the request.
-	// - power : Performs a power action aganist the server based the data.
+	// - power : Performs a power action against the server based the data.
 	// - command : Performs a command on a server using the data field.
 	Event string `json:"event"`
 

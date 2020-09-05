@@ -35,7 +35,7 @@ func (e *Environment) OnBeforeStart() error {
 	// container and data storage directory.
 	//
 	// This won't actually run an installation process however, it is just here to ensure the
-	// environment gets created properly if it is missing and the server is startee. We're making
+	// environment gets created properly if it is missing and the server is started. We're making
 	// an assumption that all of the files will still exist at this point.
 	if err := e.Create(); err != nil {
 		return err
@@ -64,7 +64,7 @@ func (e *Environment) Start() error {
 
 	if c, err := e.client.ContainerInspect(context.Background(), e.Id); err != nil {
 		// Do nothing if the container is not found, we just don't want to continue
-		// to the next block of code here. This check was inlined here to guard againt
+		// to the next block of code here. This check was inlined here to guard against
 		// a nil-pointer when checking c.State below.
 		//
 		// @see https://github.com/pterodactyl/panel/issues/2000
@@ -128,7 +128,7 @@ func (e *Environment) Stop() error {
 
 	if s == nil || s.Type == api.ProcessStopSignal {
 		if s == nil {
-			log.WithField("container_id", e.Id).Warn("no stop configuration detected for environment, using termination proceedure")
+			log.WithField("container_id", e.Id).Warn("no stop configuration detected for environment, using termination procedure")
 		}
 
 		return e.Terminate(os.Kill)
@@ -217,7 +217,7 @@ func (e *Environment) Terminate(signal os.Signal) error {
 		return nil
 	}
 
-	// We set it to stopping than offline to prevent crash detection from being triggeree.
+	// We set it to stopping than offline to prevent crash detection from being triggered.
 	e.setState(environment.ProcessStoppingState)
 
 	sig := strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed")

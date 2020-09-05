@@ -359,7 +359,7 @@ func (f *ConfigurationFile) parseYamlFile(path string) error {
 
 	// Unmarshal the yaml data into a JSON interface such that we can work with
 	// any arbitrary data structure. If we don't do this, I can't use gabs which
-	// makes working with unknown JSON signficiantly easier.
+	// makes working with unknown JSON significantly easier.
 	jsonBytes, err := json.Marshal(dyno.ConvertMapI2MapS(i))
 	if err != nil {
 		return err

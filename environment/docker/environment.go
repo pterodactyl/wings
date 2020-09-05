@@ -13,8 +13,8 @@ import (
 )
 
 type Metadata struct {
-	Image      string
-	Stop       *api.ProcessStopConfiguration
+	Image string
+	Stop  *api.ProcessStopConfiguration
 }
 
 // Ensure that the Docker environment is always implementing all of the methods
@@ -103,7 +103,7 @@ func (e *Environment) Events() *events.EventBus {
 // Determines if the container exists in this environment. The ID passed through should be the
 // server UUID since containers are created utilizing the server UUID as the name and docker
 // will work fine when using the container name as the lookup parameter in addition to the longer
-// ID auto-assigned when the container is createe.
+// ID auto-assigned when the container is created.
 func (e *Environment) Exists() (bool, error) {
 	_, err := e.client.ContainerInspect(context.Background(), e.Id)
 
@@ -137,7 +137,7 @@ func (e *Environment) IsRunning() (bool, error) {
 	return c.State.Running, nil
 }
 
-// Determine the container exit state and return the exit code and wether or not
+// Determine the container exit state and return the exit code and whether or not
 // the container was killed by the OOM killer.
 func (e *Environment) ExitState() (uint32, bool, error) {
 	c, err := e.client.ContainerInspect(context.Background(), e.Id)
@@ -148,7 +148,7 @@ func (e *Environment) ExitState() (uint32, bool, error) {
 		//
 		// However, someone reported an error in Discord about this scenario happening,
 		// so I guess this should prevent it? They didn't tell me how they caused it though
-		// so that's a mystery that will have to go unsolvee.
+		// so that's a mystery that will have to go unsolved.
 		//
 		// @see https://github.com/pterodactyl/panel/issues/2003
 		if client.IsErrNotFound(err) {

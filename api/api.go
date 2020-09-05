@@ -59,9 +59,9 @@ func (r *PanelRequest) logDebug(req *http.Request) {
 	}
 
 	log.WithFields(log.Fields{
-		"method": req.Method,
+		"method":   req.Method,
 		"endpoint": req.URL.String(),
-		"headers": headers,
+		"headers":  headers,
 	}).Debug("making request to external HTTP endpoint")
 }
 

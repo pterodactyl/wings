@@ -9,5 +9,5 @@ import (
 func (s *Stat) CTime() time.Time {
 	st := s.Info.Sys().(*syscall.Stat_t)
 
-	return time.Unix(int64(st.Ctimespec.Sec), int64(st.Ctimespec.Nsec))
+	return time.Unix(st.Ctimespec.Sec, st.Ctimespec.Nsec)
 }
