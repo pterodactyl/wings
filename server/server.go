@@ -144,7 +144,7 @@ func (s *Server) SyncWithConfiguration(cfg *api.ServerConfigurationResponse) err
 }
 
 // Reads the log file for a server up to a specified number of bytes.
-func (s *Server) ReadLogfile(len int64) ([]string, error) {
+func (s *Server) ReadLogfile(len int) ([]string, error) {
 	return s.Environment.Readlog(len)
 }
 

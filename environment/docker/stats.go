@@ -15,6 +15,9 @@ import (
 // Attach to the instance and then automatically emit an event whenever the resource usage for the
 // server process changes.
 func (e *Environment) pollResources(ctx context.Context) error {
+	log.WithField("container_id", e.Id).Debug("starting resource polling..")
+	defer log.WithField("container_id", e.Id).Debug("resource polling stopped")
+
 	if e.State() == environment.ProcessOfflineState {
 		return errors.New("attempting to enable resource polling on a stopped server instance")
 	}
@@ -23,6 +26,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	defer stats.Body.Close()
 
 	dec := json.NewDecoder(stats.Body)
 
@@ -30,6 +34,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+
 		default:
 			var v *types.StatsJSON
 
@@ -45,7 +50,6 @@ func (e *Environment) pollResources(ctx context.Context) error {
 			// Disable collection if the server is in an offline state and this process is still running.
 			if e.State() == environment.ProcessOfflineState {
 				log.WithField("container_id", e.Id).Debug("process in offline state while resource polling is still active; stopping poll")
-
 				return nil
 			}
 

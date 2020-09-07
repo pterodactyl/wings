@@ -89,6 +89,6 @@ type ProcessEnvironment interface {
 	SendCommand(string) error
 
 	// Reads the log file for the process from the end backwards until the provided
-	// number of bytes is met.
-	Readlog(int64) ([]string, error)
+	// number of lines is met.
+	Readlog(int) ([]string, error)
 }
