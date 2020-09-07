@@ -163,7 +163,7 @@ func (f *ConfigurationFile) Parse(path string, internal bool) error {
 		break
 	}
 
-	if os.IsNotExist(err) {
+	if errors.Is(err, os.ErrNotExist) {
 		// File doesn't exist, we tried creating it, and same error is returned? Pretty
 		// sure this pathway is impossible, but if not, abort here.
 		if internal {
