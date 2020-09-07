@@ -6,6 +6,7 @@ import (
 	"github.com/apex/log"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/environment/docker"
 	"github.com/pterodactyl/wings/events"
@@ -74,11 +75,18 @@ func (s *Server) Id() string {
 func (s *Server) GetEnvironmentVariables() []string {
 	zone, _ := time.Now().In(time.Local).Zone()
 
+	var ip = s.Config().Allocations.DefaultMapping.Ip
+	// Convert 127.0.0.1 to the pterodactyl0 network interface if the environment is Docker
+	// so that the server operates as expected.
+	if s.Environment.Type() == "docker" && ip == "127.0.0.1" {
+		ip = config.Get().Docker.Network.Interface
+	}
+
 	var out = []string{
 		fmt.Sprintf("TZ=%s", zone),
 		fmt.Sprintf("STARTUP=%s", s.Config().Invocation),
 		fmt.Sprintf("SERVER_MEMORY=%d", s.MemoryLimit()),
-		fmt.Sprintf("SERVER_IP=%s", s.Config().Allocations.DefaultMapping.Ip),
+		fmt.Sprintf("SERVER_IP=%s", ip),
 		fmt.Sprintf("SERVER_PORT=%d", s.Config().Allocations.DefaultMapping.Port),
 	}
 

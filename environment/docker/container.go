@@ -164,7 +164,7 @@ func (e *Environment) Create() error {
 	tmpfsSize := strconv.Itoa(int(config.Get().Docker.TmpfsSize))
 
 	hostConf := &container.HostConfig{
-		PortBindings: a.Bindings(),
+		PortBindings: a.DockerBindings(),
 
 		// Configure the mounts for this container. First mount the server data directory
 		// into the container as a r/w bind.
