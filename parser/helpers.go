@@ -76,13 +76,13 @@ func (cfr *ConfigurationFileReplacement) getKeyValue(value []byte) interface{} {
 func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error) {
 	parsed, err := gabs.ParseJSON(data)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	for _, v := range f.Replace {
 		value, err := f.LookupConfigurationValue(v)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 
 		// Check for a wildcard character, and if found split the key on that value to
@@ -97,12 +97,20 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 			// time this code is being written.
 			for _, child := range parsed.Path(strings.Trim(parts[0], ".")).Children() {
 				if err := v.SetAtPathway(child, strings.Trim(parts[1], "."), []byte(value)); err != nil {
-					return nil, err
+					if errors.Is(err, gabs.ErrNotFound) {
+						continue
+					}
+
+					return nil, errors.Wrap(err, "failed to set config value of array child")
 				}
 			}
 		} else {
 			if err = v.SetAtPathway(parsed, v.Match, []byte(value)); err != nil {
-				return nil, err
+				if errors.Is(err, gabs.ErrNotFound) {
+					continue
+				}
+
+				return nil, errors.Wrap(err, "unable to set config value at pathway: "+v.Match)
 			}
 		}
 	}
@@ -110,42 +118,85 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 	return parsed, nil
 }
 
-// Sets the value at a specific pathway, but checks if we were looking for a specific
-// value or not before doing it.
-func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path string, value []byte) error {
-	if cfr.IfValue != "" {
-		// If this is a regex based matching, we need to get a little more creative since
-		// we're only going to replacing part of the string, and not the whole thing.
-		if c.Exists(path) && strings.HasPrefix(cfr.IfValue, "regex:") {
-			// We're doing some regex here.
-			r, err := regexp.Compile(strings.TrimPrefix(cfr.IfValue, "regex:"))
-			if err != nil {
-				log.WithFields(log.Fields{"if_value": strings.TrimPrefix(cfr.IfValue, "regex:"), "error": err}).
-					Warn("configuration if_value using invalid regexp, cannot perform replacement")
+// Regex used to check if there is an array element present in the given pathway by looking for something
+// along the lines of "something[1]" or "something[1].nestedvalue" as the path.
+var checkForArrayElement = regexp.MustCompile(`^([^\[\]]+)\[([\d]+)](\..+)?$`)
 
-				return nil
-			}
+// Attempt to set the value of the path depending on if it is an array or not. Gabs cannot handle array
+// values as "something[1]" but can parse them just fine. This is basically just overly complex code
+// to handle that edge case and ensure the value gets set correctly.
+func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
+	var err error
 
-			// If the path exists and there is a regex match, go ahead and attempt the replacement
-			// using the value we got from the key. This will only replace the one match.
-			v := strings.Trim(string(c.Path(path).Bytes()), "\"")
-			if r.Match([]byte(v)) {
-				_, err := c.SetP(r.ReplaceAllString(v, string(value)), path)
+	matches := checkForArrayElement.FindStringSubmatch(path)
+	if len(matches) < 3 {
+		// Only update the value if the pathway actually exists in the configuration, otherwise
+		// do nothing.
+		if c.ExistsP(path) {
+			_, err = c.SetP(value, path)
+		}
 
-				return err
-			}
+		return errors.WithStack(err)
+	}
 
-			return nil
-		} else {
-			if !c.Exists(path) || (c.Exists(path) && !bytes.Equal(c.Bytes(), []byte(cfr.IfValue))) {
-				return nil
-			}
+	i, _ := strconv.Atoi(matches[2])
+	// Find the array element "i" or abort if it does not exist.
+	ct, err := c.ArrayElementP(i, matches[1])
+	if err != nil {
+		return errors.Wrap(err, "error while parsing array element at path")
+	}
+
+	// If there are four matches in the regex it means that we managed to also match a trailing pathway
+	// for the key, which should be found in the given array key item and modified further.
+	if len(matches) == 4 {
+		ct, err = ct.ArrayElementP(i, strings.TrimPrefix(matches[3], "."))
+		if err != nil {
+			return errors.Wrap(err, "error while parsing array element as nested child")
 		}
 	}
 
-	_, err := c.SetP(cfr.getKeyValue(value), path)
+	// Try to set the value. If the path does not exist an error will be raised to the caller which will
+	// then check if the error is because the path is missing. In those cases we just ignore the error since
+	// we don't want to do anything specifically when that happens.
+	if _, err = ct.Set(value); err != nil {
+		return errors.Wrap(err, "failed to set value at config path: "+path)
+	}
 
-	return err
+	return nil
+}
+
+// Sets the value at a specific pathway, but checks if we were looking for a specific
+// value or not before doing it.
+func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path string, value []byte) error {
+	if cfr.IfValue == "" {
+		return setValueAtPath(c, path, cfr.getKeyValue(value))
+	}
+
+	// If this is a regex based matching, we need to get a little more creative since
+	// we're only going to replacing part of the string, and not the whole thing.
+	if c.ExistsP(path) && strings.HasPrefix(cfr.IfValue, "regex:") {
+		// We're doing some regex here.
+		r, err := regexp.Compile(strings.TrimPrefix(cfr.IfValue, "regex:"))
+		if err != nil {
+			log.WithFields(log.Fields{"if_value": strings.TrimPrefix(cfr.IfValue, "regex:"), "error": err}).
+				Warn("configuration if_value using invalid regexp, cannot perform replacement")
+
+			return nil
+		}
+
+		// If the path exists and there is a regex match, go ahead and attempt the replacement
+		// using the value we got from the key. This will only replace the one match.
+		v := strings.Trim(string(c.Path(path).Bytes()), "\"")
+		if r.Match([]byte(v)) {
+			return setValueAtPath(c, path, r.ReplaceAllString(v, string(value)))
+		}
+
+		return nil
+	} else if !c.ExistsP(path) || (c.ExistsP(path) && !bytes.Equal(c.Bytes(), []byte(cfr.IfValue))) {
+		return nil
+	}
+
+	return setValueAtPath(c, path, cfr.getKeyValue(value))
 }
 
 // Looks up a configuration value on the Daemon given a dot-notated syntax.

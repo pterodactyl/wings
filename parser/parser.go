@@ -96,8 +96,7 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	// See comment on the replacement regex to understand what exactly this is doing.
-	cfr.Match = cfrMatchReplacement.ReplaceAllString(m, ".$1")
+	cfr.Match = m
 
 	iv, err := jsonparser.GetString(data, "if_value")
 	// We only check keypath here since match & replace_with should be present on all of
@@ -349,12 +348,12 @@ func (f *ConfigurationFile) parseJsonFile(path string) error {
 func (f *ConfigurationFile) parseYamlFile(path string) error {
 	b, err := readFileBytes(path)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	i := make(map[string]interface{})
 	if err := yaml.Unmarshal(b, &i); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// Unmarshal the yaml data into a JSON interface such that we can work with
@@ -362,20 +361,20 @@ func (f *ConfigurationFile) parseYamlFile(path string) error {
 	// makes working with unknown JSON significantly easier.
 	jsonBytes, err := json.Marshal(dyno.ConvertMapI2MapS(i))
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// Now that the data is converted, treat it just like JSON and pass it to the
 	// iterator function to update values as necessary.
 	data, err := f.IterateOverJson(jsonBytes)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// Remarshal the JSON into YAML format before saving it back to the disk.
 	marshaled, err := yaml.Marshal(data.Data())
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	return ioutil.WriteFile(path, marshaled, 0644)
