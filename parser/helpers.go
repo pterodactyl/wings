@@ -125,6 +125,8 @@ var checkForArrayElement = regexp.MustCompile(`^([^\[\]]+)\[([\d]+)](\..+)?$`)
 // Attempt to set the value of the path depending on if it is an array or not. Gabs cannot handle array
 // values as "something[1]" but can parse them just fine. This is basically just overly complex code
 // to handle that edge case and ensure the value gets set correctly.
+//
+// Bless thee who has to touch these most unholy waters.
 func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
 	var err error
 
@@ -140,25 +142,51 @@ func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
 	}
 
 	i, _ := strconv.Atoi(matches[2])
-	// Find the array element "i" or abort if it does not exist.
+	// Find the array element "i" or try to create it if "i" is equal to 0 and is not found
+	// at the given path.
 	ct, err := c.ArrayElementP(i, matches[1])
 	if err != nil {
-		return errors.Wrap(err, "error while parsing array element at path")
-	}
+		if i != 0 || (!errors.Is(err, gabs.ErrNotArray) && !errors.Is(err, gabs.ErrNotFound)) {
+			return errors.Wrap(err, "error while parsing array element at path")
+		}
 
-	// If there are four matches in the regex it means that we managed to also match a trailing pathway
-	// for the key, which should be found in the given array key item and modified further.
-	if len(matches) == 4 {
-		ct, err = ct.ArrayElementP(i, strings.TrimPrefix(matches[3], "."))
+		var t = make([]interface{}, 1)
+		// If the length of matches is 4 it means we're trying to access an object down in this array
+		// key, so make sure we generate the array as an array of objects, and not just a generic nil
+		// array.
+		if len(matches) == 4 {
+			t = []interface{}{map[string]interface{}{}}
+		}
+
+		// If the error is because this isn't an array or isn't found go ahead and create the array with
+		// an empty object if we have additional things to set on the array, or just an empty array type
+		// if there is not an object structure detected (no matches[3] available).
+		if _, err = c.SetP(t, matches[1]); err != nil {
+			return errors.Wrap(err, "failed to create empty array for missing element")
+		}
+
+		// Set our cursor to be the array element we expect, which in this case is just the first element
+		// since we won't run this code unless the array element is 0. There is too much complexity in trying
+		// to match additional elements. In those cases the server will just have to be rebooted or something.
+		ct, err = c.ArrayElementP(0, matches[1])
 		if err != nil {
-			return errors.Wrap(err, "error while parsing array element as nested child")
+			return errors.Wrap(err, "failed to find array element at path")
 		}
 	}
 
 	// Try to set the value. If the path does not exist an error will be raised to the caller which will
 	// then check if the error is because the path is missing. In those cases we just ignore the error since
 	// we don't want to do anything specifically when that happens.
-	if _, err = ct.Set(value); err != nil {
+	//
+	// If there are four matches in the regex it means that we managed to also match a trailing pathway
+	// for the key, which should be found in the given array key item and modified further.
+	if len(matches) == 4 {
+		_, err = ct.SetP(value, strings.TrimPrefix(matches[3], "."))
+	} else {
+		_, err = ct.Set(value)
+	}
+
+	if err != nil {
 		return errors.Wrap(err, "failed to set value at config path: "+path)
 	}
 
