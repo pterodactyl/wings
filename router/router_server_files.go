@@ -378,15 +378,15 @@ func postServerUploadFiles(c *gin.Context) {
 	form, err := c.MultipartForm()
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to get multipart form.",
+			"error": "Failed to get multipart form data from request.",
 		})
 		return
 	}
 
 	headers, ok := form.File["files"]
 	if !ok {
-		c.AbortWithStatusJSON(http.StatusNotModified, gin.H{
-			"error": "No files were attached to the request.",
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "No files were found on the request body.",
 		})
 		return
 	}
