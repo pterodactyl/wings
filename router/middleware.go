@@ -16,7 +16,7 @@ func SetAccessControlHeaders(c *gin.Context) {
 	o := c.GetHeader("Origin")
 	if o != config.Get().PanelLocation {
 		for _, origin := range config.Get().AllowedOrigins {
-			if o != origin {
+			if origin != "*" && o != origin {
 				continue
 			}
 
