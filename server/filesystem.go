@@ -41,7 +41,8 @@ func IsPathResolutionError(err error) bool {
 }
 
 type Filesystem struct {
-	mu sync.Mutex
+	mu           sync.Mutex
+	lookupTimeMu sync.RWMutex
 
 	lastLookupTime   time.Time
 	lookupInProgress int32
@@ -254,17 +255,25 @@ func (fs *Filesystem) HasSpaceAvailable(allowStaleValue bool) bool {
 // This is primarily to avoid a bunch of I/O operations from piling up on the server, especially on servers
 // with a large amount of files.
 func (fs *Filesystem) DiskUsage(allowStaleValue bool) (int64, error) {
-	// Check if cache is expired...
-	if !fs.lastLookupTime.After(time.Now().Add(time.Second * -150)) {
-		// If we are now allowing a stale response, or there is no lookup currently in progress, go ahead
-		// and perform the lookup and return the fresh value. This is a blocking operation to the calling
-		// process.
-		if !allowStaleValue || atomic.LoadInt32(&fs.lookupInProgress) == 0 {
-			return fs.updateCachedDiskUsage()
-		}
+	// Check if cache is expired.
+	fs.lookupTimeMu.RLock()
+	isValidInCache := fs.lastLookupTime.After(time.Now().Add(time.Second * -10))
+	fs.lookupTimeMu.RUnlock()
 
-		// Otherwise, just go ahead and perform the cached disk usage update.
-		go fs.updateCachedDiskUsage()
+	if !isValidInCache {
+		// If we are now allowing a stale response go ahead  and perform the lookup and return the fresh
+		// value. This is a blocking operation to the calling process.
+		if !allowStaleValue {
+			return fs.updateCachedDiskUsage()
+		} else if atomic.LoadInt32(&fs.lookupInProgress) == 0 {
+			// Otherwise, if we allow a stale value and there isn't a valid item in the cache and we aren't
+			// currently performing a lookup, just do the disk usage calculation in the background.
+			go func(fs *Filesystem) {
+				if _, err := fs.updateCachedDiskUsage(); err != nil {
+					fs.Server.Log().WithField("error", errors.WithStack(err)).Warn("failed to determine disk usage in go-routine")
+				}
+			}(fs)
+		}
 	}
 
 	// Return the currently cached value back to the calling function.
@@ -279,11 +288,11 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	// Always clear the in progress flag when this process finishes.
-	defer atomic.StoreInt32(&fs.lookupInProgress, 0)
-
-	// Signal that we're currently updating the disk size, to prevent other routines to block on this.
+	// Signal that we're currently updating the disk size so that other calls to the disk checking
+	// functions can determine if they should queue up additional calls to this function. Ensure that
+	// we always set this back to 0 when this process is done executing.
 	atomic.StoreInt32(&fs.lookupInProgress, 1)
+	defer atomic.StoreInt32(&fs.lookupInProgress, 0)
 
 	// If there is no size its either because there is no data (in which case running this function
 	// will have effectively no impact), or there is nothing in the cache, in which case we need to
@@ -294,7 +303,10 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	// Always cache the size, even if there is an error. We want to always return that value
 	// so that we don't cause an endless loop of determining the disk size if there is a temporary
 	// error encountered.
+	fs.lookupTimeMu.Lock()
 	fs.lastLookupTime = time.Now()
+	fs.lookupTimeMu.Unlock()
+
 	atomic.StoreInt64(&fs.disk, size)
 
 	return size, err

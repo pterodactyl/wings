@@ -21,40 +21,42 @@ func (s *Server) StartEventListeners() {
 	s.Environment.Events().Subscribe(environment.StateChangeEvent, state)
 	s.Environment.Events().Subscribe(environment.ResourceEvent, stats)
 
-	// TODO: this is leaky I imagine since the routines aren't destroyed when the server is?
-	go func() {
-		for {
-			select {
-			case data := <-console:
-				// Immediately emit this event back over the server event stream since it is
-				// being called from the environment event stream and things probably aren't
-				// listening to that event.
-				s.Events().Publish(ConsoleOutputEvent, data.Data)
+	go func(console chan events.Event) {
+		for data := range console {
+			// Immediately emit this event back over the server event stream since it is
+			// being called from the environment event stream and things probably aren't
+			// listening to that event.
+			s.Events().Publish(ConsoleOutputEvent, data.Data)
 
-				// Also pass the data along to the console output channel.
-				s.onConsoleOutput(data.Data)
-
-			case data := <-state:
-				s.SetState(data.Data)
-
-			case data := <-stats:
-				st := new(environment.Stats)
-				if err := json.Unmarshal([]byte(data.Data), st); err != nil {
-					s.Log().WithField("error", errors.WithStack(err)).Warn("failed to unmarshal server environment stats")
-					continue
-				}
-
-				// Update the server resource tracking object with the resources we got here.
-				s.resources.mu.Lock()
-				s.resources.Stats = *st
-				s.resources.mu.Unlock()
-
-				s.Filesystem.HasSpaceAvailable(true)
-
-				s.emitProcUsage()
-			}
+			// Also pass the data along to the console output channel.
+			s.onConsoleOutput(data.Data)
 		}
-	}()
+	}(console)
+
+	go func(state chan events.Event) {
+		for data := range state {
+			s.SetState(data.Data)
+		}
+	}(state)
+
+	go func(stats chan events.Event) {
+		for data := range stats {
+			st := new(environment.Stats)
+			if err := json.Unmarshal([]byte(data.Data), st); err != nil {
+				s.Log().WithField("error", errors.WithStack(err)).Warn("failed to unmarshal server environment stats")
+				continue
+			}
+
+			// Update the server resource tracking object with the resources we got here.
+			s.resources.mu.Lock()
+			s.resources.Stats = *st
+			s.resources.mu.Unlock()
+
+			s.Filesystem.HasSpaceAvailable(true)
+
+			s.emitProcUsage()
+		}
+	}(stats)
 }
 
 var stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")

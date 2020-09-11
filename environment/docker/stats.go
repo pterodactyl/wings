@@ -15,11 +15,13 @@ import (
 // Attach to the instance and then automatically emit an event whenever the resource usage for the
 // server process changes.
 func (e *Environment) pollResources(ctx context.Context) error {
-	log.WithField("container_id", e.Id).Debug("starting resource polling..")
-	defer log.WithField("container_id", e.Id).Debug("resource polling stopped")
+	l := log.WithField("container_id", e.Id)
+
+	l.Debug("starting resource polling for container")
+	defer l.Debug("stopped resource polling for container")
 
 	if e.State() == environment.ProcessOfflineState {
-		return errors.New("attempting to enable resource polling on a stopped server instance")
+		return errors.New("cannot enable resource polling on a stopped server")
 	}
 
 	stats, err := e.client.ContainerStats(context.Background(), e.Id, true)
@@ -34,22 +36,22 @@ func (e *Environment) pollResources(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-
 		default:
 			var v *types.StatsJSON
 
 			if err := dec.Decode(&v); err != nil {
 				if err != io.EOF {
-					log.WithField("container_id", e.Id).Warn("encountered error processing docker stats output, stopping collection")
+					l.WithField("error", errors.WithStack(err)).Warn("error while processing Docker stats output for container")
+				} else {
+					l.Debug("io.EOF encountered during stats decode, stopping polling...")
 				}
 
-				log.WithField("container_id", e.Id).Debug("detected io.EOF, stopping resource polling")
 				return nil
 			}
 
 			// Disable collection if the server is in an offline state and this process is still running.
 			if e.State() == environment.ProcessOfflineState {
-				log.WithField("container_id", e.Id).Debug("process in offline state while resource polling is still active; stopping poll")
+				l.Debug("process in offline state while resource polling is still active; stopping poll")
 				return nil
 			}
 
@@ -74,7 +76,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 			}
 
 			if b, err := json.Marshal(st); err != nil {
-				log.WithField("container_id", e.Id).WithField("error", errors.WithStack(err)).Warn("error while marshaling stats object for environment")
+				l.WithField("error", errors.WithStack(err)).Warn("error while marshaling stats object for environment")
 			} else {
 				e.Events().Publish(environment.ResourceEvent, string(b))
 			}

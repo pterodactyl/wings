@@ -118,7 +118,7 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 		return nil, err
 	} else {
 		s.Environment = env
-		s.StartEventListeners()
+		go s.StartEventListeners()
 	}
 
 	// Forces the configuration to be synced with the panel.
