@@ -36,20 +36,20 @@ func (h *Handler) ListenForExpiration(ctx context.Context) {
 	}
 }
 
+var e = []string{
+	server.StatsEvent,
+	server.StatusEvent,
+	server.ConsoleOutputEvent,
+	server.InstallOutputEvent,
+	server.InstallStartedEvent,
+	server.InstallCompletedEvent,
+	server.DaemonMessageEvent,
+	server.BackupCompletedEvent,
+}
+
 // Listens for different events happening on a server and sends them along
 // to the connected websocket.
 func (h *Handler) ListenForServerEvents(ctx context.Context) {
-	e := []string{
-		server.StatsEvent,
-		server.StatusEvent,
-		server.ConsoleOutputEvent,
-		server.InstallOutputEvent,
-		server.InstallStartedEvent,
-		server.InstallCompletedEvent,
-		server.DaemonMessageEvent,
-		server.BackupCompletedEvent,
-	}
-
 	eventChannel := make(chan events.Event)
 	for _, event := range e {
 		h.server.Events().Subscribe(event, eventChannel)

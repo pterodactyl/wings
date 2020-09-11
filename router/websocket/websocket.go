@@ -64,6 +64,10 @@ func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request) (*Hand
 			}
 
 			for _, origin := range config.Get().AllowedOrigins {
+				if origin == "*" {
+					return true
+				}
+
 				if o != origin {
 					continue
 				}
