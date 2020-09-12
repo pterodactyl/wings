@@ -78,8 +78,8 @@ func (s *Server) SetState(state string) error {
 
 	// Emit the event to any listeners that are currently registered.
 	if prevState != state {
-		s.Log().WithField("status", s.Proc().State).Debug("saw server status change event")
-		s.Events().Publish(StatusEvent, s.Proc().State)
+		s.Log().WithField("status", s.Proc().getInternalState()).Debug("saw server status change event")
+		s.Events().Publish(StatusEvent, s.Proc().getInternalState())
 	}
 
 	// Persist this change to the disk immediately so that should the Daemon be stopped or
