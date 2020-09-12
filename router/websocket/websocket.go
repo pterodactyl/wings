@@ -159,9 +159,10 @@ func (h *Handler) TokenValid() error {
 // error message, otherwise we just send back a standard error message.
 func (h *Handler) SendErrorJson(msg Message, err error, shouldLog ...bool) error {
 	j := h.GetJwt()
+	expected := errors.Is(err, server.ErrSuspended) || errors.Is(err, server.ErrIsRunning)
 
 	message := "an unexpected error was encountered while handling this request"
-	if server.IsSuspendedError(err) || (j != nil && j.HasPermission(PermissionReceiveErrors)) {
+	if expected || (j != nil && j.HasPermission(PermissionReceiveErrors)) {
 		message = err.Error()
 	}
 
@@ -171,7 +172,7 @@ func (h *Handler) SendErrorJson(msg Message, err error, shouldLog ...bool) error
 	wsm.Args = []string{m}
 
 	if len(shouldLog) == 0 || (len(shouldLog) == 1 && shouldLog[0] == true) {
-		if !server.IsSuspendedError(err) {
+		if !expected {
 			h.server.Log().WithFields(log.Fields{"event": msg.Event, "error_identifier": u.String(), "error": err}).
 				Error("failed to handle websocket process; an error was encountered processing an event")
 		}

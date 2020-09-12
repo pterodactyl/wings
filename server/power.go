@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/environment"
 	"golang.org/x/sync/semaphore"
 	"os"
 	"time"
@@ -87,6 +88,10 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 
 	switch action {
 	case PowerActionStart:
+		if s.GetState() != environment.ProcessOfflineState {
+			return ErrIsRunning
+		}
+
 		// Run the pre-boot logic for the server before processing the environment start.
 		if err := s.onBeforeStart(); err != nil {
 			return err
@@ -134,7 +139,7 @@ func (s *Server) onBeforeStart() error {
 	// Disallow start & restart if the server is suspended. Do this check after performing a sync
 	// action with the Panel to ensure that we have the most up-to-date information for that server.
 	if s.IsSuspended() {
-		return new(suspendedError)
+		return ErrSuspended
 	}
 
 	// Ensure we sync the server information with the environment so that any new environment variables

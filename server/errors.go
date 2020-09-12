@@ -1,17 +1,9 @@
 package server
 
-type suspendedError struct {
-}
+import "github.com/pkg/errors"
 
-func (e *suspendedError) Error() string {
-	return "server is currently in a suspended state"
-}
-
-func IsSuspendedError(err error) bool {
-	_, ok := err.(*suspendedError)
-
-	return ok
-}
+var ErrIsRunning = errors.New("server is running")
+var ErrSuspended = errors.New("server is currently in a suspended state")
 
 type crashTooFrequent struct {
 }
