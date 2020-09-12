@@ -95,6 +95,8 @@ func (h *Handler) SendJson(v *Message) error {
 	// Do not send JSON down the line if the JWT on the connection is not
 	// valid!
 	if err := h.TokenValid(); err != nil {
+		h.server.Log().WithField("error", err).Warn("invalid JWT detected for server websocket!")
+
 		return nil
 	}
 
