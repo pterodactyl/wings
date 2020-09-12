@@ -2,8 +2,8 @@ package events
 
 import (
 	"encoding/json"
+	"github.com/sasha-s/go-deadlock"
 	"strings"
-	"sync"
 )
 
 type Event struct {
@@ -12,7 +12,7 @@ type Event struct {
 }
 
 type EventBus struct {
-	sync.RWMutex
+	deadlock.RWMutex
 
 	subscribers map[string]map[chan Event]struct{}
 }
@@ -47,8 +47,12 @@ func (e *EventBus) Publish(topic string, data string) {
 		defer e.RUnlock()
 
 		if ch, ok := e.subscribers[t]; ok {
+			e := Event{Data: data, Topic: topic}
+
 			for channel := range ch {
-				channel <- Event{Data: data, Topic: topic}
+				go func(channel chan Event, e Event) {
+					channel <- e
+				}(channel, e)
 			}
 		}
 	}()
@@ -66,29 +70,33 @@ func (e *EventBus) PublishJson(topic string, data interface{}) error {
 }
 
 // Subscribe to an emitter topic using a channel.
-func (e *EventBus) Subscribe(topic string, ch chan Event) {
+func (e *EventBus) Subscribe(topics []string, ch chan Event) {
 	e.Lock()
 	defer e.Unlock()
 
-	if _, exists := e.subscribers[topic]; !exists {
-		e.subscribers[topic] = make(map[chan Event]struct{})
-	}
+	for _, topic := range topics {
+		if _, exists := e.subscribers[topic]; !exists {
+			e.subscribers[topic] = make(map[chan Event]struct{})
+		}
 
-	// Only set the channel if there is not currently a matching one for this topic. This
-	// avoids registering two identical listeners for the same topic and causing pain in
-	// the unsubscribe functionality as well.
-	if _, exists := e.subscribers[topic][ch]; !exists {
-		e.subscribers[topic][ch] = struct{}{}
+		// Only set the channel if there is not currently a matching one for this topic. This
+		// avoids registering two identical listeners for the same topic and causing pain in
+		// the unsubscribe functionality as well.
+		if _, exists := e.subscribers[topic][ch]; !exists {
+			e.subscribers[topic][ch] = struct{}{}
+		}
 	}
 }
 
 // Unsubscribe a channel from a given topic.
-func (e *EventBus) Unsubscribe(topic string, ch chan Event) {
+func (e *EventBus) Unsubscribe(topics []string, ch chan Event) {
 	e.Lock()
 	defer e.Unlock()
 
-	if _, exists := e.subscribers[topic][ch]; exists {
-		delete(e.subscribers[topic], ch)
+	for _, topic := range topics {
+		if _, exists := e.subscribers[topic][ch]; exists {
+			delete(e.subscribers[topic], ch)
+		}
 	}
 }
 

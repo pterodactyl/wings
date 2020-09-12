@@ -17,10 +17,6 @@ func (s *Server) StartEventListeners() {
 	state := make(chan events.Event)
 	stats := make(chan events.Event)
 
-	s.Environment.Events().Subscribe(environment.ConsoleOutputEvent, console)
-	s.Environment.Events().Subscribe(environment.StateChangeEvent, state)
-	s.Environment.Events().Subscribe(environment.ResourceEvent, stats)
-
 	go func(console chan events.Event) {
 		for data := range console {
 			// Immediately emit this event back over the server event stream since it is
@@ -31,12 +27,16 @@ func (s *Server) StartEventListeners() {
 			// Also pass the data along to the console output channel.
 			s.onConsoleOutput(data.Data)
 		}
+
+		s.Log().Fatal("unexpected end-of-range for server console channel")
 	}(console)
 
 	go func(state chan events.Event) {
 		for data := range state {
 			s.SetState(data.Data)
 		}
+
+		s.Log().Fatal("unexpected end-of-range for server state channel")
 	}(state)
 
 	go func(stats chan events.Event) {
@@ -56,7 +56,14 @@ func (s *Server) StartEventListeners() {
 
 			s.emitProcUsage()
 		}
+
+		s.Log().Fatal("unexpected end-of-range for server stats channel")
 	}(stats)
+
+	s.Log().Info("registering event listeners: console, state, resources...")
+	s.Environment.Events().Subscribe([]string{environment.ConsoleOutputEvent}, console)
+	s.Environment.Events().Subscribe([]string{environment.StateChangeEvent}, state)
+	s.Environment.Events().Subscribe([]string{environment.ResourceEvent}, stats)
 }
 
 var stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")

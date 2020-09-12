@@ -55,6 +55,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
+	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
 	github.com/pierrec/lz4 v2.5.2+incompatible // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/profile v1.5.0
@@ -62,6 +63,7 @@ require (
 	github.com/prometheus/common v0.11.1 // indirect
 	github.com/remeh/sizedwaitgroup v1.0.0
 	github.com/sabhiram/go-gitignore v0.0.0-20180611051255-d3107576ba94
+	github.com/sasha-s/go-deadlock v0.2.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/ulikunitz/xz v0.5.7 // indirect
