@@ -313,7 +313,7 @@ func (h *Handler) HandleInbound(m Message) error {
 				return nil
 			}
 
-			logs, err := h.server.Environment.Readlog(1024 * 16)
+			logs, err := h.server.Environment.Readlog(100)
 			if err != nil {
 				return err
 			}
