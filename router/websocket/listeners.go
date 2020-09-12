@@ -68,9 +68,12 @@ func (h *Handler) ListenForServerEvents(ctx context.Context) {
 
 			close(eventChannel)
 		default:
+			h.server.Log().WithField("event", d.Topic).Debug(d.Data)
 			if err := h.SendJson(&Message{Event: d.Topic, Args:  []string{d.Data} }); err != nil {
 				h.server.Log().WithField("error", err).Warn("error while sending server data over websocket")
 			}
 		}
 	}
+
+	h.server.Log().Debug("stopping server event listening")
 }
