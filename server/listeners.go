@@ -17,11 +17,6 @@ func (s *Server) StartEventListeners() {
 	state := make(chan events.Event)
 	stats := make(chan events.Event)
 
-	s.Log().Info("registering event listeners: console, state, resources...")
-	s.Environment.Events().Subscribe(environment.ConsoleOutputEvent, console)
-	s.Environment.Events().Subscribe(environment.StateChangeEvent, state)
-	s.Environment.Events().Subscribe(environment.ResourceEvent, stats)
-
 	go func(console chan events.Event) {
 		for data := range console {
 			// Immediately emit this event back over the server event stream since it is
@@ -65,7 +60,10 @@ func (s *Server) StartEventListeners() {
 		s.Log().Fatal("unexpected end-of-range for server stats channel")
 	}(stats)
 
-	s.Log().Debug("finished registering event listeners")
+	s.Log().Info("registering event listeners: console, state, resources...")
+	s.Environment.Events().Subscribe([]string{environment.ConsoleOutputEvent}, console)
+	s.Environment.Events().Subscribe([]string{environment.StateChangeEvent}, state)
+	s.Environment.Events().Subscribe([]string{environment.ResourceEvent}, stats)
 }
 
 var stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
