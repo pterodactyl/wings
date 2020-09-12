@@ -58,9 +58,6 @@ func (h *Handler) ListenForServerEvents(ctx context.Context) {
 	go func(ctx context.Context) {
 		select {
 		case <-ctx.Done():
-			if h.jwt != nil {
-				h.server.Log().WithField("jwt_subject", h.jwt.Subject).Debug("unsubscribing server from event listeners")
-			}
 			h.server.Events().Unsubscribe(e, eventChannel)
 
 			close(eventChannel)
