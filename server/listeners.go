@@ -11,59 +11,44 @@ import (
 	"strconv"
 )
 
-// Adds all of the internal event listeners we want to use for a server.
+// Adds all of the internal event listeners we want to use for a server. These listeners can only be
+// removed by deleting the server as they should last for the duration of the process' lifetime.
 func (s *Server) StartEventListeners() {
-	console := make(chan events.Event)
-	state := make(chan events.Event)
-	stats := make(chan events.Event)
+	console := func(e events.Event) {
+		// Immediately emit this event back over the server event stream since it is
+		// being called from the environment event stream and things probably aren't
+		// listening to that event.
+		s.Events().Publish(ConsoleOutputEvent, e.Data)
 
-	go func(console chan events.Event) {
-		for data := range console {
-			// Immediately emit this event back over the server event stream since it is
-			// being called from the environment event stream and things probably aren't
-			// listening to that event.
-			s.Events().Publish(ConsoleOutputEvent, data.Data)
+		// Also pass the data along to the console output channel.
+		s.onConsoleOutput(e.Data)
+	}
 
-			// Also pass the data along to the console output channel.
-			s.onConsoleOutput(data.Data)
+	state := func(e events.Event) {
+		s.SetState(e.Data)
+	}
+
+	stats := func(e events.Event) {
+		st := new(environment.Stats)
+		if err := json.Unmarshal([]byte(e.Data), st); err != nil {
+			s.Log().WithField("error", errors.WithStack(err)).Warn("failed to unmarshal server environment stats")
+			return
 		}
 
-		s.Log().Fatal("unexpected end-of-range for server console channel")
-	}(console)
+		// Update the server resource tracking object with the resources we got here.
+		s.resources.mu.Lock()
+		s.resources.Stats = *st
+		s.resources.mu.Unlock()
 
-	go func(state chan events.Event) {
-		for data := range state {
-			s.SetState(data.Data)
-		}
+		s.Filesystem.HasSpaceAvailable(true)
 
-		s.Log().Fatal("unexpected end-of-range for server state channel")
-	}(state)
-
-	go func(stats chan events.Event) {
-		for data := range stats {
-			st := new(environment.Stats)
-			if err := json.Unmarshal([]byte(data.Data), st); err != nil {
-				s.Log().WithField("error", errors.WithStack(err)).Warn("failed to unmarshal server environment stats")
-				continue
-			}
-
-			// Update the server resource tracking object with the resources we got here.
-			s.resources.mu.Lock()
-			s.resources.Stats = *st
-			s.resources.mu.Unlock()
-
-			s.Filesystem.HasSpaceAvailable(true)
-
-			s.emitProcUsage()
-		}
-
-		s.Log().Fatal("unexpected end-of-range for server stats channel")
-	}(stats)
+		s.emitProcUsage()
+	}
 
 	s.Log().Info("registering event listeners: console, state, resources...")
-	s.Environment.Events().Subscribe([]string{environment.ConsoleOutputEvent}, console)
-	s.Environment.Events().Subscribe([]string{environment.StateChangeEvent}, state)
-	s.Environment.Events().Subscribe([]string{environment.ResourceEvent}, stats)
+	s.Environment.Events().On(environment.ConsoleOutputEvent, &console)
+	s.Environment.Events().On(environment.StateChangeEvent, &state)
+	s.Environment.Events().On(environment.ResourceEvent, &stats)
 }
 
 var stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")

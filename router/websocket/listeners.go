@@ -51,22 +51,25 @@ var e = []string{
 // to the connected websocket.
 func (h *Handler) ListenForServerEvents(ctx context.Context) {
 	h.server.Log().Debug("listening for server events over websocket")
+	callback := func(e events.Event) {
+		if err := h.SendJson(&Message{Event: e.Topic, Args: []string{e.Data}}); err != nil {
+			h.server.Log().WithField("error", err).Warn("error while sending server data over websocket")
+		}
+	}
 
-	eventChannel := make(chan events.Event)
-	h.server.Events().Subscribe(e, eventChannel)
+	// Subscribe to all of the events with the same callback that will push the data out over the
+	// websocket for the server.
+	for _, evt := range e {
+		h.server.Events().On(evt, &callback)
+	}
 
 	go func(ctx context.Context) {
 		select {
 		case <-ctx.Done():
-			h.server.Events().Unsubscribe(e, eventChannel)
-
-			close(eventChannel)
+			// Once this context is stopped, de-register all of the listeners that have been registered.
+			for _, evt := range e {
+				h.server.Events().Off(evt, &callback)
+			}
 		}
 	}(ctx)
-
-	for d := range eventChannel {
-		if err := h.SendJson(&Message{Event: d.Topic, Args: []string{d.Data}}); err != nil {
-			h.server.Log().WithField("error", err).Warn("error while sending server data over websocket")
-		}
-	}
 }
