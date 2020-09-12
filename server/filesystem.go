@@ -257,7 +257,7 @@ func (fs *Filesystem) HasSpaceAvailable(allowStaleValue bool) bool {
 func (fs *Filesystem) DiskUsage(allowStaleValue bool) (int64, error) {
 	// Check if cache is expired.
 	fs.lookupTimeMu.RLock()
-	isValidInCache := fs.lastLookupTime.After(time.Now().Add(time.Second * -10))
+	isValidInCache := fs.lastLookupTime.After(time.Now().Add(time.Second * time.Duration(-1*config.Get().System.DiskCheckInterval)))
 	fs.lookupTimeMu.RUnlock()
 
 	if !isValidInCache {

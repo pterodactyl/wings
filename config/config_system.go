@@ -36,6 +36,12 @@ type SystemConfiguration struct {
 		Gid int
 	}
 
+	// The amount of time in seconds that can elapse before a server's disk space calculation is
+	// considered stale and a re-check should occur. DANGER: setting this value too low can seriously
+	// impact system performance and cause massive I/O bottlenecks and high CPU usage for the Wings
+	// process.
+	DiskCheckInterval int64 `default:"150" yaml:"disk_check_interval"`
+
 	// Determines if Wings should detect a server that stops with a normal exit code of
 	// "0" as being crashed if the process stopped without any Wings interaction. E.g.
 	// the user did not press the stop button, but the process stopped cleanly.
