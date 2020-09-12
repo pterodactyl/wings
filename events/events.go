@@ -2,8 +2,8 @@ package events
 
 import (
 	"encoding/json"
-	"github.com/sasha-s/go-deadlock"
 	"strings"
+	"sync"
 )
 
 type Event struct {
@@ -12,7 +12,7 @@ type Event struct {
 }
 
 type EventBus struct {
-	deadlock.RWMutex
+	sync.RWMutex
 
 	subscribers map[string]map[chan Event]struct{}
 }
