@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"github.com/pterodactyl/wings/environment"
 	"sync"
 )
@@ -37,14 +36,10 @@ func (s *Server) Proc() *ResourceUsage {
 
 func (s *Server) emitProcUsage() {
 	s.resources.mu.RLock()
-	defer s.resources.mu.RUnlock()
-
-	b, err := json.Marshal(s.resources)
-	if err == nil {
-		s.Events().Publish(StatsEvent, string(b))
+	if err := s.Events().PublishJson(StatsEvent, s.resources); err != nil {
+		s.Log().WithField("error", err).Warn("error while emitting server resource usage to listeners")
 	}
-
-	// TODO: This might be a good place to add a debug log if stats are not sending.
+	s.resources.mu.RUnlock()
 }
 
 // Returns the servers current state.
