@@ -2,7 +2,6 @@ package events
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/gammazero/workerpool"
 	"github.com/pkg/errors"
 	"strings"
@@ -61,9 +60,7 @@ func (e *EventBus) Publish(topic string, data string) {
 			// us to call publish without blocking any of the other pathways.
 			//
 			// @see https://github.com/pterodactyl/panel/issues/2303
-			fmt.Println("pre-submit for topic:", evt.Topic)
 			cp.pool.Submit(func() {
-				fmt.Println("executing callback for event:", evt.Topic)
 				c(evt)
 			})
 		}
@@ -91,7 +88,6 @@ func (e *EventBus) On(topic string, callback *func(Event)) {
 	// Check if this topic has been registered at least once for the event listener, and if
 	// not create an empty struct for the topic.
 	if _, exists := e.pools[topic]; !exists {
-		fmt.Println("no pool for topic, creating:", topic)
 		e.pools[topic] = &CallbackPool{
 			callbacks: make([]*func(Event), 0),
 			pool:      workerpool.New(1),
@@ -119,7 +115,6 @@ func (e *EventBus) Destroy() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	fmt.Println("destroying pool for event bus")
 	// Stop every pool that exists for a given callback topic.
 	for _, cp := range e.pools {
 		cp.pool.Stop()
