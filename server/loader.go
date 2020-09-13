@@ -37,12 +37,6 @@ func LoadDirectory() error {
 		return errors.New(rerr.String())
 	}
 
-	log.Debug("retrieving cached server states from disk")
-	states, err := getServerStates()
-	if err != nil {
-		log.WithField("error", errors.WithStack(err)).Error("failed to retrieve locally cached server states from disk, assuming all servers in offline state")
-	}
-
 	start := time.Now()
 	log.WithField("total_configs", len(configs)).Info("processing servers returned by the API")
 
@@ -57,11 +51,6 @@ func LoadDirectory() error {
 			if err != nil {
 				log.WithField("server", uuid).WithField("error", err).Error("failed to load server, skipping...")
 				return
-			}
-
-			if state, exists := states[s.Id()]; exists {
-				s.Log().WithField("state", state).Debug("found existing server state in cache file; re-instantiating server state")
-				s.SetState(state)
 			}
 
 			servers.Add(s)
@@ -96,6 +85,9 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	if err := s.UpdateDataStructure(data.Settings); err != nil {
 		return nil, err
 	}
+
+	s.resources = ResourceUsage{}
+	defaults.Set(&s.resources)
 
 	s.Archiver = Archiver{Server: s}
 	s.Filesystem = Filesystem{Server: s}

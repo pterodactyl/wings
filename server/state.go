@@ -15,7 +15,7 @@ import (
 var stateMutex sync.Mutex
 
 // Returns the state of the servers.
-func getServerStates() (map[string]string, error) {
+func CachedServerStates() (map[string]string, error) {
 	// Request a lock after we check if the file exists.
 	stateMutex.Lock()
 	defer stateMutex.Unlock()

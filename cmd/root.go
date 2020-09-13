@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/NYTimes/logrotate"
 	"github.com/apex/log/handlers/multi"
+	"github.com/docker/docker/client"
 	"github.com/gammazero/workerpool"
 	"golang.org/x/crypto/acme"
 	"net/http"
@@ -172,6 +173,11 @@ func rootCmdRun(*cobra.Command, []string) {
 		log.WithField("server", s.Id()).Info("loaded configuration for server")
 	}
 
+	states, err := server.CachedServerStates()
+	if err != nil {
+		log.WithField("error", errors.WithStack(err)).Error("failed to retrieve locally cached server states from disk, assuming all servers in offline state")
+	}
+
 	// Create a new workerpool that limits us to 4 servers being bootstrapped at a time
 	// on Wings. This allows us to ensure the environment exists, write configurations,
 	// and reboot processes without causing a slow-down due to sequential booting.
@@ -181,25 +187,41 @@ func rootCmdRun(*cobra.Command, []string) {
 		s := serv
 
 		pool.Submit(func() {
-			s.Log().Info("ensuring server environment exists")
-			// Create a server environment if none exists currently. This allows us to recover from Docker
-			// being reinstalled on the host system for example.
-			if err := s.Environment.Create(); err != nil {
-				s.Log().WithField("error", err).Error("failed to process environment")
+			s.Log().Info("configuring server environment and restoring to previous state")
+
+			var st string
+			if state, exists := states[s.Id()]; exists {
+				st = state
 			}
 
 			r, err := s.Environment.IsRunning()
-			if err != nil {
+			// We ignore missing containers because we don't want to actually block booting of wings at this
+			// point. If we didn't do this and you pruned all of the images and then started wings you could
+			// end up waiting a long period of time for all of the images to be re-pulled on Wings boot rather
+			// than when the server itself is started.
+			if err != nil && !client.IsErrNotFound(err) {
 				s.Log().WithField("error", err).Error("error checking server environment status")
 			}
 
-			// If the server is currently running on Docker, mark the process as being in that state.
-			// We never want to stop an instance that is currently running external from Wings since
-			// that is a good way of keeping things running even if Wings gets in a very corrupted state.
+			fmt.Println(s.Id(), st, r, s.IsRunning(), s.GetState())
+			// Check if the server was previously running. If so, attempt to start the server now so that Wings
+			// can pick up where it left off. If the environment does not exist at all, just create it and then allow
+			// the normal flow to execute.
 			//
-			// This will also validate that a server process is running if the last tracked state we have
-			// is that it was running, but we see that the container process is not currently running.
-			if r || (!r && s.IsRunning()) {
+			// This does mean that booting wings after a catastrophic machine crash and wiping out the Docker images
+			// as a result will result in a slow boot.
+			if !r && (st == environment.ProcessRunningState || st == environment.ProcessStartingState) {
+				fmt.Println("starting server, not running and should be")
+				if err := s.HandlePowerAction(server.PowerActionStart); err != nil {
+					s.Log().WithField("error", errors.WithStack(err)).Warn("failed to return server to running state")
+				}
+			} else if r || (!r && s.IsRunning()) {
+				// If the server is currently running on Docker, mark the process as being in that state.
+				// We never want to stop an instance that is currently running external from Wings since
+				// that is a good way of keeping things running even if Wings gets in a very corrupted state.
+				//
+				// This will also validate that a server process is running if the last tracked state we have
+				// is that it was running, but we see that the container process is not currently running.
 				s.Log().Info("detected server is running, re-attaching to process...")
 
 				s.SetState(environment.ProcessRunningState)
