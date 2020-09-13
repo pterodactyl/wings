@@ -47,11 +47,9 @@ func (e *EventBus) Publish(topic string, data string) {
 	// avoids a panic crash if the process tries to unregister the channel while this routine
 	// is running.
 	if cp, ok := e.pools[t]; ok {
-		evt := Event{Data: data, Topic: topic}
-
 		for _, callback := range cp.callbacks {
 			c := *callback
-			evt := evt
+			evt := Event{Data: data, Topic: topic}
 			// Using the workerpool with one worker allows us to execute events in a FIFO manner. Running
 			// this using goroutines would cause things such as console output to just output in random order
 			// if more than one event is fired at the same time.
