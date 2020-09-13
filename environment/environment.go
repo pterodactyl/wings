@@ -6,9 +6,12 @@ import (
 )
 
 const (
-	ConsoleOutputEvent = "console output"
-	StateChangeEvent   = "state change"
-	ResourceEvent      = "resources"
+	ConsoleOutputEvent       = "console output"
+	StateChangeEvent         = "state change"
+	ResourceEvent            = "resources"
+	DockerImagePullStarted   = "docker image pull started"
+	DockerImagePullStatus    = "docker image pull status"
+	DockerImagePullCompleted = "docker image pull completed"
 )
 
 const (

@@ -11,6 +11,12 @@ import (
 	"strconv"
 )
 
+var dockerEvents = []string{
+	environment.DockerImagePullStatus,
+	environment.DockerImagePullStarted,
+	environment.DockerImagePullCompleted,
+}
+
 // Adds all of the internal event listeners we want to use for a server. These listeners can only be
 // removed by deleting the server as they should last for the duration of the process' lifetime.
 func (s *Server) StartEventListeners() {
@@ -45,10 +51,23 @@ func (s *Server) StartEventListeners() {
 		s.emitProcUsage()
 	}
 
+	docker := func(e events.Event) {
+		if e.Topic == environment.DockerImagePullStatus {
+			s.Events().Publish(InstallOutputEvent, e.Data)
+		} else if e.Topic == environment.DockerImagePullStarted {
+			s.PublishConsoleOutputFromDaemon("Pulling Docker container image, this could take a few minutes to complete...")
+		} else {
+			s.PublishConsoleOutputFromDaemon("Finished pulling Docker container image")
+		}
+	}
+
 	s.Log().Info("registering event listeners: console, state, resources...")
 	s.Environment.Events().On(environment.ConsoleOutputEvent, &console)
 	s.Environment.Events().On(environment.StateChangeEvent, &state)
 	s.Environment.Events().On(environment.ResourceEvent, &stats)
+	for _, evt := range dockerEvents {
+		s.Environment.Events().On(evt, &docker)
+	}
 }
 
 var stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")

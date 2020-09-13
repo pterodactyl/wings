@@ -3,6 +3,7 @@ package docker
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
@@ -18,6 +19,11 @@ import (
 	"strings"
 	"time"
 )
+
+type imagePullStatus struct {
+	Status   string `json:"status"`
+	Progress string `json:"progress"`
+}
 
 // Attaches to the docker container itself and ensures that we can pipe data in and out
 // of the process stream. This should not be used for reading console data as you *will*
@@ -148,7 +154,7 @@ func (e *Environment) Create() error {
 		// Convert 127.0.0.1 to the pterodactyl0 network interface if the environment is Docker
 		// so that the server operates as expected.
 		if v == "SERVER_IP=127.0.0.1" {
-			evs[i] = "SERVER_IP="+config.Get().Docker.Network.Interface
+			evs[i] = "SERVER_IP=" + config.Get().Docker.Network.Interface
 		}
 	}
 
@@ -307,6 +313,9 @@ func (e *Environment) followOutput() error {
 //
 // TODO: local images
 func (e *Environment) ensureImageExists(image string) error {
+	e.Events().Publish(environment.DockerImagePullStarted, "")
+	defer e.Events().Publish(environment.DockerImagePullCompleted, "")
+
 	// Give it up to 15 minutes to pull the image. I think this should cover 99.8% of cases where an
 	// image pull might fail. I can't imagine it will ever take more than 15 minutes to fully pull
 	// an image. Let me know when I am inevitably wrong here...
@@ -374,12 +383,18 @@ func (e *Environment) ensureImageExists(image string) error {
 	// is done being pulled, which is what we need.
 	scanner := bufio.NewScanner(out)
 	for scanner.Scan() {
-		continue
+		s := imagePullStatus{}
+		fmt.Println(scanner.Text())
+		if err := json.Unmarshal(scanner.Bytes(), &s); err == nil {
+			e.Events().Publish(environment.DockerImagePullStatus, s.Status+" "+s.Progress)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		return err
 	}
+
+	log.WithField("image", image).Debug("completed docker image pull")
 
 	return nil
 }
