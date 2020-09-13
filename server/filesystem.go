@@ -782,6 +782,10 @@ func (fs *Filesystem) EnsureDataDirectory() error {
 		if err := os.MkdirAll(fs.Path(), 0700); err != nil {
 			return errors.WithStack(err)
 		}
+
+		if err := fs.Chown("/"); err != nil {
+			fs.Server.Log().WithField("error", err).Warn("failed to chown server data directory")
+		}
 	}
 
 	return nil

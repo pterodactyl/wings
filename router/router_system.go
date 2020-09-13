@@ -57,7 +57,11 @@ func postCreateServer(c *gin.Context) {
 	// cycle. If there are any errors they will be logged and communicated back
 	// to the Panel where a reinstall may take place.
 	go func(i *installer.Installer) {
-		i.Execute()
+		err := i.Server().CreateEnvironment()
+		if err != nil {
+			i.Server().Log().WithField("error", err).Error("failed to create server environment during install process")
+			return
+		}
 
 		if err := i.Server().Install(false); err != nil {
 			log.WithFields(log.Fields{"server": i.Uuid(), "error": err}).Error("failed to run install process for server")

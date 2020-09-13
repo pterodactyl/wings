@@ -277,7 +277,10 @@ func postTransfer(c *gin.Context) {
 		server.GetServers().Add(i.Server())
 
 		// Create the server's environment (note this does not execute the install script)
-		i.Execute()
+		if err := i.Server().CreateEnvironment(); err != nil {
+			l.WithField("error", err).Error("failed to create server environment")
+			return
+		}
 
 		// Un-archive the archive. That sounds weird..
 		if err := archiver.NewTarGz().Unarchive(archivePath, i.Server().Filesystem.Path()); err != nil {
