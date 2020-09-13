@@ -137,14 +137,15 @@ func IsRequestError(err error) bool {
 }
 
 type RequestError struct {
-	Code   string `json:"code"`
-	Status string `json:"status"`
-	Detail string `json:"detail"`
+	response *http.Response
+	Code     string `json:"code"`
+	Status   string `json:"status"`
+	Detail   string `json:"detail"`
 }
 
 // Returns the error response in a string form that can be more easily consumed.
 func (re *RequestError) Error() string {
-	return fmt.Sprintf("Error response from Panel: %s: %s (HTTP/%s)", re.Code, re.Detail, re.Status)
+	return fmt.Sprintf("Error response from Panel: %s: %s (HTTP/%d)", re.Code, re.Detail, re.response.StatusCode)
 }
 
 func (re *RequestError) String() string {
@@ -165,9 +166,12 @@ func (r *PanelRequest) Error() *RequestError {
 	bag := RequestErrorBag{}
 	json.Unmarshal(body, &bag)
 
-	if len(bag.Errors) == 0 {
-		return new(RequestError)
+	e := new(RequestError)
+	if len(bag.Errors) > 0 {
+		e = &bag.Errors[0]
 	}
 
-	return &bag.Errors[0]
+	e.response = r.Response
+
+	return e
 }

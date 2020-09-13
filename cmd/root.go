@@ -203,7 +203,6 @@ func rootCmdRun(*cobra.Command, []string) {
 				s.Log().WithField("error", err).Error("error checking server environment status")
 			}
 
-			fmt.Println(s.Id(), st, r, s.IsRunning(), s.GetState())
 			// Check if the server was previously running. If so, attempt to start the server now so that Wings
 			// can pick up where it left off. If the environment does not exist at all, just create it and then allow
 			// the normal flow to execute.
@@ -211,7 +210,6 @@ func rootCmdRun(*cobra.Command, []string) {
 			// This does mean that booting wings after a catastrophic machine crash and wiping out the Docker images
 			// as a result will result in a slow boot.
 			if !r && (st == environment.ProcessRunningState || st == environment.ProcessStartingState) {
-				fmt.Println("starting server, not running and should be")
 				if err := s.HandlePowerAction(server.PowerActionStart); err != nil {
 					s.Log().WithField("error", errors.WithStack(err)).Warn("failed to return server to running state")
 				}
