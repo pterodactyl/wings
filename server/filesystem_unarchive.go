@@ -80,6 +80,11 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 			return errors.New(fmt.Sprintf("could not parse underlying data source with type %s", reflect.TypeOf(s).String()))
 		}
 
-		return errors.Wrap(fs.Writefile(name, f), "could not extract file from archive")
+		p, err := fs.SafePath(filepath.Join(dir, name))
+		if err != nil {
+			return errors.Wrap(err, "failed to generate a safe path to server file")
+		}
+
+		return errors.Wrap(fs.Writefile(p, f), "could not extract file from archive")
 	})
 }
