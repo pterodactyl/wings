@@ -339,10 +339,22 @@ func postServerDecompressFiles(c *gin.Context) {
 	}
 
 	if err := s.Filesystem.DecompressFile(data.RootPath, data.File); err != nil {
-		// Check if the file does not exist.
-		// NOTE: os.IsNotExist() does not work if the error is wrapped.
 		if errors.Is(err, os.ErrNotExist) {
-			c.Status(http.StatusNotFound)
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+				"error": "The requested archive was not found.",
+			})
+			return
+		}
+
+		// If the file is busy for some reason just return a nicer error to the user since there is not
+		// much we specifically can do. They'll need to stop the running server process in order to overwrite
+		// a file like this.
+		if strings.Contains(err.Error(), "text file busy") {
+			s.Log().WithField("error", err).Warn("failed to decompress file due to busy text file")
+
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "One or more files this archive is attempting to overwrite are currently in use by another process. Please try again.",
+			})
 			return
 		}
 

@@ -400,9 +400,10 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 		currentSize = stat.Size()
 	}
 
+	o := &fileOpener{}
 	// This will either create the file if it does not already exist, or open and
 	// truncate the existing file.
-	file, err := os.OpenFile(cleaned, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	file, err := o.open(cleaned, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -936,4 +937,30 @@ func (fs *Filesystem) handleWalkerError(err error, f os.FileInfo) error {
 	}
 
 	return nil
+}
+
+type fileOpener struct {
+	busy        uint
+}
+
+// Attempts to open a given file up to "attempts" number of times, using a backoff. If the file
+// cannot be opened because of a "text file busy" error, we will attempt until the number of attempts
+// has been exhaused, at which point we will abort with an error.
+func (fo *fileOpener) open(path string, flags int, perm os.FileMode) (*os.File, error) {
+	for {
+		f, err := os.OpenFile(path, flags, perm)
+
+		// If there is an error because the text file is busy, go ahead and sleep for a few
+		// hundred milliseconds and then try again up to three times before just returning the
+		// error back to the caller.
+		//
+		// Based on code from: https://github.com/golang/go/issues/22220#issuecomment-336458122
+		if err != nil && fo.busy < 3 && strings.Contains(err.Error(), "text file busy") {
+			time.Sleep(100 * time.Millisecond << fo.busy)
+			fo.busy++
+			continue
+		}
+
+		return f, err
+	}
 }
