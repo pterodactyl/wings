@@ -3,11 +3,14 @@ package server
 import (
 	"fmt"
 	"github.com/mitchellh/colorstring"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"sync"
 	"sync/atomic"
 	"time"
 )
+
+var ErrTooMuchConsoleData = errors.New("console is outputting too much data")
 
 type ConsoleThrottler struct {
 	sync.RWMutex
@@ -15,46 +18,40 @@ type ConsoleThrottler struct {
 
 	// The total number of activations that have occurred thus far.
 	activations uint64
+	triggered   bool
 
 	// The total number of lines processed so far during the given time period.
-	lines uint64
-
-	lastIntervalTime *time.Time
-	lastDecayTime    *time.Time
+	count           uint64
+	activationTimer *time.Time
+	outputTimer     *time.Time
 }
 
-// Increments the number of activations for a server.
-func (ct *ConsoleThrottler) AddActivation() uint64 {
+// Resets the state of the throttler.
+func (ct *ConsoleThrottler) Reset() {
 	ct.Lock()
-	defer ct.Unlock()
-
-	ct.activations += 1
-
-	return ct.activations
+	ct.count = 0
+	ct.activations = 0
+	ct.triggered = false
+	ct.outputTimer = nil
+	ct.activationTimer = nil
+	ct.Unlock()
 }
 
-// Decrements the number of activations for a server.
-func (ct *ConsoleThrottler) RemoveActivation() uint64 {
-	ct.Lock()
-	defer ct.Unlock()
-
-	if ct.activations == 0 {
-		return 0
+// Triggers an activation for a server. You can also decrement the number of activations
+// by passing a negative number.
+func (ct *ConsoleThrottler) Trigger(count int64) uint64 {
+	if (int64(ct.activations) + count) <= 0 {
+		ct.activations = 0
+	} else {
+		ct.activations = uint64(int64(ct.activations) + count)
 	}
 
-	ct.activations -= 1
+	n := time.Now()
+	if count > 0 {
+		ct.activationTimer = &n
+	}
 
 	return ct.activations
-}
-
-// Increment the total count of lines that we have processed so far.
-func (ct *ConsoleThrottler) IncrementLineCount() uint64 {
-	return atomic.AddUint64(&ct.lines, 1)
-}
-
-// Reset the line count to zero.
-func (ct *ConsoleThrottler) ResetLineCount() {
-	atomic.SwapUint64(&ct.lines, 0)
 }
 
 // Handles output from a server's console. This code ensures that a server is not outputting
@@ -70,8 +67,48 @@ func (ct *ConsoleThrottler) ResetLineCount() {
 // data all at once. These values are all configurable via the wings configuration file, however the
 // defaults have been in the wild for almost two years at the time of this writing, so I feel quite
 // confident in them.
-func (ct *ConsoleThrottler) Handle() {
+//
+// This function returns an error if the server should be stopped due to violating throttle constraints
+// and a boolean value indicating if a throttle is being violated when it is checked.
+func (ct *ConsoleThrottler) Check(onTrigger func()) (bool, error) {
+	if !ct.Enabled {
+		return false, nil
+	}
 
+	ct.Lock()
+	defer ct.Unlock()
+
+	n := time.Now()
+	// Check if last time that an output throttle activation occurred, and if it has been enough time,
+	// go ahead and decrement the count.
+	if ct.activationTimer != nil && time.Now().After(ct.activationTimer.Add(time.Duration(ct.Decay)*time.Millisecond)) {
+		ct.Trigger(-1)
+	}
+
+	// Check if the last decay time is too old, and if so reset the count of the lines that have
+	// been processed by this instance.
+	if ct.outputTimer != nil && time.Now().After(ct.outputTimer.Add(time.Duration(ct.CheckInterval)*time.Millisecond)) {
+		ct.outputTimer = &n
+		ct.triggered = false
+		atomic.SwapUint64(&ct.count, 0)
+	} else if ct.outputTimer == nil {
+		ct.outputTimer = &n
+	}
+
+	// Increment the line count and if we have now output more lines than are allowed, trigger a throttle
+	// activation. Once the throttle is triggered and has passed the kill at value we will trigger a server
+	// stop automatically.
+	if atomic.AddUint64(&ct.count, 1) >= ct.Lines && !ct.triggered {
+		ct.triggered = true
+		if ct.Trigger(1) >= ct.KillAtCount {
+			return true, ErrTooMuchConsoleData
+		}
+
+		onTrigger()
+	}
+
+	// Making it here means there is nothing else that needs to be done to the server.
+	return ct.triggered, nil
 }
 
 // Returns the throttler instance for the server or creates a new one.

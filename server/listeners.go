@@ -5,6 +5,7 @@ import (
 	"github.com/apex/log"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
 	"regexp"
@@ -21,16 +22,43 @@ var dockerEvents = []string{
 // removed by deleting the server as they should last for the duration of the process' lifetime.
 func (s *Server) StartEventListeners() {
 	console := func(e events.Event) {
-		// Immediately emit this event back over the server event stream since it is
-		// being called from the environment event stream and things probably aren't
-		// listening to that event.
-		s.Events().Publish(ConsoleOutputEvent, e.Data)
+		// Pass off to the console throttler to handle sending the output along to the websocket
+		// assuming it isn't breaking the throttle limits.
+		if throttled, err := s.Throttler().Check(func() {
+			s.PublishConsoleOutputFromDaemon("Your server is outputting too much data and is being throttled.")
+		}); err == nil {
+			if !throttled {
+				// Immediately emit this event back over the server event stream since it is
+				// being called from the environment event stream and things probably aren't
+				// listening to that event.
+				s.Events().Publish(ConsoleOutputEvent, e.Data)
+			}
+		} else {
+			// If the process is already stopping, just let it continue with that action rather than attempting
+			// to terminate again.
+			if s.GetState() != environment.ProcessStoppingState {
+				s.SetState(environment.ProcessStoppingState)
+				go func() {
+					s.PublishConsoleOutputFromDaemon("Your server is being stopped for outputting too much data in a short period of time.")
+					// Completely skip over server power actions and terminate the running instance. This gives the
+					// server 15 seconds to finish stopping gracefully before it is forcefully terminated.
+					if err := s.Environment.WaitForStop(config.Get().Throttles.StopGracePeriod, true); err != nil {
+						s.Log().WithField("error", errors.WithStack(err)).Error("failed to terminate environment after triggering throttle")
+					}
+				}()
+			}
+		}
 
 		// Also pass the data along to the console output channel.
 		s.onConsoleOutput(e.Data)
 	}
 
 	state := func(e events.Event) {
+		// Reset the throttler when the process is started.
+		if e.Data == environment.ProcessStartingState {
+			s.Throttler().Reset()
+		}
+
 		s.SetState(e.Data)
 	}
 

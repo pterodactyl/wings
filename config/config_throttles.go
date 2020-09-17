@@ -20,4 +20,8 @@ type ConsoleThrottles struct {
 	// The amount of time that must pass between intervals before the count is reset. This
 	// value is in milliseconds.
 	CheckInterval uint64 `json:"check_interval" yaml:"check_interval" default:"100"`
+
+	// The amount of time that a server is allowed to be stopping for before it is terminated
+	// forfully if it triggers output throttles.
+	StopGracePeriod uint `json:"stop_grace_period" yaml:"stop_grace_period" default:"15"`
 }
