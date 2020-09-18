@@ -37,6 +37,19 @@ type Handler struct {
 	server     *server.Server
 }
 
+var (
+	ErrJwtNotPresent = errors.New("jwt: no jwt present")
+	ErrJwtNoConnectPerm = errors.New("jwt: missing connect permission")
+	ErrJwtUuidMismatch = errors.New("jwt: server uuid mismatch")
+)
+
+func IsJwtError(err error) bool {
+	return errors.Is(err, ErrJwtNotPresent) ||
+		errors.Is(err, ErrJwtNoConnectPerm) ||
+		errors.Is(err, ErrJwtUuidMismatch) ||
+		errors.Is(err, jwt.ErrExpValidation)
+}
+
 // Parses a JWT into a websocket token payload.
 func NewTokenPayload(token []byte) (*tokens.WebsocketPayload, error) {
 	payload := tokens.WebsocketPayload{}
@@ -92,10 +105,13 @@ func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request) (*Hand
 }
 
 func (h *Handler) SendJson(v *Message) error {
-	// Do not send JSON down the line if the JWT on the connection is not
-	// valid!
+	// Do not send JSON down the line if the JWT on the connection is not valid!
 	if err := h.TokenValid(); err != nil {
-		h.SendErrorJson(*v, err)
+		h.unsafeSendJson(Message{
+			Event: ErrorEvent,
+			Args:  []string{"could not authenticate client: " + err.Error()},
+		})
+
 		return nil
 	}
 
@@ -135,7 +151,7 @@ func (h *Handler) unsafeSendJson(v interface{}) error {
 func (h *Handler) TokenValid() error {
 	j := h.GetJwt()
 	if j == nil {
-		return errors.New("no jwt present")
+		return ErrJwtNotPresent
 	}
 
 	if err := jwt.ExpirationTimeValidator(time.Now())(&j.Payload); err != nil {
@@ -143,11 +159,11 @@ func (h *Handler) TokenValid() error {
 	}
 
 	if !j.HasPermission(PermissionConnect) {
-		return errors.New("jwt does not have connect permission")
+		return ErrJwtNoConnectPerm
 	}
 
 	if h.server.Id() != j.GetServerUuid() {
-		return errors.New("jwt server uuid mismatch")
+		return ErrJwtUuidMismatch
 	}
 
 	return nil
@@ -171,7 +187,7 @@ func (h *Handler) SendErrorJson(msg Message, err error, shouldLog ...bool) error
 	wsm.Args = []string{m}
 
 	if len(shouldLog) == 0 || (len(shouldLog) == 1 && shouldLog[0] == true) {
-		if !expected {
+		if !expected && !IsJwtError(err) {
 			h.server.Log().WithFields(log.Fields{"event": msg.Event, "error_identifier": u.String(), "error": err}).
 				Error("failed to handle websocket process; an error was encountered processing an event")
 		}
@@ -208,8 +224,6 @@ func (h *Handler) GetJwt() *tokens.WebsocketPayload {
 func (h *Handler) HandleInbound(m Message) error {
 	if m.Event != AuthenticationEvent {
 		if err := h.TokenValid(); err != nil {
-			log.WithField("message", err.Error()).Debug("jwt for server websocket is no longer valid")
-
 			h.unsafeSendJson(Message{
 				Event: ErrorEvent,
 				Args:  []string{"could not authenticate client: " + err.Error()},
