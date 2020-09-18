@@ -6,7 +6,7 @@ type ConsoleThrottles struct {
 
 	// The total number of lines that can be output in a given LineResetInterval period before
 	// a warning is triggered and counted against the server.
-	Lines uint64 `json:"lines" yaml:"lines" default:"1000"`
+	Lines uint64 `json:"lines" yaml:"lines" default:"2000"`
 
 	// The total number of throttle activations that can accumulate before a server is considered
 	// to be breaching and will be stopped. This value is decremented by one every DecayInterval.
