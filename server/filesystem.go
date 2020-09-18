@@ -29,6 +29,8 @@ import (
 // Error returned when there is a bad path provided to one of the FS calls.
 type PathResolutionError struct{}
 
+var ErrNotEnoughDiskSpace = errors.New("not enough disk space is available to perform this operation")
+
 // Returns the error response in a string form that can be more easily consumed.
 func (pre PathResolutionError) Error() string {
 	return "invalid path resolution"
