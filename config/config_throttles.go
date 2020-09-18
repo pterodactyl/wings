@@ -4,22 +4,22 @@ type ConsoleThrottles struct {
 	// Whether or not the throttler is enabled for this instance.
 	Enabled bool `json:"enabled" yaml:"enabled" default:"true"`
 
-	// The total number of throttle activations that must accumulate before a server is
-	// forcibly stopped for violating these limits.
-	KillAtCount uint64 `json:"kill_at_count" yaml:"kill_at_count" default:"5"`
-
-	// The amount of time in milliseconds that a server process must go through without
-	// triggering an output warning before the throttle activation count begins decreasing.
-	// This time is measured in milliseconds.
-	Decay uint64 `json:"decay" yaml:"decay" default:"10000"`
-
-	// The total number of lines that can be output in a given CheckInterval period before
+	// The total number of lines that can be output in a given LineResetInterval period before
 	// a warning is triggered and counted against the server.
 	Lines uint64 `json:"lines" yaml:"lines" default:"1000"`
 
-	// The amount of time that must pass between intervals before the count is reset. This
-	// value is in milliseconds.
-	CheckInterval uint64 `json:"check_interval" yaml:"check_interval" default:"100"`
+	// The total number of throttle activations that can accumulate before a server is considered
+	// to be breaching and will be stopped. This value is decremented by one every DecayInterval.
+	MaximumTriggerCount uint64 `json:"maximum_trigger_count" yaml:"maximum_trigger_count" default:"5"`
+
+	// The amount of time after which the number of lines processed is reset to 0. This runs in
+	// a constant loop and is not affected by the current console output volumes. By default, this
+	// will reset the processed line count back to 0 every 100ms.
+	LineResetInterval uint64 `json:"line_reset_interval" yaml:"line_reset_interval" default:"100"`
+
+	// The amount of time in milliseconds that must pass without an output warning being triggered
+	// before a throttle activation is decremented.
+	DecayInterval uint64 `json:"decay_interval" yaml:"decay_interval" default:"10000"`
 
 	// The amount of time that a server is allowed to be stopping for before it is terminated
 	// forfully if it triggers output throttles.

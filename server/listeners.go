@@ -22,31 +22,38 @@ var dockerEvents = []string{
 // removed by deleting the server as they should last for the duration of the process' lifetime.
 func (s *Server) StartEventListeners() {
 	console := func(e events.Event) {
-		// Pass off to the console throttler to handle sending the output along to the websocket
-		// assuming it isn't breaking the throttle limits.
-		if throttled, err := s.Throttler().Check(func() {
+		t := s.Throttler()
+		err := t.Increment(func () {
 			s.PublishConsoleOutputFromDaemon("Your server is outputting too much data and is being throttled.")
-		}); err == nil {
-			if !throttled {
-				// Immediately emit this event back over the server event stream since it is
-				// being called from the environment event stream and things probably aren't
-				// listening to that event.
-				s.Events().Publish(ConsoleOutputEvent, e.Data)
-			}
-		} else {
+		})
+
+		// An error is only returned if the server has breached the thresholds set.
+		if err != nil {
 			// If the process is already stopping, just let it continue with that action rather than attempting
 			// to terminate again.
 			if s.GetState() != environment.ProcessStoppingState {
 				s.SetState(environment.ProcessStoppingState)
 				go func() {
+					s.Log().Warn("stopping server instance, violating throttle limits")
 					s.PublishConsoleOutputFromDaemon("Your server is being stopped for outputting too much data in a short period of time.")
 					// Completely skip over server power actions and terminate the running instance. This gives the
 					// server 15 seconds to finish stopping gracefully before it is forcefully terminated.
 					if err := s.Environment.WaitForStop(config.Get().Throttles.StopGracePeriod, true); err != nil {
+						// If there is an error set the process back to running so that this throttler is called
+						// again and hopefully kills the server.
+						if s.GetState() != environment.ProcessOfflineState {
+							s.SetState(environment.ProcessRunningState)
+						}
+
 						s.Log().WithField("error", errors.WithStack(err)).Error("failed to terminate environment after triggering throttle")
 					}
 				}()
 			}
+		}
+
+		// If we are not throttled, go ahead and output the data.
+		if !t.Throttled() {
+			s.Events().Publish(ConsoleOutputEvent, e.Data)
 		}
 
 		// Also pass the data along to the console output channel.
