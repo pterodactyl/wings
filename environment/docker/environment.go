@@ -176,3 +176,9 @@ func (e *Environment) SetStopConfiguration(c *api.ProcessStopConfiguration) {
 	e.meta.Stop = c
 	e.mu.Unlock()
 }
+
+func (e *Environment) SetImage(i string) {
+	e.mu.Lock()
+	e.meta.Image = i
+	e.mu.Unlock()
+}

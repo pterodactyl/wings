@@ -137,6 +137,7 @@ func (s *Server) SyncWithConfiguration(cfg *api.ServerConfigurationResponse) err
 	// the process isn't just terminated when a user requests it be stopped.
 	if e, ok := s.Environment.(*docker.Environment); ok {
 		s.Log().Debug("syncing stop configuration with configured docker environment")
+		e.SetImage(s.Config().Container.Image)
 		e.SetStopConfiguration(&cfg.ProcessConfiguration.Stop)
 	}
 
