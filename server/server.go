@@ -22,7 +22,7 @@ type Server struct {
 	sync.RWMutex
 	emitterLock  sync.Mutex
 	powerLock    *semaphore.Weighted
-	throttleLock sync.RWMutex
+	throttleLock sync.Mutex
 
 	// Maintains the configuration for the server. This is the data that gets returned by the Panel
 	// such as build settings and container images.

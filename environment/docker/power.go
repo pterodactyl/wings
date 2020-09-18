@@ -183,13 +183,21 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 	case <-ctx.Done():
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			if terminate {
-				return e.Terminate(os.Kill)
+				log.WithField("container_id", e.Id).Debug("server did not stop in time, executing process termination")
+
+				return errors.WithStack(e.Terminate(os.Kill))
 			}
 
 			return errors.WithStack(ctxErr)
 		}
 	case err := <-errChan:
 		if err != nil {
+			if terminate {
+				log.WithField("container_id", e.Id).WithField("error", errors.WithStack(err)).Warn("error while waiting for container stop, attempting process termination")
+
+				return errors.WithStack(e.Terminate(os.Kill))
+			}
+
 			return errors.WithStack(err)
 		}
 	case <-ok:

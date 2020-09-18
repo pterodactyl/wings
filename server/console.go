@@ -1,60 +1,111 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"github.com/mitchellh/colorstring"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/system"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
+var ErrTooMuchConsoleData = errors.New("console is outputting too much data")
+
 type ConsoleThrottler struct {
-	sync.RWMutex
+	mu sync.Mutex
 	config.ConsoleThrottles
 
 	// The total number of activations that have occurred thus far.
 	activations uint64
 
+	// The total number of lines that have been sent since the last reset timer period.
+	count uint64
+
+	// Wether or not the console output is being throttled. It is up to calling code to
+	// determine what to do if it is.
+	isThrottled system.AtomicBool
+
 	// The total number of lines processed so far during the given time period.
-	lines uint64
-
-	lastIntervalTime *time.Time
-	lastDecayTime    *time.Time
+	timerCancel *context.CancelFunc
 }
 
-// Increments the number of activations for a server.
-func (ct *ConsoleThrottler) AddActivation() uint64 {
-	ct.Lock()
-	defer ct.Unlock()
-
-	ct.activations += 1
-
-	return ct.activations
+// Resets the state of the throttler.
+func (ct *ConsoleThrottler) Reset() {
+	atomic.StoreUint64(&ct.count, 0)
+	atomic.StoreUint64(&ct.activations, 0)
+	ct.isThrottled.Set(false)
 }
 
-// Decrements the number of activations for a server.
-func (ct *ConsoleThrottler) RemoveActivation() uint64 {
-	ct.Lock()
-	defer ct.Unlock()
+// Triggers an activation for a server. You can also decrement the number of activations
+// by passing a negative number.
+func (ct *ConsoleThrottler) markActivation(increment bool) uint64 {
+	if !increment {
+		if atomic.LoadUint64(&ct.activations) == 0 {
+			return 0
+		}
 
-	if ct.activations == 0 {
-		return 0
+		// This weird dohicky subtracts 1 from the activation count.
+		return atomic.AddUint64(&ct.activations, ^uint64(0))
 	}
 
-	ct.activations -= 1
-
-	return ct.activations
+	return atomic.AddUint64(&ct.activations, 1)
 }
 
-// Increment the total count of lines that we have processed so far.
-func (ct *ConsoleThrottler) IncrementLineCount() uint64 {
-	return atomic.AddUint64(&ct.lines, 1)
+// Determines if the console is currently being throttled. Calls to this function can be used to
+// determine if output should be funneled along to the websocket processes.
+func (ct *ConsoleThrottler) Throttled() bool {
+	return ct.isThrottled.Get()
 }
 
-// Reset the line count to zero.
-func (ct *ConsoleThrottler) ResetLineCount() {
-	atomic.SwapUint64(&ct.lines, 0)
+// Starts a timer that runs in a seperate thread and will continually decrement the lines processed
+// and number of activations, regardless of the current console message volume.
+func (ct *ConsoleThrottler) StartTimer() {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	reset := time.NewTicker(time.Duration(int64(ct.LineResetInterval)) * time.Millisecond)
+	decay := time.NewTicker(time.Duration(int64(ct.DecayInterval)) * time.Millisecond)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				reset.Stop()
+				return
+			case <-reset.C:
+				ct.isThrottled.Set(false)
+				atomic.StoreUint64(&ct.count, 0)
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				decay.Stop()
+				return
+			case <-decay.C:
+				ct.markActivation(false)
+			}
+		}
+	}()
+
+	ct.timerCancel = &cancel
+}
+
+// Stops a running timer processes if one exists. This is only called when the server is deleted since
+// we want this to always be running. If there is no process currently running nothing will really happen.
+func (ct *ConsoleThrottler) StopTimer() {
+	ct.mu.Lock()
+	defer ct.mu.Unlock()
+	if ct.timerCancel != nil {
+		c := *ct.timerCancel
+		c()
+		ct.timerCancel = nil
+	}
 }
 
 // Handles output from a server's console. This code ensures that a server is not outputting
@@ -70,30 +121,41 @@ func (ct *ConsoleThrottler) ResetLineCount() {
 // data all at once. These values are all configurable via the wings configuration file, however the
 // defaults have been in the wild for almost two years at the time of this writing, so I feel quite
 // confident in them.
-func (ct *ConsoleThrottler) Handle() {
+//
+// This function returns an error if the server should be stopped due to violating throttle constraints
+// and a boolean value indicating if a throttle is being violated when it is checked.
+func (ct *ConsoleThrottler) Increment(onTrigger func()) error {
+	if !ct.Enabled {
+		return nil
+	}
 
+	// Increment the line count and if we have now output more lines than are allowed, trigger a throttle
+	// activation. Once the throttle is triggered and has passed the kill at value we will trigger a server
+	// stop automatically.
+	if atomic.AddUint64(&ct.count, 1) >= ct.Lines && !ct.Throttled() {
+		ct.isThrottled.Set(true)
+		if ct.markActivation(true) >= ct.MaximumTriggerCount {
+			return ErrTooMuchConsoleData
+		}
+
+		onTrigger()
+	}
+
+	return nil
 }
 
 // Returns the throttler instance for the server or creates a new one.
 func (s *Server) Throttler() *ConsoleThrottler {
-	s.throttleLock.RLock()
+	s.throttleLock.Lock()
+	defer s.throttleLock.Unlock()
 
 	if s.throttler == nil {
-		// Release the read lock so that we can acquire a normal lock on the process and
-		// make modifications to the throttler.
-		s.throttleLock.RUnlock()
-
-		s.throttleLock.Lock()
 		s.throttler = &ConsoleThrottler{
 			ConsoleThrottles: config.Get().Throttles,
 		}
-		s.throttleLock.Unlock()
-
-		return s.throttler
-	} else {
-		defer s.throttleLock.RUnlock()
-		return s.throttler
 	}
+
+	return s.throttler
 }
 
 // Sends output to the server console formatted to appear correctly as being sent
