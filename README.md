@@ -1,6 +1,7 @@
 [![Logo Image](https://cdn.pterodactyl.io/logos/new/pterodactyl_logo.png)](https://pterodactyl.io)
 
 [![Discord](https://img.shields.io/discord/122900397965705216.svg?style=flat-square&label=Discord)](https://pterodactyl.io/discord)
+[![Go Report Card](https://goreportcard.com/badge/github.com/pterodactyl/wings)](https://goreportcard.com/report/github.com/pterodactyl/wings)
 
 # Pterodactyl Wings
 Wings is Pterodactyl's server control plane, built for the rapidly changing gaming industry and designed to be
