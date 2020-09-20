@@ -364,7 +364,7 @@ func (e *Environment) ensureImageExists(image string) error {
 				log.WithFields(log.Fields{
 					"image":        image,
 					"container_id": e.Id,
-					"error":        errors.New(err.Error()),
+					"err":          err.Error(),
 				}).Warn("unable to pull requested image from remote source, however the image exists locally")
 
 				// Okay, we found a matching container image, in that case just go ahead and return
