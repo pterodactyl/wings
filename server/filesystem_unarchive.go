@@ -10,8 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync/atomic"
 )
+
+var ErrUnknownArchiveFormat = errors.New("filesystem: unknown archive format")
 
 // Look through a given archive and determine if decompressing it would put the server over
 // its allocated disk space limit.
@@ -35,14 +38,21 @@ func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (b
 	var max = fs.Server.DiskSpace() * 1000.0 * 1000.0
 	// Walk over the archive and figure out just how large the final output would be from unarchiving it.
 	err = archiver.Walk(source, func(f archiver.File) error {
-		if atomic.AddInt64(&size, f.Size()) + dirSize > max {
+		if atomic.AddInt64(&size, f.Size())+dirSize > max {
 			return errors.WithStack(ErrNotEnoughDiskSpace)
 		}
 
 		return nil
 	})
+	if err != nil {
+		if strings.HasPrefix(err.Error(), "format ") {
+			return false, errors.WithStack(ErrUnknownArchiveFormat)
+		}
 
-	return err == nil, errors.WithStack(err)
+		return false, errors.WithStack(err)
+	}
+
+	return true, errors.WithStack(err)
 }
 
 // Decompress a file in a given directory by using the archiver tool to infer the file
@@ -63,7 +73,7 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 	// Walk over all of the files spinning up an additional go-routine for each file we've encountered
 	// and then extract that file from the archive and write it to the disk. If any part of this process
 	// encounters an error the entire process will be stopped.
-	return archiver.Walk(source, func(f archiver.File) error {
+	err = archiver.Walk(source, func(f archiver.File) error {
 		// Don't waste time with directories, we don't need to create them if they have no contents, and
 		// we will ensure the directory exists when opening the file for writing anyways.
 		if f.IsDir() {
@@ -90,4 +100,13 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 
 		return errors.Wrap(fs.Writefile(p, f), "could not extract file from archive")
 	})
+	if err != nil {
+		if strings.HasPrefix(err.Error(), "format ") {
+			return errors.WithStack(ErrUnknownArchiveFormat)
+		}
+
+		return errors.WithStack(err)
+	}
+
+	return nil
 }

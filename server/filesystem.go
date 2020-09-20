@@ -599,7 +599,15 @@ func (fs *Filesystem) Copy(p string) error {
 	base := filepath.Base(cleaned)
 	relative := strings.TrimSuffix(strings.TrimPrefix(cleaned, fs.Path()), base)
 	extension := filepath.Ext(base)
-	name := strings.TrimSuffix(base, filepath.Ext(base))
+	name := strings.TrimSuffix(base, extension)
+
+	// Ensure that ".tar" is also counted as apart of the file extension.
+	// There might be a better way to handle this for other double file extensions,
+	// but this is a good workaround for now.
+	if strings.HasSuffix(name, ".tar") {
+		extension = ".tar" + extension
+		name = strings.TrimSuffix(name, ".tar")
+	}
 
 	// Begin looping up to 50 times to try and create a unique copy file name. This will take
 	// an input of "file.txt" and generate "file copy.txt". If that name is already taken, it will
@@ -942,7 +950,7 @@ func (fs *Filesystem) handleWalkerError(err error, f os.FileInfo) error {
 }
 
 type fileOpener struct {
-	busy        uint
+	busy uint
 }
 
 // Attempts to open a given file up to "attempts" number of times, using a backoff. If the file

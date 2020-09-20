@@ -38,9 +38,9 @@ type Handler struct {
 }
 
 var (
-	ErrJwtNotPresent = errors.New("jwt: no jwt present")
+	ErrJwtNotPresent    = errors.New("jwt: no jwt present")
 	ErrJwtNoConnectPerm = errors.New("jwt: missing connect permission")
-	ErrJwtUuidMismatch = errors.New("jwt: server uuid mismatch")
+	ErrJwtUuidMismatch  = errors.New("jwt: server uuid mismatch")
 )
 
 func IsJwtError(err error) bool {

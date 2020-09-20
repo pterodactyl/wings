@@ -23,7 +23,7 @@ var dockerEvents = []string{
 func (s *Server) StartEventListeners() {
 	console := func(e events.Event) {
 		t := s.Throttler()
-		err := t.Increment(func () {
+		err := t.Increment(func() {
 			s.PublishConsoleOutputFromDaemon("Your server is outputting too much data and is being throttled.")
 		})
 

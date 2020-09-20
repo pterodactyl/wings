@@ -327,6 +327,16 @@ func postServerDecompressFiles(c *gin.Context) {
 
 	hasSpace, err := s.Filesystem.SpaceAvailableForDecompression(data.RootPath, data.File)
 	if err != nil {
+		// Handle an unknown format error.
+		if errors.Is(err, server.ErrUnknownArchiveFormat) {
+			s.Log().WithField("error", err).Warn("failed to decompress file due to unknown format")
+
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "unknown archive format",
+			})
+			return
+		}
+
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}
