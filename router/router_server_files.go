@@ -247,6 +247,13 @@ func postServerWriteFile(c *gin.Context) {
 	f = "/" + strings.TrimLeft(f, "/")
 
 	if err := s.Filesystem.Writefile(f, c.Request.Body); err != nil {
+		if errors.Is(err, server.ErrIsDirectory) {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "Cannot write file, name conflicts with an existing directory by the same name.",
+			})
+			return
+		}
+
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}
@@ -268,6 +275,13 @@ func postServerCreateDirectory(c *gin.Context) {
 	}
 
 	if err := s.Filesystem.CreateDirectory(data.Name, data.Path); err != nil {
+		if err.Error() == "not a directory" {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "Part of the path being created is not a directory (ENOTDIR).",
+			})
+			return
+		}
+
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}

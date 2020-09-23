@@ -29,6 +29,7 @@ import (
 // Error returned when there is a bad path provided to one of the FS calls.
 type PathResolutionError struct{}
 
+var ErrIsDirectory = errors.New("is a directory")
 var ErrNotEnoughDiskSpace = errors.New("not enough disk space is available to perform this operation")
 
 // Returns the error response in a string form that can be more easily consumed.
@@ -396,7 +397,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 		}
 	} else {
 		if stat.IsDir() {
-			return errors.New("cannot write file contents to a directory")
+			return ErrIsDirectory
 		}
 
 		currentSize = stat.Size()
