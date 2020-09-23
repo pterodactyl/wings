@@ -437,8 +437,7 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 	scanner := bufio.NewScanner(f2)
 	for scanner.Scan() {
 		text := scanner.Text()
-
-		if text[0] != '#' {
+		if len(text) > 0 && text[0] != '#' {
 			break
 		}
 
