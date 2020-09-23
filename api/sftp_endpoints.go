@@ -70,8 +70,8 @@ func (r *PanelRequest) ValidateSftpCredentials(request SftpAuthRequest) (*SftpAu
 		if r.HttpResponseCode() >= 400 && r.HttpResponseCode() < 500 {
 			log.WithFields(log.Fields{
 				"subsystem": "sftp",
-				"username": request.User,
-				"ip": request.IP,
+				"username":  request.User,
+				"ip":        request.IP,
 			}).Warn(r.Error().String())
 
 			return nil, new(sftpInvalidCredentialsError)

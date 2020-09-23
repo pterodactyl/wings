@@ -63,7 +63,7 @@ type Configuration struct {
 
 	// AllowedMounts is a list of allowed host-system mount points.
 	// This is required to have the "Server Mounts" feature work properly.
-	AllowedMounts []string `json:"allowed_mounts" yaml:"allowed_mounts"`
+	AllowedMounts []string `json:"-" yaml:"allowed_mounts"`
 
 	// AllowedOrigins is a list of allowed request origins.
 	// The Panel URL is automatically allowed, this is only needed for adding
