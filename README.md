@@ -17,12 +17,13 @@ I would like to extend my sincere thanks to the following sponsors for helping f
 
 | Company | About |
 | ------- | ----- |
-| [**BloomVPS**](https://bloomvps.com) | BloomVPS offers dedicated core VPS and Minecraft hosting with Ryzen 9 processors. With owned-hardware, we offer truly unbeatable prices on high-performance hosting. |
+| [**Bloom.host**](https://bloom.host) | Bloom.host offers dedicated core VPS and Minecraft hosting with Ryzen 9 processors. With owned-hardware, we offer truly unbeatable prices on high-performance hosting. |
 | [**VersatileNode**](https://versatilenode.com/) | Looking to host a minecraft server, vps, or a website? VersatileNode is one of the most affordable hosting providers to provide quality yet cheap services with incredible support. |
 | [**MineStrator**](https://minestrator.com/) | Looking for a French highend hosting company for you minecraft server? More than 14,000 members on our discord, trust us. |
 | [**DedicatedMC**](https://dedicatedmc.io/) | DedicatedMC provides Raw Power hosting at affordable pricing, making sure to never compromise on your performance and giving you the best performance money can buy. |
 | [**Skynode**](https://www.skynode.pro/) | Skynode provides blazing fast game servers along with a top-notch user experience. Whatever our clients are looking for, we're able to provide it! |
 | [**XCORE-SERVER.de**](https://xcore-server.de/) | XCORE-SERVER.de offers High-End Servers for hosting and gaming since 2012. Fast, excellent and well-known for eSports Gaming. |
+| [**RoyaleHosting**](https://royalehosting.net/) |  Build your dreams and deploy them with RoyaleHosting’s reliable servers and network. Easy to use, provisioned in a couple of minutes. |
 
 ## Documentation
 * [Panel Documentation](https://pterodactyl.io/panel/1.0/getting_started.html)
