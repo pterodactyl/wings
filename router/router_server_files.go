@@ -156,6 +156,13 @@ func putServerRenameFiles(c *gin.Context) {
 			return
 		}
 
+		if strings.HasSuffix(err.Error(), "file name too long") {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "Cannot move or rename file, name is too long.",
+			})
+			return
+		}
+
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}
@@ -250,6 +257,13 @@ func postServerWriteFile(c *gin.Context) {
 		if errors.Is(err, server.ErrIsDirectory) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 				"error": "Cannot write file, name conflicts with an existing directory by the same name.",
+			})
+			return
+		}
+
+		if strings.HasSuffix(err.Error(), "file name too long") {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "Cannot move or rename file, name is too long.",
 			})
 			return
 		}
