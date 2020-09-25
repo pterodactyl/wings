@@ -704,7 +704,7 @@ func (fs *Filesystem) Delete(p string) error {
 		}
 	} else {
 		if !st.IsDir() {
-			atomic.SwapInt64(&fs.disk, -st.Size())
+			atomic.AddInt64(&fs.disk, -st.Size())
 		} else {
 			go func(st os.FileInfo, resolved string) {
 				if s, err := fs.DirectorySize(resolved); err == nil {
