@@ -82,7 +82,7 @@ func getServerListDirectory(c *gin.Context) {
 
 	stats, err := s.Filesystem.ListDirectory(d)
 	if err != nil {
-		if err.Error() == "readdirent: not a directory" {
+		if e, ok := err.(*os.SyscallError); ok && e.Syscall == "readdirent" {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 				"error": "The requested directory does not exist.",
 			})

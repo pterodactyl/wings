@@ -33,7 +33,7 @@ func TrackedError(err error) *RequestError {
 // generated this server for the purposes of logging.
 func TrackedServerError(err error, s *server.Server) *RequestError {
 	return &RequestError{
-		Err:     errors.WithStack(err),
+		Err:     err,
 		Uuid:    uuid.Must(uuid.NewRandom()).String(),
 		Message: "",
 		server:  s,
