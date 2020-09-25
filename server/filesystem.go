@@ -243,7 +243,7 @@ func (fs *Filesystem) HasSpaceAvailable(allowStaleValue bool) bool {
 		return true
 	}
 
-	return (size / 1000.0 / 1000.0) <= space
+	return size <= space
 }
 
 // Internal helper function to allow other parts of the codebase to check the total used disk space
@@ -581,20 +581,25 @@ func (fs *Filesystem) Chown(path string) error {
 
 // Copies a given file to the same location and appends a suffix to the file to indicate that
 // it has been copied.
-//
-// @todo need to get an exclusive lock on the file.
 func (fs *Filesystem) Copy(p string) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	if s, err := os.Stat(cleaned); err != nil {
+	s, err := os.Stat(cleaned);
+	if err != nil {
 		return errors.WithStack(err)
 	} else if s.IsDir() || !s.Mode().IsRegular() {
 		// If this is a directory or not a regular file, just throw a not-exist error
 		// since anything calling this function should understand what that means.
 		return os.ErrNotExist
+	}
+
+	// Check that copying this file wouldn't put the server over its limit.
+	curSize := atomic.LoadInt64(&fs.disk)
+	if (curSize + s.Size()) > fs.Server.DiskSpace() {
+		return ErrNotEnoughDiskSpace
 	}
 
 	base := filepath.Base(cleaned)
@@ -664,6 +669,9 @@ func (fs *Filesystem) Copy(p string) error {
 	if _, err := io.CopyBuffer(dest, source, buf); err != nil {
 		return errors.WithStack(err)
 	}
+
+	// Once everything is done, increment the disk space used.
+	atomic.AddInt64(&fs.disk, s.Size())
 
 	return nil
 }
@@ -927,10 +935,25 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 	}
 
 	a := &backup.Archive{TrimPrefix: fs.Path(), Files: inc}
-
 	d := path.Join(cleanedRootDir, fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")))
 
-	return a.Create(d, context.Background())
+	f, err := a.Create(d, context.Background())
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	curSize := atomic.LoadInt64(&fs.disk)
+	if (curSize + f.Size()) > fs.Server.DiskSpace() {
+		// Exceeding space limits, delete archive and return error. Kind of a waste of resources
+		// I suppose, but oh well.
+		_ = os.Remove(d)
+
+		return nil, ErrNotEnoughDiskSpace
+	}
+
+	atomic.AddInt64(&fs.disk, f.Size())
+
+	return f, nil
 }
 
 // Handle errors encountered when walking through directories.

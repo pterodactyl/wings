@@ -35,7 +35,7 @@ func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (b
 	dirSize, err := fs.DiskUsage(false)
 
 	var size int64
-	var max = fs.Server.DiskSpace() * 1000.0 * 1000.0
+	var max = fs.Server.DiskSpace()
 	// Walk over the archive and figure out just how large the final output would be from unarchiving it.
 	err = archiver.Walk(source, func(f archiver.File) error {
 		if atomic.AddInt64(&size, f.Size())+dirSize > max {

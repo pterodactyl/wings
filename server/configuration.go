@@ -47,11 +47,12 @@ func (s *Server) Config() *Configuration {
 	return &s.cfg
 }
 
+// Returns the amount of disk space available to a server in bytes.
 func (s *Server) DiskSpace() int64 {
 	s.cfg.mu.RLock()
 	defer s.cfg.mu.RUnlock()
 
-	return s.cfg.Build.DiskSpace
+	return s.cfg.Build.DiskSpace * 1000.0 * 1000.0
 }
 
 func (s *Server) MemoryLimit() int64 {

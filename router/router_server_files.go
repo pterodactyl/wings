@@ -82,14 +82,7 @@ func getServerListDirectory(c *gin.Context) {
 
 	stats, err := s.Filesystem.ListDirectory(d)
 	if err != nil {
-		if e, ok := err.(*os.SyscallError); ok && e.Syscall == "readdirent" {
-			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-				"error": "The requested directory does not exist.",
-			})
-			return
-		}
-
-		TrackedServerError(err, s).AbortWithServerError(c)
+		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -156,14 +149,7 @@ func putServerRenameFiles(c *gin.Context) {
 			return
 		}
 
-		if strings.HasSuffix(err.Error(), "file name too long") {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-				"error": "Cannot move or rename file, name is too long.",
-			})
-			return
-		}
-
-		TrackedServerError(err, s).AbortWithServerError(c)
+		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -183,15 +169,7 @@ func postServerCopyFile(c *gin.Context) {
 	}
 
 	if err := s.Filesystem.Copy(data.Location); err != nil {
-		// Check if the file does not exist.
-		// NOTE: os.IsNotExist() does not work if the error is wrapped.
-		if errors.Is(err, os.ErrNotExist) {
-			c.Status(http.StatusNotFound)
-			return
-		}
-
-		TrackedServerError(err, s).AbortWithServerError(c)
-		return
+		TrackedServerError(err, s).AbortFilesystemError(c)
 	}
 
 	c.Status(http.StatusNoContent)

@@ -9,6 +9,7 @@ import (
 	"github.com/pterodactyl/wings/server"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type RequestError struct {
@@ -93,6 +94,39 @@ func (e *RequestError) AbortWithStatus(status int, c *gin.Context) {
 // from most errors encountered by the API.
 func (e *RequestError) AbortWithServerError(c *gin.Context) {
 	e.AbortWithStatus(http.StatusInternalServerError, c)
+}
+
+// Handle specific filesystem errors for a server.
+func (e *RequestError) AbortFilesystemError(c *gin.Context) {
+	if errors.Is(e.Err, os.ErrNotExist) {
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+			"error": "The requested resource was not found.",
+		})
+		return
+	}
+
+	if errors.Is(e.Err, server.ErrNotEnoughDiskSpace) {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": server.ErrNotEnoughDiskSpace.Error(),
+		})
+		return
+	}
+
+	if strings.HasSuffix(e.Err.Error(), "file name too long") {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "File name is too long.",
+		})
+		return
+	}
+
+	if e, ok := e.Err.(*os.SyscallError); ok && e.Syscall == "readdirent" {
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+			"error": "The requested directory does not exist.",
+		})
+		return
+	}
+
+	e.AbortWithServerError(c)
 }
 
 // Format the error to a string and include the UUID.
