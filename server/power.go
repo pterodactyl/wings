@@ -38,6 +38,21 @@ func (pa PowerAction) IsStart() bool {
 	return pa == PowerActionStart || pa == PowerActionRestart
 }
 
+// Check if there is currently a power action being processed for the server.
+func (s *Server) ExecutingPowerAction() bool {
+	if s.powerLock == nil {
+		return false
+	}
+
+	ok := s.powerLock.TryAcquire(1)
+	if ok {
+		s.powerLock.Release(1)
+	}
+
+	// Remember, if we acquired a lock it means nothing was running.
+	return !ok
+}
+
 // Helper function that can receive a power action and then process the actions that need
 // to occur for it. This guards against someone calling Start() twice at the same time, or
 // trying to restart while another restart process is currently running.

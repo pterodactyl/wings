@@ -174,7 +174,9 @@ func (h *Handler) TokenValid() error {
 // error message, otherwise we just send back a standard error message.
 func (h *Handler) SendErrorJson(msg Message, err error, shouldLog ...bool) error {
 	j := h.GetJwt()
-	expected := errors.Is(err, server.ErrSuspended) || errors.Is(err, server.ErrIsRunning)
+	expected := errors.Is(err, server.ErrSuspended) ||
+		errors.Is(err, server.ErrIsRunning) ||
+		errors.Is(err, server.ErrNotEnoughDiskSpace)
 
 	message := "an unexpected error was encountered while handling this request"
 	if expected || (j != nil && j.HasPermission(PermissionReceiveErrors)) {
