@@ -169,9 +169,16 @@ func postServerInstall(c *gin.Context) {
 func postServerReinstall(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	go func(serv *server.Server) {
-		if err := serv.Reinstall(); err != nil {
-			serv.Log().WithField("error", err).Error("failed to complete server re-install process")
+	if s.ExecutingPowerAction() {
+		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+			"error": "Cannot execute server reinstall event while another power action is running.",
+		})
+		return
+	}
+
+	go func(s *server.Server) {
+		if err := s.Reinstall(); err != nil {
+			s.Log().WithField("error", err).Error("failed to complete server re-install process")
 		}
 	}(s)
 
