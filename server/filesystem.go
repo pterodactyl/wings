@@ -215,6 +215,26 @@ type SpaceCheckingOpts struct {
 	AllowStaleResponse bool
 }
 
+// Helper function to determine if a server has space available for a file of a given size.
+// If space is available, no error will be returned, otherwise an ErrNotEnoughSpace error
+// will be raised.
+func (fs *Filesystem) HasSpaceFor(size int64) error {
+	if fs.Server.DiskSpace() <= 0 {
+		return nil
+	}
+
+	s, err := fs.DiskUsage(true)
+	if err != nil {
+		return err
+	}
+
+	if (s + size) > fs.Server.DiskSpace() {
+		return ErrNotEnoughDiskSpace
+	}
+
+	return nil
+}
+
 // Determines if the directory a file is trying to be added to has enough space available
 // for the file to be written to.
 //
@@ -587,7 +607,7 @@ func (fs *Filesystem) Copy(p string) error {
 		return errors.WithStack(err)
 	}
 
-	s, err := os.Stat(cleaned);
+	s, err := os.Stat(cleaned)
 	if err != nil {
 		return errors.WithStack(err)
 	} else if s.IsDir() || !s.Mode().IsRegular() {
@@ -597,9 +617,8 @@ func (fs *Filesystem) Copy(p string) error {
 	}
 
 	// Check that copying this file wouldn't put the server over its limit.
-	curSize := atomic.LoadInt64(&fs.disk)
-	if (curSize + s.Size()) > fs.Server.DiskSpace() {
-		return ErrNotEnoughDiskSpace
+	if err := fs.HasSpaceFor(s.Size()); err != nil {
+		return err
 	}
 
 	base := filepath.Base(cleaned)
@@ -940,15 +959,6 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 	f, err := a.Create(d, context.Background())
 	if err != nil {
 		return nil, errors.WithStack(err)
-	}
-
-	curSize := atomic.LoadInt64(&fs.disk)
-	if (curSize + f.Size()) > fs.Server.DiskSpace() {
-		// Exceeding space limits, delete archive and return error. Kind of a waste of resources
-		// I suppose, but oh well.
-		_ = os.Remove(d)
-
-		return nil, ErrNotEnoughDiskSpace
 	}
 
 	atomic.AddInt64(&fs.disk, f.Size())

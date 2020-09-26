@@ -231,6 +231,12 @@ func postServerWriteFile(c *gin.Context) {
 	}
 	f = "/" + strings.TrimLeft(f, "/")
 
+	// Check if there is enough space available to perform this action.
+	if err := s.Filesystem.HasSpaceFor(c.Request.ContentLength); err != nil {
+		TrackedServerError(err, s).AbortFilesystemError(c)
+		return
+	}
+
 	if err := s.Filesystem.Writefile(f, c.Request.Body); err != nil {
 		if errors.Is(err, server.ErrIsDirectory) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
@@ -307,11 +313,29 @@ func postServerCompressFiles(c *gin.Context) {
 		return
 	}
 
+	d, err := s.Filesystem.SafePath(data.RootPath)
+	if err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+
 	f, err := s.Filesystem.CompressFiles(data.RootPath, data.Files)
 	if err != nil {
 		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
 	}
+
+	if err := s.Filesystem.HasSpaceFor(f.Size()); err != nil {
+		if errors.Is(err, server.ErrNotEnoughDiskSpace) {
+			// Exceeding space limits, delete archive and return error. Kind of a waste of resources
+			// I suppose, but oh well.
+			_ = os.Remove(filepath.Join(d, f.Name()))
+		}
+
+		TrackedServerError(err, s).AbortFilesystemError(c)
+		return
+	}
+
 
 	c.JSON(http.StatusOK, &server.Stat{
 		Info:     f,
@@ -396,13 +420,6 @@ func postServerUploadFiles(c *gin.Context) {
 		return
 	}
 
-	if !s.Filesystem.HasSpaceAvailable(true) {
-		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
-			"error": "This server does not have enough available disk space to accept any file uploads.",
-		})
-		return
-	}
-
 	form, err := c.MultipartForm()
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
@@ -420,6 +437,16 @@ func postServerUploadFiles(c *gin.Context) {
 	}
 
 	directory := c.Query("directory")
+
+	var totalSize int64
+	for _, header := range headers {
+		totalSize += header.Size
+	}
+
+	if err := s.Filesystem.HasSpaceFor(totalSize); err != nil {
+		TrackedServerError(err, s).AbortFilesystemError(c)
+		return
+	}
 
 	for _, header := range headers {
 		p, err := s.Filesystem.SafePath(filepath.Join(directory, header.Filename))
