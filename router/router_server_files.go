@@ -309,7 +309,7 @@ func postServerCompressFiles(c *gin.Context) {
 
 	f, err := s.Filesystem.CompressFiles(data.RootPath, data.Files)
 	if err != nil {
-		TrackedServerError(err, s).AbortWithServerError(c)
+		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -374,7 +374,7 @@ func postServerDecompressFiles(c *gin.Context) {
 			return
 		}
 
-		TrackedServerError(err, s).AbortWithServerError(c)
+		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 

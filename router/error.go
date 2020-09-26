@@ -106,7 +106,7 @@ func (e *RequestError) AbortFilesystemError(c *gin.Context) {
 	}
 
 	if errors.Is(e.Err, server.ErrNotEnoughDiskSpace) {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
 			"error": server.ErrNotEnoughDiskSpace.Error(),
 		})
 		return
