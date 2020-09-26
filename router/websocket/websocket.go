@@ -134,7 +134,23 @@ func (h *Handler) SendJson(v *Message) error {
 		}
 	}
 
-	return h.unsafeSendJson(v)
+	if err := h.unsafeSendJson(v); err != nil {
+		// Not entirely sure how this happens (likely just when there is a ton of console spam)
+		// but I don't care to fix it right now, so just mask the error and throw a warning into
+		// the logs for us to look into later.
+		if errors.Is(err, websocket.ErrCloseSent) {
+			if h.server != nil {
+				h.server.Log().WithField("subsystem", "websocket").
+					WithField("event", v.Event).
+					Warn("failed to send event to websocket: close already sent")
+			}
+			return nil
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // Sends JSON over the websocket connection, ignoring the authentication state of the
