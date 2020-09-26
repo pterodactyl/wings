@@ -13,7 +13,7 @@ import (
 // Configures the required network for the docker environment.
 func ConfigureDocker(c *config.DockerConfiguration) error {
 	// Ensure the required docker network exists on the system.
-	cli, err := client.NewClientWithOpts(client.FromEnv)
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return err
 	}
