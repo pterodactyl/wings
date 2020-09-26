@@ -52,7 +52,7 @@ func (s *Server) DiskSpace() int64 {
 	s.cfg.mu.RLock()
 	defer s.cfg.mu.RUnlock()
 
-	return s.cfg.Build.DiskSpace * 1000.0 * 1000.0
+	return s.cfg.Build.DiskSpace * 1024.0 * 1024.0
 }
 
 func (s *Server) MemoryLimit() int64 {
