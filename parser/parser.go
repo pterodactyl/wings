@@ -415,7 +415,7 @@ func (f *ConfigurationFile) parseTextFile(path string) error {
 		// If there was a replacement that occurred on this specific line, do a write to the file
 		// immediately to write that modified content to the disk.
 		if hasReplaced {
-			if _, err := file.WriteAt([]byte(t), int64(len(scanner.Bytes()))); err != nil {
+			if _, err := file.WriteAt([]byte(t+"\n"), int64(len(scanner.Bytes()))); err != nil {
 				return err
 			}
 		}
