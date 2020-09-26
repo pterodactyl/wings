@@ -59,7 +59,7 @@ func New(id string, m *Metadata, c *environment.Configuration) (*Environment, er
 	if err != nil {
 		return nil, err
 	}
-	cli.NegotiateAPIVersion(ctx)
+	cli.NegotiateAPIVersion(context.Background())
 
 	e := &Environment{
 		Id:            id,
