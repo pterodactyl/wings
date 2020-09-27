@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/environment/docker"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"net/http"
@@ -369,6 +370,18 @@ func (h *Handler) HandleInbound(m Message) error {
 
 			if h.server.GetState() == environment.ProcessOfflineState {
 				return nil
+			}
+
+			// TODO(dane): should probably add a new process state that is "booting environment" or something
+			//  so that we can better handle this and only set the environment to booted once we're attached.
+			//
+			//  Or maybe just an IsBooted function?
+			if h.server.GetState() == environment.ProcessStartingState {
+				if e, ok := h.server.Environment.(*docker.Environment); ok {
+					if !e.IsAttached() {
+						return nil
+					}
+				}
 			}
 
 			return h.server.Environment.SendCommand(strings.Join(m.Args, ""))

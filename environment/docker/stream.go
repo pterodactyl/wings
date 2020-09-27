@@ -15,6 +15,8 @@ type dockerLogLine struct {
 	Log string `json:"log"`
 }
 
+var ErrNotAttached = errors.New("not attached to instance")
+
 func (e *Environment) setStream(s *types.HijackedResponse) {
 	e.mu.Lock()
 	e.stream = s
@@ -24,12 +26,12 @@ func (e *Environment) setStream(s *types.HijackedResponse) {
 // Sends the specified command to the stdin of the running container instance. There is no
 // confirmation that this data is sent successfully, only that it gets pushed into the stdin.
 func (e *Environment) SendCommand(c string) error {
+	if !e.IsAttached() {
+		return ErrNotAttached
+	}
+
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-
-	if !e.IsAttached() {
-		return errors.New("attempting to send command to non-attached instance")
-	}
 
 	if e.meta.Stop != nil {
 		// If the command being processed is the same as the process stop command then we want to mark
