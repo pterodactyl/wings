@@ -109,8 +109,8 @@ func (h *Handler) SendJson(v *Message) error {
 	// Do not send JSON down the line if the JWT on the connection is not valid!
 	if err := h.TokenValid(); err != nil {
 		h.unsafeSendJson(Message{
-			Event: ErrorEvent,
-			Args:  []string{"could not authenticate client: " + err.Error()},
+			Event: JwtErrorEvent,
+			Args:  []string{err.Error()},
 		})
 
 		return nil
@@ -244,8 +244,8 @@ func (h *Handler) HandleInbound(m Message) error {
 	if m.Event != AuthenticationEvent {
 		if err := h.TokenValid(); err != nil {
 			h.unsafeSendJson(Message{
-				Event: ErrorEvent,
-				Args:  []string{"could not authenticate client: " + err.Error()},
+				Event: JwtErrorEvent,
+				Args:  []string{err.Error()},
 			})
 
 			return nil

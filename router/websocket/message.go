@@ -9,6 +9,7 @@ const (
 	SendServerLogsEvent        = "send logs"
 	SendCommandEvent           = "send command"
 	ErrorEvent                 = "daemon error"
+	JwtErrorEvent              = "jwt error"
 )
 
 type Message struct {
