@@ -81,7 +81,7 @@ func (s *Server) StartEventListeners() {
 		s.resources.Stats = *st
 		s.resources.mu.Unlock()
 
-		s.Filesystem.HasSpaceAvailable(true)
+		s.Filesystem().HasSpaceAvailable(true)
 
 		s.emitProcUsage()
 	}

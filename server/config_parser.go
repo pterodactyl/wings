@@ -15,7 +15,7 @@ func (s *Server) UpdateConfigurationFiles() {
 		f := cf
 
 		pool.Submit(func() {
-			p, err := s.Filesystem.SafePath(f.FileName)
+			p, err := s.Filesystem().SafePath(f.FileName)
 			if err != nil {
 				s.Log().WithField("error", err).Error("failed to generate safe path for configuration file")
 

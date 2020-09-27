@@ -228,7 +228,7 @@ func deleteServer(c *gin.Context) {
 				"error": errors.WithStack(err),
 			}).Warn("failed to remove server files during deletion process")
 		}
-	}(s.Filesystem.Path())
+	}(s.Filesystem().Path())
 
 	var uuid = s.Id()
 	server.GetServers().Remove(func(s2 *server.Server) bool {

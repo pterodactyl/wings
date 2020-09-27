@@ -70,7 +70,7 @@ func getDownloadFile(c *gin.Context) {
 		return
 	}
 
-	p, _ := s.Filesystem.SafePath(token.FilePath)
+	p, _ := s.Filesystem().SafePath(token.FilePath)
 	st, err := os.Stat(p)
 	// If there is an error or we're somehow trying to download a directory, just
 	// respond with the appropriate error.

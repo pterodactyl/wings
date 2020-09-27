@@ -5,6 +5,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"golang.org/x/sync/semaphore"
 	"os"
 	"time"
@@ -164,11 +165,11 @@ func (s *Server) onBeforeStart() error {
 	// If a server has unlimited disk space, we don't care enough to block the startup to check remaining.
 	// However, we should trigger a size anyway, as it'd be good to kick it off for other processes.
 	if s.DiskSpace() <= 0 {
-		s.Filesystem.HasSpaceAvailable(true)
+		s.Filesystem().HasSpaceAvailable(true)
 	} else {
 		s.PublishConsoleOutputFromDaemon("Checking server disk space usage, this could take a few seconds...")
-		if !s.Filesystem.HasSpaceAvailable(false) {
-			return ErrNotEnoughDiskSpace
+		if !s.Filesystem().HasSpaceAvailable(false) {
+			return filesystem.ErrNotEnoughDiskSpace
 		}
 	}
 
@@ -183,7 +184,7 @@ func (s *Server) onBeforeStart() error {
 	if config.Get().System.CheckPermissionsOnBoot {
 		s.PublishConsoleOutputFromDaemon("Ensuring file permissions are set correctly, this could take a few seconds...")
 		// Ensure all of the server file permissions are set correctly before booting the process.
-		if err := s.Filesystem.Chown("/"); err != nil {
+		if err := s.Filesystem().Chown("/"); err != nil {
 			return errors.Wrap(err, "failed to chown root server directory during pre-boot process")
 		}
 	}

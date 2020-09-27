@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"net/http"
 	"os"
 	"strings"
@@ -105,9 +106,9 @@ func (e *RequestError) AbortFilesystemError(c *gin.Context) {
 		return
 	}
 
-	if errors.Is(e.Err, server.ErrNotEnoughDiskSpace) {
+	if errors.Is(e.Err, filesystem.ErrNotEnoughDiskSpace) {
 		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
-			"error": server.ErrNotEnoughDiskSpace.Error(),
+			"error": "There is not enough disk space available to perform that action.",
 		})
 		return
 	}
@@ -122,6 +123,13 @@ func (e *RequestError) AbortFilesystemError(c *gin.Context) {
 	if e, ok := e.Err.(*os.SyscallError); ok && e.Syscall == "readdirent" {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"error": "The requested directory does not exist.",
+		})
+		return
+	}
+
+	if strings.HasSuffix(e.Err.Error(), "file name too long") {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Cannot perform that action: file name is too long.",
 		})
 		return
 	}

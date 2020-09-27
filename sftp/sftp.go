@@ -51,7 +51,7 @@ func validatePath(fs FileSystem, p string) (string, error) {
 		return "", noMatchingServerError
 	}
 
-	return s.Filesystem.SafePath(p)
+	return s.Filesystem().SafePath(p)
 }
 
 func validateDiskSpace(fs FileSystem) bool {
@@ -63,7 +63,7 @@ func validateDiskSpace(fs FileSystem) bool {
 		return false
 	}
 
-	return s.Filesystem.HasSpaceAvailable(true)
+	return s.Filesystem().HasSpaceAvailable(true)
 }
 
 // Validates a set of credentials for a SFTP login against Pterodactyl Panel and returns

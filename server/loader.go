@@ -7,9 +7,12 @@ import (
 	"github.com/gammazero/workerpool"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/environment/docker"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 )
@@ -90,7 +93,7 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	defaults.Set(&s.resources)
 
 	s.Archiver = Archiver{Server: s}
-	s.Filesystem = Filesystem{Server: s}
+	s.fs = filesystem.New(filepath.Join(config.Get().System.Data, s.Id()), s.DiskSpace())
 
 	// Right now we only support a Docker based environment, so I'm going to hard code
 	// this logic in. When we're ready to support other environment we'll need to make
@@ -120,8 +123,8 @@ func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
 	}
 
 	// If the server's data directory exists, force disk usage calculation.
-	if _, err := os.Stat(s.Filesystem.Path()); err == nil {
-		s.Filesystem.HasSpaceAvailable(true)
+	if _, err := os.Stat(s.Filesystem().Path()); err == nil {
+		s.Filesystem().HasSpaceAvailable(true)
 	}
 
 	return s, nil

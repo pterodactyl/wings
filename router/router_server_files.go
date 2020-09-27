@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"golang.org/x/sync/errgroup"
 	"mime/multipart"
 	"net/http"
@@ -29,7 +30,7 @@ func getServerFileContents(c *gin.Context) {
 	}
 	p = "/" + strings.TrimLeft(p, "/")
 
-	cleaned, err := s.Filesystem.SafePath(p)
+	cleaned, err := s.Filesystem().SafePath(p)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"error": "The file requested could not be found.",
@@ -37,7 +38,7 @@ func getServerFileContents(c *gin.Context) {
 		return
 	}
 
-	st, err := s.Filesystem.Stat(cleaned)
+	st, err := s.Filesystem().Stat(cleaned)
 	if err != nil {
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
@@ -80,7 +81,7 @@ func getServerListDirectory(c *gin.Context) {
 		return
 	}
 
-	stats, err := s.Filesystem.ListDirectory(d)
+	stats, err := s.Filesystem().ListDirectory(d)
 	if err != nil {
 		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
@@ -126,7 +127,7 @@ func putServerRenameFiles(c *gin.Context) {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				if err := s.Filesystem.Rename(pf, pt); err != nil {
+				if err := s.Filesystem().Rename(pf, pt); err != nil {
 					// Return nil if the error is an is not exists.
 					// NOTE: os.IsNotExist() does not work if the error is wrapped.
 					if errors.Is(err, os.ErrNotExist) {
@@ -168,7 +169,7 @@ func postServerCopyFile(c *gin.Context) {
 		return
 	}
 
-	if err := s.Filesystem.Copy(data.Location); err != nil {
+	if err := s.Filesystem().Copy(data.Location); err != nil {
 		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
 	}
@@ -208,7 +209,7 @@ func postServerDeleteFiles(c *gin.Context) {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				return s.Filesystem.Delete(pi)
+				return s.Filesystem().Delete(pi)
 			}
 		})
 	}
@@ -232,28 +233,15 @@ func postServerWriteFile(c *gin.Context) {
 	}
 	f = "/" + strings.TrimLeft(f, "/")
 
-	// Check if there is enough space available to perform this action.
-	if err := s.Filesystem.HasSpaceFor(c.Request.ContentLength); err != nil {
-		TrackedServerError(err, s).AbortFilesystemError(c)
-		return
-	}
-
-	if err := s.Filesystem.Writefile(f, c.Request.Body); err != nil {
-		if errors.Is(err, server.ErrIsDirectory) {
+	if err := s.Filesystem().Writefile(f, c.Request.Body); err != nil {
+		if errors.Is(err, filesystem.ErrIsDirectory) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 				"error": "Cannot write file, name conflicts with an existing directory by the same name.",
 			})
 			return
 		}
 
-		if strings.HasSuffix(err.Error(), "file name too long") {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-				"error": "Cannot move or rename file, name is too long.",
-			})
-			return
-		}
-
-		TrackedServerError(err, s).AbortWithServerError(c)
+		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -273,7 +261,7 @@ func postServerCreateDirectory(c *gin.Context) {
 		return
 	}
 
-	if err := s.Filesystem.CreateDirectory(data.Name, data.Path); err != nil {
+	if err := s.Filesystem().CreateDirectory(data.Name, data.Path); err != nil {
 		if err.Error() == "not a directory" {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 				"error": "Part of the path being created is not a directory (ENOTDIR).",
@@ -307,20 +295,20 @@ func postServerCompressFiles(c *gin.Context) {
 		return
 	}
 
-	if !s.Filesystem.HasSpaceAvailable(true) {
+	if !s.Filesystem().HasSpaceAvailable(true) {
 		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
 			"error": "This server does not have enough available disk space to generate a compressed archive.",
 		})
 		return
 	}
 
-	f, err := s.Filesystem.CompressFiles(data.RootPath, data.Files)
+	f, err := s.Filesystem().CompressFiles(data.RootPath, data.Files)
 	if err != nil {
 		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
-	c.JSON(http.StatusOK, &server.Stat{
+	c.JSON(http.StatusOK, &filesystem.Stat{
 		Info:     f,
 		Mimetype: "application/tar+gzip",
 	})
@@ -338,10 +326,10 @@ func postServerDecompressFiles(c *gin.Context) {
 		return
 	}
 
-	hasSpace, err := s.Filesystem.SpaceAvailableForDecompression(data.RootPath, data.File)
+	hasSpace, err := s.Filesystem().SpaceAvailableForDecompression(data.RootPath, data.File)
 	if err != nil {
 		// Handle an unknown format error.
-		if errors.Is(err, server.ErrUnknownArchiveFormat) {
+		if errors.Is(err, filesystem.ErrUnknownArchiveFormat) {
 			s.Log().WithField("error", err).Warn("failed to decompress file due to unknown format")
 
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
@@ -361,7 +349,7 @@ func postServerDecompressFiles(c *gin.Context) {
 		return
 	}
 
-	if err := s.Filesystem.DecompressFile(data.RootPath, data.File); err != nil {
+	if err := s.Filesystem().DecompressFile(data.RootPath, data.File); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 				"error": "The requested archive was not found.",
@@ -426,13 +414,8 @@ func postServerUploadFiles(c *gin.Context) {
 		totalSize += header.Size
 	}
 
-	if err := s.Filesystem.HasSpaceFor(totalSize); err != nil {
-		TrackedServerError(err, s).AbortFilesystemError(c)
-		return
-	}
-
 	for _, header := range headers {
-		p, err := s.Filesystem.SafePath(filepath.Join(directory, header.Filename))
+		p, err := s.Filesystem().SafePath(filepath.Join(directory, header.Filename))
 		if err != nil {
 			c.AbortWithError(http.StatusInternalServerError, err)
 			return
@@ -454,7 +437,7 @@ func handleFileUpload(p string, s *server.Server, header *multipart.FileHeader) 
 	}
 	defer file.Close()
 
-	if err := s.Filesystem.Writefile(p, file); err != nil {
+	if err := s.Filesystem().Writefile(p, file); err != nil {
 		return errors.WithStack(err)
 	}
 

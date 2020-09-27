@@ -35,7 +35,7 @@ func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, suc
 func (s *Server) getServerwideIgnoredFiles() ([]string, error) {
 	var ignored []string
 
-	f, err := os.Open(path.Join(s.Filesystem.Path(), ".pteroignore"))
+	f, err := os.Open(path.Join(s.Filesystem().Path(), ".pteroignore"))
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
@@ -70,7 +70,7 @@ func (s *Server) GetIncludedBackupFiles(ignored []string) (*backup.IncludedFiles
 	}
 
 	// Get the included files based on the root path and the ignored files provided.
-	return s.Filesystem.GetIncludedFiles(s.Filesystem.Path(), ignored)
+	return s.Filesystem().GetIncludedFiles(s.Filesystem().Path(), ignored)
 }
 
 // Performs a server backup and then emits the event over the server websocket. We
@@ -83,7 +83,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 		return errors.WithStack(err)
 	}
 
-	ad, err := b.Generate(inc, s.Filesystem.Path())
+	ad, err := b.Generate(inc, s.Filesystem().Path())
 	if err != nil {
 		if notifyError := s.notifyPanelOfBackup(b.Identifier(), &backup.ArchiveDetails{}, false); notifyError != nil {
 			s.Log().WithFields(log.Fields{

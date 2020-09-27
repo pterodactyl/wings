@@ -14,6 +14,7 @@ import (
 	"github.com/pterodactyl/wings/environment/docker"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"net/http"
 	"strings"
 	"sync"
@@ -193,7 +194,7 @@ func (h *Handler) SendErrorJson(msg Message, err error, shouldLog ...bool) error
 	j := h.GetJwt()
 	expected := errors.Is(err, server.ErrSuspended) ||
 		errors.Is(err, server.ErrIsRunning) ||
-		errors.Is(err, server.ErrNotEnoughDiskSpace)
+		errors.Is(err, filesystem.ErrNotEnoughDiskSpace)
 
 	message := "an unexpected error was encountered while handling this request"
 	if expected || (j != nil && j.HasPermission(PermissionReceiveErrors)) {
@@ -300,7 +301,7 @@ func (h *Handler) HandleInbound(m Message) error {
 			// Only send the current disk usage if the server is offline, if docker container is running,
 			// Environment#EnableResourcePolling() will send this data to all clients.
 			if state == environment.ProcessOfflineState {
-				_ = h.server.Filesystem.HasSpaceAvailable(false)
+				_ = h.server.Filesystem().HasSpaceAvailable(false)
 
 				b, _ := json.Marshal(h.server.Proc())
 				h.SendJson(&Message{

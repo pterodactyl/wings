@@ -4,7 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"github.com/mholt/archiver/v3"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"io"
 	"io/ioutil"
 	"os"
@@ -16,19 +18,19 @@ type Archiver struct {
 	Server *Server
 }
 
-// ArchivePath returns the path to the server's archive.
-func (a *Archiver) ArchivePath() string {
-	return filepath.Join(config.Get().System.ArchiveDirectory, a.ArchiveName())
+// Path returns the path to the server's archive.
+func (a *Archiver) Path() string {
+	return filepath.Join(config.Get().System.ArchiveDirectory, a.Name())
 }
 
-// ArchiveName returns the name of the server's archive.
-func (a *Archiver) ArchiveName() string {
+// Name returns the name of the server's archive.
+func (a *Archiver) Name() string {
 	return a.Server.Id() + ".tar.gz"
 }
 
 // Exists returns a boolean based off if the archive exists.
 func (a *Archiver) Exists() bool {
-	if _, err := os.Stat(a.ArchivePath()); os.IsNotExist(err) {
+	if _, err := os.Stat(a.Path()); os.IsNotExist(err) {
 		return false
 	}
 
@@ -36,13 +38,21 @@ func (a *Archiver) Exists() bool {
 }
 
 // Stat stats the archive file.
-func (a *Archiver) Stat() (*Stat, error) {
-	return a.Server.Filesystem.unsafeStat(a.ArchivePath())
+func (a *Archiver) Stat() (*filesystem.Stat, error) {
+	s, err := os.Stat(a.Path())
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return &filesystem.Stat{
+		Info:     s,
+		Mimetype: "application/tar+gzip",
+	}, nil
 }
 
 // Archive creates an archive of the server and deletes the previous one.
 func (a *Archiver) Archive() error {
-	path := a.Server.Filesystem.Path()
+	path := a.Server.Filesystem().Path()
 
 	// Get the list of root files and directories to archive.
 	var files []string
@@ -52,7 +62,7 @@ func (a *Archiver) Archive() error {
 	}
 
 	for _, file := range fileInfo {
-		f, err := a.Server.Filesystem.SafeJoin(path, file)
+		f, err := a.Server.Filesystem().SafeJoin(path, file)
 		if err != nil {
 			return err
 		}
@@ -67,12 +77,12 @@ func (a *Archiver) Archive() error {
 
 	// Check if the file exists.
 	if stat != nil {
-		if err := os.Remove(a.ArchivePath()); err != nil {
+		if err := os.Remove(a.Path()); err != nil {
 			return err
 		}
 	}
 
-	return archiver.NewTarGz().Archive(files, a.ArchivePath())
+	return archiver.NewTarGz().Archive(files, a.Path())
 }
 
 // DeleteIfExists deletes the archive if it exists.
@@ -84,7 +94,7 @@ func (a *Archiver) DeleteIfExists() error {
 
 	// Check if the file exists.
 	if stat != nil {
-		if err := os.Remove(a.ArchivePath()); err != nil {
+		if err := os.Remove(a.Path()); err != nil {
 			return err
 		}
 	}
@@ -94,7 +104,7 @@ func (a *Archiver) DeleteIfExists() error {
 
 // Checksum computes a SHA256 checksum of the server's archive.
 func (a *Archiver) Checksum() (string, error) {
-	file, err := os.Open(a.ArchivePath())
+	file, err := os.Open(a.Path())
 	if err != nil {
 		return "", err
 	}

@@ -1,4 +1,4 @@
-package server
+package filesystem
 
 import (
 	"archive/tar"
@@ -14,14 +14,12 @@ import (
 	"sync/atomic"
 )
 
-var ErrUnknownArchiveFormat = errors.New("filesystem: unknown archive format")
-
 // Look through a given archive and determine if decompressing it would put the server over
 // its allocated disk space limit.
 func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (bool, error) {
 	// Don't waste time trying to determine this if we know the server will have the space for
 	// it since there is no limit.
-	if fs.Server.DiskSpace() <= 0 {
+	if fs.MaxDisk() <= 0 {
 		return true, nil
 	}
 
@@ -35,18 +33,18 @@ func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (b
 	dirSize, err := fs.DiskUsage(false)
 
 	var size int64
-	var max = fs.Server.DiskSpace()
 	// Walk over the archive and figure out just how large the final output would be from unarchiving it.
 	err = archiver.Walk(source, func(f archiver.File) error {
-		if atomic.AddInt64(&size, f.Size())+dirSize > max {
-			return errors.WithStack(ErrNotEnoughDiskSpace)
+		if atomic.AddInt64(&size, f.Size())+dirSize > fs.MaxDisk() {
+			return ErrNotEnoughDiskSpace
 		}
 
 		return nil
 	})
+
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "format ") {
-			return false, errors.WithStack(ErrUnknownArchiveFormat)
+			return false, ErrUnknownArchiveFormat
 		}
 
 		return false, errors.WithStack(err)

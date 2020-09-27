@@ -9,6 +9,7 @@ import (
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/environment/docker"
 	"github.com/pterodactyl/wings/events"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"golang.org/x/sync/semaphore"
 	"strings"
 	"sync"
@@ -34,7 +35,8 @@ type Server struct {
 	resources   ResourceUsage
 	Archiver    Archiver                       `json:"-"`
 	Environment environment.ProcessEnvironment `json:"-"`
-	Filesystem  Filesystem                     `json:"-"`
+
+	fs *filesystem.Filesystem
 
 	// Events emitted by the server instance.
 	emitter *events.EventBus
@@ -133,6 +135,10 @@ func (s *Server) SyncWithConfiguration(cfg *api.ServerConfigurationResponse) err
 	s.procConfig = cfg.ProcessConfiguration
 	s.Unlock()
 
+	// Update the disk space limits for the server whenever the configuration
+	// for it changes.
+	s.fs.SetDiskLimit(s.DiskSpace())
+
 	// If this is a Docker environment we need to sync the stop configuration with it so that
 	// the process isn't just terminated when a user requests it be stopped.
 	if e, ok := s.Environment.(*docker.Environment); ok {
@@ -161,7 +167,7 @@ func (s *Server) IsBootable() bool {
 // for the server is setup, and that all of the necessary files are created.
 func (s *Server) CreateEnvironment() error {
 	// Ensure the data directory exists before getting too far through this process.
-	if err := s.Filesystem.EnsureDataDirectory(); err != nil {
+	if err := s.EnsureDataDirectoryExists(); err != nil {
 		return errors.WithStack(err)
 	}
 

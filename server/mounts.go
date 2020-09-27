@@ -24,7 +24,7 @@ func (s *Server) Mounts() []environment.Mount {
 	m = append(m, environment.Mount{
 		Default:  true,
 		Target:   "/home/container",
-		Source:   s.Filesystem.Path(),
+		Source:   s.Filesystem().Path(),
 		ReadOnly: false,
 	})
 

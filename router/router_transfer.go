@@ -67,7 +67,7 @@ func getServerArchive(c *gin.Context) {
 		return
 	}
 
-	file, err := os.Open(s.Archiver.ArchivePath())
+	file, err := os.Open(s.Archiver.Path())
 	if err != nil {
 		tserr := TrackedServerError(err, s)
 		if !os.IsNotExist(err) {
@@ -84,7 +84,7 @@ func getServerArchive(c *gin.Context) {
 	c.Header("X-Checksum", checksum)
 	c.Header("X-Mime-Type", st.Mimetype)
 	c.Header("Content-Length", strconv.Itoa(int(st.Info.Size())))
-	c.Header("Content-Disposition", "attachment; filename="+s.Archiver.ArchiveName())
+	c.Header("Content-Disposition", "attachment; filename="+s.Archiver.Name())
 	c.Header("Content-Type", "application/octet-stream")
 
 	bufio.NewReader(file).WriteTo(c.Writer)
@@ -283,7 +283,7 @@ func postTransfer(c *gin.Context) {
 		}
 
 		// Un-archive the archive. That sounds weird..
-		if err := archiver.NewTarGz().Unarchive(archivePath, i.Server().Filesystem.Path()); err != nil {
+		if err := archiver.NewTarGz().Unarchive(archivePath, i.Server().Filesystem().Path()); err != nil {
 			l.WithField("error", errors.WithStack(err)).Error("failed to extract server archive")
 			return
 		}
