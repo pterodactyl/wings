@@ -8,6 +8,7 @@ const (
 	SetStateEvent              = "set state"
 	SendServerLogsEvent        = "send logs"
 	SendCommandEvent           = "send command"
+	SendStatsEvent             = "send stats"
 	ErrorEvent                 = "daemon error"
 	JwtErrorEvent              = "jwt error"
 )

@@ -362,6 +362,16 @@ func (h *Handler) HandleInbound(m Message) error {
 
 			return nil
 		}
+	case SendStatsEvent:
+		{
+			b, _ := json.Marshal(h.server.Proc())
+			h.SendJson(&Message{
+				Event: server.StatsEvent,
+				Args:  []string{string(b)},
+			})
+
+			return nil
+		}
 	case SendCommandEvent:
 		{
 			if !h.GetJwt().HasPermission(PermissionSendCommand) {
