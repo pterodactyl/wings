@@ -170,6 +170,7 @@ func postServerCopyFile(c *gin.Context) {
 
 	if err := s.Filesystem.Copy(data.Location); err != nil {
 		TrackedServerError(err, s).AbortFilesystemError(c)
+		return
 	}
 
 	c.Status(http.StatusNoContent)
@@ -313,29 +314,11 @@ func postServerCompressFiles(c *gin.Context) {
 		return
 	}
 
-	d, err := s.Filesystem.SafePath(data.RootPath)
-	if err != nil {
-		TrackedServerError(err, s).AbortWithServerError(c)
-		return
-	}
-
 	f, err := s.Filesystem.CompressFiles(data.RootPath, data.Files)
 	if err != nil {
 		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
 	}
-
-	if err := s.Filesystem.HasSpaceFor(f.Size()); err != nil {
-		if errors.Is(err, server.ErrNotEnoughDiskSpace) {
-			// Exceeding space limits, delete archive and return error. Kind of a waste of resources
-			// I suppose, but oh well.
-			_ = os.Remove(filepath.Join(d, f.Name()))
-		}
-
-		TrackedServerError(err, s).AbortFilesystemError(c)
-		return
-	}
-
 
 	c.JSON(http.StatusOK, &server.Stat{
 		Info:     f,

@@ -33,7 +33,7 @@ func (s *S3Backup) Generate(included *IncludedFiles, prefix string) (*ArchiveDet
 		Files:      included,
 	}
 
-	if _, err := a.Create(s.Path(), context.Background()); err != nil {
+	if err := a.Create(s.Path(), context.Background()); err != nil {
 		return nil, errors.WithStack(err)
 	}
 

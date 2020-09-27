@@ -47,7 +47,7 @@ func (b *LocalBackup) Generate(included *IncludedFiles, prefix string) (*Archive
 		Files:      included,
 	}
 
-	if _, err := a.Create(b.Path(), context.Background()); err != nil {
+	if err := a.Create(b.Path(), context.Background()); err != nil {
 		return nil, errors.WithStack(err)
 	}
 

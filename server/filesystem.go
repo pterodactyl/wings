@@ -956,9 +956,21 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 	a := &backup.Archive{TrimPrefix: fs.Path(), Files: inc}
 	d := path.Join(cleanedRootDir, fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")))
 
-	f, err := a.Create(d, context.Background())
-	if err != nil {
+	if err := a.Create(d, context.Background()); err != nil {
 		return nil, errors.WithStack(err)
+	}
+
+	f, err := os.Stat(d)
+	if err != nil {
+		_ = os.Remove(d)
+
+		return nil, err
+	}
+
+	if err := fs.HasSpaceFor(f.Size()); err != nil {
+		_ = os.Remove(d)
+
+		return nil, err
 	}
 
 	atomic.AddInt64(&fs.disk, f.Size())
