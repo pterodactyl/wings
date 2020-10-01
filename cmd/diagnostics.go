@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os/exec"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -25,6 +26,7 @@ import (
 )
 
 const DefaultHastebinUrl = "https://hastebin.com"
+const DefaultLogLines = 50
 
 var (
 	diagnosticsArgs struct {
@@ -32,6 +34,7 @@ var (
 		IncludeLogs        bool
 		ReviewBeforeUpload bool
 		HastebinURL        string
+		LogLines           int
 	}
 )
 
@@ -43,6 +46,7 @@ var diagnosticsCmd = &cobra.Command{
 
 func init() {
 	diagnosticsCmd.PersistentFlags().StringVar(&diagnosticsArgs.HastebinURL, "hastebin-url", DefaultHastebinUrl, "The url of the hastebin instance to use.")
+	diagnosticsCmd.PersistentFlags().IntVar(&diagnosticsArgs.LogLines, "log-lines", DefaultLogLines, "The number of log lines to include in the report")
 }
 
 // diagnosticsCmdRun collects diagnostics about wings, it's configuration and the node.
@@ -96,7 +100,8 @@ func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
 	}
 
 	printHeader(output, "Wings Configuration")
-	if cfg, err := config.ReadConfiguration(config.DefaultLocation); cfg != nil {
+	cfg, err := config.ReadConfiguration(config.DefaultLocation)
+	if cfg != nil {
 		fmt.Fprintln(output, "Panel Location:", redact(cfg.PanelLocation))
 		fmt.Fprintln(output, "Api Host:", redact(cfg.Api.Host))
 		fmt.Fprintln(output, "Api Port:", cfg.Api.Port)
@@ -149,7 +154,15 @@ func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
 
 	printHeader(output, "Latest Wings Logs")
 	if diagnosticsArgs.IncludeLogs {
-		fmt.Fprintln(output, "No logs found. Probably because nobody implemented logging to files yet :(")
+		p := "/var/log/pterodactyl/wings.log"
+		if cfg != nil {
+			p = path.Join(cfg.System.LogDirectory, "wings.log")
+		}
+		if c, err := exec.Command("tail", "-n", strconv.Itoa(diagnosticsArgs.LogLines), p).Output(); err != nil {
+			fmt.Fprintln(output, "No logs found or an error occurred.")
+		} else {
+			fmt.Fprintf(output, "%s\n", string(c))
+		}
 	} else {
 		fmt.Fprintln(output, "Logs redacted.")
 	}
