@@ -182,7 +182,7 @@ func (fs *Filesystem) Chown(path string) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	
+
 	if fs.isTest {
 		return nil
 	}
@@ -321,6 +321,7 @@ func (fs *Filesystem) Copy(p string) error {
 // Deletes a file or folder from the system. Prevents the user from accidentally
 // (or maliciously) removing their root server data directory.
 func (fs *Filesystem) Delete(p string) error {
+	wg := sync.WaitGroup{}
 	// This is one of the few (only?) places in the codebase where we're explicitly not using
 	// the SafePath functionality when working with user provided input. If we did, you would
 	// not be able to delete a file that is a symlink pointing to a location outside of the data
@@ -348,13 +349,17 @@ func (fs *Filesystem) Delete(p string) error {
 		if !st.IsDir() {
 			fs.addDisk(-st.Size())
 		} else {
-			go func(st os.FileInfo, resolved string) {
+			wg.Add(1)
+			go func(wg *sync.WaitGroup, st os.FileInfo, resolved string) {
+				defer wg.Done()
 				if s, err := fs.DirectorySize(resolved); err == nil {
 					fs.addDisk(-s)
 				}
-			}(st, resolved)
+			}(&wg, st, resolved)
 		}
 	}
+
+	wg.Wait()
 
 	return os.RemoveAll(resolved)
 }
