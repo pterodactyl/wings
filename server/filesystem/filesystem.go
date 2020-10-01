@@ -2,7 +2,6 @@ package filesystem
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/karrick/godirwalk"
@@ -33,6 +32,8 @@ type Filesystem struct {
 
 	// The root data directory path for this Filesystem instance.
 	root string
+
+	isTest bool
 }
 
 // Creates a new Filesystem instance for a given server.
@@ -53,18 +54,21 @@ func (fs *Filesystem) Path() string {
 // Reads a file on the system and returns it as a byte representation in a file
 // reader. This is not the most memory efficient usage since it will be reading the
 // entirety of the file into memory.
-func (fs *Filesystem) Readfile(p string) (io.Reader, error) {
+func (fs *Filesystem) Readfile(p string, w io.Writer) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	b, err := ioutil.ReadFile(cleaned)
+	f, err := os.Open(cleaned)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	defer f.Close()
 
-	return bytes.NewReader(b), nil
+	_, err = bufio.NewReader(f).WriteTo(w)
+
+	return err
 }
 
 // Writes a file to the system. If the file does not already exist one will be created.
@@ -177,6 +181,10 @@ func (fs *Filesystem) Chown(path string) error {
 	cleaned, err := fs.SafePath(path)
 	if err != nil {
 		return errors.WithStack(err)
+	}
+	
+	if fs.isTest {
+		return nil
 	}
 
 	uid := config.Get().System.User.Uid

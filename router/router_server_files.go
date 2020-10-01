@@ -1,7 +1,6 @@
 package router
 
 import (
-	"bufio"
 	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -30,33 +29,11 @@ func getServerFileContents(c *gin.Context) {
 	}
 	p = "/" + strings.TrimLeft(p, "/")
 
-	cleaned, err := s.Filesystem().SafePath(p)
+	st, err := s.Filesystem().Stat(p)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-			"error": "The file requested could not be found.",
-		})
+		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
 	}
-
-	st, err := s.Filesystem().Stat(cleaned)
-	if err != nil {
-		TrackedServerError(err, s).AbortWithServerError(c)
-		return
-	}
-
-	if st.Info.IsDir() {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-			"error": "The requested resource was not found on the system.",
-		})
-		return
-	}
-
-	f, err := os.Open(cleaned)
-	if err != nil {
-		TrackedServerError(err, s).AbortWithServerError(c)
-		return
-	}
-	defer f.Close()
 
 	c.Header("X-Mime-Type", st.Mimetype)
 	c.Header("Content-Length", strconv.Itoa(int(st.Info.Size())))
@@ -68,7 +45,10 @@ func getServerFileContents(c *gin.Context) {
 		c.Header("Content-Type", "application/octet-stream")
 	}
 
-	bufio.NewReader(f).WriteTo(c.Writer)
+	if err := s.Filesystem().Readfile(p, c.Writer); err != nil {
+		TrackedServerError(err, s).AbortFilesystemError(c)
+		return
+	}
 }
 
 // Returns the contents of a directory for a server.
