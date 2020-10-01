@@ -405,7 +405,7 @@ func TestFilesystem_Copy(t *testing.T) {
 
 			err = fs.Copy("../ext-source.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(errors.Is(err, os.ErrNotExist)).IsTrue()
+			g.Assert(errors.Is(err, ErrBadPathResolution)).IsTrue()
 		})
 
 		g.It("should return an error if the source directory is outside the root", func() {
@@ -417,11 +417,11 @@ func TestFilesystem_Copy(t *testing.T) {
 
 			err = fs.Copy("../nested/in/dir/ext-source.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(errors.Is(err, os.ErrNotExist)).IsTrue()
+			g.Assert(errors.Is(err, ErrBadPathResolution)).IsTrue()
 
 			err = fs.Copy("nested/in/../../../nested/in/dir/ext-source.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(errors.Is(err, os.ErrNotExist)).IsTrue()
+			g.Assert(errors.Is(err, ErrBadPathResolution)).IsTrue()
 		})
 
 		g.It("should return an error if the source is a directory", func() {
@@ -512,7 +512,7 @@ func TestFilesystem_Delete(t *testing.T) {
 
 			err = fs.Delete("../ext-source.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(errors.Is(err, os.ErrNotExist)).IsTrue()
+			g.Assert(errors.Is(err, ErrBadPathResolution)).IsTrue()
 		})
 
 		g.It("does not allow the deletion of the root directory", func() {
