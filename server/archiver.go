@@ -62,9 +62,20 @@ func (a *Archiver) Archive() error {
 	}
 
 	for _, file := range fileInfo {
-		f, err := a.Server.Filesystem().SafeJoin(path, file)
-		if err != nil {
-			return err
+		f := filepath.Join(path, file.Name())
+		// If the file is a symlink we cannot safely assume that the result of a filepath.Join() will be
+		// a safe destination. We need to check if the file is a symlink, and if so pass off to the SafePath
+		// function to resolve it to the final destination.
+		//
+		// ioutil.ReadDir() calls Lstat, so this will work correctly. If it did not call Lstat, but rather
+		// just did a normal Stat call, this would fail since that would be looking at the symlink destination
+		// and not the actual file in this listing.
+		if file.Mode()&os.ModeSymlink != 0 {
+			f, err = a.Server.Filesystem().SafePath(filepath.Join(path, file.Name()))
+
+			if err != nil {
+				return err
+			}
 		}
 
 		files = append(files, f)

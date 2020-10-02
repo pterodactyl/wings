@@ -2,8 +2,6 @@ package filesystem
 
 import (
 	"bufio"
-	"bytes"
-	"fmt"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/karrick/godirwalk"
 	"github.com/pkg/errors"
@@ -33,6 +31,8 @@ type Filesystem struct {
 
 	// The root data directory path for this Filesystem instance.
 	root string
+
+	isTest bool
 }
 
 // Creates a new Filesystem instance for a given server.
@@ -53,18 +53,27 @@ func (fs *Filesystem) Path() string {
 // Reads a file on the system and returns it as a byte representation in a file
 // reader. This is not the most memory efficient usage since it will be reading the
 // entirety of the file into memory.
-func (fs *Filesystem) Readfile(p string) (io.Reader, error) {
+func (fs *Filesystem) Readfile(p string, w io.Writer) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	b, err := ioutil.ReadFile(cleaned)
+	if st, err := os.Stat(cleaned); err != nil {
+		return err
+	} else if st.IsDir() {
+		return ErrIsDirectory
+	}
+
+	f, err := os.Open(cleaned)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	defer f.Close()
 
-	return bytes.NewReader(b), nil
+	_, err = bufio.NewReader(f).WriteTo(w)
+
+	return err
 }
 
 // Writes a file to the system. If the file does not already exist one will be created.
@@ -161,7 +170,7 @@ func (fs *Filesystem) Rename(from string, to string) error {
 	// Ensure that the directory we're moving into exists correctly on the system. Only do this if
 	// we're not at the root directory level.
 	if d != fs.Path() {
-		if mkerr := os.MkdirAll(d, 0644); mkerr != nil {
+		if mkerr := os.MkdirAll(d, 0755); mkerr != nil {
 			return errors.Wrap(mkerr, "failed to create directory structure for file rename")
 		}
 	}
@@ -177,6 +186,10 @@ func (fs *Filesystem) Chown(path string) error {
 	cleaned, err := fs.SafePath(path)
 	if err != nil {
 		return errors.WithStack(err)
+	}
+
+	if fs.isTest {
+		return nil
 	}
 
 	uid := config.Get().System.User.Uid
@@ -214,6 +227,42 @@ func (fs *Filesystem) Chown(path string) error {
 	})
 }
 
+// Begin looping up to 50 times to try and create a unique copy file name. This will take
+// an input of "file.txt" and generate "file copy.txt". If that name is already taken, it will
+// then try to write "file copy 2.txt" and so on, until reaching 50 loops. At that point we
+// won't waste anymore time, just use the current timestamp and make that copy.
+//
+// Could probably make this more efficient by checking if there are any files matching the copy
+// pattern, and trying to find the highest number and then incrementing it by one rather than
+// looping endlessly.
+func (fs *Filesystem) findCopySuffix(dir string, name string, extension string) (string, error) {
+	var i int
+	var suffix = " copy"
+
+	for i = 0; i < 51; i++ {
+		if i > 0 {
+			suffix = " copy " + strconv.Itoa(i)
+		}
+
+		n := name + suffix + extension
+		// If we stat the file and it does not exist that means we're good to create the copy. If it
+		// does exist, we'll just continue to the next loop and try again.
+		if _, err := fs.Stat(path.Join(dir, n)); err != nil {
+			if !os.IsNotExist(err) {
+				return "", err
+			}
+
+			break
+		}
+
+		if i == 50 {
+			suffix = "copy." + time.Now().Format(time.RFC3339)
+		}
+	}
+
+	return name + suffix + extension, nil
+}
+
 // Copies a given file to the same location and appends a suffix to the file to indicate that
 // it has been copied.
 func (fs *Filesystem) Copy(p string) error {
@@ -249,70 +298,21 @@ func (fs *Filesystem) Copy(p string) error {
 		name = strings.TrimSuffix(name, ".tar")
 	}
 
-	// Begin looping up to 50 times to try and create a unique copy file name. This will take
-	// an input of "file.txt" and generate "file copy.txt". If that name is already taken, it will
-	// then try to write "file copy 2.txt" and so on, until reaching 50 loops. At that point we
-	// won't waste anymore time, just use the current timestamp and make that copy.
-	//
-	// Could probably make this more efficient by checking if there are any files matching the copy
-	// pattern, and trying to find the highest number and then incrementing it by one rather than
-	// looping endlessly.
-	var i int
-	copySuffix := " copy"
-	for i = 0; i < 51; i++ {
-		if i > 0 {
-			copySuffix = " copy " + strconv.Itoa(i)
-		}
-
-		tryName := fmt.Sprintf("%s%s%s", name, copySuffix, extension)
-		tryLocation, err := fs.SafePath(path.Join(relative, tryName))
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		// If the file exists, continue to the next loop, otherwise we're good to start a copy.
-		if _, err := os.Stat(tryLocation); err != nil && !os.IsNotExist(err) {
-			return errors.WithStack(err)
-		} else if os.IsNotExist(err) {
-			break
-		}
-
-		if i == 50 {
-			copySuffix = "." + time.Now().Format(time.RFC3339)
-		}
-	}
-
-	finalPath, err := fs.SafePath(path.Join(relative, fmt.Sprintf("%s%s%s", name, copySuffix, extension)))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
 	source, err := os.Open(cleaned)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	defer source.Close()
 
-	dest, err := os.Create(finalPath)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer dest.Close()
+	n, err := fs.findCopySuffix(relative, name, extension)
 
-	buf := make([]byte, 1024*4)
-	if _, err := io.CopyBuffer(dest, source, buf); err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Once everything is done, increment the disk space used.
-	fs.addDisk(s.Size())
-
-	return nil
+	return fs.Writefile(path.Join(relative, n), source)
 }
 
 // Deletes a file or folder from the system. Prevents the user from accidentally
 // (or maliciously) removing their root server data directory.
 func (fs *Filesystem) Delete(p string) error {
+	wg := sync.WaitGroup{}
 	// This is one of the few (only?) places in the codebase where we're explicitly not using
 	// the SafePath functionality when working with user provided input. If we did, you would
 	// not be able to delete a file that is a symlink pointing to a location outside of the data
@@ -332,7 +332,7 @@ func (fs *Filesystem) Delete(p string) error {
 		return errors.New("cannot delete root server directory")
 	}
 
-	if st, err := os.Stat(resolved); err != nil {
+	if st, err := os.Lstat(resolved); err != nil {
 		if !os.IsNotExist(err) {
 			fs.error(err).Warn("error while attempting to stat file before deletion")
 		}
@@ -340,13 +340,17 @@ func (fs *Filesystem) Delete(p string) error {
 		if !st.IsDir() {
 			fs.addDisk(-st.Size())
 		} else {
-			go func(st os.FileInfo, resolved string) {
+			wg.Add(1)
+			go func(wg *sync.WaitGroup, st os.FileInfo, resolved string) {
+				defer wg.Done()
 				if s, err := fs.DirectorySize(resolved); err == nil {
 					fs.addDisk(-s)
 				}
-			}(st, resolved)
+			}(&wg, st, resolved)
 		}
 	}
+
+	wg.Wait()
 
 	return os.RemoveAll(resolved)
 }
@@ -408,7 +412,11 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 			var m *mimetype.MIME
 			var d = "inode/directory"
 			if !f.IsDir() {
-				cleanedp, _ := fs.SafeJoin(cleaned, f)
+				cleanedp := filepath.Join(cleaned, f.Name())
+				if f.Mode()&os.ModeSymlink != 0 {
+					cleanedp, _ = fs.SafePath(filepath.Join(cleaned, f.Name()))
+				}
+
 				if cleanedp != "" {
 					m, _ = mimetype.DetectFile(filepath.Join(cleaned, f.Name()))
 				} else {
