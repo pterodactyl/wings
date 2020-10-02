@@ -332,7 +332,7 @@ func (fs *Filesystem) Delete(p string) error {
 		return errors.New("cannot delete root server directory")
 	}
 
-	if st, err := os.Stat(resolved); err != nil {
+	if st, err := os.Lstat(resolved); err != nil {
 		if !os.IsNotExist(err) {
 			fs.error(err).Warn("error while attempting to stat file before deletion")
 		}
