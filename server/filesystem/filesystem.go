@@ -59,6 +59,12 @@ func (fs *Filesystem) Readfile(p string, w io.Writer) error {
 		return err
 	}
 
+	if st, err := os.Stat(cleaned); err != nil {
+		return err
+	} else if st.IsDir() {
+		return ErrIsDirectory
+	}
+
 	f, err := os.Open(cleaned)
 	if err != nil {
 		return err
@@ -164,7 +170,7 @@ func (fs *Filesystem) Rename(from string, to string) error {
 	// Ensure that the directory we're moving into exists correctly on the system. Only do this if
 	// we're not at the root directory level.
 	if d != fs.Path() {
-		if mkerr := os.MkdirAll(d, 0644); mkerr != nil {
+		if mkerr := os.MkdirAll(d, 0755); mkerr != nil {
 			return errors.Wrap(mkerr, "failed to create directory structure for file rename")
 		}
 	}

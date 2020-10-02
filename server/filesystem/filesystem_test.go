@@ -9,7 +9,6 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"unicode/utf8"
 )
@@ -104,7 +103,7 @@ func TestFilesystem_Readfile(t *testing.T) {
 		})
 
 		g.It("returns an error if the \"file\" is a directory", func() {
-			err := rfs.CreateServerFile("test.txt", "testing")
+			err := os.Mkdir(filepath.Join(rfs.root, "/server/test.txt"), 0755)
 			g.Assert(err).IsNil()
 
 			err = fs.Readfile("test.txt", buf)
@@ -118,7 +117,7 @@ func TestFilesystem_Readfile(t *testing.T) {
 
 			err = fs.Readfile("/../test.txt", buf)
 			g.Assert(err).IsNotNil()
-			g.Assert(strings.Contains(err.Error(), "file does not exist")).IsTrue()
+			g.Assert(errors.Is(err, ErrBadPathResolution)).IsTrue()
 		})
 
 		g.AfterEach(func() {
@@ -179,7 +178,7 @@ func TestFilesystem_Writefile(t *testing.T) {
 
 			err := fs.Writefile("/some/../foo/../../test.txt", r)
 			g.Assert(err).IsNotNil()
-			g.Assert(strings.Contains(err.Error(), "file does not exist")).IsTrue()
+			g.Assert(errors.Is(err, ErrBadPathResolution)).IsTrue()
 		})
 
 		g.It("cannot write a file that exceedes the disk limits", func() {
@@ -269,7 +268,7 @@ func TestFilesystem_CreateDirectory(t *testing.T) {
 		g.It("should not allow the creation of directories outside the root", func() {
 			err := fs.CreateDirectory("test", "e/../../something")
 			g.Assert(err).IsNotNil()
-			g.Assert(strings.Contains(err.Error(), "file does not exist")).IsTrue()
+			g.Assert(errors.Is(err, ErrBadPathResolution)).IsTrue()
 		})
 
 		g.It("should not increment the disk usage", func() {
@@ -319,7 +318,7 @@ func TestFilesystem_Rename(t *testing.T) {
 		g.It("does not allow renaming to a location outside the root", func() {
 			err := fs.Rename("source.txt", "../target.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(errors.Is(err, os.ErrNotExist)).IsTrue()
+			g.Assert(errors.Is(err, ErrBadPathResolution)).IsTrue()
 		})
 
 		g.It("does not allow renaming from a location outside the root", func() {
@@ -327,7 +326,7 @@ func TestFilesystem_Rename(t *testing.T) {
 
 			err = fs.Rename("/../ext-source.txt", "target.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(errors.Is(err, os.ErrNotExist)).IsTrue()
+			g.Assert(errors.Is(err, ErrBadPathResolution)).IsTrue()
 		})
 
 		g.It("allows a file to be renamed", func() {
@@ -473,7 +472,7 @@ func TestFilesystem_Copy(t *testing.T) {
 			err := os.MkdirAll(filepath.Join(rfs.root, "/server/nested/in/dir"), 0755)
 			g.Assert(err).IsNil()
 
-			err = rfs.CreateServerFile("source.txt", "test content")
+			err = rfs.CreateServerFile("nested/in/dir/source.txt", "test content")
 			g.Assert(err).IsNil()
 
 			err = fs.Copy("nested/in/dir/source.txt")
