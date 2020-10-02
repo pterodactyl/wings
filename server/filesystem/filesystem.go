@@ -412,7 +412,11 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 			var m *mimetype.MIME
 			var d = "inode/directory"
 			if !f.IsDir() {
-				cleanedp, _ := fs.SafeJoin(cleaned, f)
+				cleanedp := filepath.Join(cleaned, f.Name())
+				if f.Mode()&os.ModeSymlink != 0 {
+					cleanedp, _ = fs.SafePath(filepath.Join(cleaned, f.Name()))
+				}
+
 				if cleanedp != "" {
 					m, _ = mimetype.DetectFile(filepath.Join(cleaned, f.Name()))
 				} else {

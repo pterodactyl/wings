@@ -92,27 +92,6 @@ func (fs *Filesystem) unsafeIsInDataDirectory(p string) bool {
 	return strings.HasPrefix(strings.TrimSuffix(p, "/")+"/", strings.TrimSuffix(fs.Path(), "/")+"/")
 }
 
-// Helper function to keep some of the codebase a little cleaner. Returns a "safe" version of the path
-// joined with a file. This is important because you cannot just assume that appending a file to a cleaned
-// path will result in a cleaned path to that file. For example, imagine you have the following scenario:
-//
-// my_bad_file -> symlink:/etc/passwd
-//
-// cleaned := SafePath("../../etc") -> "/"
-// filepath.Join(cleaned, my_bad_file) -> "/my_bad_file"
-//
-// You might think that "/my_bad_file" is fine since it isn't pointing to the original "../../etc/my_bad_file".
-// However, this doesn't account for symlinks where the file might be pointing outside of the directory, so
-// calling a function such as Chown against it would chown the symlinked location, and not the file within the
-// Wings daemon.
-func (fs *Filesystem) SafeJoin(dir string, f os.FileInfo) (string, error) {
-	if f.Mode()&os.ModeSymlink != 0 {
-		return fs.SafePath(filepath.Join(dir, f.Name()))
-	}
-
-	return filepath.Join(dir, f.Name()), nil
-}
-
 // Executes the fs.SafePath function in parallel against an array of paths. If any of the calls
 // fails an error will be returned.
 func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
