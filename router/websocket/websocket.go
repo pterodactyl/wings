@@ -34,9 +34,11 @@ const (
 
 type Handler struct {
 	sync.RWMutex
+
 	Connection *websocket.Conn
 	jwt        *tokens.WebsocketPayload `json:"-"`
 	server     *server.Server
+	uuid       uuid.UUID
 }
 
 var (
@@ -99,11 +101,21 @@ func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request) (*Hand
 		return nil, err
 	}
 
+	u, err := uuid.NewRandom()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	return &Handler{
 		Connection: conn,
 		jwt:        nil,
 		server:     s,
+		uuid:       u,
 	}, nil
+}
+
+func (h *Handler) Uuid() uuid.UUID {
+	return h.uuid
 }
 
 func (h *Handler) SendJson(v *Message) error {

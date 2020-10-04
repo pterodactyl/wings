@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	ws "github.com/gorilla/websocket"
 	"github.com/pterodactyl/wings/router/websocket"
+	"time"
 )
 
 // Upgrades a connection to a websocket and passes events along between.
@@ -22,6 +23,28 @@ func getServerWebsocket(c *gin.Context) {
 	// socket that will also cancel listeners running in separate threads.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Track this open connection on the server so that we can close them all programtically
+	// if the server is deleted.
+	s.Websockets().Push(handler.Uuid(), &cancel)
+	defer s.Websockets().Remove(handler.Uuid())
+
+	// Listen for the context being canceled and then close the websocket connection. This normally
+	// just happens because you're disconnecting from the socket in the browser, however in some
+	// cases we close the connections programatically (e.g. deleting the server) and need to send
+	// a close message to the websocket so it disconnects.
+	go func(ctx context.Context, c *ws.Conn) {
+	ListenerLoop:
+		for {
+			select {
+			case <-ctx.Done():
+				handler.Connection.WriteControl(ws.CloseMessage, ws.FormatCloseMessage(ws.CloseGoingAway, "server deleted"), time.Now().Add(time.Second*5))
+				// A break right here without defining the specific loop would only break the select
+				// and not actually break the for loop, thus causing this routine to stick around forever.
+				break ListenerLoop
+			}
+		}
+	}(ctx, handler.Connection)
 
 	go handler.ListenForServerEvents(ctx)
 	go handler.ListenForExpiration(ctx)

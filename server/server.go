@@ -54,6 +54,10 @@ type Server struct {
 
 	// The console throttler instance used to control outputs.
 	throttler *ConsoleThrottler
+
+	// Tracks open websocket connections for the server.
+	wsBag       *WebsocketBag
+	wsBagLocker sync.Mutex
 }
 
 type InstallerDetails struct {

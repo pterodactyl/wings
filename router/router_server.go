@@ -207,6 +207,7 @@ func deleteServer(c *gin.Context) {
 	// Unsubscribe all of the event listeners.
 	s.Events().Destroy()
 	s.Throttler().StopTimer()
+	s.Websockets().CancelAll()
 
 	// Destroy the environment; in Docker this will handle a running container and
 	// forcibly terminate it before removing the container, so we do not need to handle
