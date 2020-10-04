@@ -81,16 +81,8 @@ func (a *Archiver) Archive() error {
 		files = append(files, f)
 	}
 
-	stat, err := a.Stat()
-	if err != nil && !os.IsNotExist(err) {
+	if err := a.DeleteIfExists(); err != nil {
 		return err
-	}
-
-	// Check if the file exists.
-	if stat != nil {
-		if err := os.Remove(a.Path()); err != nil {
-			return err
-		}
 	}
 
 	return archiver.NewTarGz().Archive(files, a.Path())
@@ -98,16 +90,16 @@ func (a *Archiver) Archive() error {
 
 // DeleteIfExists deletes the archive if it exists.
 func (a *Archiver) DeleteIfExists() error {
-	stat, err := a.Stat()
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	if _, err := a.Stat(); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+
 		return err
 	}
 
-	// Check if the file exists.
-	if stat != nil {
-		if err := os.Remove(a.Path()); err != nil {
-			return err
-		}
+	if err := os.Remove(a.Path()); err != nil {
+		return errors.WithStack(err)
 	}
 
 	return nil
