@@ -99,7 +99,7 @@ func (a *Archiver) Archive() error {
 // DeleteIfExists deletes the archive if it exists.
 func (a *Archiver) DeleteIfExists() error {
 	stat, err := a.Stat()
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 
