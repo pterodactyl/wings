@@ -390,38 +390,31 @@ func (f *ConfigurationFile) parseYamlFile(path string) error {
 // scanning a file and performing a replacement. You should attempt to use anything other
 // than this function where possible.
 func (f *ConfigurationFile) parseTextFile(path string) error {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
+	// read file
+	input, err := ioutil.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		hasReplaced := false
-		t := scanner.Text()
+	// split file into lines to parse one by one.
+	lines := strings.Split(string(input), "\n")
 
-		// Iterate over the potential replacements for the line and check if there are
-		// any matches.
+	for i, line := range lines {
 		for _, replace := range f.Replace {
-			if !strings.HasPrefix(t, replace.Match) {
+			// skip if line doesn't have the prefix
+			if !strings.HasPrefix(line, replace.Match) {
 				continue
 			}
 
-			hasReplaced = true
-			t = strings.Replace(t, replace.Match, replace.ReplaceWith.String(), 1)
-		}
-
-		// If there was a replacement that occurred on this specific line, do a write to the file
-		// immediately to write that modified content to the disk.
-		if hasReplaced {
-			if _, err := file.WriteAt([]byte(t+"\n"), int64(len(scanner.Bytes()))); err != nil {
-				return err
-			}
+			// replace line if it has the prefix
+			lines[i] = replace.ReplaceWith.String()
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
+	// join all the file lines with new lines between
+	output := strings.Join(lines, "\n")
+	err = ioutil.WriteFile(path, []byte(output), 0644)
+	if err != nil {
 		return err
 	}
 
