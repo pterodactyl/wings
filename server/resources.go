@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"github.com/pterodactyl/wings/environment"
 	"sync"
 )
@@ -17,9 +18,22 @@ type ResourceUsage struct {
 	// The current server status.
 	State string `json:"state" default:"offline"`
 
-	// The current disk space being used by the server. This is cached to prevent slow lookup
-	// issues on frequent refreshes.
+	// The current disk space being used by the server. This value is not guaranteed to be accurate
+	// at all times. It is "manually" set whenever server.Proc() is called. This is kind of just a
+	// hacky solution for now to avoid passing events all over the place.
 	Disk int64 `json:"disk_bytes"`
+}
+
+// Alias the resource usage so that we don't infinitely recurse when marshaling the struct.
+type IResourceUsage ResourceUsage
+
+// Custom marshaler to ensure that the object is locked when we're converting it to JSON in
+// order to avoid race conditions.
+func (ru *ResourceUsage) MarshalJSON() ([]byte, error) {
+	ru.mu.Lock()
+	defer ru.mu.Unlock()
+
+	return json.Marshal(IResourceUsage(*ru))
 }
 
 // Returns the resource usage stats for the server instance. If the server is not running, only the
@@ -28,6 +42,10 @@ type ResourceUsage struct {
 //
 // When a process is stopped all of the stats are zeroed out except for the disk.
 func (s *Server) Proc() *ResourceUsage {
+	s.resources.SetDisk(s.Filesystem().CachedUsage())
+
+	// Get a read lock on the resources at this point. Don't do this before setting
+	// the disk, otherwise you'll cause a deadlock.
 	s.resources.mu.RLock()
 	defer s.resources.mu.RUnlock()
 
@@ -35,11 +53,9 @@ func (s *Server) Proc() *ResourceUsage {
 }
 
 func (s *Server) emitProcUsage() {
-	s.resources.mu.RLock()
-	if err := s.Events().PublishJson(StatsEvent, s.resources); err != nil {
+	if err := s.Events().PublishJson(StatsEvent, s.Proc()); err != nil {
 		s.Log().WithField("error", err).Warn("error while emitting server resource usage to listeners")
 	}
-	s.resources.mu.RUnlock()
 }
 
 // Returns the servers current state.
