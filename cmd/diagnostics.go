@@ -13,6 +13,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
@@ -25,8 +26,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const DefaultHastebinUrl = "https://hastebin.com"
-const DefaultLogLines = 50
+const DefaultHastebinUrl = "https://ptero.co"
+const DefaultLogLines = 200
 
 var (
 	diagnosticsArgs struct {
@@ -102,23 +103,25 @@ func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
 	printHeader(output, "Wings Configuration")
 	cfg, err := config.ReadConfiguration(config.DefaultLocation)
 	if cfg != nil {
-		fmt.Fprintln(output, "Panel Location:", redact(cfg.PanelLocation))
-		fmt.Fprintln(output, "Api Host:", redact(cfg.Api.Host))
-		fmt.Fprintln(output, "Api Port:", cfg.Api.Port)
-		fmt.Fprintln(output, "Api Ssl Enabled:", cfg.Api.Ssl.Enabled)
-		fmt.Fprintln(output, "Api Ssl Certificate:", redact(cfg.Api.Ssl.CertificateFile))
-		fmt.Fprintln(output, "Api Ssl Key:", redact(cfg.Api.Ssl.KeyFile))
-		fmt.Fprintln(output, "Sftp Address:", redact(cfg.System.Sftp.Address))
-		fmt.Fprintln(output, "Sftp Port:", cfg.System.Sftp.Port)
-		fmt.Fprintln(output, "Sftp Read Only:", cfg.System.Sftp.ReadOnly)
-		fmt.Fprintln(output, "Sftp Diskchecking Disabled:", cfg.System.Sftp.DisableDiskChecking)
-		fmt.Fprintln(output, "System Root Directory:", cfg.System.RootDirectory)
-		fmt.Fprintln(output, "System Logs Directory:", cfg.System.LogDirectory)
-		fmt.Fprintln(output, "System Data Directory:", cfg.System.Data)
-		fmt.Fprintln(output, "System Archive Directory:", cfg.System.ArchiveDirectory)
-		fmt.Fprintln(output, "System Backup Directory:", cfg.System.BackupDirectory)
-		fmt.Fprintln(output, "System Username:", cfg.System.Username)
-		fmt.Fprintln(output, "Debug Enabled:", cfg.Debug)
+		fmt.Fprintln(output, "    Panel Location:", redact(cfg.PanelLocation))
+		fmt.Fprintln(output, "")
+		fmt.Fprintln(output, "Internal Webserver:", redact(cfg.Api.Host) + ":", cfg.Api.Port)
+		fmt.Fprintln(output, "       SSL Enabled:", cfg.Api.Ssl.Enabled)
+		fmt.Fprintln(output, "   SSL Certificate:", redact(cfg.Api.Ssl.CertificateFile))
+		fmt.Fprintln(output, "           SSL Key:", redact(cfg.Api.Ssl.KeyFile))
+		fmt.Fprintln(output, "")
+		fmt.Fprintln(output, "       SFTP Server:", redact(cfg.System.Sftp.Address), ":", cfg.System.Sftp.Port)
+		fmt.Fprintln(output, "    SFTP Read-Only:", cfg.System.Sftp.ReadOnly)
+		fmt.Fprintln(output, "")
+		fmt.Fprintln(output, "    Root Directory:", cfg.System.RootDirectory)
+		fmt.Fprintln(output, "    Logs Directory:", cfg.System.LogDirectory)
+		fmt.Fprintln(output, "    Data Directory:", cfg.System.Data)
+		fmt.Fprintln(output, " Archive Directory:", cfg.System.ArchiveDirectory)
+		fmt.Fprintln(output, "  Backup Directory:", cfg.System.BackupDirectory)
+		fmt.Fprintln(output, "")
+		fmt.Fprintln(output, "          Username:", cfg.System.Username)
+		fmt.Fprintln(output, "       Server Time:", time.Now().Format(time.RFC1123Z))
+		fmt.Fprintln(output, "        Debug Mode:", cfg.Debug)
 	} else {
 		fmt.Println("Failed to load configuration.", err)
 	}

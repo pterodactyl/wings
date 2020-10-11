@@ -75,6 +75,16 @@ func (fs *Filesystem) HasSpaceAvailable(allowStaleValue bool) bool {
 	return size <= fs.MaxDisk()
 }
 
+// Returns the cached value for the amount of disk space used by the filesystem. Do not rely on this
+// function for critical logical checks. It should only be used in areas where the actual disk usage
+// does not need to be perfect, e.g. API responses for server resource usage.
+func (fs *Filesystem) CachedUsage() int64 {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
+	return fs.diskUsed
+}
+
 // Internal helper function to allow other parts of the codebase to check the total used disk space
 // as needed without overly taxing the system. This will prioritize the value from the cache to avoid
 // excessive IO usage. We will only walk the filesystem and determine the size of the directory if there
