@@ -390,32 +390,26 @@ func (f *ConfigurationFile) parseYamlFile(path string) error {
 // scanning a file and performing a replacement. You should attempt to use anything other
 // than this function where possible.
 func (f *ConfigurationFile) parseTextFile(path string) error {
-	// read file
 	input, err := ioutil.ReadFile(path)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
-	// split file into lines to parse one by one.
 	lines := strings.Split(string(input), "\n")
-
 	for i, line := range lines {
 		for _, replace := range f.Replace {
-			// skip if line doesn't have the prefix
+			// If this line doesn't match what we expect for the replacement, move on to the next
+			// line. Otherwise, update the line to have the replacement value.
 			if !strings.HasPrefix(line, replace.Match) {
 				continue
 			}
 
-			// replace line if it has the prefix
 			lines[i] = replace.ReplaceWith.String()
 		}
 	}
 
-	// join all the file lines with new lines between
-	output := strings.Join(lines, "\n")
-	err = ioutil.WriteFile(path, []byte(output), 0644)
-	if err != nil {
-		return err
+	if err := ioutil.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644); err != nil {
+		return errors.WithStack(err)
 	}
 
 	return nil
