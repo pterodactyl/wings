@@ -73,9 +73,6 @@ type Configuration struct {
 
 // Defines the configuration of the internal SFTP server.
 type SftpConfiguration struct {
-	// If set to true disk checking will not be performed. This will prevent the SFTP
-	// server from checking the total size of a directory when uploading files.
-	DisableDiskChecking bool `default:"false" yaml:"disable_disk_checking"`
 	// The bind address of the SFTP server.
 	Address string `default:"0.0.0.0" json:"bind_address" yaml:"bind_address"`
 	// The bind port of the SFTP server.
