@@ -126,8 +126,8 @@ func (e *Environment) Stop() error {
 	s := e.meta.Stop
 	e.mu.RUnlock()
 
-	if s == nil || s.Type == api.ProcessStopSignal {
-		if s == nil {
+	if s.Type == "" || s.Type == api.ProcessStopSignal {
+		if s.Type == "" {
 			log.WithField("container_id", e.Id).Warn("no stop configuration detected for environment, using termination procedure")
 		}
 

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/creasty/defaults"
@@ -49,8 +50,18 @@ func LoadDirectory() error {
 		data := data
 
 		pool.Submit(func() {
+			// Parse the json.RawMessage into an expected struct value. We do this here so that a single broken
+			// server does not cause the entire boot process to hang, and allows us to show more useful error
+			// messaging in the output.
+			d := api.ServerConfigurationResponse{}
+
 			log.WithField("server", uuid).Info("creating new server object from API response")
-			s, err := FromConfiguration(data)
+			if err := json.Unmarshal(data, &d); err != nil {
+				log.WithField("server", uuid).WithField("error", err).Error("failed to parse server configuration from API response, skipping...")
+				return
+			}
+
+			s, err := FromConfiguration(d)
 			if err != nil {
 				log.WithField("server", uuid).WithField("error", err).Error("failed to load server, skipping...")
 				return
@@ -73,7 +84,7 @@ func LoadDirectory() error {
 // Initializes a server using a data byte array. This will be marshaled into the
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
-func FromConfiguration(data *api.ServerConfigurationResponse) (*Server, error) {
+func FromConfiguration(data api.ServerConfigurationResponse) (*Server, error) {
 	cfg := Configuration{}
 	if err := defaults.Set(&cfg); err != nil {
 		return nil, errors.Wrap(err, "failed to set struct defaults for server configuration")

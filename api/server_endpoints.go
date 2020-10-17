@@ -34,7 +34,7 @@ type InstallationScript struct {
 }
 
 // GetAllServerConfigurations fetches configurations for all servers assigned to this node.
-func (r *PanelRequest) GetAllServerConfigurations() (map[string]*ServerConfigurationResponse, *RequestError, error) {
+func (r *PanelRequest) GetAllServerConfigurations() (map[string]json.RawMessage, *RequestError, error) {
 	resp, err := r.Get("/servers")
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
@@ -48,7 +48,7 @@ func (r *PanelRequest) GetAllServerConfigurations() (map[string]*ServerConfigura
 	}
 
 	b, _ := r.ReadBody()
-	res := map[string]*ServerConfigurationResponse{}
+	res := map[string]json.RawMessage{}
 	if len(b) == 2 {
 		return res, nil, nil
 	}
@@ -61,24 +61,23 @@ func (r *PanelRequest) GetAllServerConfigurations() (map[string]*ServerConfigura
 }
 
 // Fetches the server configuration and returns the struct for it.
-func (r *PanelRequest) GetServerConfiguration(uuid string) (*ServerConfigurationResponse, *RequestError, error) {
+func (r *PanelRequest) GetServerConfiguration(uuid string) (ServerConfigurationResponse, *RequestError, error) {
+	res := ServerConfigurationResponse{}
+
 	resp, err := r.Get(fmt.Sprintf("/servers/%s", uuid))
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return res, nil, errors.WithStack(err)
 	}
 	defer resp.Body.Close()
 
 	r.Response = resp
-
 	if r.HasError() {
-		return nil, r.Error(), nil
+		return res, r.Error(), nil
 	}
 
-	res := &ServerConfigurationResponse{}
 	b, _ := r.ReadBody()
-
-	if err := json.Unmarshal(b, res); err != nil {
-		return nil, nil, errors.WithStack(err)
+	if err := json.Unmarshal(b, &res); err != nil {
+		return res, nil, errors.WithStack(err)
 	}
 
 	return res, nil, nil

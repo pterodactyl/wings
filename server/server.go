@@ -128,7 +128,7 @@ func (s *Server) Sync() error {
 	return s.SyncWithConfiguration(cfg)
 }
 
-func (s *Server) SyncWithConfiguration(cfg *api.ServerConfigurationResponse) error {
+func (s *Server) SyncWithConfiguration(cfg api.ServerConfigurationResponse) error {
 	// Update the data structure and persist it to the disk.
 	if err := s.UpdateDataStructure(cfg.Settings); err != nil {
 		return errors.WithStack(err)
@@ -147,7 +147,7 @@ func (s *Server) SyncWithConfiguration(cfg *api.ServerConfigurationResponse) err
 	if e, ok := s.Environment.(*docker.Environment); ok {
 		s.Log().Debug("syncing stop configuration with configured docker environment")
 		e.SetImage(s.Config().Container.Image)
-		e.SetStopConfiguration(&cfg.ProcessConfiguration.Stop)
+		e.SetStopConfiguration(cfg.ProcessConfiguration.Stop)
 	}
 
 	return nil
@@ -178,7 +178,7 @@ func (s *Server) CreateEnvironment() error {
 }
 
 // Gets the process configuration data for the server.
-func (s *Server) GetProcessConfiguration() (*api.ServerConfigurationResponse, *api.RequestError, error) {
+func (s *Server) GetProcessConfiguration() (api.ServerConfigurationResponse, *api.RequestError, error) {
 	return api.NewRequester().GetServerConfiguration(s.Id())
 }
 

@@ -33,13 +33,11 @@ func (e *Environment) SendCommand(c string) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	if e.meta.Stop != nil {
-		// If the command being processed is the same as the process stop command then we want to mark
-		// the server as entering the stopping state otherwise the process will stop and Wings will think
-		// it has crashed and attempt to restart it.
-		if e.meta.Stop.Type == "command" && c == e.meta.Stop.Value {
-			e.Events().Publish(environment.StateChangeEvent, environment.ProcessStoppingState)
-		}
+	// If the command being processed is the same as the process stop command then we want to mark
+	// the server as entering the stopping state otherwise the process will stop and Wings will think
+	// it has crashed and attempt to restart it.
+	if e.meta.Stop.Type == "command" && c == e.meta.Stop.Value {
+		e.Events().Publish(environment.StateChangeEvent, environment.ProcessStoppingState)
 	}
 
 	_, err := e.stream.Conn.Write([]byte(c + "\n"))
