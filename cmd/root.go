@@ -132,6 +132,13 @@ func rootCmdRun(*cobra.Command, []string) {
 	config.Set(c)
 	config.SetDebugViaFlag(debug)
 
+	if err := c.System.ConfigureTimezone(); err != nil {
+		log.WithField("error", err).Fatal("failed to detect system timezone or use supplied configuration value")
+		return
+	}
+
+	log.WithField("timezone", c.System.Timezone).Info("configured wings with system timezone")
+
 	if err := c.System.ConfigureDirectories(); err != nil {
 		log.WithField("error", err).Fatal("failed to configure system directories for pterodactyl")
 		return

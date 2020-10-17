@@ -2,10 +2,8 @@ package server
 
 import (
 	"github.com/apex/log"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -16,41 +14,17 @@ import (
 type Mount environment.Mount
 
 // Returns the default container mounts for the server instance. This includes the data directory
-// for the server as well as any timezone related files if they exist on the host system so that
-// servers running within the container will use the correct time.
+// for the server. Previously this would also mount in host timezone files, however we've moved from
+// that approach to just setting `TZ=Timezone` environment values in containers which should work
+// in most scenarios.
 func (s *Server) Mounts() []environment.Mount {
-	var m []environment.Mount
-
-	m = append(m, environment.Mount{
-		Default:  true,
-		Target:   "/home/container",
-		Source:   s.Filesystem().Path(),
-		ReadOnly: false,
-	})
-
-	// Try to mount in /etc/localtime and /etc/timezone if they exist on the host system.
-	if _, err := os.Stat("/etc/localtime"); err != nil {
-		if !os.IsNotExist(err) {
-			log.WithField("error", errors.WithStack(err)).Warn("failed to stat /etc/localtime due to an error")
-		}
-	} else {
-		m = append(m, environment.Mount{
-			Target:   "/etc/localtime",
-			Source:   "/etc/localtime",
-			ReadOnly: true,
-		})
-	}
-
-	if _, err := os.Stat("/etc/timezone"); err != nil {
-		if !os.IsNotExist(err) {
-			log.WithField("error", errors.WithStack(err)).Warn("failed to stat /etc/timezone due to an error")
-		}
-	} else {
-		m = append(m, environment.Mount{
-			Target:   "/etc/timezone",
-			Source:   "/etc/timezone",
-			ReadOnly: true,
-		})
+	m := []environment.Mount{
+		{
+			Default:  true,
+			Target:   "/home/container",
+			Source:   s.Filesystem().Path(),
+			ReadOnly: false,
+		},
 	}
 
 	// Also include any of this server's custom mounts when returning them.

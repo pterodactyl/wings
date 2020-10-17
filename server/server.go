@@ -6,6 +6,7 @@ import (
 	"github.com/apex/log"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/environment/docker"
 	"github.com/pterodactyl/wings/events"
@@ -13,7 +14,6 @@ import (
 	"golang.org/x/sync/semaphore"
 	"strings"
 	"sync"
-	"time"
 )
 
 // High level definition for a server instance being controlled by Wings.
@@ -78,10 +78,8 @@ func (s *Server) Id() string {
 // Returns all of the environment variables that should be assigned to a running
 // server instance.
 func (s *Server) GetEnvironmentVariables() []string {
-	zone, _ := time.Now().In(time.Local).Zone()
-
 	var out = []string{
-		fmt.Sprintf("TZ=%s", zone),
+		fmt.Sprintf("TZ=%s", config.Get().System.Timezone),
 		fmt.Sprintf("STARTUP=%s", s.Config().Invocation),
 		fmt.Sprintf("SERVER_MEMORY=%d", s.MemoryLimit()),
 		fmt.Sprintf("SERVER_IP=%s", s.Config().Allocations.DefaultMapping.Ip),
@@ -90,6 +88,7 @@ func (s *Server) GetEnvironmentVariables() []string {
 
 eloop:
 	for k := range s.Config().EnvVars {
+		// Don't allow any environment variables that we have already set above.
 		for _, e := range out {
 			if strings.HasPrefix(e, strings.ToUpper(k)) {
 				continue eloop

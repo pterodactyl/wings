@@ -57,10 +57,6 @@ type DockerConfiguration struct {
 	// The location of the Docker socket.
 	Socket string `default:"/var/run/docker.sock" json:"socket" yaml:"socket"`
 
-	// Defines the location of the timezone file on the host system that should
-	// be mounted into the created containers so that they all use the same time.
-	TimezonePath string `default:"/etc/timezone" json:"timezone_path" yaml:"timezone_path"`
-
 	// Registries .
 	Registries map[string]RegistryConfiguration `json:"registries" yaml:"registries"`
 

@@ -1,12 +1,18 @@
 package config
 
 import (
+	"context"
+	"fmt"
 	"github.com/apex/log"
 	"github.com/pkg/errors"
 	"html/template"
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
+	"time"
 )
 
 // Defines basic system configuration settings.
@@ -28,6 +34,13 @@ type SystemConfiguration struct {
 
 	// The user that should own all of the server files, and be used for containers.
 	Username string `default:"pterodactyl" yaml:"username"`
+
+	// The timezone for this Wings instance. This is detected by Wings automatically if possible,
+	// and falls back to UTC if not able to be detected. If you need to set this manually, that
+	// can also be done.
+	//
+	// This timezone value is passed into all containers created by Wings.
+	Timezone string `yaml:"timezone"`
 
 	// Definitions for the user that gets created to ensure that we can quickly access
 	// this information without constantly having to do a system lookup.
@@ -165,4 +178,46 @@ func (sc *SystemConfiguration) GetStatesPath() string {
 // Returns the location of the JSON file that tracks server states.
 func (sc *SystemConfiguration) GetInstallLogPath() string {
 	return path.Join(sc.LogDirectory, "install/")
+}
+
+// Configures the timezone data for the configuration if it is currently missing. If
+// a value has been set, this functionality will only run to validate that the timezone
+// being used is valid.
+func (sc *SystemConfiguration) ConfigureTimezone() error {
+	if sc.Timezone == "" {
+		if b, err := ioutil.ReadFile("/etc/timezone"); err != nil {
+			if !os.IsNotExist(err) {
+				return errors.Wrap(err, "failed to open /etc/timezone for automatic server timezone calibration")
+			}
+
+			ctx, _ := context.WithTimeout(context.Background(), time.Second * 5)
+			// Okay, file isn't found on this OS, we will try using timedatectl to handle this. If this
+			// command fails, exit, but if it returns a value use that. If no value is returned we will
+			// fall through to UTC to get Wings booted at least.
+			out, err := exec.CommandContext(ctx, "timedatectl").Output()
+			if err != nil {
+				log.WithField("error", err).Warn("failed to execute \"timedatectl\" to determine system timezone, falling back to UTC")
+
+				sc.Timezone = "UTC"
+				return nil
+			}
+
+			r := regexp.MustCompile(`Time zone: ([\w/]+)`)
+			matches := r.FindSubmatch(out)
+			if len(matches) != 2 || string(matches[1]) == "" {
+				log.Warn("failed to parse timezone from \"timedatectl\" output, falling back to UTC")
+
+				sc.Timezone = "UTC"
+				return nil
+			}
+
+			sc.Timezone = regexp.MustCompile(`\s+$`).ReplaceAllString(string(matches[1]), "")
+		} else {
+			sc.Timezone = string(b)
+		}
+	}
+
+	_, err := time.LoadLocation(sc.Timezone)
+
+	return errors.Wrap(err, fmt.Sprintf("the supplied timezone %s is invalid", sc.Timezone))
 }
