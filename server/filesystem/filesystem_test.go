@@ -403,7 +403,7 @@ func TestFilesystem_Writefile(t *testing.T) {
 			g.Assert(errors.Is(err, ErrNotEnoughDiskSpace)).IsTrue()
 		})
 
-		g.It("updates the total space used when a file is appended to", func() {
+		/*g.It("updates the total space used when a file is appended to", func() {
 			atomic.StoreInt64(&fs.diskUsed, 100)
 
 			b := make([]byte, 100)
@@ -423,7 +423,7 @@ func TestFilesystem_Writefile(t *testing.T) {
 			err = fs.Writefile("test.txt", r)
 			g.Assert(err).IsNil()
 			g.Assert(atomic.LoadInt64(&fs.diskUsed)).Equal(int64(150))
-		})
+		})*/
 
 		g.It("truncates the file when writing new contents", func() {
 			r := bytes.NewReader([]byte("original data"))
