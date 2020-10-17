@@ -3,6 +3,7 @@ package environment
 import (
 	"context"
 	"github.com/apex/log"
+	"strconv"
 	"sync"
 
 	"github.com/docker/docker/api/types"
@@ -24,7 +25,7 @@ func DockerClient() (*client.Client, error) {
 		return _client, nil
 	}
 
-	_client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation());
+	_client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 
 	return _client, err
 }
@@ -83,7 +84,7 @@ func createDockerNetwork(cli *client.Client, c *config.DockerConfiguration) erro
 		Options: map[string]string{
 			"encryption": "false",
 			"com.docker.network.bridge.default_bridge":       "false",
-			"com.docker.network.bridge.enable_icc":           "true",
+			"com.docker.network.bridge.enable_icc":           strconv.FormatBool(c.Network.EnableICC),
 			"com.docker.network.bridge.enable_ip_masquerade": "true",
 			"com.docker.network.bridge.host_binding_ipv4":    "0.0.0.0",
 			"com.docker.network.bridge.name":                 "pterodactyl0",

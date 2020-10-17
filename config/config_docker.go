@@ -49,14 +49,6 @@ type DockerConfiguration struct {
 	// Domainname is the Docker domainname for all containers.
 	Domainname string `default:"" json:"domainname" yaml:"domainname"`
 
-	// If true, container images will be updated when a server starts if there
-	// is an update available. If false the daemon will not attempt updates and will
-	// defer to the host system to manage image updates.
-	UpdateImages bool `default:"true" json:"update_images" yaml:"update_images"`
-
-	// The location of the Docker socket.
-	Socket string `default:"/var/run/docker.sock" json:"socket" yaml:"socket"`
-
 	// Registries .
 	Registries map[string]RegistryConfiguration `json:"registries" yaml:"registries"`
 
