@@ -1,5 +1,10 @@
 # Changelog
 
+## next
+
+### Fixed
+* Fixed a few docker clients not having version negotiation enabled.
+
 ## v1.0.0
 This is the first official stable release of Wings! Please be aware that while this specific version changelog is very short,
 it technically includes all of the previous beta and alpha releases within it. For the sake of version history and following
