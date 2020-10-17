@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/pterodactyl/wings/environment"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -19,7 +20,6 @@ import (
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/docker/cli/components/engine/pkg/parsers/operatingsystem"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/parsers/kernel"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/system"
@@ -187,7 +187,7 @@ func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
 }
 
 func getDockerInfo() (types.Version, types.Info, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := environment.DockerClient()
 	if err != nil {
 		return types.Version{}, types.Info{}, err
 	}

@@ -129,7 +129,7 @@ func NewInstallationProcess(s *Server, script *api.InstallationScript) (*Install
 	ctx, cancel := context.WithCancel(context.Background())
 	s.installer.cancel = &cancel
 
-	if c, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation()); err != nil {
+	if c, err := environment.DockerClient(); err != nil {
 		return nil, errors.WithStack(err)
 	} else {
 		proc.client = c

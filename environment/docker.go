@@ -3,6 +3,7 @@ package environment
 import (
 	"context"
 	"github.com/apex/log"
+	"sync"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/network"
@@ -10,10 +11,28 @@ import (
 	"github.com/pterodactyl/wings/config"
 )
 
+var _cmu sync.Mutex
+var _client *client.Client
+
+// Return a Docker client to be used throughout the codebase. Once a client has been created it
+// will be returned for all subsequent calls to this function.
+func DockerClient() (*client.Client, error) {
+	_cmu.Lock()
+	defer _cmu.Unlock()
+
+	if _client != nil {
+		return _client, nil
+	}
+
+	_client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation());
+
+	return _client, err
+}
+
 // Configures the required network for the docker environment.
 func ConfigureDocker(c *config.DockerConfiguration) error {
 	// Ensure the required docker network exists on the system.
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := DockerClient()
 	if err != nil {
 		return err
 	}
