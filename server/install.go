@@ -129,7 +129,7 @@ func NewInstallationProcess(s *Server, script *api.InstallationScript) (*Install
 	ctx, cancel := context.WithCancel(context.Background())
 	s.installer.cancel = &cancel
 
-	if c, err := client.NewClientWithOpts(client.FromEnv); err != nil {
+	if c, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation()); err != nil {
 		return nil, errors.WithStack(err)
 	} else {
 		proc.client = c
