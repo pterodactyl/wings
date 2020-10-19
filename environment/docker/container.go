@@ -310,11 +310,14 @@ func (e *Environment) followOutput() error {
 // need to block all of the servers from booting just because of that. I'd imagine in a lot of
 // cases an outage shouldn't affect users too badly. It'll at least keep existing servers working
 // correctly if anything.
-//
-// TODO: local images
 func (e *Environment) ensureImageExists(image string) error {
 	e.Events().Publish(environment.DockerImagePullStarted, "")
 	defer e.Events().Publish(environment.DockerImagePullCompleted, "")
+
+	// Images prefixed with a ~ are local images that we do not need to try and pull.
+	if strings.HasPrefix(image, "~") {
+		return nil
+	}
 
 	// Give it up to 15 minutes to pull the image. I think this should cover 99.8% of cases where an
 	// image pull might fail. I can't imagine it will ever take more than 15 minutes to fully pull
