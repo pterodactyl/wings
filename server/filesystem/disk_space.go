@@ -209,7 +209,8 @@ func (fs *Filesystem) hasSpaceFor(size int64) error {
 
 // Updates the disk usage for the Filesystem instance.
 func (fs *Filesystem) addDisk(i int64) int64 {
-	var size = atomic.LoadInt64(&fs.diskUsed)
+	size := atomic.LoadInt64(&fs.diskUsed)
+
 	// Sorry go gods. This is ugly but the best approach I can come up with for right
 	// now without completely re-evaluating the logic we use for determining disk space.
 	//
