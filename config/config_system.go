@@ -211,11 +211,13 @@ func (sc *SystemConfiguration) ConfigureTimezone() error {
 				return nil
 			}
 
-			sc.Timezone = regexp.MustCompile(`\s+$`).ReplaceAllString(string(matches[1]), "")
+			sc.Timezone = string(matches[1])
 		} else {
 			sc.Timezone = string(b)
 		}
 	}
+
+	sc.Timezone = regexp.MustCompile(`[^a-z_/]+/i`).ReplaceAllString(sc.Timezone, "")
 
 	_, err := time.LoadLocation(sc.Timezone)
 
