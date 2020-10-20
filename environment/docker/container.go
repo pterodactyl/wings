@@ -2,6 +2,7 @@ package docker
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -286,15 +287,53 @@ func (e *Environment) followOutput() error {
 
 	reader, err := e.client.ContainerLogs(context.Background(), e.Id, opts)
 
-	go func(r io.ReadCloser) {
-		defer r.Close()
+	go func(reader io.ReadCloser) {
+		defer reader.Close()
 
-		s := bufio.NewScanner(r)
-		for s.Scan() {
-			e.Events().Publish(environment.ConsoleOutputEvent, s.Text())
+		r := bufio.NewReader(reader)
+	ParentLoop:
+		for {
+			var b bytes.Buffer
+			var line []byte
+			var isPrefix bool
+
+			for {
+				// Read the line and write it to the buffer.
+				line, isPrefix, err = r.ReadLine()
+
+				// Certain games like Minecraft output absolutely random carriage returns in the output seemingly
+				// in line with that it thinks is the terminal size. Those returns break a lot of output handling,
+				// so we'll just replace them with proper new-lines and then split it later and send each line as
+				// its own event in the response.
+				b.Write(bytes.ReplaceAll(line, []byte(" \r"), []byte("\r\n")))
+
+				// Finish this loop and begin outputting the line if there is no prefix (the line fit into
+				// the default buffer), or if we hit the end of the line.
+				if !isPrefix || err == io.EOF {
+					break
+				}
+
+				// If we encountered an error with something in ReadLine that was not an EOF just abort
+				// the entire process here.
+				if err != nil {
+					break ParentLoop
+				}
+			}
+
+			// Publish the line for this loop. Break on new-line characters so every line is sent as a single
+			// output event, otherwise you get funky handling in the browser console.
+			for _, line := range strings.Split(b.String(), "\r\n") {
+				e.Events().Publish(environment.ConsoleOutputEvent, line)
+			}
+
+			// If the error we got previously that lead to the line being output is an io.EOF we want to
+			// exit the entire looping process.
+			if err == io.EOF {
+				break
+			}
 		}
 
-		if err := s.Err(); err != nil {
+		if err != nil && err != io.EOF {
 			log.WithField("error", err).WithField("container_id", e.Id).Warn("error processing scanner line in console output")
 		}
 	}(reader)
