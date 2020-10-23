@@ -1,6 +1,6 @@
 # Changelog
 
-## next
+## v1.0.1
 ### Added
 * Adds support for ARM to build outputs for wings.
 
