@@ -217,7 +217,7 @@ func (sc *SystemConfiguration) ConfigureTimezone() error {
 		}
 	}
 
-	sc.Timezone = regexp.MustCompile(`[^a-z_/]+/ig`).ReplaceAllString(sc.Timezone, "")
+	sc.Timezone = regexp.MustCompile(`(?i)[^a-z_/]+`).ReplaceAllString(sc.Timezone, "")
 
 	_, err := time.LoadLocation(sc.Timezone)
 
