@@ -1,13 +1,17 @@
 # Changelog
 
 ## next
+### Added
+* Adds support for ARM to build outputs for wings.
 
 ### Fixed
 * Fixed a few docker clients not having version negotiation enabled.
-
-## v1.0.1
-### Fixed
 * Fixes local images prefixed with `~` getting pulled from remote sources rather than just using the local copy.
+* Fixes console output breaking with certain games when excessive line length was output.
+* Fixes an error when console lines were too long that would cause the console to stop updating until the server was restarted,
+
+### Changed
+* Simplified timezone logic for containers by properly grabbing the system timezone and then passing that through to containers with the `TZ=` environment variable.
 
 ## v1.0.0
 This is the first official stable release of Wings! Please be aware that while this specific version changelog is very short,
