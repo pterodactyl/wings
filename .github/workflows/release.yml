@@ -75,7 +75,6 @@ jobs:
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
 
       - name: Upload amd64 Binary
-        id: upload-release-binary 
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -86,7 +85,6 @@ jobs:
           asset_content_type: application/octet-stream
 
       - name: Upload arm64 Binary
-        id: upload-release-binary
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,7 +95,6 @@ jobs:
           asset_content_type: application/octet-stream
 
       - name: Upload arm Binary
-        id: upload-release-binary
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -108,7 +105,6 @@ jobs:
           asset_content_type: application/octet-stream
 
       - name: Upload checksum
-        id: upload-release-checksum 
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
