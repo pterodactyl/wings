@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"github.com/apex/log"
 	"github.com/pkg/errors"
 	"regexp"
@@ -39,7 +38,7 @@ func IsInvalidCredentialsError(err error) bool {
 // server and sending a flood of usernames.
 var validUsernameRegexp = regexp.MustCompile(`^(?i)(.+)\.([a-z0-9]{8})$`)
 
-func (r *PanelRequest) ValidateSftpCredentials(request SftpAuthRequest) (*SftpAuthResponse, error) {
+func (r *Request) ValidateSftpCredentials(request SftpAuthRequest) (*SftpAuthResponse, error) {
 	// If the username doesn't meet the expected format that the Panel would even recognize just go ahead
 	// and bail out of the process here to avoid accidentally brute forcing the panel if a bot decides
 	// to connect to spam username attempts.
@@ -53,41 +52,33 @@ func (r *PanelRequest) ValidateSftpCredentials(request SftpAuthRequest) (*SftpAu
 		return nil, new(sftpInvalidCredentialsError)
 	}
 
-	b, err := json.Marshal(request)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := r.Post("/sftp/auth", b)
+	resp, err := r.Post("/sftp/auth", request)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	r.Response = resp
-
-	if r.HasError() {
-		if r.HttpResponseCode() >= 400 && r.HttpResponseCode() < 500 {
+	e := resp.Error()
+	if e != nil {
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
 			log.WithFields(log.Fields{
 				"subsystem": "sftp",
 				"username":  request.User,
 				"ip":        request.IP,
-			}).Warn(r.Error().String())
+			}).Warn(e.Error())
 
-			return nil, new(sftpInvalidCredentialsError)
+			return nil, &sftpInvalidCredentialsError{}
 		}
 
-		rerr := errors.New(r.Error().String())
+		rerr := errors.New(e.Error())
 
 		return nil, rerr
 	}
 
-	response := new(SftpAuthResponse)
-	body, _ := r.ReadBody()
-
-	if err := json.Unmarshal(body, response); err != nil {
+	var response SftpAuthResponse
+	if err := resp.Bind(&response); err != nil {
 		return nil, err
 	}
 
-	return response, nil
+	return &response, nil
 }

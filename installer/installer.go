@@ -63,13 +63,13 @@ func New(data []byte) (*Installer, error) {
 
 	cfg.Container.Image = getString(data, "container", "image")
 
-	c, rerr, err := api.NewRequester().GetServerConfiguration(cfg.Uuid)
-	if err != nil || rerr != nil {
-		if err != nil {
+	c, err := api.New().GetServerConfiguration(cfg.Uuid)
+	if err != nil {
+		if !api.IsRequestError(err) {
 			return nil, errors.WithStack(err)
 		}
 
-		return nil, errors.New(rerr.String())
+		return nil, errors.New(err.Error())
 	}
 
 	// Create a new server instance using the configuration we wrote to the disk

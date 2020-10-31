@@ -32,13 +32,13 @@ func LoadDirectory() error {
 	}
 
 	log.Info("fetching list of servers from API")
-	configs, rerr, err := api.NewRequester().GetAllServerConfigurations()
-	if err != nil || rerr != nil {
-		if err != nil {
+	configs, err := api.New().GetAllServerConfigurations()
+	if err != nil {
+		if !api.IsRequestError(err) {
 			return errors.WithStack(err)
 		}
 
-		return errors.New(rerr.String())
+		return errors.New(err.Error())
 	}
 
 	start := time.Now()

@@ -87,13 +87,13 @@ func (s *Server) Reinstall() error {
 
 // Internal installation function used to simplify reporting back to the Panel.
 func (s *Server) internalInstall() error {
-	script, rerr, err := api.NewRequester().GetInstallationScript(s.Id())
-	if err != nil || rerr != nil {
-		if err != nil {
-			return err
+	script, err := api.New().GetInstallationScript(s.Id())
+	if err != nil {
+		if !api.IsRequestError(err) {
+			return errors.WithStack(err)
 		}
 
-		return errors.New(rerr.String())
+		return errors.New(err.Error())
 	}
 
 	p, err := NewInstallationProcess(s, &script)
@@ -512,15 +512,13 @@ func (ip *InstallationProcess) StreamOutput(id string) error {
 // value of "true" means everything was successful, "false" means something went
 // wrong and the server must be deleted and re-created.
 func (s *Server) SyncInstallState(successful bool) error {
-	r := api.NewRequester()
-
-	rerr, err := r.SendInstallationStatus(s.Id(), successful)
-	if rerr != nil || err != nil {
-		if err != nil {
+	err := api.New().SendInstallationStatus(s.Id(), successful)
+	if err != nil {
+		if !api.IsRequestError(err) {
 			return errors.WithStack(err)
 		}
 
-		return errors.New(rerr.String())
+		return errors.New(err.Error())
 	}
 
 	return nil

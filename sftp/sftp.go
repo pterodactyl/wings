@@ -72,7 +72,7 @@ func validateCredentials(c api.SftpAuthRequest) (*api.SftpAuthResponse, error) {
 	f := log.Fields{"subsystem": "sftp", "username": c.User, "ip": c.IP}
 
 	log.WithFields(f).Debug("validating credentials for SFTP connection")
-	resp, err := api.NewRequester().ValidateSftpCredentials(c)
+	resp, err := api.New().ValidateSftpCredentials(c)
 	if err != nil {
 		if api.IsInvalidCredentialsError(err) {
 			log.WithFields(f).Warn("failed to validate user credentials (invalid username or password)")

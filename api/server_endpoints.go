@@ -34,155 +34,108 @@ type InstallationScript struct {
 }
 
 // GetAllServerConfigurations fetches configurations for all servers assigned to this node.
-func (r *PanelRequest) GetAllServerConfigurations() (map[string]json.RawMessage, *RequestError, error) {
-	resp, err := r.Get("/servers")
+func (r *Request) GetAllServerConfigurations() (map[string]json.RawMessage, error) {
+	resp, err := r.Get("/servers", nil)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 	defer resp.Body.Close()
 
-	r.Response = resp
-
-	if r.HasError() {
-		return nil, r.Error(), nil
+	if resp.HasError() {
+		return nil, resp.Error()
 	}
 
-	b, _ := r.ReadBody()
-	res := map[string]json.RawMessage{}
-	if len(b) == 2 {
-		return res, nil, nil
+	var res map[string]json.RawMessage
+	if err := resp.Bind(&res); err != nil {
+		return nil, errors.WithStack(err)
 	}
 
-	if err := json.Unmarshal(b, &res); err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-
-	return res, nil, nil
+	return res, nil
 }
 
 // Fetches the server configuration and returns the struct for it.
-func (r *PanelRequest) GetServerConfiguration(uuid string) (ServerConfigurationResponse, *RequestError, error) {
-	res := ServerConfigurationResponse{}
+func (r *Request) GetServerConfiguration(uuid string) (ServerConfigurationResponse, error) {
+	var cfg ServerConfigurationResponse
 
-	resp, err := r.Get(fmt.Sprintf("/servers/%s", uuid))
+	resp, err := r.Get(fmt.Sprintf("/servers/%s", uuid), nil)
 	if err != nil {
-		return res, nil, errors.WithStack(err)
+		return cfg, errors.WithStack(err)
 	}
 	defer resp.Body.Close()
 
-	r.Response = resp
-	if r.HasError() {
-		return res, r.Error(), nil
+	if resp.HasError() {
+		return cfg, resp.Error()
 	}
 
-	b, _ := r.ReadBody()
-	if err := json.Unmarshal(b, &res); err != nil {
-		return res, nil, errors.WithStack(err)
+	if err := resp.Bind(&cfg); err != nil {
+		return cfg, errors.WithStack(err)
 	}
 
-	return res, nil, nil
+	return cfg, nil
 }
 
 // Fetches installation information for the server process.
-func (r *PanelRequest) GetInstallationScript(uuid string) (InstallationScript, *RequestError, error) {
-	res := InstallationScript{}
-
-	resp, err := r.Get(fmt.Sprintf("/servers/%s/install", uuid))
+func (r *Request) GetInstallationScript(uuid string) (InstallationScript, error) {
+	var is InstallationScript
+	resp, err := r.Get(fmt.Sprintf("/servers/%s/install", uuid), nil)
 	if err != nil {
-		return res, nil, errors.WithStack(err)
+		return is, errors.WithStack(err)
 	}
 	defer resp.Body.Close()
 
-	r.Response = resp
-
-	if r.HasError() {
-		return res, r.Error(), nil
+	if resp.HasError() {
+		return is, resp.Error()
 	}
 
-	b, _ := r.ReadBody()
-
-	if err := json.Unmarshal(b, &res); err != nil {
-		return res, nil, errors.WithStack(err)
+	if err := resp.Bind(&is); err != nil {
+		return is, errors.WithStack(err)
 	}
 
-	return res, nil, nil
-}
 
-type installRequest struct {
-	Successful bool `json:"successful"`
+	return is, nil
 }
 
 // Marks a server as being installed successfully or unsuccessfully on the panel.
-func (r *PanelRequest) SendInstallationStatus(uuid string, successful bool) (*RequestError, error) {
-	b, err := json.Marshal(installRequest{Successful: successful})
+func (r *Request) SendInstallationStatus(uuid string, successful bool) error {
+	resp, err := r.Post(fmt.Sprintf("/servers/%s/install", uuid), D{"successful": successful})
 	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	resp, err := r.Post(fmt.Sprintf("/servers/%s/install", uuid), b)
-	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	defer resp.Body.Close()
 
-	r.Response = resp
-	if r.HasError() {
-		return r.Error(), nil
+	if resp.HasError() {
+		return resp.Error()
 	}
 
-	return nil, nil
+	return nil
 }
 
-type archiveRequest struct {
-	Successful bool `json:"successful"`
-}
-
-func (r *PanelRequest) SendArchiveStatus(uuid string, successful bool) (*RequestError, error) {
-	b, err := json.Marshal(archiveRequest{Successful: successful})
+func (r *Request) SendArchiveStatus(uuid string, successful bool) error {
+	resp, err := r.Post(fmt.Sprintf("/servers/%s/archive", uuid), D{"successful": successful})
 	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	resp, err := r.Post(fmt.Sprintf("/servers/%s/archive", uuid), b)
-	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	defer resp.Body.Close()
 
-	r.Response = resp
-	if r.HasError() {
-		return r.Error(), nil
-	}
-
-	return nil, nil
+	return resp.Error()
 }
 
-func (r *PanelRequest) SendTransferFailure(uuid string) (*RequestError, error) {
-	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/failure", uuid))
+func (r *Request) SendTransferFailure(uuid string) error {
+	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/failure", uuid), nil)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	defer resp.Body.Close()
 
-	r.Response = resp
-	if r.HasError() {
-		return r.Error(), nil
-	}
-
-	return nil, nil
+	return resp.Error()
 }
 
-func (r *PanelRequest) SendTransferSuccess(uuid string) (*RequestError, error) {
-	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/success", uuid))
+func (r *Request) SendTransferSuccess(uuid string) error {
+	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/success", uuid), nil)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	defer resp.Body.Close()
 
-	r.Response = resp
-	if r.HasError() {
-		return r.Error(), nil
-	}
-
-	return nil, nil
+	return resp.Error()
 }

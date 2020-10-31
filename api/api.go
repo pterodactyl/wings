@@ -7,6 +7,8 @@ import (
 	"github.com/apex/log"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/system"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -14,30 +16,34 @@ import (
 )
 
 // Initializes the requester instance.
-func NewRequester() *PanelRequest {
-	return &PanelRequest{
-		Response: nil,
-	}
+func New() *Request {
+	return &Request{}
 }
 
-type PanelRequest struct {
-	Response *http.Response
+// A generic type allowing for easy binding use when making requests to API endpoints
+// that only expect a singular argument or something that would not benefit from being
+// a typed struct.
+//
+// Inspired by gin.H, same concept.
+type D map[string]interface{}
+
+// A custom API requester struct for Wings.
+type Request struct{}
+
+// A custom response type that allows for commonly used error handling and response
+// parsing from the Panel API. This just embeds the normal HTTP response from Go and
+// we attach a few helper functions to it.
+type Response struct {
+	*http.Response
 }
 
 // Builds the base request instance that can be used with the HTTP client.
-func (r *PanelRequest) GetClient() *http.Client {
+func (r *Request) Client() *http.Client {
 	return &http.Client{Timeout: time.Second * 30}
 }
 
-func (r *PanelRequest) SetHeaders(req *http.Request) *http.Request {
-	req.Header.Set("Accept", "application/vnd.pterodactyl.v1+json")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s.%s", config.Get().AuthenticationTokenId, config.Get().AuthenticationToken))
-
-	return req
-}
-
-func (r *PanelRequest) GetEndpoint(endpoint string) string {
+// Returns the given endpoint formatted as a URL to the Panel API.
+func (r *Request) Endpoint(endpoint string) string {
 	return fmt.Sprintf(
 		"%s/api/remote/%s",
 		strings.TrimSuffix(config.Get().PanelLocation, "/"),
@@ -45,9 +51,29 @@ func (r *PanelRequest) GetEndpoint(endpoint string) string {
 	)
 }
 
+// Makes a HTTP request to the given endpoint, attaching the necessary request headers from
+// Wings to ensure that the request is properly handled by the Panel.
+func (r *Request) Make(method, url string, body io.Reader) (*Response, error) {
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	req.Header.Set("User-Agent", fmt.Sprintf("Pterodactyl Wings/v%s (id:%s)", system.Version, config.Get().AuthenticationTokenId))
+	req.Header.Set("Accept", "application/vnd.pterodactyl.v1+json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s.%s", config.Get().AuthenticationTokenId, config.Get().AuthenticationToken))
+
+	r.debug(req)
+
+	res, err := r.Client().Do(req)
+
+	return &Response{Response: res}, err
+}
+
 // Logs the request into the debug log with all of the important request bits.
 // The authorization key will be cleaned up before being output.
-func (r *PanelRequest) logDebug(req *http.Request) {
+func (r *Request) debug(req *http.Request) {
 	headers := make(map[string][]string)
 	for k, v := range req.Header {
 		if k != "Authorization" || len(v) == 0 {
@@ -65,49 +91,42 @@ func (r *PanelRequest) logDebug(req *http.Request) {
 	}).Debug("making request to external HTTP endpoint")
 }
 
-func (r *PanelRequest) Get(url string) (*http.Response, error) {
-	c := r.GetClient()
-
-	req, err := http.NewRequest(http.MethodGet, r.GetEndpoint(url), nil)
-	req = r.SetHeaders(req)
-
+// Makes a GET request to the given Panel API endpoint. If any data is passed as the
+// second argument it will be passed through on the request as URL parameters.
+func (r *Request) Get(url string, data interface{}) (*Response, error) {
+	b, err := json.Marshal(data)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
-	r.logDebug(req)
-
-	return c.Do(req)
+	return r.Make(http.MethodGet, r.Endpoint(url), bytes.NewBuffer(b))
 }
 
-func (r *PanelRequest) Post(url string, data []byte) (*http.Response, error) {
-	c := r.GetClient()
-
-	req, err := http.NewRequest(http.MethodPost, r.GetEndpoint(url), bytes.NewBuffer(data))
-	req = r.SetHeaders(req)
-
+// Makes a POST request to the given Panel API endpoint.
+func (r *Request) Post(url string, data interface{}) (*Response, error) {
+	b, err := json.Marshal(data)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
-	r.logDebug(req)
-
-	return c.Do(req)
+	return r.Make(http.MethodPost, r.Endpoint(url), bytes.NewBuffer(b))
 }
 
 // Determines if the API call encountered an error. If no request has been made
-// the response will be false.
-func (r *PanelRequest) HasError() bool {
+// the response will be false. This function will evaluate to true if the response
+// code is anything 300 or higher.
+func (r *Response) HasError() bool {
 	if r.Response == nil {
 		return false
 	}
 
-	return r.Response.StatusCode >= 300 || r.Response.StatusCode < 200
+	return r.StatusCode >= 300 || r.StatusCode < 200
 }
 
 // Reads the body from the response and returns it, then replaces it on the response
-// so that it can be read again later.
-func (r *PanelRequest) ReadBody() ([]byte, error) {
+// so that it can be read again later. This does not close the response body, so any
+// functions calling this should be sure to manually defer a Body.Close() call.
+func (r *Response) Read() ([]byte, error) {
 	var b []byte
 	if r.Response == nil {
 		return nil, errors.New("no response exists on interface")
@@ -122,49 +141,28 @@ func (r *PanelRequest) ReadBody() ([]byte, error) {
 	return b, nil
 }
 
-func (r *PanelRequest) HttpResponseCode() int {
-	if r.Response == nil {
-		return 0
+// Binds a given interface with the data returned in the response. This is a shortcut
+// for calling Read and then manually calling json.Unmarshal on the raw bytes.
+func (r *Response) Bind(v interface{}) error {
+	b, err := r.Read()
+	if err != nil {
+		return errors.WithStack(err)
 	}
 
-	return r.Response.StatusCode
-}
-
-func IsRequestError(err error) bool {
-	_, ok := err.(*RequestError)
-
-	return ok
-}
-
-type RequestError struct {
-	response *http.Response
-	Code     string `json:"code"`
-	Status   string `json:"status"`
-	Detail   string `json:"detail"`
-}
-
-// Returns the error response in a string form that can be more easily consumed.
-func (re *RequestError) Error() string {
-	return fmt.Sprintf("Error response from Panel: %s: %s (HTTP/%d)", re.Code, re.Detail, re.response.StatusCode)
-}
-
-func (re *RequestError) String() string {
-	return re.Error()
-}
-
-type RequestErrorBag struct {
-	Errors []RequestError `json:"errors"`
+	return errors.WithStack(json.Unmarshal(b, &v))
 }
 
 // Returns the error message from the API call as a string. The error message will be formatted
 // similar to the below example:
 //
 // HttpNotFoundException: The requested resource does not exist. (HTTP/404)
-func (r *PanelRequest) Error() *RequestError {
-	body, _ := r.ReadBody()
+func (r *Response) Error() *RequestError {
+	if !r.HasError() {
+		return nil
+	}
 
-	bag := RequestErrorBag{}
-	json.Unmarshal(body, &bag)
+	var bag RequestErrorBag
+	_ = r.Bind(&bag)
 
 	e := new(RequestError)
 	if len(bag.Errors) > 0 {

@@ -101,15 +101,15 @@ func postServerArchive(c *gin.Context) {
 
 		s.Log().Debug("successfully created server archive, notifying panel")
 
-		r := api.NewRequester()
-		rerr, err := r.SendArchiveStatus(s.Id(), true)
-		if rerr != nil || err != nil {
-			if err != nil {
+		r := api.New()
+		err := r.SendArchiveStatus(s.Id(), true)
+		if err != nil {
+			if !api.IsRequestError(err) {
 				s.Log().WithField("error", err).Error("failed to notify panel of archive status")
 				return
 			}
 
-			s.Log().WithField("error", rerr.String()).Error("panel returned an error when sending the archive status")
+			s.Log().WithField("error", err.Error()).Error("panel returned an error when sending the archive status")
 
 			return
 		}
@@ -140,14 +140,14 @@ func postTransfer(c *gin.Context) {
 			}
 
 			l.Info("server transfer failed, notifying panel")
-			rerr, err := api.NewRequester().SendTransferFailure(serverID)
-			if rerr != nil || err != nil {
-				if err != nil {
+			err := api.New().SendTransferFailure(serverID)
+			if err != nil {
+				if !api.IsRequestError(err) {
 					l.WithField("error", err).Error("failed to notify panel with transfer failure")
 					return
 				}
 
-				l.WithField("error", errors.WithStack(rerr)).Error("received error response from panel while notifying of transfer failure")
+				l.WithField("error", err.Error()).Error("received error response from panel while notifying of transfer failure")
 				return
 			}
 
@@ -296,14 +296,14 @@ func postTransfer(c *gin.Context) {
 		hasError = false
 
 		// Notify the panel that the transfer succeeded.
-		rerr, err := api.NewRequester().SendTransferSuccess(serverID)
-		if rerr != nil || err != nil {
-			if err != nil {
+		err = api.New().SendTransferSuccess(serverID)
+		if err != nil {
+			if !api.IsRequestError(err) {
 				l.WithField("error", errors.WithStack(err)).Error("failed to notify panel of transfer success")
 				return
 			}
 
-			l.WithField("error", errors.WithStack(rerr)).Error("panel responded with error after transfer success")
+			l.WithField("error", err.Error()).Error("panel responded with error after transfer success")
 
 			return
 		}

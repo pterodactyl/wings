@@ -112,17 +112,17 @@ func (s *Server) Log() *log.Entry {
 // This also means mass actions can be performed against servers on the Panel and they
 // will automatically sync with Wings when the server is started.
 func (s *Server) Sync() error {
-	cfg, rerr, err := s.GetProcessConfiguration()
-	if err != nil || rerr != nil {
-		if err != nil {
+	cfg, err := api.New().GetServerConfiguration(s.Id())
+	if err != nil {
+		if !api.IsRequestError(err) {
 			return errors.WithStack(err)
 		}
 
-		if rerr.Status == "404" {
+		if err.(*api.RequestError).Status == "404" {
 			return &serverDoesNotExist{}
 		}
 
-		return errors.New(rerr.String())
+		return errors.New(err.Error())
 	}
 
 	return s.SyncWithConfiguration(cfg)
@@ -175,11 +175,6 @@ func (s *Server) CreateEnvironment() error {
 	}
 
 	return s.Environment.Create()
-}
-
-// Gets the process configuration data for the server.
-func (s *Server) GetProcessConfiguration() (api.ServerConfigurationResponse, *api.RequestError, error) {
-	return api.NewRequester().GetServerConfiguration(s.Id())
 }
 
 // Checks if the server is marked as being suspended or not on the system.

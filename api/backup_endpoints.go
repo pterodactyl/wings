@@ -15,22 +15,17 @@ type BackupRequest struct {
 
 // Notifies the panel that a specific backup has been completed and is now
 // available for a user to view and download.
-func (r *PanelRequest) SendBackupStatus(backup string, data BackupRequest) (*RequestError, error) {
+func (r *Request) SendBackupStatus(backup string, data BackupRequest) error {
 	b, err := json.Marshal(data)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 
 	resp, err := r.Post(fmt.Sprintf("/backups/%s", backup), b)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	defer resp.Body.Close()
 
-	r.Response = resp
-	if r.HasError() {
-		return r.Error(), nil
-	}
-
-	return nil, nil
+	return resp.Error()
 }
