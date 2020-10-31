@@ -37,9 +37,19 @@ type Response struct {
 	*http.Response
 }
 
+// A pagination struct matching the expected pagination response from the Panel API.
+type Pagination struct {
+	CurrentPage uint `json:"current_page"`
+	From        uint `json:"from"`
+	LastPage    uint `json:"last_page"`
+	PerPage     uint `json:"per_page"`
+	To          uint `json:"to"`
+	Total       uint `json:"total"`
+}
+
 // Builds the base request instance that can be used with the HTTP client.
 func (r *Request) Client() *http.Client {
-	return &http.Client{Timeout: time.Second * 30}
+	return &http.Client{Timeout: time.Second * time.Duration(config.Get().RemoteQuery.Timeout)}
 }
 
 // Returns the given endpoint formatted as a URL to the Panel API.

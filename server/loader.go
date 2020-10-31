@@ -32,7 +32,7 @@ func LoadDirectory() error {
 	}
 
 	log.Info("fetching list of servers from API")
-	configs, err := api.New().GetAllServerConfigurations()
+	configs, err := api.New().GetServers()
 	if err != nil {
 		if !api.IsRequestError(err) {
 			return errors.WithStack(err)

@@ -1,9 +1,14 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/config"
+	"golang.org/x/sync/errgroup"
+	"sync"
 )
 
 const (
@@ -33,9 +38,17 @@ type InstallationScript struct {
 	Script         string `json:"script"`
 }
 
-// GetAllServerConfigurations fetches configurations for all servers assigned to this node.
-func (r *Request) GetAllServerConfigurations() (map[string]json.RawMessage, error) {
-	resp, err := r.Get("/servers", nil)
+type allServerResponse struct {
+	Data []json.RawMessage `json:"data"`
+	Meta Pagination        `json:"meta"`
+}
+
+// Fetches all of the server configurations from the Panel API. This will initially load the
+// first 50 servers, and then check the pagination response to determine if more pages should
+// be loaded. If so, those requests are spun-up in additional routines and the final resulting
+// slice of all servers will be returned.
+func (r *Request) GetServers() ([]json.RawMessage, error) {
+	resp, err := r.Get("/servers", D{"per_page": config.Get().RemoteQuery.BootServersPerPage})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -45,12 +58,63 @@ func (r *Request) GetAllServerConfigurations() (map[string]json.RawMessage, erro
 		return nil, resp.Error()
 	}
 
-	var res map[string]json.RawMessage
+	var res allServerResponse
 	if err := resp.Bind(&res); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	return res, nil
+	var mu sync.Mutex
+	ret := res.Data
+
+	// Check for pagination, and if it exists we'll need to then make a request to the API
+	// for each page that would exist and get all of the resulting servers.
+	if res.Meta.LastPage > 1 {
+		pp := res.Meta.PerPage
+		log.WithField("per_page", pp).
+			WithField("total_pages", res.Meta.LastPage).
+			Debug("detected multiple pages of server configurations, fetching remaining...")
+
+		g, ctx := errgroup.WithContext(context.Background())
+		for i := res.Meta.CurrentPage; i <= res.Meta.LastPage; i++ {
+			page := i
+
+			g.Go(func() error {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+					{
+						resp, err := r.Get("/servers", D{"page": page, "per_page": pp})
+						if err != nil {
+							return err
+						}
+						defer resp.Body.Close()
+
+						if resp.Error() != nil {
+							return resp.Error()
+						}
+
+						var servers allServerResponse
+						if err := resp.Bind(&servers); err != nil {
+							return err
+						}
+
+						mu.Lock()
+						defer mu.Unlock()
+						ret = append(ret, servers.Data...)
+
+						return nil
+					}
+				}
+			})
+		}
+
+		if err := g.Wait(); err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+
+	return ret, nil
 }
 
 // Fetches the server configuration and returns the struct for it.
@@ -90,7 +154,6 @@ func (r *Request) GetInstallationScript(uuid string) (InstallationScript, error)
 	if err := resp.Bind(&is); err != nil {
 		return is, errors.WithStack(err)
 	}
-
 
 	return is, nil
 }
