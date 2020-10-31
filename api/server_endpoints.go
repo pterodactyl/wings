@@ -39,15 +39,21 @@ type InstallationScript struct {
 }
 
 type allServerResponse struct {
-	Data []json.RawMessage `json:"data"`
-	Meta Pagination        `json:"meta"`
+	Data []RawServerData `json:"data"`
+	Meta Pagination      `json:"meta"`
+}
+
+type RawServerData struct {
+	Uuid                 string          `json:"uuid"`
+	Settings             json.RawMessage `json:"settings"`
+	ProcessConfiguration json.RawMessage `json:"process_configuration"`
 }
 
 // Fetches all of the server configurations from the Panel API. This will initially load the
 // first 50 servers, and then check the pagination response to determine if more pages should
 // be loaded. If so, those requests are spun-up in additional routines and the final resulting
 // slice of all servers will be returned.
-func (r *Request) GetServers() ([]json.RawMessage, error) {
+func (r *Request) GetServers() ([]RawServerData, error) {
 	resp, err := r.Get("/servers", D{"per_page": config.Get().RemoteQuery.BootServersPerPage})
 	if err != nil {
 		return nil, errors.WithStack(err)
