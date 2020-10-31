@@ -81,7 +81,7 @@ func (r *Request) GetServers() ([]RawServerData, error) {
 			Debug("detected multiple pages of server configurations, fetching remaining...")
 
 		g, ctx := errgroup.WithContext(context.Background())
-		for i := res.Meta.CurrentPage; i <= res.Meta.LastPage; i++ {
+		for i := res.Meta.CurrentPage + 1; i <= res.Meta.LastPage; i++ {
 			page := i
 
 			g.Go(func() error {
