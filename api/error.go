@@ -24,5 +24,10 @@ func IsRequestError(err error) bool {
 
 // Returns the error response in a string form that can be more easily consumed.
 func (re *RequestError) Error() string {
-	return fmt.Sprintf("Error response from Panel: %s: %s (HTTP/%d)", re.Code, re.Detail, re.response.StatusCode)
+	c := 0
+	if re.response != nil {
+		c = re.response.StatusCode
+	}
+
+	return fmt.Sprintf("Error response from Panel: %s: %s (HTTP/%d)", re.Code, re.Detail, c)
 }

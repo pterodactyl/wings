@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"golang.org/x/sync/errgroup"
+	"strconv"
 	"sync"
 )
 
@@ -54,7 +55,7 @@ type RawServerData struct {
 // be loaded. If so, those requests are spun-up in additional routines and the final resulting
 // slice of all servers will be returned.
 func (r *Request) GetServers() ([]RawServerData, error) {
-	resp, err := r.Get("/servers", D{"per_page": config.Get().RemoteQuery.BootServersPerPage})
+	resp, err := r.Get("/servers", Q{"per_page": strconv.Itoa(int(config.Get().RemoteQuery.BootServersPerPage))})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -82,7 +83,7 @@ func (r *Request) GetServers() ([]RawServerData, error) {
 
 		g, ctx := errgroup.WithContext(context.Background())
 		for i := res.Meta.CurrentPage + 1; i <= res.Meta.LastPage; i++ {
-			page := i
+			page := strconv.Itoa(int(i))
 
 			g.Go(func() error {
 				select {
@@ -90,7 +91,7 @@ func (r *Request) GetServers() ([]RawServerData, error) {
 					return ctx.Err()
 				default:
 					{
-						resp, err := r.Get("/servers", D{"page": page, "per_page": pp})
+						resp, err := r.Get("/servers", Q{"page": page, "per_page": strconv.Itoa(int(pp))})
 						if err != nil {
 							return err
 						}

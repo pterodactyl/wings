@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
 )
@@ -16,12 +15,7 @@ type BackupRequest struct {
 // Notifies the panel that a specific backup has been completed and is now
 // available for a user to view and download.
 func (r *Request) SendBackupStatus(backup string, data BackupRequest) error {
-	b, err := json.Marshal(data)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	resp, err := r.Post(fmt.Sprintf("/backups/%s", backup), b)
+	resp, err := r.Post(fmt.Sprintf("/backups/%s", backup), data)
 	if err != nil {
 		return errors.WithStack(err)
 	}

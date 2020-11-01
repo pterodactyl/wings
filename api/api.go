@@ -27,6 +27,9 @@ func New() *Request {
 // Inspired by gin.H, same concept.
 type D map[string]interface{}
 
+// Same concept as D, but a map of strings, used for querying GET requests.
+type Q map[string]string
+
 // A custom API requester struct for Wings.
 type Request struct{}
 
@@ -63,7 +66,7 @@ func (r *Request) Endpoint(endpoint string) string {
 
 // Makes a HTTP request to the given endpoint, attaching the necessary request headers from
 // Wings to ensure that the request is properly handled by the Panel.
-func (r *Request) Make(method, url string, body io.Reader) (*Response, error) {
+func (r *Request) Make(method, url string, body io.Reader, opts ...func(r *http.Request)) (*Response, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -73,6 +76,12 @@ func (r *Request) Make(method, url string, body io.Reader) (*Response, error) {
 	req.Header.Set("Accept", "application/vnd.pterodactyl.v1+json")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s.%s", config.Get().AuthenticationTokenId, config.Get().AuthenticationToken))
+
+	// Make any options calls that will allow us to make modifications to the request
+	// before it is sent off.
+	for _, cb := range opts {
+		cb(req)
+	}
 
 	r.debug(req)
 
@@ -103,13 +112,12 @@ func (r *Request) debug(req *http.Request) {
 
 // Makes a GET request to the given Panel API endpoint. If any data is passed as the
 // second argument it will be passed through on the request as URL parameters.
-func (r *Request) Get(url string, data interface{}) (*Response, error) {
-	b, err := json.Marshal(data)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	return r.Make(http.MethodGet, r.Endpoint(url), bytes.NewBuffer(b))
+func (r *Request) Get(url string, data Q) (*Response, error) {
+	return r.Make(http.MethodGet, r.Endpoint(url), nil, func(r *http.Request) {
+		for k, v := range data {
+			r.URL.Query().Set(k, v)
+		}
+	})
 }
 
 // Makes a POST request to the given Panel API endpoint.
@@ -166,7 +174,7 @@ func (r *Response) Bind(v interface{}) error {
 // similar to the below example:
 //
 // HttpNotFoundException: The requested resource does not exist. (HTTP/404)
-func (r *Response) Error() *RequestError {
+func (r *Response) Error() error {
 	if !r.HasError() {
 		return nil
 	}
