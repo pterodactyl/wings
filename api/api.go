@@ -114,9 +114,12 @@ func (r *Request) debug(req *http.Request) {
 // second argument it will be passed through on the request as URL parameters.
 func (r *Request) Get(url string, data Q) (*Response, error) {
 	return r.Make(http.MethodGet, r.Endpoint(url), nil, func(r *http.Request) {
+		q := r.URL.Query()
 		for k, v := range data {
-			r.URL.Query().Set(k, v)
+			q.Set(k, v)
 		}
+
+		r.URL.RawQuery = q.Encode()
 	})
 }
 
