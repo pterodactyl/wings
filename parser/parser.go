@@ -15,7 +15,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -76,11 +75,6 @@ func (f *ConfigurationFile) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
-
-// Regex to match paths such as foo[1].bar[2] and convert them into a format that
-// gabs can work with, such as foo.1.bar.2 in this case. This is applied when creating
-// the struct for the configuration file replacements.
-var cfrMatchReplacement = regexp.MustCompile(`\[(\d+)]`)
 
 // Defines a single find/replace instance for a given server configuration file.
 type ConfigurationFileReplacement struct {
