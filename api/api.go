@@ -185,7 +185,7 @@ func (r *Response) Error() error {
 	var bag RequestErrorBag
 	_ = r.Bind(&bag)
 
-	e := new(RequestError)
+	e := &RequestError{}
 	if len(bag.Errors) > 0 {
 		e = &bag.Errors[0]
 	}

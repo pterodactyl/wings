@@ -3,7 +3,34 @@ package api
 import (
 	"fmt"
 	"github.com/pkg/errors"
+	"strconv"
 )
+
+type BackupRemoteUploadResponse struct {
+	CompleteMultipartUpload string   `json:"complete_multipart_upload"`
+	AbortMultipartUpload    string   `json:"abort_multipart_upload"`
+	Parts                   []string `json:"parts"`
+	PartSize                int64    `json:"part_size"`
+}
+
+func (r *Request) GetBackupRemoteUploadURLs(backup string, size int64) (*BackupRemoteUploadResponse, error) {
+	resp, err := r.Get(fmt.Sprintf("/backups/%s", backup), Q{"size": strconv.FormatInt(size, 10)})
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.HasError() {
+		return nil, resp.Error()
+	}
+
+	var res BackupRemoteUploadResponse
+	if err := resp.Bind(&res); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return &res, nil
+}
 
 type BackupRequest struct {
 	Checksum     string `json:"checksum"`
