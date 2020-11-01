@@ -76,7 +76,10 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 		return err
 	}
 
-	log.Debug("attempting to upload backup to remote S3 endpoint")
+	log.WithFields(log.Fields{
+		"backup_id": s.Uuid,
+		"adapter":   "s3",
+	}).Info("attempting to upload backup..")
 
 	handlePart := func(part string, size int64) (string, error) {
 		r, err := http.NewRequest(http.MethodPut, part, nil)
@@ -151,6 +154,10 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 		return err
 	}
 
+	log.WithFields(log.Fields{
+		"backup_id": s.Uuid,
+		"adapter":   "s3",
+	}).Info("backup has been successfully uploaded")
 	return nil
 }
 
