@@ -7,10 +7,10 @@ import (
 )
 
 type BackupRemoteUploadResponse struct {
-	CompleteMultipartUpload string
-	AbortMultipartUpload    string
-	Parts                   []string
-	PartSize                int64
+	CompleteMultipartUpload string   `json:"complete_multipart_upload"`
+	AbortMultipartUpload    string   `json:"abort_multipart_upload"`
+	Parts                   []string `json:"parts"`
+	PartSize                int64    `json:"part_size"`
 }
 
 func (r *Request) GetBackupRemoteUploadURLs(backup string, size int64) (*BackupRemoteUploadResponse, error) {
