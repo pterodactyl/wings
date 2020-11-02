@@ -44,7 +44,7 @@ func (dsl *diskSpaceLimiter) Reset() {
 func (dsl *diskSpaceLimiter) Trigger() {
 	dsl.o.Do(func() {
 		dsl.server.PublishConsoleOutputFromDaemon("Server is exceeding the assigned disk space limit, stopping process now.")
-		if err := dsl.server.Environment.WaitForStop(15, true); err != nil {
+		if err := dsl.server.Environment.WaitForStop(60, true); err != nil {
 			dsl.server.Log().WithField("error", err).Error("failed to stop server after exceeding space limit!")
 		}
 	})
