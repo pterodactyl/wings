@@ -397,14 +397,14 @@ func postServerUploadFiles(c *gin.Context) {
 	for _, header := range headers {
 		p, err := s.Filesystem().SafePath(filepath.Join(directory, header.Filename))
 		if err != nil {
-			c.AbortWithError(http.StatusInternalServerError, err)
+			TrackedServerError(err, s).AbortFilesystemError(c)
 			return
 		}
 
 		// We run this in a different method so I can use defer without any of
 		// the consequences caused by calling it in a loop.
 		if err := handleFileUpload(p, s, header); err != nil {
-			c.AbortWithError(http.StatusInternalServerError, err)
+			TrackedServerError(err, s).AbortFilesystemError(c)
 			return
 		}
 	}
