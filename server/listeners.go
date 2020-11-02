@@ -10,12 +10,44 @@ import (
 	"github.com/pterodactyl/wings/events"
 	"regexp"
 	"strconv"
+	"sync"
 )
 
 var dockerEvents = []string{
 	environment.DockerImagePullStatus,
 	environment.DockerImagePullStarted,
 	environment.DockerImagePullCompleted,
+}
+
+type diskSpaceLimiter struct {
+	o      sync.Once
+	mu     sync.Mutex
+	server *Server
+}
+
+func newDiskLimiter(s *Server) *diskSpaceLimiter {
+	return &diskSpaceLimiter{server: s}
+}
+
+// Reset the disk space limiter status.
+func (dsl *diskSpaceLimiter) Reset() {
+	dsl.mu.Lock()
+	dsl.o = sync.Once{}
+	dsl.mu.Unlock()
+}
+
+// Trigger the disk space limiter which will attempt to stop a running server instance within
+// 15 seconds, and terminate it forcefully if it does not stop.
+//
+// This function is only executed one time, so whenever a server is marked as booting the limiter
+// should be reset so it can properly be triggered as needed.
+func (dsl *diskSpaceLimiter) Trigger() {
+	dsl.o.Do(func() {
+		dsl.server.PublishConsoleOutputFromDaemon("Server is exceeding the assigned disk space limit, stopping process now.")
+		if err := dsl.server.Environment.WaitForStop(15, true); err != nil {
+			dsl.server.Log().WithField("error", err).Error("failed to stop server after exceeding space limit!")
+		}
+	})
 }
 
 // Adds all of the internal event listeners we want to use for a server. These listeners can only be
@@ -60,9 +92,11 @@ func (s *Server) StartEventListeners() {
 		s.onConsoleOutput(e.Data)
 	}
 
+	l := newDiskLimiter(s)
 	state := func(e events.Event) {
 		// Reset the throttler when the process is started.
 		if e.Data == environment.ProcessStartingState {
+			l.Reset()
 			s.Throttler().Reset()
 		}
 
@@ -81,7 +115,11 @@ func (s *Server) StartEventListeners() {
 		s.resources.Stats = *st
 		s.resources.mu.Unlock()
 
-		s.Filesystem().HasSpaceAvailable(true)
+		// If there is no disk space available at this point, trigger the server disk limiter logic
+		// which will start to stop the running instance.
+		if !s.Filesystem().HasSpaceAvailable(true) {
+			l.Trigger()
+		}
 
 		s.emitProcUsage()
 	}
