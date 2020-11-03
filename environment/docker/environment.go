@@ -65,6 +65,7 @@ func New(id string, m *Metadata, c *environment.Configuration) (*Environment, er
 		Configuration: c,
 		meta:          m,
 		client:        cli,
+		st:            environment.ProcessOfflineState,
 	}
 
 	return e, nil
