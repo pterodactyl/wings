@@ -6,6 +6,7 @@ import (
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"net/http"
 	"os"
@@ -238,6 +239,23 @@ func deleteServer(c *gin.Context) {
 
 	// Deallocate the reference to this server.
 	s = nil
+
+	c.Status(http.StatusNoContent)
+}
+
+// Adds any of the JTIs passed through in the body to the deny list for the websocket
+// preventing any JWT generated before the current time from being used to connect to
+// the socket or send along commands.
+func postServerDenyWSTokens(c *gin.Context) {
+	var data struct{ JTIs []string `json:"jtis"` }
+
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
+
+	for _, jti := range data.JTIs {
+		tokens.DenyJTI(jti)
+	}
 
 	c.Status(http.StatusNoContent)
 }
