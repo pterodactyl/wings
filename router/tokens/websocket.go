@@ -29,7 +29,7 @@ var denylist sync.Map
 // Adds a JTI to the denylist by marking any JWTs generated before the current time as
 // being invalid if they use the same JTI.
 func DenyJTI(jti string) {
-	log.WithField("jti", jti).Debugf("adding all JWTs with JTI of \"%s\" created before current time to denylist", jti)
+	log.WithField("jti", jti).Debugf("adding \"%s\" to JTI denylist", jti)
 
 	denylist.Store(jti, time.Now())
 }
