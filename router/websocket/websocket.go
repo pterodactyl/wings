@@ -14,7 +14,6 @@ import (
 	"github.com/pterodactyl/wings/environment/docker"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
-	"github.com/pterodactyl/wings/server/filesystem"
 	"net/http"
 	"strings"
 	"sync"
@@ -45,12 +44,14 @@ var (
 	ErrJwtNotPresent    = errors.New("jwt: no jwt present")
 	ErrJwtNoConnectPerm = errors.New("jwt: missing connect permission")
 	ErrJwtUuidMismatch  = errors.New("jwt: server uuid mismatch")
+	ErrJwtOnDenylist    = errors.New("jwt: created too far in past (denylist)")
 )
 
 func IsJwtError(err error) bool {
 	return errors.Is(err, ErrJwtNotPresent) ||
 		errors.Is(err, ErrJwtNoConnectPerm) ||
 		errors.Is(err, ErrJwtUuidMismatch) ||
+		errors.Is(err, ErrJwtOnDenylist) ||
 		errors.Is(err, jwt.ErrExpValidation)
 }
 
@@ -62,8 +63,12 @@ func NewTokenPayload(token []byte) (*tokens.WebsocketPayload, error) {
 		return nil, err
 	}
 
+	if payload.Denylisted() {
+		return nil, ErrJwtOnDenylist
+	}
+
 	if !payload.HasPermission(PermissionConnect) {
-		return nil, errors.New("not authorized to connect to this socket")
+		return nil, ErrJwtNoConnectPerm
 	}
 
 	return &payload, nil
@@ -188,6 +193,10 @@ func (h *Handler) TokenValid() error {
 		return err
 	}
 
+	if j.Denylisted() {
+		return ErrJwtOnDenylist
+	}
+
 	if !j.HasPermission(PermissionConnect) {
 		return ErrJwtNoConnectPerm
 	}
@@ -204,25 +213,23 @@ func (h *Handler) TokenValid() error {
 // error message, otherwise we just send back a standard error message.
 func (h *Handler) SendErrorJson(msg Message, err error, shouldLog ...bool) error {
 	j := h.GetJwt()
-	expected := errors.Is(err, server.ErrSuspended) ||
-		errors.Is(err, server.ErrIsRunning) ||
-		errors.Is(err, filesystem.ErrNotEnoughDiskSpace)
+	isJWTError := IsJwtError(err)
 
-	message := "an unexpected error was encountered while handling this request"
-	if expected || (j != nil && j.HasPermission(PermissionReceiveErrors)) {
-		message = err.Error()
+	wsm := Message{
+		Event: ErrorEvent,
+		Args:  []string{"an unexpected error was encountered while handling this request"},
+	}
+	if isJWTError || (j != nil && j.HasPermission(PermissionReceiveErrors)) {
+		wsm.Event = JwtErrorEvent
+		wsm.Args = []string{err.Error()}
 	}
 
-	m, u := h.GetErrorMessage(message)
-
-	wsm := Message{Event: ErrorEvent}
+	m, u := h.GetErrorMessage(wsm.Args[0])
 	wsm.Args = []string{m}
 
-	if len(shouldLog) == 0 || (len(shouldLog) == 1 && shouldLog[0] == true) {
-		if !expected && !IsJwtError(err) {
-			h.server.Log().WithFields(log.Fields{"event": msg.Event, "error_identifier": u.String(), "error": err}).
-				Error("failed to handle websocket process; an error was encountered processing an event")
-		}
+	if !isJWTError && (len(shouldLog) == 0 || (len(shouldLog) == 1 && shouldLog[0] == true)) {
+		h.server.Log().WithFields(log.Fields{"event": msg.Event, "error_identifier": u.String(), "error": err}).
+			Error("failed to handle websocket process; an error was encountered processing an event")
 	}
 
 	return h.unsafeSendJson(wsm)
