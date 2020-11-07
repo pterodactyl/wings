@@ -104,6 +104,7 @@ func FromConfiguration(data api.ServerConfigurationResponse) (*Server, error) {
 
 	s.resources = ResourceUsage{}
 	defaults.Set(&s.resources)
+	s.resources.State.Store(environment.ProcessOfflineState)
 
 	s.Archiver = Archiver{Server: s}
 	s.fs = filesystem.New(filepath.Join(config.Get().System.Data, s.Id()), s.DiskSpace())

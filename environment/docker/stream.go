@@ -37,7 +37,7 @@ func (e *Environment) SendCommand(c string) error {
 	// the server as entering the stopping state otherwise the process will stop and Wings will think
 	// it has crashed and attempt to restart it.
 	if e.meta.Stop.Type == "command" && c == e.meta.Stop.Value {
-		e.Events().Publish(environment.StateChangeEvent, environment.ProcessStoppingState)
+		e.SetState(environment.ProcessStoppingState)
 	}
 
 	_, err := e.stream.Conn.Write([]byte(c + "\n"))

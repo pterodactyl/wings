@@ -63,8 +63,8 @@ func (s *Server) StartEventListeners() {
 		if err != nil {
 			// If the process is already stopping, just let it continue with that action rather than attempting
 			// to terminate again.
-			if s.GetState() != environment.ProcessStoppingState {
-				s.SetState(environment.ProcessStoppingState)
+			if s.Environment.State() != environment.ProcessStoppingState {
+				s.Environment.SetState(environment.ProcessStoppingState)
 				go func() {
 					s.Log().Warn("stopping server instance, violating throttle limits")
 					s.PublishConsoleOutputFromDaemon("Your server is being stopped for outputting too much data in a short period of time.")
@@ -73,8 +73,8 @@ func (s *Server) StartEventListeners() {
 					if err := s.Environment.WaitForStop(config.Get().Throttles.StopGracePeriod, true); err != nil {
 						// If there is an error set the process back to running so that this throttler is called
 						// again and hopefully kills the server.
-						if s.GetState() != environment.ProcessOfflineState {
-							s.SetState(environment.ProcessRunningState)
+						if s.Environment.State() != environment.ProcessOfflineState {
+							s.Environment.SetState(environment.ProcessRunningState)
 						}
 
 						s.Log().WithField("error", errors.WithStack(err)).Error("failed to terminate environment after triggering throttle")
@@ -100,7 +100,7 @@ func (s *Server) StartEventListeners() {
 			s.Throttler().Reset()
 		}
 
-		s.SetState(e.Data)
+		s.OnStateChange()
 	}
 
 	stats := func(e events.Event) {
@@ -173,7 +173,7 @@ func (s *Server) onConsoleOutput(data string) {
 			// If the specific line of output is one that would mark the server as started,
 			// set the server to that state. Only do this if the server is not currently stopped
 			// or stopping.
-			_ = s.SetState(environment.ProcessRunningState)
+			s.Environment.SetState(environment.ProcessRunningState)
 			break
 		}
 	}
@@ -185,7 +185,7 @@ func (s *Server) onConsoleOutput(data string) {
 		stop := processConfiguration.Stop
 
 		if stop.Type == api.ProcessStopCommand && data == stop.Value {
-			_ = s.SetState(environment.ProcessOfflineState)
+			s.Environment.SetState(environment.ProcessOfflineState)
 		}
 	}
 }

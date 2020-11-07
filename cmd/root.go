@@ -229,7 +229,7 @@ func rootCmdRun(*cobra.Command, []string) {
 				// is that it was running, but we see that the container process is not currently running.
 				s.Log().Info("detected server is running, re-attaching to process...")
 
-				s.SetState(environment.ProcessRunningState)
+				s.Environment.SetState(environment.ProcessRunningState)
 				if err := s.Environment.Attach(); err != nil {
 					s.Log().WithField("error", errors.WithStack(err)).Warn("failed to attach to running server environment")
 				}
@@ -239,7 +239,7 @@ func rootCmdRun(*cobra.Command, []string) {
 
 			// Addresses potentially invalid data in the stored file that can cause Wings to lose
 			// track of what the actual server state is.
-			_ = s.SetState(environment.ProcessOfflineState)
+			s.Environment.SetState(environment.ProcessOfflineState)
 		})
 	}
 
@@ -277,34 +277,20 @@ func rootCmdRun(*cobra.Command, []string) {
 		Handler: r,
 
 		TLSConfig: &tls.Config{
-			NextProtos: []string{
-				"h2", // enable HTTP/2
-				"http/1.1",
-			},
-
-			// https://blog.cloudflare.com/exposing-go-on-the-internet
+			NextProtos: []string{"h2", "http/1.1"},
+			// @see https://blog.cloudflare.com/exposing-go-on-the-internet
 			CipherSuites: []uint16{
 				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-
 				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-
 				tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-
 				tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
 			},
-
 			PreferServerCipherSuites: true,
-
-			MinVersion: tls.VersionTLS12,
-			MaxVersion: tls.VersionTLS13,
-
-			CurvePreferences: []tls.CurveID{
-				tls.X25519,
-				tls.CurveP256,
-			},
-			// END https://blog.cloudflare.com/exposing-go-on-the-internet
+			MinVersion:               tls.VersionTLS12,
+			MaxVersion:               tls.VersionTLS13,
+			CurvePreferences:         []tls.CurveID{tls.X25519, tls.CurveP256},
 		},
 	}
 

@@ -94,4 +94,12 @@ type ProcessEnvironment interface {
 	// Reads the log file for the process from the end backwards until the provided
 	// number of lines is met.
 	Readlog(int) ([]string, error)
+
+	// Returns the current state of the environment.
+	State() string
+
+	// Sets the current state of the environment. In general you should let the environment
+	// handle this itself, but there are some scenarios where it is helpful for the server
+	// to update the state externally (e.g. starting -> started).
+	SetState(string)
 }

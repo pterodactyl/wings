@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -63,23 +62,17 @@ func saveServerStates() error {
 
 // Sets the state of the server internally. This function handles crash detection as
 // well as reporting to event listeners for the server.
-func (s *Server) SetState(state string) error {
-	if state != environment.ProcessOfflineState &&
-		state != environment.ProcessStartingState &&
-		state != environment.ProcessRunningState &&
-		state != environment.ProcessStoppingState {
-		return errors.New(fmt.Sprintf("invalid server state received: %s", state))
-	}
+func (s *Server) OnStateChange() {
+	prevState := s.Proc().State.Load()
 
-	prevState := s.GetState()
-
+	st := s.Environment.State()
 	// Update the currently tracked state for the server.
-	s.Proc().setInternalState(state)
+	s.Proc().State.Store(st)
 
 	// Emit the event to any listeners that are currently registered.
-	if prevState != state {
-		s.Log().WithField("status", s.Proc().getInternalState()).Debug("saw server status change event")
-		s.Events().Publish(StatusEvent, s.Proc().getInternalState())
+	if prevState != s.Environment.State() {
+		s.Log().WithField("status", st).Debug("saw server status change event")
+		s.Events().Publish(StatusEvent, st)
 	}
 
 	// Persist this change to the disk immediately so that should the Daemon be stopped or
@@ -98,7 +91,7 @@ func (s *Server) SetState(state string) error {
 
 	// Reset the resource usage to 0 when the process fully stops so that all of the UI
 	// views in the Panel correctly display 0.
-	if state == environment.ProcessOfflineState {
+	if st == environment.ProcessOfflineState {
 		s.resources.mu.Lock()
 		s.resources.Empty()
 		s.resources.mu.Unlock()
@@ -127,13 +120,13 @@ func (s *Server) SetState(state string) error {
 			}
 		}(s)
 	}
-
-	return nil
 }
 
 // Returns the current state of the server in a race-safe manner.
+// Deprecated
+// use Environment.State()
 func (s *Server) GetState() string {
-	return s.Proc().getInternalState()
+	return s.Environment.State()
 }
 
 // Determines if the server state is running or not. This is different than the

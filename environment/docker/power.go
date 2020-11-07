@@ -57,8 +57,8 @@ func (e *Environment) Start() error {
 			// If we don't set it to stopping first, you'll trigger crash detection which
 			// we don't want to do at this point since it'll just immediately try to do the
 			// exact same action that lead to it crashing in the first place...
-			e.setState(environment.ProcessStoppingState)
-			e.setState(environment.ProcessOfflineState)
+			e.SetState(environment.ProcessStoppingState)
+			e.SetState(environment.ProcessOfflineState)
 		}
 	}()
 
@@ -74,7 +74,7 @@ func (e *Environment) Start() error {
 	} else {
 		// If the server is running update our internal state and continue on with the attach.
 		if c.State.Running {
-			e.setState(environment.ProcessRunningState)
+			e.SetState(environment.ProcessRunningState)
 
 			return e.Attach()
 		}
@@ -89,7 +89,7 @@ func (e *Environment) Start() error {
 		}
 	}
 
-	e.setState(environment.ProcessStartingState)
+	e.SetState(environment.ProcessStartingState)
 
 	// Set this to true for now, we will set it to false once we reach the
 	// end of this chain.
@@ -136,8 +136,8 @@ func (e *Environment) Stop() error {
 
 	// If the process is already offline don't switch it back to stopping. Just leave it how
 	// it is and continue through to the stop handling for the process.
-	if e.State.Load() != environment.ProcessOfflineState {
-		e.setState(environment.ProcessStoppingState)
+	if e.st.Load() != environment.ProcessOfflineState {
+		e.SetState(environment.ProcessStoppingState)
 	}
 
 	// Only attempt to send the stop command to the instance if we are actually attached to
@@ -153,7 +153,7 @@ func (e *Environment) Stop() error {
 		// an error.
 		if client.IsErrNotFound(err) {
 			e.SetStream(nil)
-			e.setState(environment.ProcessOfflineState)
+			e.SetState(environment.ProcessOfflineState)
 
 			return nil
 		}
@@ -217,16 +217,16 @@ func (e *Environment) Terminate(signal os.Signal) error {
 		// If the container is not running but we're not already in a stopped state go ahead
 		// and update things to indicate we should be completely stopped now. Set to stopping
 		// first so crash detection is not triggered.
-		if e.State.Load() != environment.ProcessOfflineState {
-			e.setState(environment.ProcessStoppingState)
-			e.setState(environment.ProcessOfflineState)
+		if e.st.Load() != environment.ProcessOfflineState {
+			e.SetState(environment.ProcessStoppingState)
+			e.SetState(environment.ProcessOfflineState)
 		}
 
 		return nil
 	}
 
 	// We set it to stopping than offline to prevent crash detection from being triggered.
-	e.setState(environment.ProcessStoppingState)
+	e.SetState(environment.ProcessStoppingState)
 
 	sig := strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed")
 
@@ -234,7 +234,7 @@ func (e *Environment) Terminate(signal os.Signal) error {
 		return err
 	}
 
-	e.setState(environment.ProcessOfflineState)
+	e.SetState(environment.ProcessOfflineState)
 
 	return nil
 }

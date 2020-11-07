@@ -63,7 +63,7 @@ func (s *Server) Install(sync bool) error {
 
 	// Ensure that the server is marked as offline at this point, otherwise you end up
 	// with a blank value which is a bit confusing.
-	s.SetState(environment.ProcessOfflineState)
+	s.Environment.SetState(environment.ProcessOfflineState)
 
 	// Push an event to the websocket so we can auto-refresh the information in the panel once
 	// the install is completed.

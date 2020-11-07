@@ -20,7 +20,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 	l.Debug("starting resource polling for container")
 	defer l.Debug("stopped resource polling for container")
 
-	if e.State.Load() == environment.ProcessOfflineState {
+	if e.st.Load() == environment.ProcessOfflineState {
 		return errors.New("cannot enable resource polling on a stopped server")
 	}
 
@@ -50,7 +50,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 			}
 
 			// Disable collection if the server is in an offline state and this process is still running.
-			if e.State.Load() == environment.ProcessOfflineState {
+			if e.st.Load() == environment.ProcessOfflineState {
 				l.Debug("process in offline state while resource polling is still active; stopping poll")
 				return nil
 			}

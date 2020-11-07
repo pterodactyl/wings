@@ -60,7 +60,7 @@ func (e *Environment) Attach() error {
 		defer cancel()
 		defer e.stream.Close()
 		defer func() {
-			e.setState(environment.ProcessOfflineState)
+			e.SetState(environment.ProcessOfflineState)
 			e.SetStream(nil)
 		}()
 
@@ -245,7 +245,7 @@ func (e *Environment) convertMounts() []mount.Mount {
 // it will be forcibly stopped by Docker.
 func (e *Environment) Destroy() error {
 	// We set it to stopping than offline to prevent crash detection from being triggered.
-	e.setState(environment.ProcessStoppingState)
+	e.SetState(environment.ProcessStoppingState)
 
 	err := e.client.ContainerRemove(context.Background(), e.Id, types.ContainerRemoveOptions{
 		RemoveVolumes: true,
@@ -261,7 +261,7 @@ func (e *Environment) Destroy() error {
 		return nil
 	}
 
-	e.setState(environment.ProcessOfflineState)
+	e.SetState(environment.ProcessOfflineState)
 
 	return err
 }
