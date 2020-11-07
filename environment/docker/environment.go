@@ -8,6 +8,7 @@ import (
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
+	"github.com/pterodactyl/wings/system"
 	"io"
 	"sync"
 )
@@ -47,8 +48,7 @@ type Environment struct {
 	emitter *events.EventBus
 
 	// Tracks the environment state.
-	st   string
-	stMu sync.RWMutex
+	State system.AtomicString
 }
 
 // Creates a new base Docker environment. The ID passed through will be the ID that is used to
@@ -65,8 +65,9 @@ func New(id string, m *Metadata, c *environment.Configuration) (*Environment, er
 		Configuration: c,
 		meta:          m,
 		client:        cli,
-		st:            environment.ProcessOfflineState,
 	}
+
+	e.State.Store(environment.ProcessOfflineState)
 
 	return e, nil
 }

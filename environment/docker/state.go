@@ -6,14 +6,6 @@ import (
 	"github.com/pterodactyl/wings/environment"
 )
 
-// Returns the current environment state.
-func (e *Environment) State() string {
-	e.stMu.RLock()
-	defer e.stMu.RUnlock()
-
-	return e.st
-}
-
 // Sets the state of the environment. This emits an event that server's can hook into to
 // take their own actions and track their own state based on the environment.
 func (e *Environment) setState(state string) error {
@@ -25,16 +17,13 @@ func (e *Environment) setState(state string) error {
 	}
 
 	// Get the current state of the environment before changing it.
-	prevState := e.State()
+	prevState := e.State.Load()
 
 	// Emit the event to any listeners that are currently registered.
 	if prevState != state {
 		// If the state changed make sure we update the internal tracking to note that.
-		e.stMu.Lock()
-		e.st = state
-		e.stMu.Unlock()
-
-		e.Events().Publish(environment.StateChangeEvent, e.State())
+		e.State.Store(state)
+		e.Events().Publish(environment.StateChangeEvent, state)
 	}
 
 	return nil

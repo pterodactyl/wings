@@ -136,7 +136,7 @@ func (e *Environment) Stop() error {
 
 	// If the process is already offline don't switch it back to stopping. Just leave it how
 	// it is and continue through to the stop handling for the process.
-	if e.State() != environment.ProcessOfflineState {
+	if e.State.Load() != environment.ProcessOfflineState {
 		e.setState(environment.ProcessStoppingState)
 	}
 
@@ -217,7 +217,7 @@ func (e *Environment) Terminate(signal os.Signal) error {
 		// If the container is not running but we're not already in a stopped state go ahead
 		// and update things to indicate we should be completely stopped now. Set to stopping
 		// first so crash detection is not triggered.
-		if e.State() != environment.ProcessOfflineState {
+		if e.State.Load() != environment.ProcessOfflineState {
 			e.setState(environment.ProcessStoppingState)
 			e.setState(environment.ProcessOfflineState)
 		}
