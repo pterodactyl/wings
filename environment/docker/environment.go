@@ -48,7 +48,7 @@ type Environment struct {
 	emitter *events.EventBus
 
 	// Tracks the environment state.
-	st system.AtomicString
+	st *system.AtomicString
 }
 
 // Creates a new base Docker environment. The ID passed through will be the ID that is used to
@@ -65,9 +65,8 @@ func New(id string, m *Metadata, c *environment.Configuration) (*Environment, er
 		Configuration: c,
 		meta:          m,
 		client:        cli,
+		st:            system.NewAtomicString(environment.ProcessOfflineState),
 	}
-
-	e.st.Store(environment.ProcessOfflineState)
 
 	return e, nil
 }

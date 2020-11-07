@@ -1,6 +1,7 @@
 package system
 
 import (
+	"sync"
 	"sync/atomic"
 )
 
@@ -25,27 +26,33 @@ func (ab *AtomicBool) Get() bool {
 // about a potential race condition scenario. Under the hood it uses a simple sync.RWMutex
 // to control access to the value.
 type AtomicString struct {
-	v atomic.Value
+	v  string
+	mu sync.RWMutex
 }
 
-// Returns a new instance of an AtomicString.
 func NewAtomicString(v string) *AtomicString {
-	as := &AtomicString{}
-	if v != "" {
-		as.Store(v)
-	}
-	return as
+	return &AtomicString{v: v}
 }
 
 // Stores the string value passed atomically.
 func (as *AtomicString) Store(v string) {
-	as.v.Store(v)
+	as.mu.Lock()
+	as.v = v
+	as.mu.Unlock()
 }
 
 // Loads the string value and returns it.
 func (as *AtomicString) Load() string {
-	if v := as.v.Load(); v != nil {
-		return v.(string)
-	}
-	return ""
+	as.mu.RLock()
+	defer as.mu.RUnlock()
+	return as.v
+}
+
+func (as *AtomicString) UnmarshalText(b []byte) error {
+	as.Store(string(b))
+	return nil
+}
+
+func (as *AtomicString) MarshalText() ([]byte, error) {
+	return []byte(as.Load()), nil
 }
