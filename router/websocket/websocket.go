@@ -368,7 +368,7 @@ func (h *Handler) HandleInbound(m Message) error {
 				return nil
 			}
 
-			logs, err := h.server.Environment.Readlog(100)
+			logs, err := h.server.Environment.Readlog(config.Get().System.WebsocketLogCount)
 			if err != nil {
 				return err
 			}

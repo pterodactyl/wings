@@ -70,6 +70,9 @@ type SystemConfiguration struct {
 	// when it boots and one is not detected.
 	EnableLogRotate bool `default:"true" yaml:"enable_log_rotate"`
 
+	// The number of lines to send when a server connects to the websocket.
+	WebsocketLogCount int `default:"150" yaml:"websocket_log_count"`
+
 	Sftp SftpConfiguration `yaml:"sftp"`
 }
 
@@ -190,7 +193,7 @@ func (sc *SystemConfiguration) ConfigureTimezone() error {
 				return errors.Wrap(err, "failed to open /etc/timezone for automatic server timezone calibration")
 			}
 
-			ctx, _ := context.WithTimeout(context.Background(), time.Second * 5)
+			ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
 			// Okay, file isn't found on this OS, we will try using timedatectl to handle this. If this
 			// command fails, exit, but if it returns a value use that. If no value is returned we will
 			// fall through to UTC to get Wings booted at least.
