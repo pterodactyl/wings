@@ -41,7 +41,7 @@ func (a *Archiver) Exists() bool {
 func (a *Archiver) Stat() (*filesystem.Stat, error) {
 	s, err := os.Stat(a.Path())
 	if err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, errors.WithStack(err)
 	}
 
 	return &filesystem.Stat{
@@ -58,7 +58,7 @@ func (a *Archiver) Archive() error {
 	var files []string
 	fileInfo, err := ioutil.ReadDir(path)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	for _, file := range fileInfo {
@@ -72,7 +72,6 @@ func (a *Archiver) Archive() error {
 		// and not the actual file in this listing.
 		if file.Mode()&os.ModeSymlink != 0 {
 			f, err = a.Server.Filesystem().SafePath(filepath.Join(path, file.Name()))
-
 			if err != nil {
 				return err
 			}
@@ -95,21 +94,17 @@ func (a *Archiver) DeleteIfExists() error {
 			return nil
 		}
 
-		return err
-	}
-
-	if err := os.Remove(a.Path()); err != nil {
 		return errors.WithStackIf(err)
 	}
 
-	return nil
+	return errors.WrapIf(os.Remove(a.Path()), "archiver: failed to delete archive from system")
 }
 
 // Checksum computes a SHA256 checksum of the server's archive.
 func (a *Archiver) Checksum() (string, error) {
 	file, err := os.Open(a.Path())
 	if err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	}
 	defer file.Close()
 
@@ -117,7 +112,7 @@ func (a *Archiver) Checksum() (string, error) {
 
 	buf := make([]byte, 1024*4)
 	if _, err := io.CopyBuffer(hash, file, buf); err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	}
 
 	return hex.EncodeToString(hash.Sum(nil)), nil

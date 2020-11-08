@@ -27,7 +27,7 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 
 	i, err := ignore.CompileIgnoreLines(ignored...)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	// Walk through all of the files and directories on a server. This callback only returns

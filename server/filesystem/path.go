@@ -138,5 +138,5 @@ func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 	}
 
 	// Block until all of the routines finish and have returned a value.
-	return cleaned, g.Wait()
+	return cleaned, errors.WithStackIf(g.Wait())
 }

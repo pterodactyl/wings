@@ -13,8 +13,7 @@ import (
 // Notifies the panel of a backup's state and returns an error if one is encountered
 // while performing this action.
 func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, successful bool) error {
-	r := api.New()
-	err := r.SendBackupStatus(uuid, ad.ToRequest(successful))
+	err := api.New().SendBackupStatus(uuid, ad.ToRequest(successful))
 	if err != nil {
 		if !api.IsRequestError(err) {
 			s.Log().WithFields(log.Fields{
@@ -22,7 +21,7 @@ func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, suc
 				"error":  err,
 			}).Error("failed to notify panel of backup status due to wings error")
 
-			return err
+			return errors.WithStackIf(err)
 		}
 
 		return errors.New(err.Error())
@@ -38,7 +37,7 @@ func (s *Server) getServerwideIgnoredFiles() ([]string, error) {
 	f, err := os.Open(path.Join(s.Filesystem().Path(), ".pteroignore"))
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 	} else {
 		scanner := bufio.NewScanner(f)
@@ -50,7 +49,7 @@ func (s *Server) getServerwideIgnoredFiles() ([]string, error) {
 		}
 
 		if err := scanner.Err(); err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 	}
 
@@ -100,7 +99,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 			"file_size":     0,
 		})
 
-		return errors.WrapIf(err, "error while generating server backup")
+		return errors.WrapIf(err, "backup: error while generating server backup")
 	}
 
 	// Try to notify the panel about the status of this backup. If for some reason this request
@@ -108,7 +107,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 	if notifyError := s.notifyPanelOfBackup(b.Identifier(), ad, true); notifyError != nil {
 		b.Remove()
 
-		return notifyError
+		return errors.WithStackIf(err)
 	}
 
 	// Emit an event over the socket so we can update the backup in realtime on
