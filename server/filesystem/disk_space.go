@@ -197,7 +197,7 @@ func (fs *Filesystem) hasSpaceFor(size int64) error {
 
 	s, err := fs.DiskUsage(true)
 	if err != nil {
-		return err
+		return errors.WithStackIf(err)
 	}
 
 	if (s + size) > fs.MaxDisk() {

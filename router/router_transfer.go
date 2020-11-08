@@ -52,7 +52,7 @@ func getServerArchive(c *gin.Context) {
 
 	st, err := s.Archiver.Stat()
 	if err != nil {
-		if !os.IsNotExist(err) {
+		if !errors.Is(err, os.ErrNotExist) {
 			TrackedServerError(err, s).SetMessage("failed to stat archive").AbortWithServerError(c)
 			return
 		}

@@ -60,20 +60,20 @@ func (fs *Filesystem) Readfile(p string, w io.Writer) error {
 	}
 
 	if st, err := os.Stat(cleaned); err != nil {
-		return err
+		return errors.WithStack(err)
 	} else if st.IsDir() {
-		return ErrIsDirectory
+		return errors.WithStack(ErrIsDirectory)
 	}
 
 	f, err := os.Open(cleaned)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	defer f.Close()
 
 	_, err = bufio.NewReader(f).WriteTo(w)
 
-	return err
+	return errors.WithStack(err)
 }
 
 // Writes a file to the system. If the file does not already exist one will be created.
@@ -100,7 +100,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 		}
 	} else {
 		if stat.IsDir() {
-			return ErrIsDirectory
+			return errors.WithStack(ErrIsDirectory)
 		}
 
 		currentSize = stat.Size()
@@ -248,8 +248,8 @@ func (fs *Filesystem) findCopySuffix(dir string, name string, extension string) 
 		// If we stat the file and it does not exist that means we're good to create the copy. If it
 		// does exist, we'll just continue to the next loop and try again.
 		if _, err := fs.Stat(path.Join(dir, n)); err != nil {
-			if !os.IsNotExist(err) {
-				return "", err
+			if !errors.Is(err, os.ErrNotExist) {
+				return "", errors.WithStackIf(err)
 			}
 
 			break
@@ -305,6 +305,9 @@ func (fs *Filesystem) Copy(p string) error {
 	defer source.Close()
 
 	n, err := fs.findCopySuffix(relative, name, extension)
+	if err != nil {
+		return err
+	}
 
 	return fs.Writefile(path.Join(relative, n), source)
 }

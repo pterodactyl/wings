@@ -33,9 +33,15 @@ func NewBadPathResolution(path string, resolved string) *BadPathResolutionError 
 
 // Determines if the given error is a bad path resolution error.
 func IsBadPathResolutionError(err error) bool {
-	if _, ok := err.(*BadPathResolutionError); ok {
+	e := errors.Unwrap(err)
+	if e == nil {
+		e = err
+	}
+
+	if _, ok := e.(*BadPathResolutionError); ok {
 		return true
 	}
+
 	return false
 }
 

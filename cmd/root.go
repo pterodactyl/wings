@@ -114,7 +114,7 @@ func rootCmdRun(*cobra.Command, []string) {
 	// been specified in the command startup.
 	if configPath == config.DefaultLocation {
 		if err := RelocateConfiguration(); err != nil {
-			if os.IsNotExist(err) {
+			if errors.Is(err, os.ErrNotExist) {
 				exitWithConfigurationNotice()
 			}
 

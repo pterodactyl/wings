@@ -62,7 +62,7 @@ func (e *RequestError) SetMessage(msg string) *RequestError {
 func (e *RequestError) AbortWithStatus(status int, c *gin.Context) {
 	// If this error is because the resource does not exist, we likely do not need to log
 	// the error anywhere, just return a 404 and move on with our lives.
-	if os.IsNotExist(e.Err) {
+	if errors.Is(e.Err, os.ErrNotExist) {
 		e.logger().WithField("error", e.Err).Debug("encountered os.IsNotExist error while handling request")
 
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
