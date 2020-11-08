@@ -30,12 +30,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var configPath = config.DefaultLocation
-var debug = false
-var shouldRunProfiler = false
-var useAutomaticTls = false
-var tlsHostname = ""
-var showVersion = false
+var (
+	configPath      = config.DefaultLocation
+	debug           = false
+	runCPUProfile   = false
+	runMemProfile   = false
+	useAutomaticTls = false
+	tlsHostname     = ""
+	showVersion     = false
+)
 
 var root = &cobra.Command{
 	Use:   "wings",
@@ -54,7 +57,8 @@ func init() {
 	root.PersistentFlags().BoolVar(&showVersion, "version", false, "show the version and exit")
 	root.PersistentFlags().StringVar(&configPath, "config", config.DefaultLocation, "set the location for the configuration file")
 	root.PersistentFlags().BoolVar(&debug, "debug", false, "pass in order to run wings in debug mode")
-	root.PersistentFlags().BoolVar(&shouldRunProfiler, "profile", false, "pass in order to profile wings")
+	root.PersistentFlags().BoolVar(&runCPUProfile, "profile-cpu", false, "pass in order to profile wings CPU usage")
+	root.PersistentFlags().BoolVar(&runMemProfile, "profile-mem", false, "pass in order to profile wings memory usage")
 	root.PersistentFlags().BoolVar(&useAutomaticTls, "auto-tls", false, "pass in order to have wings generate and manage it's own SSL certificates using Let's Encrypt")
 	root.PersistentFlags().StringVar(&tlsHostname, "tls-hostname", "", "required with --auto-tls, the FQDN for the generated SSL certificate")
 
@@ -89,8 +93,16 @@ func rootCmdRun(*cobra.Command, []string) {
 		os.Exit(0)
 	}
 
-	if shouldRunProfiler {
-		defer profile.Start().Stop()
+	if runCPUProfile {
+		defer profile.Start(func(p *profile.Profile) {
+			profile.CPUProfile(p)
+		}).Stop()
+	}
+
+	if runMemProfile {
+		defer profile.Start(func(p *profile.Profile) {
+			profile.MemProfile(p)
+		}).Stop()
 	}
 
 	// Only attempt configuration file relocation if a custom location has not

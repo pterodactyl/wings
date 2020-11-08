@@ -47,3 +47,5 @@ test_*/
 debug
 data/.states.json
 .DS_Store
+*.pprof
+*.pdf
