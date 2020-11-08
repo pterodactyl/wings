@@ -32,6 +32,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
         run: |
           go build -v -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_${{ matrix.goos }}_${{ matrix.goarch }} wings.go
 
