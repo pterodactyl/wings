@@ -93,21 +93,21 @@ func rootCmdRun(*cobra.Command, []string) {
 
 	switch profiler {
 	case "cpu":
-		profile.Start(profile.CPUProfile)
+		defer profile.Start(profile.CPUProfile).Stop()
 	case "mem":
-		profile.Start(profile.MemProfile)
+		defer profile.Start(profile.MemProfile).Stop()
 	case "alloc":
-		profile.Start(profile.MemProfileAllocs())
+		defer profile.Start(profile.MemProfile, profile.MemProfileAllocs()).Stop()
 	case "heap":
-		profile.Start(profile.MemProfileHeap())
+		defer profile.Start(profile.MemProfile, profile.MemProfileHeap()).Stop()
 	case "routines":
-		profile.Start(profile.GoroutineProfile)
+		defer profile.Start(profile.GoroutineProfile).Stop()
 	case "mutex":
-		profile.Start(profile.MutexProfile)
+		defer profile.Start(profile.MutexProfile).Stop()
 	case "threads":
-		profile.Start(profile.ThreadcreationProfile)
+		defer profile.Start(profile.ThreadcreationProfile).Stop()
 	case "block":
-		profile.Start(profile.BlockProfile)
+		defer profile.Start(profile.BlockProfile).Stop()
 	}
 
 	// Only attempt configuration file relocation if a custom location has not
