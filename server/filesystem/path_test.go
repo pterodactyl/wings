@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"bytes"
+	"emperror.dev/errors"
 	. "github.com/franela/goblin"
 	"os"
 	"path/filepath"
@@ -144,85 +145,84 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 			g.Assert(IsBadPathResolutionError(err)).IsTrue()
 		})
 	})
-	//
-	// g.Describe("CreateDirectory", func() {
-	// 	g.It("cannot create a directory outside the root", func() {
-	// 		err := fs.CreateDirectory("my_dir", "external_dir")
-	// 		g.Assert(err).IsNotNil()
-	// 		g.Assert(IsBadPathResolutionError(err)).IsTrue()
-	// 	})
-	//
-	// 	g.It("cannot create a nested directory outside the root", func() {
-	// 		err := fs.CreateDirectory("my/nested/dir", "external_dir/foo/bar")
-	// 		g.Assert(err).IsNotNil()
-	// 		g.Assert(IsBadPathResolutionError(err)).IsTrue()
-	// 	})
-	//
-	// 	g.It("cannot create a nested directory outside the root", func() {
-	// 		err := fs.CreateDirectory("my/nested/dir", "external_dir/server")
-	// 		g.Assert(err).IsNotNil()
-	// 		g.Assert(IsBadPathResolutionError(err)).IsTrue()
-	// 	})
-	// })
-	//
-	// g.Describe("Rename", func() {
-	// 	g.It("cannot rename a file symlinked outside the directory root", func() {
-	// 		err := fs.Rename("symlinked.txt", "foo.txt")
-	// 		g.Assert(err).IsNotNil()
-	// 		g.Assert(IsBadPathResolutionError(err)).IsTrue()
-	// 	})
-	//
-	// 	g.It("cannot rename a symlinked directory outside the root", func() {
-	// 		err := fs.Rename("external_dir", "foo")
-	// 		g.Assert(err).IsNotNil()
-	// 		g.Assert(IsBadPathResolutionError(err)).IsTrue()
-	// 	})
-	//
-	// 	g.It("cannot rename a file to a location outside the directory root", func() {
-	// 		rfs.CreateServerFile("my_file.txt", "internal content")
-	//
-	// 		err := fs.Rename("my_file.txt", "external_dir/my_file.txt")
-	// 		g.Assert(err).IsNotNil()
-	// 		g.Assert(IsBadPathResolutionError(err)).IsTrue()
-	// 	})
-	// })
-	//
-	// g.Describe("Chown", func() {
-	// 	g.It("cannot chown a file symlinked outside the directory root", func() {
-	// 		err := fs.Chown("symlinked.txt")
-	// 		g.Assert(err).IsNotNil()
-	// 		g.Assert(IsBadPathResolutionError(err)).IsTrue()
-	// 	})
-	//
-	// 	g.It("cannot chown a directory symlinked outside the directory root", func() {
-	// 		err := fs.Chown("external_dir")
-	// 		g.Assert(err).IsNotNil()
-	// 		g.Assert(IsBadPathResolutionError(err)).IsTrue()
-	// 	})
-	// })
-	//
-	// g.Describe("Copy", func() {
-	// 	g.It("cannot copy a file symlinked outside the directory root", func() {
-	// 		err := fs.Copy("symlinked.txt")
-	// 		g.Assert(err).IsNotNil()
-	// 		fmt.Printf("err: %+v\n", err)
-	// 		g.Assert(IsBadPathResolutionError(err)).IsTrue()
-	// 	})
-	// })
-	//
-	// g.Describe("Delete", func() {
-	// 	g.It("deletes the symlinked file but leaves the source", func() {
-	// 		err := fs.Delete("symlinked.txt")
-	// 		g.Assert(err).IsNil()
-	//
-	// 		_, err = os.Stat(filepath.Join(rfs.root, "malicious.txt"))
-	// 		g.Assert(err).IsNil()
-	//
-	// 		_, err = rfs.StatServerFile("symlinked.txt")
-	// 		g.Assert(err).IsNotNil()
-	// 		g.Assert(errors.Is(err, os.ErrNotExist)).IsTrue()
-	// 	})
-	// })
+
+	g.Describe("CreateDirectory", func() {
+		g.It("cannot create a directory outside the root", func() {
+			err := fs.CreateDirectory("my_dir", "external_dir")
+			g.Assert(err).IsNotNil()
+			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+		})
+
+		g.It("cannot create a nested directory outside the root", func() {
+			err := fs.CreateDirectory("my/nested/dir", "external_dir/foo/bar")
+			g.Assert(err).IsNotNil()
+			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+		})
+
+		g.It("cannot create a nested directory outside the root", func() {
+			err := fs.CreateDirectory("my/nested/dir", "external_dir/server")
+			g.Assert(err).IsNotNil()
+			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+		})
+	})
+
+	g.Describe("Rename", func() {
+		g.It("cannot rename a file symlinked outside the directory root", func() {
+			err := fs.Rename("symlinked.txt", "foo.txt")
+			g.Assert(err).IsNotNil()
+			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+		})
+
+		g.It("cannot rename a symlinked directory outside the root", func() {
+			err := fs.Rename("external_dir", "foo")
+			g.Assert(err).IsNotNil()
+			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+		})
+
+		g.It("cannot rename a file to a location outside the directory root", func() {
+			rfs.CreateServerFile("my_file.txt", "internal content")
+
+			err := fs.Rename("my_file.txt", "external_dir/my_file.txt")
+			g.Assert(err).IsNotNil()
+			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+		})
+	})
+
+	g.Describe("Chown", func() {
+		g.It("cannot chown a file symlinked outside the directory root", func() {
+			err := fs.Chown("symlinked.txt")
+			g.Assert(err).IsNotNil()
+			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+		})
+
+		g.It("cannot chown a directory symlinked outside the directory root", func() {
+			err := fs.Chown("external_dir")
+			g.Assert(err).IsNotNil()
+			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+		})
+	})
+
+	g.Describe("Copy", func() {
+		g.It("cannot copy a file symlinked outside the directory root", func() {
+			err := fs.Copy("symlinked.txt")
+			g.Assert(err).IsNotNil()
+			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+		})
+	})
+
+	g.Describe("Delete", func() {
+		g.It("deletes the symlinked file but leaves the source", func() {
+			err := fs.Delete("symlinked.txt")
+			g.Assert(err).IsNil()
+
+			_, err = os.Stat(filepath.Join(rfs.root, "malicious.txt"))
+			g.Assert(err).IsNil()
+
+			_, err = rfs.StatServerFile("symlinked.txt")
+			g.Assert(err).IsNotNil()
+			g.Assert(errors.Is(err, os.ErrNotExist)).IsTrue()
+		})
+	})
 
 	rfs.reset()
 }
