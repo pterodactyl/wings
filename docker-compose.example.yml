@@ -3,6 +3,11 @@ services:
   daemon:
     build: .
     restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - CHOWN
     networks:
       - daemon0
     ports:
