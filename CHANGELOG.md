@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.1.0
+This release **requires** `Panel@1.1.0` or later to run due to API changes.
+
+### Added
+* Adds support for denying client JWT access to specific token keys generated before Wings starts, or before an arbitrary date from an API call.
+* Adds support for a configurable number of log messages to be returned when connecting to a server socket and requesting the logs.
+* Adds support for both CPU and Memory profiling of Wings via a CLI argument.
+
+### Fixed
+* Errors encountered while uploading files to Wings are now properly reported back to the client rather than causing a generic 500 error.
+* Servers exceeding their disk limit are now properly stopped when they exceed limits while running.
+* Fixes server environment starting as an empty value rather than an "offline" value.
+
+### Changed
+* Cleaned up code internals for handling API requests to make it easier on new developers and use a more sane system.
+* Server configuration retrieval from the Panel is now done in a paginated loop rather than a single large call to allow systems with thousands of instances to boot properly.
+* Switches to multipart S3 uploads to handle backups larger than 5GB in size.
+* Switches the error handling package from `pkg/errors` to `emperror` to avoid overwriting existing stack traces associated with an error and provide additional functionality.
+
 ## v1.0.1
 ### Added
 * Adds support for ARM to build outputs for wings.
