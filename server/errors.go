@@ -1,9 +1,9 @@
 package server
 
-import "github.com/pkg/errors"
+import "emperror.dev/errors"
 
-var ErrIsRunning = errors.New("server is running")
-var ErrSuspended = errors.New("server is currently in a suspended state")
+var ErrIsRunning = errors.Sentinel("server is running")
+var ErrSuspended = errors.Sentinel("server is currently in a suspended state")
 
 type crashTooFrequent struct {
 }

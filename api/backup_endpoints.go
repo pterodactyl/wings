@@ -1,8 +1,8 @@
 package api
 
 import (
+	"emperror.dev/errors"
 	"fmt"
-	"github.com/pkg/errors"
 	"strconv"
 )
 
@@ -16,7 +16,7 @@ type BackupRemoteUploadResponse struct {
 func (r *Request) GetBackupRemoteUploadURLs(backup string, size int64) (*BackupRemoteUploadResponse, error) {
 	resp, err := r.Get(fmt.Sprintf("/backups/%s", backup), Q{"size": strconv.FormatInt(size, 10)})
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	}
 	defer resp.Body.Close()
 
@@ -26,7 +26,7 @@ func (r *Request) GetBackupRemoteUploadURLs(backup string, size int64) (*BackupR
 
 	var res BackupRemoteUploadResponse
 	if err := resp.Bind(&res); err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	}
 
 	return &res, nil
@@ -44,7 +44,7 @@ type BackupRequest struct {
 func (r *Request) SendBackupStatus(backup string, data BackupRequest) error {
 	resp, err := r.Post(fmt.Sprintf("/backups/%s", backup), data)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 	defer resp.Body.Close()
 

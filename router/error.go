@@ -1,11 +1,11 @@
 package router
 
 import (
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"net/http"
@@ -75,7 +75,7 @@ func (e *RequestError) AbortWithStatus(status int, c *gin.Context) {
 	if status >= 500 {
 		e.logger().WithField("error", e.Err).Error("encountered HTTP/500 error while handling request")
 
-		c.Error(errors.WithStack(e))
+		c.Error(errors.WithStackIf(e))
 	} else {
 		e.logger().WithField("error", e.Err).Debug("encountered non-HTTP/500 error while handling request")
 	}
@@ -99,38 +99,32 @@ func (e *RequestError) AbortWithServerError(c *gin.Context) {
 
 // Handle specific filesystem errors for a server.
 func (e *RequestError) AbortFilesystemError(c *gin.Context) {
-	if errors.Is(e.Err, os.ErrNotExist) {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-			"error": "The requested resource was not found.",
-		})
+	if errors.Is(e.Err, os.ErrNotExist) || filesystem.IsBadPathResolutionError(e.Err) {
+		if filesystem.IsBadPathResolutionError(e.Err) {
+			e.logger().Warn(e.Err.Error())
+		}
+
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "The requested resource was not found."})
 		return
 	}
 
 	if errors.Is(e.Err, filesystem.ErrNotEnoughDiskSpace) {
-		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
-			"error": "There is not enough disk space available to perform that action.",
-		})
+		c.AbortWithStatusJSON(http.StatusConflict, gin.H{"error": "There is not enough disk space available to perform that action."})
 		return
 	}
 
 	if strings.HasSuffix(e.Err.Error(), "file name too long") {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": "File name is too long.",
-		})
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "File name is too long."})
 		return
 	}
 
 	if e, ok := e.Err.(*os.SyscallError); ok && e.Syscall == "readdirent" {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-			"error": "The requested directory does not exist.",
-		})
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "The requested directory does not exist."})
 		return
 	}
 
 	if strings.HasSuffix(e.Err.Error(), "file name too long") {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": "Cannot perform that action: file name is too long.",
-		})
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Cannot perform that action: file name is too long."})
 		return
 	}
 

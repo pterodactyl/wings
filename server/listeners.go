@@ -1,9 +1,9 @@
 package server
 
 import (
+	"emperror.dev/errors"
 	"encoding/json"
 	"github.com/apex/log"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -77,7 +77,7 @@ func (s *Server) StartEventListeners() {
 							s.Environment.SetState(environment.ProcessRunningState)
 						}
 
-						s.Log().WithField("error", errors.WithStack(err)).Error("failed to terminate environment after triggering throttle")
+						s.Log().WithField("error", errors.WithStackIf(err)).Error("failed to terminate environment after triggering throttle")
 					}
 				}()
 			}
@@ -106,7 +106,7 @@ func (s *Server) StartEventListeners() {
 	stats := func(e events.Event) {
 		st := new(environment.Stats)
 		if err := json.Unmarshal([]byte(e.Data), st); err != nil {
-			s.Log().WithField("error", errors.WithStack(err)).Warn("failed to unmarshal server environment stats")
+			s.Log().WithField("error", errors.WithStackIf(err)).Warn("failed to unmarshal server environment stats")
 			return
 		}
 

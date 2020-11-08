@@ -1,8 +1,8 @@
 package server
 
 import (
+	"emperror.dev/errors"
 	"fmt"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"sync"
@@ -57,7 +57,7 @@ func (s *Server) handleServerCrash() error {
 
 	exitCode, oomKilled, err := s.Environment.ExitState()
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	// If the system is not configured to detect a clean exit code as a crash, and the

@@ -2,9 +2,9 @@ package filesystem
 
 import (
 	"bufio"
+	"emperror.dev/errors"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/karrick/godirwalk"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/system"
 	"io"
@@ -80,7 +80,7 @@ func (fs *Filesystem) Readfile(p string, w io.Writer) error {
 func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	var currentSize int64
@@ -88,15 +88,15 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	// to it and an empty file. We'll then write to it later on after this completes.
 	if stat, err := os.Stat(cleaned); err != nil {
 		if !os.IsNotExist(err) {
-			return errors.WithStack(err)
+			return errors.WithStackIf(err)
 		}
 
 		if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
-			return errors.WithStack(err)
+			return errors.WithStackIf(err)
 		}
 
 		if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
-			return errors.WithStack(err)
+			return errors.WithStackIf(err)
 		}
 	} else {
 		if stat.IsDir() {
@@ -119,7 +119,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	// truncate the existing file.
 	file, err := o.open(cleaned, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 	defer file.Close()
 
@@ -138,7 +138,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 func (fs *Filesystem) CreateDirectory(name string, p string) error {
 	cleaned, err := fs.SafePath(path.Join(p, name))
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	return os.MkdirAll(cleaned, 0755)
@@ -148,12 +148,12 @@ func (fs *Filesystem) CreateDirectory(name string, p string) error {
 func (fs *Filesystem) Rename(from string, to string) error {
 	cleanedFrom, err := fs.SafePath(from)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	cleanedTo, err := fs.SafePath(to)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	// If the target file or directory already exists the rename function will fail, so just
@@ -171,7 +171,7 @@ func (fs *Filesystem) Rename(from string, to string) error {
 	// we're not at the root directory level.
 	if d != fs.Path() {
 		if mkerr := os.MkdirAll(d, 0755); mkerr != nil {
-			return errors.Wrap(mkerr, "failed to create directory structure for file rename")
+			return errors.WrapIf(mkerr, "failed to create directory structure for file rename")
 		}
 	}
 
@@ -185,7 +185,7 @@ func (fs *Filesystem) Rename(from string, to string) error {
 func (fs *Filesystem) Chown(path string) error {
 	cleaned, err := fs.SafePath(path)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	if fs.isTest {
@@ -197,7 +197,7 @@ func (fs *Filesystem) Chown(path string) error {
 
 	// Start by just chowning the initial path that we received.
 	if err := os.Chown(cleaned, uid, gid); err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	// If this is not a directory we can now return from the function, there is nothing
@@ -268,12 +268,12 @@ func (fs *Filesystem) findCopySuffix(dir string, name string, extension string) 
 func (fs *Filesystem) Copy(p string) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	s, err := os.Stat(cleaned)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	} else if s.IsDir() || !s.Mode().IsRegular() {
 		// If this is a directory or not a regular file, just throw a not-exist error
 		// since anything calling this function should understand what that means.
@@ -300,7 +300,7 @@ func (fs *Filesystem) Copy(p string) error {
 
 	source, err := os.Open(cleaned)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 	defer source.Close()
 
@@ -324,7 +324,7 @@ func (fs *Filesystem) Delete(p string) error {
 	// exists within the data directory.
 	resolved := fs.unsafeFilePath(p)
 	if !fs.unsafeIsInDataDirectory(resolved) {
-		return ErrBadPathResolution
+		return NewBadPathResolution(p, resolved)
 	}
 
 	// Block any whoopsies.

@@ -1,9 +1,9 @@
 package sftp
 
 import (
+	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/patrickmn/go-cache"
-	"github.com/pkg/errors"
 	"github.com/pkg/sftp"
 	"io"
 	"io/ioutil"
@@ -58,14 +58,14 @@ func (fs FileSystem) Fileread(request *sftp.Request) (io.ReaderAt, error) {
 	if _, err := os.Stat(p); os.IsNotExist(err) {
 		return nil, sftp.ErrSshFxNoSuchFile
 	} else if err != nil {
-		fs.logger.WithField("error", errors.WithStack(err)).Error("error while processing file stat")
+		fs.logger.WithField("error", errors.WithStackIf(err)).Error("error while processing file stat")
 
 		return nil, sftp.ErrSshFxFailure
 	}
 
 	file, err := os.Open(p)
 	if err != nil {
-		fs.logger.WithField("source", p).WithField("error", errors.WithStack(err)).Error("could not open file for reading")
+		fs.logger.WithField("source", p).WithField("error", errors.WithStackIf(err)).Error("could not open file for reading")
 		return nil, sftp.ErrSshFxFailure
 	}
 
@@ -108,7 +108,7 @@ func (fs FileSystem) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
 			l.WithFields(log.Fields{
 				"path":  filepath.Dir(p),
-				"error": errors.WithStack(err),
+				"error": errors.WithStackIf(err),
 			}).Error("error making path for file")
 
 			return nil, sftp.ErrSshFxFailure
@@ -116,7 +116,7 @@ func (fs FileSystem) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 
 		file, err := os.Create(p)
 		if err != nil {
-			l.WithField("error", errors.WithStack(err)).Error("failed to create file")
+			l.WithField("error", errors.WithStackIf(err)).Error("failed to create file")
 
 			return nil, sftp.ErrSshFxFailure
 		}
@@ -124,7 +124,7 @@ func (fs FileSystem) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 		// Not failing here is intentional. We still made the file, it is just owned incorrectly
 		// and will likely cause some issues.
 		if err := os.Chown(p, fs.User.Uid, fs.User.Gid); err != nil {
-			l.WithField("error", errors.WithStack(err)).Warn("failed to set permissions on file")
+			l.WithField("error", errors.WithStackIf(err)).Warn("failed to set permissions on file")
 		}
 
 		return file, nil
@@ -133,7 +133,7 @@ func (fs FileSystem) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 	// If the stat error isn't about the file not existing, there is some other issue
 	// at play and we need to go ahead and bail out of the process.
 	if statErr != nil {
-		l.WithField("error", errors.WithStack(statErr)).Error("encountered error performing file stat")
+		l.WithField("error", errors.WithStackIf(statErr)).Error("encountered error performing file stat")
 
 		return nil, sftp.ErrSshFxFailure
 	}
@@ -159,14 +159,14 @@ func (fs FileSystem) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 			return nil, sftp.ErrSSHFxNoSuchFile
 		}
 
-		l.WithField("flags", request.Flags).WithField("error", errors.WithStack(err)).Error("failed to open existing file on system")
+		l.WithField("flags", request.Flags).WithField("error", errors.WithStackIf(err)).Error("failed to open existing file on system")
 		return nil, sftp.ErrSshFxFailure
 	}
 
 	// Not failing here is intentional. We still made the file, it is just owned incorrectly
 	// and will likely cause some issues.
 	if err := os.Chown(p, fs.User.Uid, fs.User.Gid); err != nil {
-		l.WithField("error", errors.WithStack(err)).Warn("error chowning file")
+		l.WithField("error", errors.WithStackIf(err)).Warn("error chowning file")
 	}
 
 	return file, nil
@@ -220,7 +220,7 @@ func (fs FileSystem) Filecmd(request *sftp.Request) error {
 				return sftp.ErrSSHFxNoSuchFile
 			}
 
-			l.WithField("error", errors.WithStack(err)).Error("failed to perform setstat on item")
+			l.WithField("error", errors.WithStackIf(err)).Error("failed to perform setstat on item")
 			return sftp.ErrSSHFxFailure
 		}
 		return nil
@@ -234,7 +234,7 @@ func (fs FileSystem) Filecmd(request *sftp.Request) error {
 				return sftp.ErrSSHFxNoSuchFile
 			}
 
-			l.WithField("target", target).WithField("error", errors.WithStack(err)).Error("failed to rename file")
+			l.WithField("target", target).WithField("error", errors.WithStackIf(err)).Error("failed to rename file")
 
 			return sftp.ErrSshFxFailure
 		}
@@ -246,7 +246,7 @@ func (fs FileSystem) Filecmd(request *sftp.Request) error {
 		}
 
 		if err := os.RemoveAll(p); err != nil {
-			l.WithField("error", errors.WithStack(err)).Error("failed to remove directory")
+			l.WithField("error", errors.WithStackIf(err)).Error("failed to remove directory")
 
 			return sftp.ErrSshFxFailure
 		}
@@ -258,7 +258,7 @@ func (fs FileSystem) Filecmd(request *sftp.Request) error {
 		}
 
 		if err := os.MkdirAll(p, 0755); err != nil {
-			l.WithField("error", errors.WithStack(err)).Error("failed to create directory")
+			l.WithField("error", errors.WithStackIf(err)).Error("failed to create directory")
 
 			return sftp.ErrSshFxFailure
 		}
@@ -270,7 +270,7 @@ func (fs FileSystem) Filecmd(request *sftp.Request) error {
 		}
 
 		if err := os.Symlink(p, target); err != nil {
-			l.WithField("target", target).WithField("error", errors.WithStack(err)).Error("failed to create symlink")
+			l.WithField("target", target).WithField("error", errors.WithStackIf(err)).Error("failed to create symlink")
 
 			return sftp.ErrSshFxFailure
 		}
@@ -286,7 +286,7 @@ func (fs FileSystem) Filecmd(request *sftp.Request) error {
 				return sftp.ErrSSHFxNoSuchFile
 			}
 
-			l.WithField("error", errors.WithStack(err)).Error("failed to remove a file")
+			l.WithField("error", errors.WithStackIf(err)).Error("failed to remove a file")
 
 			return sftp.ErrSshFxFailure
 		}
@@ -305,7 +305,7 @@ func (fs FileSystem) Filecmd(request *sftp.Request) error {
 	// and will likely cause some issues. There is no logical check for if the file was removed
 	// because both of those cases (Rmdir, Remove) have an explicit return rather than break.
 	if err := os.Chown(fileLocation, fs.User.Uid, fs.User.Gid); err != nil {
-		l.WithField("error", errors.WithStack(err)).Warn("error chowning file")
+		l.WithField("error", errors.WithStackIf(err)).Warn("error chowning file")
 	}
 
 	return sftp.ErrSshFxOk
@@ -327,7 +327,7 @@ func (fs FileSystem) Filelist(request *sftp.Request) (sftp.ListerAt, error) {
 
 		files, err := ioutil.ReadDir(p)
 		if err != nil {
-			fs.logger.WithField("error", errors.WithStack(err)).Error("error while listing directory")
+			fs.logger.WithField("error", errors.WithStackIf(err)).Error("error while listing directory")
 
 			return nil, sftp.ErrSshFxFailure
 		}
@@ -342,7 +342,7 @@ func (fs FileSystem) Filelist(request *sftp.Request) (sftp.ListerAt, error) {
 		if os.IsNotExist(err) {
 			return nil, sftp.ErrSshFxNoSuchFile
 		} else if err != nil {
-			fs.logger.WithField("source", p).WithField("error", errors.WithStack(err)).Error("error performing stat on file")
+			fs.logger.WithField("source", p).WithField("error", errors.WithStackIf(err)).Error("error performing stat on file")
 
 			return nil, sftp.ErrSshFxFailure
 		}

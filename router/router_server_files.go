@@ -2,8 +2,8 @@ package router
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"github.com/gin-gonic/gin"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
@@ -35,19 +35,19 @@ func getServerFileContents(c *gin.Context) {
 		return
 	}
 
-	c.Header("X-Mime-Type", st.Mimetype)
-	c.Header("Content-Length", strconv.Itoa(int(st.Info.Size())))
-
-	// If a download parameter is included in the URL go ahead and attach the necessary headers
-	// so that the file can be downloaded.
-	if c.Query("download") != "" {
-		c.Header("Content-Disposition", "attachment; filename="+st.Info.Name())
-		c.Header("Content-Type", "application/octet-stream")
-	}
-
 	if err := s.Filesystem().Readfile(p, c.Writer); err != nil {
 		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
+	} else {
+		c.Header("X-Mime-Type", st.Mimetype)
+		c.Header("Content-Length", strconv.Itoa(int(st.Info.Size())))
+
+		// If a download parameter is included in the URL go ahead and attach the necessary headers
+		// so that the file can be downloaded.
+		if c.Query("download") != "" {
+			c.Header("Content-Disposition", "attachment; filename="+st.Info.Name())
+			c.Header("Content-Type", "application/octet-stream")
+		}
 	}
 }
 
@@ -413,12 +413,12 @@ func postServerUploadFiles(c *gin.Context) {
 func handleFileUpload(p string, s *server.Server, header *multipart.FileHeader) error {
 	file, err := header.Open()
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 	defer file.Close()
 
 	if err := s.Filesystem().Writefile(p, file); err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	return nil

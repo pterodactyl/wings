@@ -2,9 +2,9 @@ package server
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/mitchellh/colorstring"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/system"
 	"sync"
@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var ErrTooMuchConsoleData = errors.New("console is outputting too much data")
+var ErrTooMuchConsoleData = errors.Sentinel("console is outputting too much data")
 
 type ConsoleThrottler struct {
 	mu sync.Mutex

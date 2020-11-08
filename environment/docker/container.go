@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"emperror.dev/errors"
 	"encoding/json"
 	"fmt"
 	"github.com/apex/log"
@@ -12,7 +13,6 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/daemon/logger/jsonfilelog"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"io"
@@ -36,7 +36,7 @@ func (e *Environment) Attach() error {
 	}
 
 	if err := e.followOutput(); err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	opts := types.ContainerAttachOptions{
@@ -48,7 +48,7 @@ func (e *Environment) Attach() error {
 
 	// Set the stream again with the container.
 	if st, err := e.client.ContainerAttach(context.Background(), e.Id, opts); err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	} else {
 		e.SetStream(&st)
 	}
@@ -70,14 +70,14 @@ func (e *Environment) Attach() error {
 		// indicates that the container is no longer running.
 		go func(ctx context.Context) {
 			if err := e.pollResources(ctx); err != nil {
-				log.WithField("environment_id", e.Id).WithField("error", errors.WithStack(err)).Error("error during environment resource polling")
+				log.WithField("environment_id", e.Id).WithField("error", errors.WithStackIf(err)).Error("error during environment resource polling")
 			}
 		}(ctx)
 
 		// Stream the reader output to the console which will then fire off events and handle console
 		// throttling and sending the output to the user.
 		if _, err := io.Copy(console, e.stream.Reader); err != nil {
-			log.WithField("environment_id", e.Id).WithField("error", errors.WithStack(err)).Error("error while copying environment output to console")
+			log.WithField("environment_id", e.Id).WithField("error", errors.WithStackIf(err)).Error("error while copying environment output to console")
 		}
 	}(c)
 
@@ -115,7 +115,7 @@ func (e *Environment) InSituUpdate() error {
 			return nil
 		}
 
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	u := container.UpdateConfig{
@@ -125,7 +125,7 @@ func (e *Environment) InSituUpdate() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	if _, err := e.client.ContainerUpdate(ctx, e.Id, u); err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	return nil
@@ -140,12 +140,12 @@ func (e *Environment) Create() error {
 	if _, err := e.client.ContainerInspect(context.Background(), e.Id); err == nil {
 		return nil
 	} else if !client.IsErrNotFound(err) {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	// Try to pull the requested image before creating the container.
 	if err := e.ensureImageExists(e.meta.Image); err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	a := e.Configuration.Allocations()
@@ -220,7 +220,7 @@ func (e *Environment) Create() error {
 	}
 
 	if _, err := e.client.ContainerCreate(context.Background(), conf, hostConf, nil, e.Id); err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	return nil
@@ -272,7 +272,7 @@ func (e *Environment) Destroy() error {
 func (e *Environment) followOutput() error {
 	if exists, err := e.Exists(); !exists {
 		if err != nil {
-			return errors.WithStack(err)
+			return errors.WithStackIf(err)
 		}
 
 		return errors.New(fmt.Sprintf("no such container: %s", e.Id))
@@ -338,7 +338,7 @@ func (e *Environment) followOutput() error {
 		}
 	}(reader)
 
-	return errors.WithStack(err)
+	return errors.WithStackIf(err)
 }
 
 // Pulls the image from Docker. If there is an error while pulling the image from the source

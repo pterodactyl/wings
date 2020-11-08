@@ -1,9 +1,9 @@
 package filesystem
 
 import (
+	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/karrick/godirwalk"
-	"github.com/pkg/errors"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -153,7 +153,7 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 	d, err := fs.SafePath(dir)
 	if err != nil {
-		return 0, errors.WithStack(err)
+		return 0, errors.WithStackIf(err)
 	}
 
 	var size int64
@@ -167,7 +167,7 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 			// it. Otherwise, allow it to continue.
 			if e.IsSymlink() {
 				if _, err := fs.SafePath(p); err != nil {
-					if errors.Is(err, ErrBadPathResolution) {
+					if IsBadPathResolutionError(err) {
 						return godirwalk.SkipThis
 					}
 
@@ -184,7 +184,7 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 		},
 	})
 
-	return size, errors.WithStack(err)
+	return size, errors.WithStackIf(err)
 }
 
 // Helper function to determine if a server has space available for a file of a given size.

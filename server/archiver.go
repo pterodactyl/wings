@@ -2,9 +2,9 @@ package server
 
 import (
 	"crypto/sha256"
+	"emperror.dev/errors"
 	"encoding/hex"
 	"github.com/mholt/archiver/v3"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"io"
@@ -41,7 +41,7 @@ func (a *Archiver) Exists() bool {
 func (a *Archiver) Stat() (*filesystem.Stat, error) {
 	s, err := os.Stat(a.Path())
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	}
 
 	return &filesystem.Stat{
@@ -99,7 +99,7 @@ func (a *Archiver) DeleteIfExists() error {
 	}
 
 	if err := os.Remove(a.Path()); err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	return nil

@@ -2,9 +2,9 @@ package server
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/apex/log"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -115,7 +115,7 @@ func (s *Server) Sync() error {
 	cfg, err := api.New().GetServerConfiguration(s.Id())
 	if err != nil {
 		if !api.IsRequestError(err) {
-			return errors.WithStack(err)
+			return errors.WithStackIf(err)
 		}
 
 		if err.(*api.RequestError).Status == "404" {
@@ -131,7 +131,7 @@ func (s *Server) Sync() error {
 func (s *Server) SyncWithConfiguration(cfg api.ServerConfigurationResponse) error {
 	// Update the data structure and persist it to the disk.
 	if err := s.UpdateDataStructure(cfg.Settings); err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	s.Lock()
@@ -171,7 +171,7 @@ func (s *Server) IsBootable() bool {
 func (s *Server) CreateEnvironment() error {
 	// Ensure the data directory exists before getting too far through this process.
 	if err := s.EnsureDataDirectoryExists(); err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	return s.Environment.Create()

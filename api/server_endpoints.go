@@ -2,10 +2,10 @@ package api
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"encoding/json"
 	"fmt"
 	"github.com/apex/log"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"golang.org/x/sync/errgroup"
 	"strconv"
@@ -57,7 +57,7 @@ type RawServerData struct {
 func (r *Request) GetServers() ([]RawServerData, error) {
 	resp, err := r.Get("/servers", Q{"per_page": strconv.Itoa(int(config.Get().RemoteQuery.BootServersPerPage))})
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	}
 	defer resp.Body.Close()
 
@@ -67,7 +67,7 @@ func (r *Request) GetServers() ([]RawServerData, error) {
 
 	var res allServerResponse
 	if err := resp.Bind(&res); err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	}
 
 	var mu sync.Mutex
@@ -117,7 +117,7 @@ func (r *Request) GetServers() ([]RawServerData, error) {
 		}
 
 		if err := g.Wait(); err != nil {
-			return nil, errors.WithStack(err)
+			return nil, errors.WithStackIf(err)
 		}
 	}
 
@@ -130,7 +130,7 @@ func (r *Request) GetServerConfiguration(uuid string) (ServerConfigurationRespon
 
 	resp, err := r.Get(fmt.Sprintf("/servers/%s", uuid), nil)
 	if err != nil {
-		return cfg, errors.WithStack(err)
+		return cfg, errors.WithStackIf(err)
 	}
 	defer resp.Body.Close()
 
@@ -139,7 +139,7 @@ func (r *Request) GetServerConfiguration(uuid string) (ServerConfigurationRespon
 	}
 
 	if err := resp.Bind(&cfg); err != nil {
-		return cfg, errors.WithStack(err)
+		return cfg, errors.WithStackIf(err)
 	}
 
 	return cfg, nil
@@ -150,7 +150,7 @@ func (r *Request) GetInstallationScript(uuid string) (InstallationScript, error)
 	var is InstallationScript
 	resp, err := r.Get(fmt.Sprintf("/servers/%s/install", uuid), nil)
 	if err != nil {
-		return is, errors.WithStack(err)
+		return is, errors.WithStackIf(err)
 	}
 	defer resp.Body.Close()
 
@@ -159,7 +159,7 @@ func (r *Request) GetInstallationScript(uuid string) (InstallationScript, error)
 	}
 
 	if err := resp.Bind(&is); err != nil {
-		return is, errors.WithStack(err)
+		return is, errors.WithStackIf(err)
 	}
 
 	return is, nil
@@ -169,7 +169,7 @@ func (r *Request) GetInstallationScript(uuid string) (InstallationScript, error)
 func (r *Request) SendInstallationStatus(uuid string, successful bool) error {
 	resp, err := r.Post(fmt.Sprintf("/servers/%s/install", uuid), D{"successful": successful})
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 	defer resp.Body.Close()
 
@@ -183,7 +183,7 @@ func (r *Request) SendInstallationStatus(uuid string, successful bool) error {
 func (r *Request) SendArchiveStatus(uuid string, successful bool) error {
 	resp, err := r.Post(fmt.Sprintf("/servers/%s/archive", uuid), D{"successful": successful})
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 	defer resp.Body.Close()
 
@@ -193,7 +193,7 @@ func (r *Request) SendArchiveStatus(uuid string, successful bool) error {
 func (r *Request) SendTransferFailure(uuid string) error {
 	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/failure", uuid), nil)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 	defer resp.Body.Close()
 
@@ -203,7 +203,7 @@ func (r *Request) SendTransferFailure(uuid string) error {
 func (r *Request) SendTransferSuccess(uuid string) error {
 	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/success", uuid), nil)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 	defer resp.Body.Close()
 

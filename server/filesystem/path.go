@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"golang.org/x/sync/errgroup"
 	"os"
 	"path/filepath"
@@ -23,9 +24,9 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 
 	// At the same time, evaluate the symlink status and determine where this file or folder
 	// is truly pointing to.
-	p, err := filepath.EvalSymlinks(r)
+	ep, err := filepath.EvalSymlinks(r)
 	if err != nil && !os.IsNotExist(err) {
-		return "", err
+		return "", errors.WithStackIf(err)
 	} else if os.IsNotExist(err) {
 		// The requested directory doesn't exist, so at this point we need to iterate up the
 		// path chain until we hit a directory that _does_ exist and can be validated.
@@ -53,7 +54,7 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 	// attempt going on, and we should NOT resolve this path for them.
 	if nonExistentPathResolution != "" {
 		if !fs.unsafeIsInDataDirectory(nonExistentPathResolution) {
-			return "", ErrBadPathResolution
+			return "", NewBadPathResolution(p, nonExistentPathResolution)
 		}
 
 		// If the nonExistentPathResolution variable is not empty then the initial path requested
@@ -66,11 +67,11 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 	// If the requested directory from EvalSymlinks begins with the server root directory go
 	// ahead and return it. If not we'll return an error which will block any further action
 	// on the file.
-	if fs.unsafeIsInDataDirectory(p) {
-		return p, nil
+	if fs.unsafeIsInDataDirectory(ep) {
+		return ep, nil
 	}
 
-	return "", ErrBadPathResolution
+	return "", NewBadPathResolution(p, r)
 }
 
 // Generate a path to the file by cleaning it up and appending the root server path to it. This

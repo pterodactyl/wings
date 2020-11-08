@@ -1,12 +1,12 @@
 package server
 
 import (
+	"emperror.dev/errors"
 	"encoding/json"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/creasty/defaults"
 	"github.com/gammazero/workerpool"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -35,7 +35,7 @@ func LoadDirectory() error {
 	configs, err := api.New().GetServers()
 	if err != nil {
 		if !api.IsRequestError(err) {
-			return errors.WithStack(err)
+			return errors.WithStackIf(err)
 		}
 
 		return errors.New(err.Error())
@@ -89,12 +89,12 @@ func LoadDirectory() error {
 func FromConfiguration(data api.ServerConfigurationResponse) (*Server, error) {
 	cfg := Configuration{}
 	if err := defaults.Set(&cfg); err != nil {
-		return nil, errors.Wrap(err, "failed to set struct defaults for server configuration")
+		return nil, errors.WrapIf(err, "failed to set struct defaults for server configuration")
 	}
 
 	s := new(Server)
 	if err := defaults.Set(s); err != nil {
-		return nil, errors.Wrap(err, "failed to set struct defaults for server")
+		return nil, errors.WrapIf(err, "failed to set struct defaults for server")
 	}
 
 	s.cfg = cfg

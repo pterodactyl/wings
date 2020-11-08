@@ -1,10 +1,10 @@
 package installer
 
 import (
+	"emperror.dev/errors"
 	"encoding/json"
 	"github.com/asaskevich/govalidator"
 	"github.com/buger/jsonparser"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/server"
@@ -43,21 +43,21 @@ func New(data []byte) (*Installer, error) {
 
 	// Unmarshal the environment variables from the request into the server struct.
 	if b, _, _, err := jsonparser.Get(data, "environment"); err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	} else {
 		cfg.EnvVars = make(environment.Variables)
 		if err := json.Unmarshal(b, &cfg.EnvVars); err != nil {
-			return nil, errors.WithStack(err)
+			return nil, errors.WithStackIf(err)
 		}
 	}
 
 	// Unmarshal the allocation mappings from the request into the server struct.
 	if b, _, _, err := jsonparser.Get(data, "allocations", "mappings"); err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	} else {
 		cfg.Allocations.Mappings = make(map[string][]int)
 		if err := json.Unmarshal(b, &cfg.Allocations.Mappings); err != nil {
-			return nil, errors.WithStack(err)
+			return nil, errors.WithStackIf(err)
 		}
 	}
 
@@ -66,7 +66,7 @@ func New(data []byte) (*Installer, error) {
 	c, err := api.New().GetServerConfiguration(cfg.Uuid)
 	if err != nil {
 		if !api.IsRequestError(err) {
-			return nil, errors.WithStack(err)
+			return nil, errors.WithStackIf(err)
 		}
 
 		return nil, errors.New(err.Error())

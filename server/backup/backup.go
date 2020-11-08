@@ -2,9 +2,9 @@ package backup
 
 import (
 	"crypto/sha1"
+	"emperror.dev/errors"
 	"encoding/hex"
 	"github.com/apex/log"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"io"
@@ -87,7 +87,7 @@ func (b *Backup) Path() string {
 func (b *Backup) Size() (int64, error) {
 	st, err := os.Stat(b.Path())
 	if err != nil {
-		return 0, errors.WithStack(err)
+		return 0, errors.WithStackIf(err)
 	}
 
 	return st.Size(), nil
@@ -99,7 +99,7 @@ func (b *Backup) Checksum() ([]byte, error) {
 
 	f, err := os.Open(b.Path())
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	}
 	defer f.Close()
 

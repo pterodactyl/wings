@@ -2,9 +2,9 @@ package filesystem
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/karrick/godirwalk"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/server/backup"
 	ignore "github.com/sabhiram/go-gitignore"
 	"os"
@@ -41,7 +41,7 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 			if e.IsSymlink() {
 				sp, err = fs.SafePath(p)
 				if err != nil {
-					if errors.Is(err, ErrBadPathResolution) {
+					if IsBadPathResolutionError(err) {
 						return godirwalk.SkipThis
 					}
 
@@ -65,7 +65,7 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 		},
 	})
 
-	return inc, errors.WithStack(err)
+	return inc, errors.WithStackIf(err)
 }
 
 // Compresses all of the files matching the given paths in the specified directory. This function
@@ -115,7 +115,7 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 						// use the resolved location for the rest of this function.
 						sp, err = fs.SafePath(p)
 						if err != nil {
-							if errors.Is(err, ErrBadPathResolution) {
+							if IsBadPathResolutionError(err) {
 								return godirwalk.SkipThis
 							}
 
@@ -141,7 +141,7 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 	d := path.Join(cleanedRootDir, fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")))
 
 	if err := a.Create(d, context.Background()); err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	}
 
 	f, err := os.Stat(d)

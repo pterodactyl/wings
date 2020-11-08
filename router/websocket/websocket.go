@@ -2,13 +2,13 @@ package websocket
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"encoding/json"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/gbrlsnchs/jwt/v3"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/environment/docker"
@@ -41,10 +41,10 @@ type Handler struct {
 }
 
 var (
-	ErrJwtNotPresent    = errors.New("jwt: no jwt present")
-	ErrJwtNoConnectPerm = errors.New("jwt: missing connect permission")
-	ErrJwtUuidMismatch  = errors.New("jwt: server uuid mismatch")
-	ErrJwtOnDenylist    = errors.New("jwt: created too far in past (denylist)")
+	ErrJwtNotPresent    = errors.Sentinel("jwt: no jwt present")
+	ErrJwtNoConnectPerm = errors.Sentinel("jwt: missing connect permission")
+	ErrJwtUuidMismatch  = errors.Sentinel("jwt: server uuid mismatch")
+	ErrJwtOnDenylist    = errors.Sentinel("jwt: created too far in past (denylist)")
 )
 
 func IsJwtError(err error) bool {
@@ -108,7 +108,7 @@ func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request) (*Hand
 
 	u, err := uuid.NewRandom()
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	}
 
 	return &Handler{

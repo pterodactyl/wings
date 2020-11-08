@@ -2,7 +2,7 @@ package backup
 
 import (
 	"context"
-	"github.com/pkg/errors"
+	"emperror.dev/errors"
 	"os"
 )
 
@@ -24,7 +24,7 @@ func LocateLocal(uuid string) (*LocalBackup, os.FileInfo, error) {
 
 	st, err := os.Stat(b.Path())
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, errors.WithStackIf(err)
 	}
 
 	if st.IsDir() {
@@ -48,7 +48,7 @@ func (b *LocalBackup) Generate(included *IncludedFiles, prefix string) (*Archive
 	}
 
 	if err := a.Create(b.Path(), context.Background()); err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	}
 
 	return b.Details(), nil

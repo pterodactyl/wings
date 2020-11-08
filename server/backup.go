@@ -2,8 +2,8 @@ package server
 
 import (
 	"bufio"
+	"emperror.dev/errors"
 	"github.com/apex/log"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/server/backup"
 	"os"
@@ -80,7 +80,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 	// Get the included files based on the root path and the ignored files provided.
 	inc, err := s.GetIncludedBackupFiles(b.Ignored())
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	ad, err := b.Generate(inc, s.Filesystem().Path())
@@ -100,7 +100,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 			"file_size":     0,
 		})
 
-		return errors.Wrap(err, "error while generating server backup")
+		return errors.WrapIf(err, "error while generating server backup")
 	}
 
 	// Try to notify the panel about the status of this backup. If for some reason this request

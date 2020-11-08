@@ -7,7 +7,7 @@ import (
 )
 
 type WebsocketBag struct {
-	mu sync.Mutex
+	mu    sync.Mutex
 	conns map[uuid.UUID]*context.CancelFunc
 }
 

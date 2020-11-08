@@ -2,9 +2,9 @@ package config
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/apex/log"
-	"github.com/pkg/errors"
 	"html/template"
 	"io/ioutil"
 	"os"
@@ -94,7 +94,7 @@ func (sc *SystemConfiguration) ConfigureDirectories() error {
 	// that.
 	if d, err := filepath.EvalSymlinks(sc.Data); err != nil {
 		if !os.IsNotExist(err) {
-			return errors.WithStack(err)
+			return errors.WithStackIf(err)
 		}
 	} else if d != sc.Data {
 		sc.Data = d
@@ -130,13 +130,13 @@ func (sc *SystemConfiguration) EnableLogRotation() error {
 	}
 
 	if st, err := os.Stat("/etc/logrotate.d"); err != nil && !os.IsNotExist(err) {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	} else if (err != nil && os.IsNotExist(err)) || !st.IsDir() {
 		return nil
 	}
 
 	if _, err := os.Stat("/etc/logrotate.d/wings"); err != nil && !os.IsNotExist(err) {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	} else if err == nil {
 		return nil
 	}
@@ -147,7 +147,7 @@ func (sc *SystemConfiguration) EnableLogRotation() error {
 	// it so files can be rotated easily.
 	f, err := os.Create("/etc/logrotate.d/wings")
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 	defer f.Close()
 
@@ -167,10 +167,10 @@ func (sc *SystemConfiguration) EnableLogRotation() error {
 }`)
 
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
-	return errors.Wrap(t.Execute(f, sc), "failed to write logrotate file to disk")
+	return errors.WrapIf(t.Execute(f, sc), "failed to write logrotate file to disk")
 }
 
 // Returns the location of the JSON file that tracks server states.
@@ -190,7 +190,7 @@ func (sc *SystemConfiguration) ConfigureTimezone() error {
 	if sc.Timezone == "" {
 		if b, err := ioutil.ReadFile("/etc/timezone"); err != nil {
 			if !os.IsNotExist(err) {
-				return errors.Wrap(err, "failed to open /etc/timezone for automatic server timezone calibration")
+				return errors.WrapIf(err, "failed to open /etc/timezone for automatic server timezone calibration")
 			}
 
 			ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
@@ -224,5 +224,5 @@ func (sc *SystemConfiguration) ConfigureTimezone() error {
 
 	_, err := time.LoadLocation(sc.Timezone)
 
-	return errors.Wrap(err, fmt.Sprintf("the supplied timezone %s is invalid", sc.Timezone))
+	return errors.WrapIf(err, fmt.Sprintf("the supplied timezone %s is invalid", sc.Timezone))
 }

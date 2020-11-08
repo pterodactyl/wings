@@ -1,9 +1,9 @@
 package events
 
 import (
+	"emperror.dev/errors"
 	"encoding/json"
 	"github.com/gammazero/workerpool"
-	"github.com/pkg/errors"
 	"strings"
 	"sync"
 )
@@ -69,7 +69,7 @@ func (e *EventBus) Publish(topic string, data string) {
 func (e *EventBus) PublishJson(topic string, data interface{}) error {
 	b, err := json.Marshal(data)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	e.Publish(topic, string(b))

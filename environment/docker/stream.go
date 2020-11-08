@@ -4,9 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"emperror.dev/errors"
 	"encoding/json"
 	"github.com/docker/docker/api/types"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/environment"
 	"strconv"
 )
@@ -15,7 +15,7 @@ type dockerLogLine struct {
 	Log string `json:"log"`
 }
 
-var ErrNotAttached = errors.New("not attached to instance")
+var ErrNotAttached = errors.Sentinel("not attached to instance")
 
 func (e *Environment) setStream(s *types.HijackedResponse) {
 	e.mu.Lock()
@@ -42,7 +42,7 @@ func (e *Environment) SendCommand(c string) error {
 
 	_, err := e.stream.Conn.Write([]byte(c + "\n"))
 
-	return errors.WithStack(err)
+	return errors.WithStackIf(err)
 }
 
 // Reads the log file for the server. This does not care if the server is running or not, it will
@@ -54,7 +54,7 @@ func (e *Environment) Readlog(lines int) ([]string, error) {
 		Tail:       strconv.Itoa(lines),
 	})
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	}
 	defer r.Close()
 

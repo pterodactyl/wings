@@ -1,10 +1,10 @@
 package config
 
 import (
+	"emperror.dev/errors"
 	"encoding/base64"
 	"encoding/json"
 	"github.com/docker/docker/api/types"
-	"github.com/pkg/errors"
 )
 
 type dockerNetworkInterfaces struct {
@@ -73,7 +73,7 @@ func (c RegistryConfiguration) Base64() (string, error) {
 
 	b, err := json.Marshal(authConfig)
 	if err != nil {
-		return "", errors.WithStack(err)
+		return "", errors.WithStackIf(err)
 	}
 
 	return base64.URLEncoding.EncodeToString(b), nil

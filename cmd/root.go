@@ -19,7 +19,7 @@ import (
 	"github.com/pterodactyl/wings/loggers/cli"
 	"golang.org/x/crypto/acme/autocert"
 
-	"github.com/pkg/errors"
+	"emperror.dev/errors"
 	"github.com/pkg/profile"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -77,7 +77,7 @@ func readConfiguration() (*config.Configuration, error) {
 	}
 
 	if s, err := os.Stat(p); err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	} else if s.IsDir() {
 		return nil, errors.New("cannot use directory as configuration file path")
 	}
@@ -199,7 +199,7 @@ func rootCmdRun(*cobra.Command, []string) {
 
 	states, err := server.CachedServerStates()
 	if err != nil {
-		log.WithField("error", errors.WithStack(err)).Error("failed to retrieve locally cached server states from disk, assuming all servers in offline state")
+		log.WithField("error", errors.WithStackIf(err)).Error("failed to retrieve locally cached server states from disk, assuming all servers in offline state")
 	}
 
 	// Create a new workerpool that limits us to 4 servers being bootstrapped at a time
@@ -235,7 +235,7 @@ func rootCmdRun(*cobra.Command, []string) {
 			// as a result will result in a slow boot.
 			if !r && (st == environment.ProcessRunningState || st == environment.ProcessStartingState) {
 				if err := s.HandlePowerAction(server.PowerActionStart); err != nil {
-					s.Log().WithField("error", errors.WithStack(err)).Warn("failed to return server to running state")
+					s.Log().WithField("error", errors.WithStackIf(err)).Warn("failed to return server to running state")
 				}
 			} else if r || (!r && s.IsRunning()) {
 				// If the server is currently running on Docker, mark the process as being in that state.
@@ -248,7 +248,7 @@ func rootCmdRun(*cobra.Command, []string) {
 
 				s.Environment.SetState(environment.ProcessRunningState)
 				if err := s.Environment.Attach(); err != nil {
-					s.Log().WithField("error", errors.WithStack(err)).Warn("failed to attach to running server environment")
+					s.Log().WithField("error", errors.WithStackIf(err)).Warn("failed to attach to running server environment")
 				}
 
 				return
@@ -369,13 +369,13 @@ func Execute() error {
 // in the code without having to pass around a logger instance.
 func configureLogging(logDir string, debug bool) error {
 	if err := os.MkdirAll(path.Join(logDir, "/install"), 0700); err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	p := filepath.Join(logDir, "/wings.log")
 	w, err := logrotate.NewFile(p)
 	if err != nil {
-		panic(errors.Wrap(err, "failed to open process log file"))
+		panic(errors.WrapIf(err, "failed to open process log file"))
 	}
 
 	if debug {

@@ -2,10 +2,10 @@ package docker
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"encoding/json"
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/environment"
 	"io"
 	"math"
@@ -26,7 +26,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 
 	stats, err := e.client.ContainerStats(context.Background(), e.Id, true)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 	defer stats.Body.Close()
 
@@ -41,7 +41,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 
 			if err := dec.Decode(&v); err != nil {
 				if err != io.EOF {
-					l.WithField("error", errors.WithStack(err)).Warn("error while processing Docker stats output for container")
+					l.WithField("error", errors.WithStackIf(err)).Warn("error while processing Docker stats output for container")
 				} else {
 					l.Debug("io.EOF encountered during stats decode, stopping polling...")
 				}
@@ -76,7 +76,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 			}
 
 			if b, err := json.Marshal(st); err != nil {
-				l.WithField("error", errors.WithStack(err)).Warn("error while marshaling stats object for environment")
+				l.WithField("error", errors.WithStackIf(err)).Warn("error while marshaling stats object for environment")
 			} else {
 				e.Events().Publish(environment.ResourceEvent, string(b))
 			}

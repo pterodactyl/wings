@@ -1,8 +1,8 @@
 package server
 
 import (
+	"emperror.dev/errors"
 	"encoding/json"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"io"
@@ -22,14 +22,14 @@ func CachedServerStates() (map[string]string, error) {
 	// Open the states file.
 	f, err := os.OpenFile(config.Get().System.GetStatesPath(), os.O_RDONLY|os.O_CREATE, 0644)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	}
 	defer f.Close()
 
 	// Convert the json object to a map.
 	states := map[string]string{}
 	if err := json.NewDecoder(f).Decode(&states); err != nil && err != io.EOF {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackIf(err)
 	}
 
 	return states, nil
@@ -46,7 +46,7 @@ func saveServerStates() error {
 	// Convert the map to a json object.
 	data, err := json.Marshal(states)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	stateMutex.Lock()
@@ -54,7 +54,7 @@ func saveServerStates() error {
 
 	// Write the data to the file
 	if err := ioutil.WriteFile(config.Get().System.GetStatesPath(), data, 0644); err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackIf(err)
 	}
 
 	return nil
