@@ -49,7 +49,9 @@ func (s *Server) customMounts() []environment.Mount {
 
 		mounted := false
 		for _, allowed := range config.Get().AllowedMounts {
-			if !strings.HasPrefix(source, allowed) {
+			// Check if the source path is included in the allowed mounts list.
+			// filepath.Clean will strip all trailing slashes (unless the path is a root directory).
+			if !strings.HasPrefix(source, filepath.Clean(allowed)) {
 				continue
 			}
 
