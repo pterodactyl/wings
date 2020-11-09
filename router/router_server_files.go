@@ -35,19 +35,28 @@ func getServerFileContents(c *gin.Context) {
 		return
 	}
 
+	c.Header("X-Mime-Type", st.Mimetype)
+	c.Header("Content-Length", strconv.Itoa(int(st.Info.Size())))
+
+	// If a download parameter is included in the URL go ahead and attach the necessary headers
+	// so that the file can be downloaded.
+	if c.Query("download") != "" {
+		c.Header("Content-Disposition", "attachment; filename="+st.Info.Name())
+		c.Header("Content-Type", "application/octet-stream")
+	}
+
+	// TODO(dane): should probably come up with a different approach here. If an error is encountered
+	//  by this Readfile call you'll end up causing a (recovered) panic in the program because so many
+	//  headers have already been set. We should probably add a RawReadfile that just returns the file
+	//  to be read and then we can stream from that safely without error.
+	//
+	// Until that becomes a problem though I'm just going to leave this how it is. The panic is recovered
+	// and a normal 500 error is returned to the client to my knowledge. It is also very unlikely to
+	// happen since we're doing so much before this point that would normally throw an error if there
+	// was a problem with the file.
 	if err := s.Filesystem().Readfile(p, c.Writer); err != nil {
 		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
-	} else {
-		c.Header("X-Mime-Type", st.Mimetype)
-		c.Header("Content-Length", strconv.Itoa(int(st.Info.Size())))
-
-		// If a download parameter is included in the URL go ahead and attach the necessary headers
-		// so that the file can be downloaded.
-		if c.Query("download") != "" {
-			c.Header("Content-Disposition", "attachment; filename="+st.Info.Name())
-			c.Header("Content-Type", "application/octet-stream")
-		}
 	}
 }
 

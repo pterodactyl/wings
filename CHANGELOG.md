@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.1.1
+### Fixed
+* Fixes certain files returning invalid data in the request due to a bad header set after sending data down the line.
+
 ## v1.1.0
 This release **requires** `Panel@1.1.0` or later to run due to API changes.
 
