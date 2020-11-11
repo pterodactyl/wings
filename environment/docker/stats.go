@@ -35,7 +35,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.WithStackIf(ctx.Err())
 		default:
 			var v *types.StatsJSON
 

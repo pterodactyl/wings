@@ -70,7 +70,12 @@ func (e *Environment) Attach() error {
 		// indicates that the container is no longer running.
 		go func(ctx context.Context) {
 			if err := e.pollResources(ctx); err != nil {
-				log.WithField("environment_id", e.Id).WithField("error", errors.WithStackIf(err)).Error("error during environment resource polling")
+				l := log.WithField("environment_id", e.Id)
+				if !errors.Is(err, context.Canceled) {
+					l.WithField("error", errors.WithStackIf(err)).Error("error during environment resource polling")
+				} else {
+					l.Warn("stopping server resource polling: context canceled")
+				}
 			}
 		}(ctx)
 
