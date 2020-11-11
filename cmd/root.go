@@ -250,13 +250,12 @@ func rootCmdRun(*cobra.Command, []string) {
 				if err := s.Environment.Attach(); err != nil {
 					s.Log().WithField("error", errors.WithStackIf(err)).Warn("failed to attach to running server environment")
 				}
-
-				return
+			} else {
+				// At this point we've determined that the server should indeed be in an offline state, so we'll
+				// make a call to set that state just to ensure we don't ever accidentally end up with some invalid
+				// state being tracked.
+				s.Environment.SetState(environment.ProcessOfflineState)
 			}
-
-			// Addresses potentially invalid data in the stored file that can cause Wings to lose
-			// track of what the actual server state is.
-			s.Environment.SetState(environment.ProcessOfflineState)
 		})
 	}
 

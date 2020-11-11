@@ -15,14 +15,13 @@ import (
 // Attach to the instance and then automatically emit an event whenever the resource usage for the
 // server process changes.
 func (e *Environment) pollResources(ctx context.Context) error {
-	l := log.WithField("container_id", e.Id)
-
-	l.Debug("starting resource polling for container")
-	defer l.Debug("stopped resource polling for container")
-
 	if e.st.Load() == environment.ProcessOfflineState {
 		return errors.New("cannot enable resource polling on a stopped server")
 	}
+
+	l := log.WithField("container_id", e.Id)
+	l.Debug("starting resource polling for container")
+	defer l.Debug("stopped resource polling for container")
 
 	stats, err := e.client.ContainerStats(context.Background(), e.Id, true)
 	if err != nil {
