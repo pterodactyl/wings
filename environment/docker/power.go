@@ -183,7 +183,7 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 	case <-ctx.Done():
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			if terminate {
-				log.WithField("container_id", e.Id).Debug("server did not stop in time, executing process termination")
+				log.WithField("container_id", e.Id).Info("server did not stop in time, executing process termination")
 
 				return errors.WithStackIf(e.Terminate(os.Kill))
 			}
