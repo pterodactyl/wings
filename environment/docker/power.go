@@ -193,7 +193,12 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 	case err := <-errChan:
 		if err != nil {
 			if terminate {
-				log.WithField("container_id", e.Id).WithField("error", errors.WithStackIf(err)).Warn("error while waiting for container stop, attempting process termination")
+				l := log.WithField("container_id", e.Id)
+				if errors.Is(err, context.DeadlineExceeded) {
+					l.Warn("deadline exceeded for container stop; terminating process")
+				} else {
+					l.WithField("error", errors.WithStackIf(err)).Warn("error while waiting for container stop; terminating process")
+				}
 
 				return errors.WithStackIf(e.Terminate(os.Kill))
 			}
