@@ -47,12 +47,6 @@ type Configuration struct {
 	System SystemConfiguration `json:"system" yaml:"system"`
 	Docker DockerConfiguration `json:"docker" yaml:"docker"`
 
-	// The amount of time in seconds that should elapse between disk usage checks
-	// run by the daemon. Setting a higher number can result in better IO performance
-	// at an increased risk of a malicious user creating a process that goes over
-	// the assigned disk limits.
-	DiskCheckTimeout int `yaml:"disk_check_timeout"`
-
 	// Defines internal throttling configurations for server processes to prevent
 	// someone from running an endless loop that spams data to logs.
 	Throttles ConsoleThrottles

@@ -97,6 +97,11 @@ func (fs *Filesystem) CachedUsage() int64 {
 // This is primarily to avoid a bunch of I/O operations from piling up on the server, especially on servers
 // with a large amount of files.
 func (fs *Filesystem) DiskUsage(allowStaleValue bool) (int64, error) {
+	// A disk check interval of 0 means this functionality is completely disabled.
+	if fs.diskCheckInterval == 0 {
+		return 0, nil
+	}
+
 	if !fs.lastLookupTime.Get().After(time.Now().Add(time.Second * fs.diskCheckInterval * -1)) {
 		// If we are now allowing a stale response go ahead  and perform the lookup and return the fresh
 		// value. This is a blocking operation to the calling process.

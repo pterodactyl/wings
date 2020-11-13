@@ -53,6 +53,10 @@ type SystemConfiguration struct {
 	// considered stale and a re-check should occur. DANGER: setting this value too low can seriously
 	// impact system performance and cause massive I/O bottlenecks and high CPU usage for the Wings
 	// process.
+	//
+	// Set to 0 to disable disk checking entirely. This will always return 0 for the disk space used
+	// by a server and should only be set in extreme scenarios where performance is critical and
+	// disk usage is not a concern.
 	DiskCheckInterval int64 `default:"150" yaml:"disk_check_interval"`
 
 	// Determines if Wings should detect a server that stops with a normal exit code of
