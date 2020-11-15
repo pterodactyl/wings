@@ -1,7 +1,8 @@
 name: CodeQL Scanning
 on:
-  branches:
-    - 'develop'
+  push:
+    branches:
+      - 'develop'
   pull_request:
 jobs:
   CodeQL-Build:
