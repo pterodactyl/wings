@@ -10,8 +10,8 @@ services:
       - "2022:2022"
     tty: true
     environment:
-      TZ: UTC
-      DEBUG: false
+      TZ: "UTC"
+      DEBUG: "false"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/lib/docker/containers/:/var/lib/docker/containers/"
