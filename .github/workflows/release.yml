@@ -1,10 +1,8 @@
-name: "Release"
-
+name: Create Release
 on:
   push:
     tags:
       - 'v*'
-
 jobs:
   release:
     runs-on: ubuntu-20.04

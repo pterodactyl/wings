@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   wings:
-    image: quay.io/pterodactyl/wings:latest
+    image: ghcr.io/pterodactyl/wings:latest
     restart: always
     networks:
       - wings0
@@ -24,7 +24,7 @@ services:
       # Required for ssl if you user let's encrypt. uncomment to use.
       #- "/etc/letsencrypt/:/etc/letsencrypt/"
 networks:
-  daemon0:
+  wings0:
     name: wings0
     driver: bridge
     ipam:

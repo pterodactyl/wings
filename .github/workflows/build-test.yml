@@ -1,12 +1,10 @@
-name: "Build & Test"
-
+name: Run Tests
 on:
   push:
     branches-ignore:
       - 'master'
       - 'release/**'
   pull_request:
-
 jobs:
   build:
     strategy:

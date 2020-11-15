@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.1.2
+### Fixed
+* Fixes binaries built as part of the release process not being usable in MUSL based environments (such as our Docker images).
+* Fixes server states being incorrectly set back to offline when a server is started after a system restart.
+
+### Changed
+* Improved logic for cleaning `allowed_mount` paths for consistency.
+* Certain context cancelation deadline errors are no longer wrong reported at an error level (since they're expected).
+* Very minor micro-optimizations for some string handling with server console output.
+
+### Added
+* Added a hidden option to disable all disk checking for servers by setting the `disk_check_interval` to `0` in the config file.
+
 ## v1.1.1
 ### Fixed
 * Fixes certain files returning invalid data in the request due to a bad header set after sending data down the line.
