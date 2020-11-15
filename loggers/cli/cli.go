@@ -1,12 +1,12 @@
 package cli
 
 import (
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
 	color2 "github.com/fatih/color"
 	"github.com/mattn/go-colorable"
-	"emperror.dev/errors"
 	"io"
 	"os"
 	"sync"
@@ -88,7 +88,14 @@ func getErrorStack(err error, i bool) errors.StackTrace {
 		if i {
 			// Just abort out of this and return a stacktrace leading up to this point. It isn't perfect
 			// but it'll at least include what function lead to this being called which we can then handle.
-			return errors.WrapIf(err, "failed to generate stacktrace for caught error").(tracer).StackTrace()
+			if e, ok = errors.WrapIf(err, "failed to generate stacktrace for caught error").(tracer); ok {
+				return e.StackTrace()
+			}
+
+			// The errors.WrapIf did not return a interface compatible with `tracer`, so
+			// we don't have an easy way to get the stacktrace, this should probably be changed
+			// at some point, but without this the application may panic when handling some errors.
+			return nil
 		}
 
 		return getErrorStack(errors.WrapIf(err, err.Error()), true)
