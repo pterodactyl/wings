@@ -105,13 +105,9 @@ func (a *Archive) addToArchive(p string, w *tar.Writer) error {
 		return errors.WithStackIf(err)
 	}
 
-	header := &tar.Header{
-		// Trim the long server path from the name of the file so that the resulting
-		// archive is exactly how the user would see it in the panel file manager.
-		Name:    strings.TrimPrefix(p, a.TrimPrefix),
-		Size:    s.Size(),
-		Mode:    int64(s.Mode()),
-		ModTime: s.ModTime(),
+	header, err := tar.FileInfoHeader(s, strings.TrimPrefix(p, a.TrimPrefix))
+	if err != nil {
+		return errors.WithStackIf(err)
 	}
 
 	// These actions must occur sequentially, even if this function is called multiple
