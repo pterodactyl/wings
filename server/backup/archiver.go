@@ -109,6 +109,7 @@ func (a *Archive) addToArchive(p string, w *tar.Writer) error {
 	if err != nil {
 		return errors.WithStackIf(err)
 	}
+	header.Name = strings.TrimPrefix(p, a.TrimPrefix)
 
 	// These actions must occur sequentially, even if this function is called multiple
 	// in parallel. You'll get some nasty panic's otherwise.
@@ -120,7 +121,7 @@ func (a *Archive) addToArchive(p string, w *tar.Writer) error {
 	}
 
 	buf := make([]byte, 4*1024)
-	if _, err := io.CopyBuffer(w, f, buf); err != nil {
+	if _, err := io.CopyBuffer(w, io.LimitReader(f, header.Size), buf); err != nil {
 		return errors.WithStackIf(err)
 	}
 
