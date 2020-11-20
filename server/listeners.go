@@ -152,7 +152,7 @@ func (s *Server) onConsoleOutput(data string) {
 	processConfiguration := s.ProcessConfiguration()
 
 	// Check if the server is currently starting.
-	if s.GetState() == environment.ProcessStartingState {
+	if s.Environment.State() == environment.ProcessStartingState {
 		// Check if we should strip ansi color codes.
 		if processConfiguration.Startup.StripAnsi {
 			// Strip ansi color codes from the data string.

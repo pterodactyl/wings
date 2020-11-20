@@ -104,7 +104,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 
 	switch action {
 	case PowerActionStart:
-		if s.GetState() != environment.ProcessOfflineState {
+		if s.Environment.State() != environment.ProcessOfflineState {
 			return ErrIsRunning
 		}
 

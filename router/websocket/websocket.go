@@ -311,7 +311,7 @@ func (h *Handler) HandleInbound(m Message) error {
 
 			// On every authentication event, send the current server status back
 			// to the client. :)
-			state := h.server.GetState()
+			state := h.server.Environment.State()
 			h.SendJson(&Message{
 				Event: server.StatusEvent,
 				Args:  []string{state},
@@ -398,7 +398,7 @@ func (h *Handler) HandleInbound(m Message) error {
 				return nil
 			}
 
-			if h.server.GetState() == environment.ProcessOfflineState {
+			if h.server.Environment.State() == environment.ProcessOfflineState {
 				return nil
 			}
 
@@ -406,7 +406,7 @@ func (h *Handler) HandleInbound(m Message) error {
 			//  so that we can better handle this and only set the environment to booted once we're attached.
 			//
 			//  Or maybe just an IsBooted function?
-			if h.server.GetState() == environment.ProcessStartingState {
+			if h.server.Environment.State() == environment.ProcessStartingState {
 				if e, ok := h.server.Environment.(*docker.Environment); ok {
 					if !e.IsAttached() {
 						return nil

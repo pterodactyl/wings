@@ -40,7 +40,7 @@ func saveServerStates() error {
 	// Get the states of all servers on the daemon.
 	states := map[string]string{}
 	for _, s := range GetServers().All() {
-		states[s.Id()] = s.GetState()
+		states[s.Id()] = s.Environment.State()
 	}
 
 	// Convert the map to a json object.
@@ -107,7 +107,7 @@ func (s *Server) OnStateChange() {
 	// automatically attempt to start the process back up for the user. This is done in a
 	// separate thread as to not block any actions currently taking place in the flow
 	// that called this function.
-	if (prevState == environment.ProcessStartingState || prevState == environment.ProcessRunningState) && s.GetState() == environment.ProcessOfflineState {
+	if (prevState == environment.ProcessStartingState || prevState == environment.ProcessRunningState) && s.Environment.State() == environment.ProcessOfflineState {
 		s.Log().Info("detected server as entering a crashed state; running crash handler")
 
 		go func(server *Server) {
@@ -133,7 +133,7 @@ func (s *Server) GetState() string {
 // environment state, it is simply the tracked state from this daemon instance, and
 // not the response from Docker.
 func (s *Server) IsRunning() bool {
-	st := s.GetState()
+	st := s.Environment.State()
 
 	return st == environment.ProcessRunningState || st == environment.ProcessStartingState
 }
