@@ -111,6 +111,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 	// fails, delete the archive from the daemon and return that error up the chain to the caller.
 	if notifyError := s.notifyPanelOfBackup(b.Identifier(), ad, true); notifyError != nil {
 		b.Remove()
+		s.Log().WithField("error", notifyError).Info("failed to notify panel of successful backup state")
 		return err
 	} else {
 		s.Log().WithField("backup", b.Identifier()).Info("notified panel of successful backup state")
