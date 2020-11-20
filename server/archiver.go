@@ -2,9 +2,9 @@ package server
 
 import (
 	"crypto/sha256"
-	"emperror.dev/errors"
 	"encoding/hex"
 	"github.com/mholt/archiver/v3"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"io"
@@ -41,7 +41,7 @@ func (a *Archiver) Exists() bool {
 func (a *Archiver) Stat() (*filesystem.Stat, error) {
 	s, err := os.Stat(a.Path())
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	return &filesystem.Stat{
@@ -58,7 +58,7 @@ func (a *Archiver) Archive() error {
 	var files []string
 	fileInfo, err := ioutil.ReadDir(path)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	for _, file := range fileInfo {
@@ -94,17 +94,17 @@ func (a *Archiver) DeleteIfExists() error {
 			return nil
 		}
 
-		return errors.WithStackIf(err)
+		return err
 	}
 
-	return errors.WrapIf(os.Remove(a.Path()), "archiver: failed to delete archive from system")
+	return errors.WithMessage(os.Remove(a.Path()), "archiver: failed to delete archive from system")
 }
 
 // Checksum computes a SHA256 checksum of the server's archive.
 func (a *Archiver) Checksum() (string, error) {
 	file, err := os.Open(a.Path())
 	if err != nil {
-		return "", errors.WithStack(err)
+		return "", err
 	}
 	defer file.Close()
 
@@ -112,7 +112,7 @@ func (a *Archiver) Checksum() (string, error) {
 
 	buf := make([]byte, 1024*4)
 	if _, err := io.CopyBuffer(hash, file, buf); err != nil {
-		return "", errors.WithStack(err)
+		return "", err
 	}
 
 	return hex.EncodeToString(hash.Sum(nil)), nil

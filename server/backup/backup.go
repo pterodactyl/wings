@@ -127,6 +127,7 @@ func (b *Backup) Details() *ArchiveDetails {
 				"backup": b.Identifier(),
 				"error":  err,
 			}).Error("failed to calculate checksum for backup")
+			return
 		}
 
 		checksum = hex.EncodeToString(resp)

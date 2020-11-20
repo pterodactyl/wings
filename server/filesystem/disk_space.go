@@ -1,7 +1,6 @@
 package filesystem
 
 import (
-	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/karrick/godirwalk"
 	"sync"
@@ -158,7 +157,7 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 	d, err := fs.SafePath(dir)
 	if err != nil {
-		return 0, errors.WithStackIf(err)
+		return 0, err
 	}
 
 	var size int64
@@ -189,7 +188,7 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 		},
 	})
 
-	return size, errors.WithStackIf(err)
+	return size, err
 }
 
 // Helper function to determine if a server has space available for a file of a given size.
@@ -202,7 +201,7 @@ func (fs *Filesystem) hasSpaceFor(size int64) error {
 
 	s, err := fs.DiskUsage(true)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	if (s + size) > fs.MaxDisk() {

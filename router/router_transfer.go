@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
-	"emperror.dev/errors"
 	"encoding/hex"
 	"github.com/apex/log"
 	"github.com/buger/jsonparser"
 	"github.com/gin-gonic/gin"
 	"github.com/mholt/archiver/v3"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
@@ -157,7 +157,7 @@ func postTransfer(c *gin.Context) {
 		// Make a new GET request to the URL the panel gave us.
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
-			log.WithField("error", errors.WithStackIf(err)).Error("failed to create http request for archive transfer")
+			log.WithField("error", err).Error("failed to create http request for archive transfer")
 			return
 		}
 
@@ -167,7 +167,7 @@ func postTransfer(c *gin.Context) {
 		// Execute the http request.
 		res, err := client.Do(req)
 		if err != nil {
-			l.WithField("error", errors.WithStackIf(err)).Error("failed to send archive http request")
+			l.WithField("error", err).Error("failed to send archive http request")
 			return
 		}
 		defer res.Body.Close()
@@ -176,12 +176,12 @@ func postTransfer(c *gin.Context) {
 		if res.StatusCode != 200 {
 			_, err := ioutil.ReadAll(res.Body)
 			if err != nil {
-				l.WithField("error", errors.WithStackIf(err)).WithField("status", res.StatusCode).Error("failed read transfer response body")
+				l.WithField("error", err).WithField("status", res.StatusCode).Error("failed read transfer response body")
 
 				return
 			}
 
-			l.WithField("error", errors.WithStackIf(err)).WithField("status", res.StatusCode).Error("failed to request server archive")
+			l.WithField("error", err).WithField("status", res.StatusCode).Error("failed to request server archive")
 
 			return
 		}
@@ -193,12 +193,12 @@ func postTransfer(c *gin.Context) {
 		_, err = os.Stat(archivePath)
 		if err != nil {
 			if !os.IsNotExist(err) {
-				l.WithField("error", errors.WithStackIf(err)).Error("failed to stat archive file")
+				l.WithField("error", err).Error("failed to stat archive file")
 				return
 			}
 		} else {
 			if err := os.Remove(archivePath); err != nil {
-				l.WithField("error", errors.WithStackIf(err)).Warn("failed to remove old archive file")
+				l.WithField("error", err).Warn("failed to remove old archive file")
 
 				return
 			}
@@ -207,7 +207,7 @@ func postTransfer(c *gin.Context) {
 		// Create the file.
 		file, err := os.Create(archivePath)
 		if err != nil {
-			l.WithField("error", errors.WithStackIf(err)).Error("failed to open archive on disk")
+			l.WithField("error", err).Error("failed to open archive on disk")
 
 			return
 		}
@@ -216,14 +216,14 @@ func postTransfer(c *gin.Context) {
 		buf := make([]byte, 1024*4)
 		_, err = io.CopyBuffer(file, res.Body, buf)
 		if err != nil {
-			l.WithField("error", errors.WithStackIf(err)).Error("failed to copy archive file to disk")
+			l.WithField("error", err).Error("failed to copy archive file to disk")
 
 			return
 		}
 
 		// Close the file so it can be opened to verify the checksum.
 		if err := file.Close(); err != nil {
-			l.WithField("error", errors.WithStackIf(err)).Error("failed to close archive file")
+			l.WithField("error", err).Error("failed to close archive file")
 
 			return
 		}
@@ -233,7 +233,7 @@ func postTransfer(c *gin.Context) {
 		// Open the archive file for computing a checksum.
 		file, err = os.Open(archivePath)
 		if err != nil {
-			l.WithField("error", errors.WithStackIf(err)).Error("failed to open archive on disk")
+			l.WithField("error", err).Error("failed to open archive on disk")
 			return
 		}
 
@@ -241,7 +241,7 @@ func postTransfer(c *gin.Context) {
 		hash := sha256.New()
 		buf = make([]byte, 1024*4)
 		if _, err := io.CopyBuffer(hash, file, buf); err != nil {
-			l.WithField("error", errors.WithStackIf(err)).Error("failed to copy archive file for checksum verification")
+			l.WithField("error", err).Error("failed to copy archive file for checksum verification")
 			return
 		}
 
@@ -253,7 +253,7 @@ func postTransfer(c *gin.Context) {
 
 		// Close the file.
 		if err := file.Close(); err != nil {
-			l.WithField("error", errors.WithStackIf(err)).Error("failed to close archive file after calculating checksum")
+			l.WithField("error", err).Error("failed to close archive file after calculating checksum")
 			return
 		}
 
@@ -269,7 +269,7 @@ func postTransfer(c *gin.Context) {
 		// Create a new server installer (note this does not execute the install script)
 		i, err := installer.New(serverData)
 		if err != nil {
-			l.WithField("error", errors.WithStackIf(err)).Error("failed to validate received server data")
+			l.WithField("error", err).Error("failed to validate received server data")
 			return
 		}
 
@@ -284,7 +284,7 @@ func postTransfer(c *gin.Context) {
 
 		// Un-archive the archive. That sounds weird..
 		if err := archiver.NewTarGz().Unarchive(archivePath, i.Server().Filesystem().Path()); err != nil {
-			l.WithField("error", errors.WithStackIf(err)).Error("failed to extract server archive")
+			l.WithField("error", err).Error("failed to extract server archive")
 			return
 		}
 
@@ -299,7 +299,7 @@ func postTransfer(c *gin.Context) {
 		err = api.New().SendTransferSuccess(serverID)
 		if err != nil {
 			if !api.IsRequestError(err) {
-				l.WithField("error", errors.WithStackIf(err)).Error("failed to notify panel of transfer success")
+				l.WithField("error", err).Error("failed to notify panel of transfer success")
 				return
 			}
 

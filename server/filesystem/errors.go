@@ -1,16 +1,16 @@
 package filesystem
 
 import (
-	"emperror.dev/errors"
 	"fmt"
 	"github.com/apex/log"
+	"github.com/pkg/errors"
 	"os"
 	"path/filepath"
 )
 
-var ErrIsDirectory = errors.Sentinel("filesystem: is a directory")
-var ErrNotEnoughDiskSpace = errors.Sentinel("filesystem: not enough disk space")
-var ErrUnknownArchiveFormat = errors.Sentinel("filesystem: unknown archive format")
+var ErrIsDirectory = errors.New("filesystem: is a directory")
+var ErrNotEnoughDiskSpace = errors.New("filesystem: not enough disk space")
+var ErrUnknownArchiveFormat = errors.New("filesystem: unknown archive format")
 
 type BadPathResolutionError struct {
 	path     string
@@ -23,6 +23,7 @@ func (b *BadPathResolutionError) Error() string {
 	if r == "" {
 		r = "<empty>"
 	}
+
 	return fmt.Sprintf("filesystem: server path [%s] resolves to a location outside the server root: %s", b.path, r)
 }
 
@@ -57,7 +58,7 @@ func (fs *Filesystem) error(err error) *log.Entry {
 // for the remainder of the directory. This is assuming an os.FileInfo struct was even returned.
 func (fs *Filesystem) handleWalkerError(err error, f os.FileInfo) error {
 	if !IsBadPathResolutionError(err) {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	if f != nil && f.IsDir() {

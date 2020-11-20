@@ -2,8 +2,8 @@ package server
 
 import (
 	"bufio"
-	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/server/backup"
 	"os"
@@ -21,7 +21,7 @@ func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, suc
 				"error":  err,
 			}).Error("failed to notify panel of backup status due to wings error")
 
-			return errors.WithStackIf(err)
+			return err
 		}
 
 		return errors.New(err.Error())
@@ -37,7 +37,7 @@ func (s *Server) getServerwideIgnoredFiles() ([]string, error) {
 	f, err := os.Open(path.Join(s.Filesystem().Path(), ".pteroignore"))
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return nil, errors.WithStack(err)
+			return nil, err
 		}
 	} else {
 		scanner := bufio.NewScanner(f)
@@ -49,7 +49,7 @@ func (s *Server) getServerwideIgnoredFiles() ([]string, error) {
 		}
 
 		if err := scanner.Err(); err != nil {
-			return nil, errors.WithStack(err)
+			return nil, err
 		}
 	}
 
@@ -79,7 +79,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 	// Get the included files based on the root path and the ignored files provided.
 	inc, err := s.GetIncludedBackupFiles(b.Ignored())
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	ad, err := b.Generate(inc, s.Filesystem().Path())
@@ -89,6 +89,11 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 				"backup": b.Identifier(),
 				"error":  notifyError,
 			}).Warn("failed to notify panel of failed backup state")
+		} else {
+			s.Log().WithFields(log.Fields{
+				"backup": b.Identifier(),
+				"error":  err,
+			}).Info("notified panel of failed backup state")
 		}
 
 		s.Events().PublishJson(BackupCompletedEvent+":"+b.Identifier(), map[string]interface{}{
@@ -99,15 +104,16 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 			"file_size":     0,
 		})
 
-		return errors.WrapIf(err, "backup: error while generating server backup")
+		return errors.WithMessage(err, "backup: error while generating server backup")
 	}
 
 	// Try to notify the panel about the status of this backup. If for some reason this request
 	// fails, delete the archive from the daemon and return that error up the chain to the caller.
 	if notifyError := s.notifyPanelOfBackup(b.Identifier(), ad, true); notifyError != nil {
 		b.Remove()
-
-		return errors.WithStackIf(err)
+		return err
+	} else {
+		s.Log().WithField("backup", b.Identifier()).Info("notified panel of successful backup state")
 	}
 
 	// Emit an event over the socket so we can update the backup in realtime on

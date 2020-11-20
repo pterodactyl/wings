@@ -1,7 +1,6 @@
 package filesystem
 
 import (
-	"emperror.dev/errors"
 	"encoding/json"
 	"github.com/gabriel-vasile/mimetype"
 	"os"
@@ -51,14 +50,14 @@ func (fs *Filesystem) Stat(p string) (*Stat, error) {
 func (fs *Filesystem) unsafeStat(p string) (*Stat, error) {
 	s, err := os.Stat(p)
 	if err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	}
 
 	var m *mimetype.MIME
 	if !s.IsDir() {
 		m, err = mimetype.DetectFile(p)
 		if err != nil {
-			return nil, errors.WithStackIf(err)
+			return nil, err
 		}
 	}
 

@@ -1,8 +1,8 @@
 package sftp
 
 import (
-	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
@@ -28,14 +28,14 @@ func Initialize(config config.SystemConfiguration) error {
 	}
 
 	if err := New(s); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// Initialize the SFTP server in a background thread since this is
 	// a long running operation.
 	go func(s *Server) {
 		if err := s.Initialize(); err != nil {
-			log.WithField("subsystem", "sftp").WithField("error", errors.WithStackIf(err)).Error("failed to initialize SFTP subsystem")
+			log.WithField("subsystem", "sftp").WithField("error", err).Error("failed to initialize SFTP subsystem")
 		}
 	}(s)
 

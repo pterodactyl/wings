@@ -3,9 +3,9 @@ package router
 import (
 	"bytes"
 	"context"
-	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"net/http"
@@ -227,7 +227,7 @@ func deleteServer(c *gin.Context) {
 		if err := os.RemoveAll(p); err != nil {
 			log.WithFields(log.Fields{
 				"path":  p,
-				"error": errors.WithStackIf(err),
+				"error": err,
 			}).Warn("failed to remove server files during deletion process")
 		}
 	}(s.Filesystem().Path())
@@ -247,7 +247,9 @@ func deleteServer(c *gin.Context) {
 // preventing any JWT generated before the current time from being used to connect to
 // the socket or send along commands.
 func postServerDenyWSTokens(c *gin.Context) {
-	var data struct{ JTIs []string `json:"jtis"` }
+	var data struct {
+		JTIs []string `json:"jtis"`
+	}
 
 	if err := c.BindJSON(&data); err != nil {
 		return

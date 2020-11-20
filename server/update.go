@@ -1,10 +1,10 @@
 package server
 
 import (
-	"emperror.dev/errors"
 	"encoding/json"
 	"github.com/buger/jsonparser"
 	"github.com/imdario/mergo"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/environment"
 )
 
@@ -18,7 +18,7 @@ import (
 func (s *Server) UpdateDataStructure(data []byte) error {
 	src := new(Configuration)
 	if err := json.Unmarshal(data, src); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// Don't allow obviously corrupted data to pass through into this function. If the UUID
@@ -47,7 +47,7 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 	// Merge the new data object that we have received with the existing server data object
 	// and then save it to the disk so it is persistent.
 	if err := mergo.Merge(&c, src, mergo.WithOverride); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// Don't explode if we're setting CPU limits to 0. Mergo sees that as an empty value
@@ -65,7 +65,7 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 	// request is going to be boolean. Allegedly.
 	if v, err := jsonparser.GetBoolean(data, "container", "oom_disabled"); err != nil {
 		if err != jsonparser.KeyPathNotFoundError {
-			return errors.WithStackIf(err)
+			return err
 		}
 	} else {
 		c.Build.OOMDisabled = v
@@ -74,7 +74,7 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 	// Mergo also cannot handle this boolean value.
 	if v, err := jsonparser.GetBoolean(data, "suspended"); err != nil {
 		if err != jsonparser.KeyPathNotFoundError {
-			return errors.WithStackIf(err)
+			return err
 		}
 	} else {
 		c.Suspended = v
@@ -82,7 +82,7 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 
 	if v, err := jsonparser.GetBoolean(data, "skip_egg_scripts"); err != nil {
 		if err != jsonparser.KeyPathNotFoundError {
-			return errors.WithStackIf(err)
+			return err
 		}
 	} else {
 		c.SkipEggScripts = v

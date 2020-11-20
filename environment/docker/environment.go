@@ -2,7 +2,6 @@ package docker
 
 import (
 	"context"
-	"emperror.dev/errors"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/pterodactyl/wings/api"
@@ -156,7 +155,7 @@ func (e *Environment) ExitState() (uint32, bool, error) {
 			return 1, false, nil
 		}
 
-		return 0, false, errors.WithStackIf(err)
+		return 0, false, err
 	}
 
 	return uint32(c.State.ExitCode), c.State.OOMKilled, nil

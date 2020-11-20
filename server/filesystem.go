@@ -1,7 +1,6 @@
 package server
 
 import (
-	"emperror.dev/errors"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"os"
 )
@@ -13,12 +12,12 @@ func (s *Server) Filesystem() *filesystem.Filesystem {
 // Ensures that the data directory for the server instance exists.
 func (s *Server) EnsureDataDirectoryExists() error {
 	if _, err := os.Stat(s.fs.Path()); err != nil && !os.IsNotExist(err) {
-		return errors.WithStackIf(err)
+		return err
 	} else if err != nil {
 		// Create the server data directory because it does not currently exist
 		// on the system.
 		if err := os.MkdirAll(s.fs.Path(), 0700); err != nil {
-			return errors.WithStackIf(err)
+			return err
 		}
 
 		if err := s.fs.Chown("/"); err != nil {

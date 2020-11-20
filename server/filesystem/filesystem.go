@@ -2,9 +2,9 @@ package filesystem
 
 import (
 	"bufio"
-	"emperror.dev/errors"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/karrick/godirwalk"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/system"
 	"io"
@@ -60,27 +60,27 @@ func (fs *Filesystem) Readfile(p string, w io.Writer) error {
 	}
 
 	if st, err := os.Stat(cleaned); err != nil {
-		return errors.WithStack(err)
+		return err
 	} else if st.IsDir() {
-		return errors.WithStack(ErrIsDirectory)
+		return ErrIsDirectory
 	}
 
 	f, err := os.Open(cleaned)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 	defer f.Close()
 
 	_, err = bufio.NewReader(f).WriteTo(w)
 
-	return errors.WithStack(err)
+	return err
 }
 
 // Writes a file to the system. If the file does not already exist one will be created.
 func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	var currentSize int64
@@ -88,19 +88,19 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	// to it and an empty file. We'll then write to it later on after this completes.
 	if stat, err := os.Stat(cleaned); err != nil {
 		if !os.IsNotExist(err) {
-			return errors.WithStackIf(err)
+			return err
 		}
 
 		if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
-			return errors.WithStackIf(err)
+			return err
 		}
 
 		if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
-			return errors.WithStackIf(err)
+			return err
 		}
 	} else {
 		if stat.IsDir() {
-			return errors.WithStack(ErrIsDirectory)
+			return ErrIsDirectory
 		}
 
 		currentSize = stat.Size()
@@ -119,7 +119,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	// truncate the existing file.
 	file, err := o.open(cleaned, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 	defer file.Close()
 
@@ -138,7 +138,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 func (fs *Filesystem) CreateDirectory(name string, p string) error {
 	cleaned, err := fs.SafePath(path.Join(p, name))
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	return os.MkdirAll(cleaned, 0755)
@@ -148,12 +148,12 @@ func (fs *Filesystem) CreateDirectory(name string, p string) error {
 func (fs *Filesystem) Rename(from string, to string) error {
 	cleanedFrom, err := fs.SafePath(from)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	cleanedTo, err := fs.SafePath(to)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// If the target file or directory already exists the rename function will fail, so just
@@ -171,7 +171,7 @@ func (fs *Filesystem) Rename(from string, to string) error {
 	// we're not at the root directory level.
 	if d != fs.Path() {
 		if mkerr := os.MkdirAll(d, 0755); mkerr != nil {
-			return errors.WrapIf(mkerr, "failed to create directory structure for file rename")
+			return errors.WithMessage(mkerr, "failed to create directory structure for file rename")
 		}
 	}
 
@@ -185,7 +185,7 @@ func (fs *Filesystem) Rename(from string, to string) error {
 func (fs *Filesystem) Chown(path string) error {
 	cleaned, err := fs.SafePath(path)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	if fs.isTest {
@@ -197,7 +197,7 @@ func (fs *Filesystem) Chown(path string) error {
 
 	// Start by just chowning the initial path that we received.
 	if err := os.Chown(cleaned, uid, gid); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// If this is not a directory we can now return from the function, there is nothing
@@ -249,7 +249,7 @@ func (fs *Filesystem) findCopySuffix(dir string, name string, extension string) 
 		// does exist, we'll just continue to the next loop and try again.
 		if _, err := fs.Stat(path.Join(dir, n)); err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
-				return "", errors.WithStackIf(err)
+				return "", err
 			}
 
 			break
@@ -268,12 +268,12 @@ func (fs *Filesystem) findCopySuffix(dir string, name string, extension string) 
 func (fs *Filesystem) Copy(p string) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	s, err := os.Stat(cleaned)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	} else if s.IsDir() || !s.Mode().IsRegular() {
 		// If this is a directory or not a regular file, just throw a not-exist error
 		// since anything calling this function should understand what that means.
@@ -300,7 +300,7 @@ func (fs *Filesystem) Copy(p string) error {
 
 	source, err := os.Open(cleaned)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 	defer source.Close()
 

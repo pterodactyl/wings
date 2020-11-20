@@ -108,7 +108,7 @@ func (a *Archive) addToArchive(p string, w *tar.Writer) error {
 	name := strings.TrimPrefix(p, a.TrimPrefix)
 	header, err := tar.FileInfoHeader(s, name)
 	if err != nil {
-		return errors.Wrap(err, "failed to get tar#FileInfoHeader for "+name)
+		return errors.WithMessage(err, "failed to get tar#FileInfoHeader for "+name)
 	}
 	header.Name = name
 
@@ -123,7 +123,7 @@ func (a *Archive) addToArchive(p string, w *tar.Writer) error {
 
 	buf := make([]byte, 4*1024)
 	if _, err := io.CopyBuffer(w, io.LimitReader(f, header.Size), buf); err != nil {
-		return errors.Wrap(err, "failed to copy "+header.Name+" to archive")
+		return errors.WithMessage(err, "failed to copy "+header.Name+" to archive")
 	}
 
 	return nil

@@ -1,11 +1,11 @@
 package config
 
 import (
-	"emperror.dev/errors"
 	"fmt"
 	"github.com/cobaugh/osrelease"
 	"github.com/creasty/defaults"
 	"github.com/gbrlsnchs/jwt/v3"
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -192,7 +192,7 @@ func GetJwtAlgorithm() *jwt.HMACSHA {
 func NewFromPath(path string) (*Configuration, error) {
 	c := new(Configuration)
 	if err := defaults.Set(c); err != nil {
-		return c, errors.WithStackIf(err)
+		return c, err
 	}
 
 	c.unsafeSetPath(path)
@@ -230,12 +230,12 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 	if err == nil {
 		return u, c.setSystemUser(u)
 	} else if _, ok := err.(user.UnknownUserError); !ok {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	}
 
 	sysName, err := getSystemName()
 	if err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	}
 
 	var command = fmt.Sprintf("useradd --system --no-create-home --shell /bin/false %s", c.System.Username)
@@ -248,17 +248,17 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 		// We have to create the group first on Alpine, so do that here before continuing on
 		// to the user creation process.
 		if _, err := exec.Command("addgroup", "-S", c.System.Username).Output(); err != nil {
-			return nil, errors.WithStackIf(err)
+			return nil, err
 		}
 	}
 
 	split := strings.Split(command, " ")
 	if _, err := exec.Command(split[0], split[1:]...).Output(); err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	}
 
 	if u, err := user.Lookup(c.System.Username); err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	} else {
 		return u, c.setSystemUser(u)
 	}
@@ -300,11 +300,11 @@ func (c *Configuration) WriteToDisk() error {
 
 	b, err := yaml.Marshal(&ccopy)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	if err := ioutil.WriteFile(c.GetPath(), b, 0644); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	return nil
@@ -314,7 +314,7 @@ func (c *Configuration) WriteToDisk() error {
 func getSystemName() (string, error) {
 	// use osrelease to get release version and ID
 	if release, err := osrelease.Read(); err != nil {
-		return "", errors.WithStackIf(err)
+		return "", err
 	} else {
 		return release["ID"], nil
 	}

@@ -2,11 +2,11 @@ package parser
 
 import (
 	"bytes"
-	"emperror.dev/errors"
 	"github.com/Jeffail/gabs/v2"
 	"github.com/apex/log"
 	"github.com/buger/jsonparser"
 	"github.com/iancoleman/strcase"
+	"github.com/pkg/errors"
 	"io/ioutil"
 	"os"
 	"regexp"
@@ -76,13 +76,13 @@ func (cfr *ConfigurationFileReplacement) getKeyValue(value []byte) interface{} {
 func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error) {
 	parsed, err := gabs.ParseJSON(data)
 	if err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	}
 
 	for _, v := range f.Replace {
 		value, err := f.LookupConfigurationValue(v)
 		if err != nil {
-			return nil, errors.WithStackIf(err)
+			return nil, err
 		}
 
 		// Check for a wildcard character, and if found split the key on that value to
@@ -101,7 +101,7 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 						continue
 					}
 
-					return nil, errors.WrapIf(err, "failed to set config value of array child")
+					return nil, errors.WithMessage(err, "failed to set config value of array child")
 				}
 			}
 		} else {
@@ -110,7 +110,7 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 					continue
 				}
 
-				return nil, errors.WrapIf(err, "unable to set config value at pathway: "+v.Match)
+				return nil, errors.WithMessage(err, "unable to set config value at pathway: "+v.Match)
 			}
 		}
 	}
@@ -138,7 +138,7 @@ func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
 			_, err = c.SetP(value, path)
 		}
 
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	i, _ := strconv.Atoi(matches[2])
@@ -147,7 +147,7 @@ func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
 	ct, err := c.ArrayElementP(i, matches[1])
 	if err != nil {
 		if i != 0 || (!errors.Is(err, gabs.ErrNotArray) && !errors.Is(err, gabs.ErrNotFound)) {
-			return errors.WrapIf(err, "error while parsing array element at path")
+			return errors.WithMessage(err, "error while parsing array element at path")
 		}
 
 		var t = make([]interface{}, 1)
@@ -162,7 +162,7 @@ func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
 		// an empty object if we have additional things to set on the array, or just an empty array type
 		// if there is not an object structure detected (no matches[3] available).
 		if _, err = c.SetP(t, matches[1]); err != nil {
-			return errors.WrapIf(err, "failed to create empty array for missing element")
+			return errors.WithMessage(err, "failed to create empty array for missing element")
 		}
 
 		// Set our cursor to be the array element we expect, which in this case is just the first element
@@ -170,7 +170,7 @@ func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
 		// to match additional elements. In those cases the server will just have to be rebooted or something.
 		ct, err = c.ArrayElementP(0, matches[1])
 		if err != nil {
-			return errors.WrapIf(err, "failed to find array element at path")
+			return errors.WithMessage(err, "failed to find array element at path")
 		}
 	}
 
@@ -187,7 +187,7 @@ func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
 	}
 
 	if err != nil {
-		return errors.WrapIf(err, "failed to set value at config path: "+path)
+		return errors.WithMessage(err, "failed to set value at config path: "+path)
 	}
 
 	return nil
@@ -253,7 +253,7 @@ func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplac
 	match, _, _, err := jsonparser.Get(f.configuration, path...)
 	if err != nil {
 		if err != jsonparser.KeyPathNotFoundError {
-			return string(match), errors.WithStackIf(err)
+			return string(match), err
 		}
 
 		log.WithFields(log.Fields{"path": path, "filename": f.FileName}).Debug("attempted to load a configuration value that does not exist")

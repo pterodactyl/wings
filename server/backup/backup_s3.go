@@ -3,7 +3,6 @@ package backup
 import (
 	"bytes"
 	"context"
-	"emperror.dev/errors"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/pterodactyl/wings/api"
@@ -31,20 +30,20 @@ func (s *S3Backup) Generate(included *IncludedFiles, prefix string) (*ArchiveDet
 	}
 
 	if err := a.Create(s.Path(), context.Background()); err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	}
 
 	rc, err := os.Open(s.Path())
 	if err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	}
 	defer rc.Close()
 
 	if err := s.generateRemoteRequest(rc); err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	}
 
-	return s.Details(), err
+	return s.Details(), nil
 }
 
 // Removes a backup from the system.
