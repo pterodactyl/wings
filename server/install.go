@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -275,10 +276,61 @@ func (ip *InstallationProcess) writeScriptToDisk() error {
 
 // Pulls the docker image to be used for the installation container.
 func (ip *InstallationProcess) pullInstallationImage() error {
-	r, err := ip.client.ImagePull(ip.context, ip.Script.ContainerImage, types.ImagePullOptions{})
-	if err != nil {
-		return errors.WithStackIf(err)
+	// Get a registry auth configuration from the config.
+	var registryAuth *config.RegistryConfiguration
+	for registry, c := range config.Get().Docker.Registries {
+		if !strings.HasPrefix(ip.Script.ContainerImage, registry) {
+			continue
+		}
+
+		log.WithField("registry", registry).Debug("using authentication for registry")
+		registryAuth = &c
+		break
 	}
+
+	// Get the ImagePullOptions.
+	imagePullOptions := types.ImagePullOptions{All: false}
+	if registryAuth != nil {
+		b64, err := registryAuth.Base64()
+		if err != nil {
+			log.WithError(err).Error("failed to get registry auth credentials")
+		}
+
+		// b64 is a string so if there is an error it will just be empty, not nil.
+		imagePullOptions.RegistryAuth = b64
+	}
+
+	r, err := ip.client.ImagePull(context.Background(), ip.Script.ContainerImage, imagePullOptions)
+	if err != nil {
+		images, ierr := ip.client.ImageList(context.Background(), types.ImageListOptions{})
+		if ierr != nil {
+			// Well damn, something has gone really wrong here, just go ahead and abort there
+			// isn't much anything we can do to try and self-recover from this.
+			return ierr
+		}
+
+		for _, img := range images {
+			for _, t := range img.RepoTags {
+				if t != ip.Script.ContainerImage {
+					continue
+				}
+
+				log.WithFields(log.Fields{
+					"image": ip.Script.ContainerImage,
+					"err":   err.Error(),
+				}).Warn("unable to pull requested image from remote source, however the image exists locally")
+
+				// Okay, we found a matching container image, in that case just go ahead and return
+				// from this function, since there is nothing else we need to do here.
+				return nil
+			}
+		}
+
+		return err
+	}
+	defer r.Close()
+
+	log.WithField("image", ip.Script.ContainerImage).Debug("pulling docker image... this could take a bit of time")
 
 	// Block continuation until the image has been pulled successfully.
 	scanner := bufio.NewScanner(r)
