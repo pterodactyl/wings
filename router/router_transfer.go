@@ -304,7 +304,6 @@ func postTransfer(c *gin.Context) {
 			}
 
 			l.WithField("error", err.Error()).Error("panel responded with error after transfer success")
-
 			return
 		}
 
