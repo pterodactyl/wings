@@ -2,10 +2,10 @@ package api
 
 import (
 	"bytes"
-	"emperror.dev/errors"
 	"encoding/json"
 	"fmt"
 	"github.com/apex/log"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/system"
 	"io"
@@ -69,7 +69,7 @@ func (r *Request) Endpoint(endpoint string) string {
 func (r *Request) Make(method, url string, body io.Reader, opts ...func(r *http.Request)) (*Response, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	}
 
 	req.Header.Set("User-Agent", fmt.Sprintf("Pterodactyl Wings/v%s (id:%s)", system.Version, config.Get().AuthenticationTokenId))
@@ -127,7 +127,7 @@ func (r *Request) Get(url string, data Q) (*Response, error) {
 func (r *Request) Post(url string, data interface{}) (*Response, error) {
 	b, err := json.Marshal(data)
 	if err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	}
 
 	return r.Make(http.MethodPost, r.Endpoint(url), bytes.NewBuffer(b))
@@ -167,10 +167,10 @@ func (r *Response) Read() ([]byte, error) {
 func (r *Response) Bind(v interface{}) error {
 	b, err := r.Read()
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
-	return errors.WithStackIf(json.Unmarshal(b, &v))
+	return json.Unmarshal(b, &v)
 }
 
 // Returns the error message from the API call as a string. The error message will be formatted

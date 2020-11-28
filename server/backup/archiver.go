@@ -3,9 +3,9 @@ package backup
 import (
 	"archive/tar"
 	"context"
-	"emperror.dev/errors"
 	"github.com/apex/log"
 	gzip "github.com/klauspost/pgzip"
+	"github.com/pkg/errors"
 	"github.com/remeh/sizedwaitgroup"
 	"golang.org/x/sync/errgroup"
 	"io"
@@ -26,7 +26,7 @@ type Archive struct {
 func (a *Archive) Create(dst string, ctx context.Context) error {
 	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 	defer f.Close()
 
@@ -58,7 +58,7 @@ func (a *Archive) Create(dst string, ctx context.Context) error {
 
 			select {
 			case <-ctx.Done():
-				return errors.WithStackIf(ctx.Err())
+				return ctx.Err()
 			default:
 				return a.addToArchive(p, tw)
 			}
@@ -75,7 +75,7 @@ func (a *Archive) Create(dst string, ctx context.Context) error {
 			log.WithField("location", dst).Warn("failed to delete corrupted backup archive")
 		}
 
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	return nil
@@ -91,7 +91,7 @@ func (a *Archive) addToArchive(p string, w *tar.Writer) error {
 			return nil
 		}
 
-		return errors.WithStackIf(err)
+		return err
 	}
 	defer f.Close()
 
@@ -102,14 +102,15 @@ func (a *Archive) addToArchive(p string, w *tar.Writer) error {
 			return nil
 		}
 
-		return errors.WithStackIf(err)
+		return err
 	}
 
-	header, err := tar.FileInfoHeader(s, strings.TrimPrefix(p, a.TrimPrefix))
+	name := strings.TrimPrefix(p, a.TrimPrefix)
+	header, err := tar.FileInfoHeader(s, name)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return errors.WithMessage(err, "failed to get tar#FileInfoHeader for "+name)
 	}
-	header.Name = strings.TrimPrefix(p, a.TrimPrefix)
+	header.Name = name
 
 	// These actions must occur sequentially, even if this function is called multiple
 	// in parallel. You'll get some nasty panic's otherwise.
@@ -117,12 +118,12 @@ func (a *Archive) addToArchive(p string, w *tar.Writer) error {
 	defer a.Unlock()
 
 	if err := w.WriteHeader(header); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	buf := make([]byte, 4*1024)
 	if _, err := io.CopyBuffer(w, io.LimitReader(f, header.Size), buf); err != nil {
-		return errors.WithStackIf(err)
+		return errors.WithMessage(err, "failed to copy "+header.Name+" to archive")
 	}
 
 	return nil

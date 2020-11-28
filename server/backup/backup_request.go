@@ -1,7 +1,7 @@
 package backup
 
 import (
-	"emperror.dev/errors"
+	"errors"
 	"fmt"
 )
 

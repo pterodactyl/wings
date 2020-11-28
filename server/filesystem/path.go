@@ -2,7 +2,6 @@ package filesystem
 
 import (
 	"context"
-	"emperror.dev/errors"
 	"golang.org/x/sync/errgroup"
 	"os"
 	"path/filepath"
@@ -26,7 +25,7 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 	// is truly pointing to.
 	ep, err := filepath.EvalSymlinks(r)
 	if err != nil && !os.IsNotExist(err) {
-		return "", errors.WithStackIf(err)
+		return "", err
 	} else if os.IsNotExist(err) {
 		// The requested directory doesn't exist, so at this point we need to iterate up the
 		// path chain until we hit a directory that _does_ exist and can be validated.
@@ -138,5 +137,5 @@ func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 	}
 
 	// Block until all of the routines finish and have returned a value.
-	return cleaned, errors.WithStackIf(g.Wait())
+	return cleaned, g.Wait()
 }

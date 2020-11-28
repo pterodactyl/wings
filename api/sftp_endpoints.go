@@ -1,8 +1,8 @@
 package api
 
 import (
-	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/pkg/errors"
 	"regexp"
 )
 

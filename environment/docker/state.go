@@ -1,8 +1,8 @@
 package docker
 
 import (
-	"emperror.dev/errors"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/environment"
 )
 

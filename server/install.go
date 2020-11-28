@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -91,7 +91,7 @@ func (s *Server) internalInstall() error {
 	script, err := api.New().GetInstallationScript(s.Id())
 	if err != nil {
 		if !api.IsRequestError(err) {
-			return errors.WithStackIf(err)
+			return err
 		}
 
 		return errors.New(err.Error())
@@ -99,7 +99,7 @@ func (s *Server) internalInstall() error {
 
 	p, err := NewInstallationProcess(s, &script)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	s.Log().Info("beginning installation process for server")
@@ -131,7 +131,7 @@ func NewInstallationProcess(s *Server, script *api.InstallationScript) (*Install
 	s.installer.cancel = &cancel
 
 	if c, err := environment.DockerClient(); err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	} else {
 		proc.client = c
 		proc.context = ctx
@@ -194,7 +194,7 @@ func (ip *InstallationProcess) RemoveContainer() {
 	})
 
 	if err != nil && !client.IsErrNotFound(err) {
-		ip.Server.Log().WithField("error", errors.WithStackIf(err)).Warn("failed to delete server install container")
+		ip.Server.Log().WithField("error", err).Warn("failed to delete server install container")
 	}
 }
 
@@ -219,14 +219,14 @@ func (ip *InstallationProcess) Run() error {
 	}()
 
 	if err := ip.BeforeExecute(); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	cid, err := ip.Execute()
 	if err != nil {
 		ip.RemoveContainer()
 
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// If this step fails, log a warning but don't exit out of the process. This is completely
@@ -249,12 +249,12 @@ func (ip *InstallationProcess) writeScriptToDisk() error {
 	// Make sure the temp directory root exists before trying to make a directory within it. The
 	// ioutil.TempDir call expects this base to exist, it won't create it for you.
 	if err := os.MkdirAll(ip.tempDir(), 0700); err != nil {
-		return errors.WrapIf(err, "could not create temporary directory for install process")
+		return errors.WithMessage(err, "could not create temporary directory for install process")
 	}
 
 	f, err := os.OpenFile(filepath.Join(ip.tempDir(), "install.sh"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return errors.WrapIf(err, "failed to write server installation script to disk before mount")
+		return errors.WithMessage(err, "failed to write server installation script to disk before mount")
 	}
 	defer f.Close()
 
@@ -266,7 +266,7 @@ func (ip *InstallationProcess) writeScriptToDisk() error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	w.Flush()
@@ -339,7 +339,7 @@ func (ip *InstallationProcess) pullInstallationImage() error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	return nil
@@ -350,11 +350,11 @@ func (ip *InstallationProcess) pullInstallationImage() error {
 // manner, if either one fails the error is returned.
 func (ip *InstallationProcess) BeforeExecute() error {
 	if err := ip.writeScriptToDisk(); err != nil {
-		return errors.WrapIf(err, "failed to write installation script to disk")
+		return errors.WithMessage(err, "failed to write installation script to disk")
 	}
 
 	if err := ip.pullInstallationImage(); err != nil {
-		return errors.WrapIf(err, "failed to pull updated installation container image for server")
+		return errors.WithMessage(err, "failed to pull updated installation container image for server")
 	}
 
 	opts := types.ContainerRemoveOptions{
@@ -364,7 +364,7 @@ func (ip *InstallationProcess) BeforeExecute() error {
 
 	if err := ip.client.ContainerRemove(ip.context, ip.Server.Id()+"_installer", opts); err != nil {
 		if !client.IsErrNotFound(err) {
-			return errors.WrapIf(err, "failed to remove existing install container for server")
+			return errors.WithMessage(err, "failed to remove existing install container for server")
 		}
 	}
 
@@ -390,12 +390,12 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 	})
 
 	if err != nil && !client.IsErrNotFound(err) {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	f, err := os.OpenFile(ip.GetLogPath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 	defer f.Close()
 
@@ -424,15 +424,15 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 | ------------------------------
 `)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	if err := tmpl.Execute(f, ip); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	if _, err := io.Copy(f, reader); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	return nil
@@ -500,7 +500,7 @@ func (ip *InstallationProcess) Execute() (string, error) {
 
 	r, err := ip.client.ContainerCreate(ip.context, conf, hostConf, nil, ip.Server.Id()+"_installer")
 	if err != nil {
-		return "", errors.WithStackIf(err)
+		return "", err
 	}
 
 	ip.Server.Log().WithField("container_id", r.ID).Info("running installation script for server in container")
@@ -520,7 +520,7 @@ func (ip *InstallationProcess) Execute() (string, error) {
 	select {
 	case err := <-eChan:
 		if err != nil {
-			return "", errors.WithStackIf(err)
+			return "", err
 		}
 	case <-sChan:
 	}
@@ -539,7 +539,7 @@ func (ip *InstallationProcess) StreamOutput(id string) error {
 	})
 
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	defer reader.Close()
@@ -552,7 +552,7 @@ func (ip *InstallationProcess) StreamOutput(id string) error {
 	if err := s.Err(); err != nil {
 		ip.Server.Log().WithFields(log.Fields{
 			"container_id": id,
-			"error":        errors.WithStackIf(err),
+			"error":        err,
 		}).Warn("error processing scanner line in installation output for server")
 	}
 
@@ -567,7 +567,7 @@ func (s *Server) SyncInstallState(successful bool) error {
 	err := api.New().SendInstallationStatus(s.Id(), successful)
 	if err != nil {
 		if !api.IsRequestError(err) {
-			return errors.WithStackIf(err)
+			return err
 		}
 
 		return errors.New(err.Error())

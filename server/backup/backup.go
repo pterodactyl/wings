@@ -2,7 +2,6 @@ package backup
 
 import (
 	"crypto/sha1"
-	"emperror.dev/errors"
 	"encoding/hex"
 	"github.com/apex/log"
 	"github.com/pterodactyl/wings/api"
@@ -87,7 +86,7 @@ func (b *Backup) Path() string {
 func (b *Backup) Size() (int64, error) {
 	st, err := os.Stat(b.Path())
 	if err != nil {
-		return 0, errors.WithStackIf(err)
+		return 0, err
 	}
 
 	return st.Size(), nil
@@ -99,7 +98,7 @@ func (b *Backup) Checksum() ([]byte, error) {
 
 	f, err := os.Open(b.Path())
 	if err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	}
 	defer f.Close()
 
@@ -128,6 +127,7 @@ func (b *Backup) Details() *ArchiveDetails {
 				"backup": b.Identifier(),
 				"error":  err,
 			}).Error("failed to calculate checksum for backup")
+			return
 		}
 
 		checksum = hex.EncodeToString(resp)

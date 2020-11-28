@@ -1,11 +1,11 @@
 package router
 
 import (
-	"emperror.dev/errors"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"net/http"
@@ -75,7 +75,7 @@ func (e *RequestError) AbortWithStatus(status int, c *gin.Context) {
 	if status >= 500 {
 		e.logger().WithField("error", e.Err).Error("encountered HTTP/500 error while handling request")
 
-		c.Error(errors.WithStackIf(e))
+		c.Error(e)
 	} else {
 		e.logger().WithField("error", e.Err).Debug("encountered non-HTTP/500 error while handling request")
 	}

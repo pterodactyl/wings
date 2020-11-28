@@ -4,9 +4,9 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
-	"emperror.dev/errors"
 	"fmt"
 	"github.com/mholt/archiver/v3"
+	"github.com/pkg/errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -47,10 +47,10 @@ func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (b
 			return false, ErrUnknownArchiveFormat
 		}
 
-		return false, errors.WithStackIf(err)
+		return false, err
 	}
 
-	return true, errors.WithStackIf(err)
+	return true, err
 }
 
 // Decompress a file in a given directory by using the archiver tool to infer the file
@@ -60,12 +60,12 @@ func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (b
 func (fs *Filesystem) DecompressFile(dir string, file string) error {
 	source, err := fs.SafePath(filepath.Join(dir, file))
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// Make sure the file exists basically.
 	if _, err := os.Stat(source); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// Walk over all of the files spinning up an additional go-routine for each file we've encountered
@@ -93,17 +93,17 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 
 		p, err := fs.SafePath(filepath.Join(dir, name))
 		if err != nil {
-			return errors.WrapIf(err, "failed to generate a safe path to server file")
+			return errors.WithMessage(err, "failed to generate a safe path to server file")
 		}
 
-		return errors.WrapIf(fs.Writefile(p, f), "could not extract file from archive")
+		return errors.WithMessage(fs.Writefile(p, f), "could not extract file from archive")
 	})
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "format ") {
-			return errors.WithStackIf(ErrUnknownArchiveFormat)
+			return ErrUnknownArchiveFormat
 		}
 
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	return nil

@@ -2,8 +2,8 @@ package router
 
 import (
 	"context"
-	"emperror.dev/errors"
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
@@ -422,12 +422,12 @@ func postServerUploadFiles(c *gin.Context) {
 func handleFileUpload(p string, s *server.Server, header *multipart.FileHeader) error {
 	file, err := header.Open()
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 	defer file.Close()
 
 	if err := s.Filesystem().Writefile(p, file); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	return nil

@@ -2,13 +2,13 @@ package parser
 
 import (
 	"bufio"
-	"emperror.dev/errors"
 	"encoding/json"
 	"github.com/apex/log"
 	"github.com/beevik/etree"
 	"github.com/buger/jsonparser"
 	"github.com/icza/dyno"
 	"github.com/magiconair/properties"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v2"
@@ -166,17 +166,17 @@ func (f *ConfigurationFile) Parse(path string, internal bool) error {
 
 		b := strings.TrimSuffix(path, filepath.Base(path))
 		if err := os.MkdirAll(b, 0755); err != nil {
-			return errors.WrapIf(err, "failed to create base directory for missing configuration file")
+			return errors.WithMessage(err, "failed to create base directory for missing configuration file")
 		} else {
 			if _, err := os.Create(path); err != nil {
-				return errors.WrapIf(err, "failed to create missing configuration file")
+				return errors.WithMessage(err, "failed to create missing configuration file")
 			}
 		}
 
 		return f.Parse(path, true)
 	}
 
-	return errors.WithStackIf(err)
+	return err
 }
 
 // Parses an xml file.
@@ -348,12 +348,12 @@ func (f *ConfigurationFile) parseJsonFile(path string) error {
 func (f *ConfigurationFile) parseYamlFile(path string) error {
 	b, err := readFileBytes(path)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	i := make(map[string]interface{})
 	if err := yaml.Unmarshal(b, &i); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// Unmarshal the yaml data into a JSON interface such that we can work with
@@ -361,20 +361,20 @@ func (f *ConfigurationFile) parseYamlFile(path string) error {
 	// makes working with unknown JSON significantly easier.
 	jsonBytes, err := json.Marshal(dyno.ConvertMapI2MapS(i))
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// Now that the data is converted, treat it just like JSON and pass it to the
 	// iterator function to update values as necessary.
 	data, err := f.IterateOverJson(jsonBytes)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// Remarshal the JSON into YAML format before saving it back to the disk.
 	marshaled, err := yaml.Marshal(data.Data())
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	return ioutil.WriteFile(path, marshaled, 0644)
@@ -386,7 +386,7 @@ func (f *ConfigurationFile) parseYamlFile(path string) error {
 func (f *ConfigurationFile) parseTextFile(path string) error {
 	input, err := ioutil.ReadFile(path)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	lines := strings.Split(string(input), "\n")
@@ -403,7 +403,7 @@ func (f *ConfigurationFile) parseTextFile(path string) error {
 	}
 
 	if err := ioutil.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	return nil
@@ -415,7 +415,7 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 	// Open the file.
 	f2, err := os.Open(path)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	var s strings.Builder
@@ -437,20 +437,20 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 
 	// Handle any scanner errors.
 	if err := scanner.Err(); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// Decode the properties file.
 	p, err := properties.LoadFile(path, properties.UTF8)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// Replace any values that need to be replaced.
 	for _, replace := range f.Replace {
 		data, err := f.LookupConfigurationValue(replace)
 		if err != nil {
-			return errors.WithStackIf(err)
+			return err
 		}
 
 		v, ok := p.Get(replace.Match)
@@ -462,7 +462,7 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 		}
 
 		if _, _, err := p.Set(replace.Match, data); err != nil {
-			return errors.WithStackIf(err)
+			return err
 		}
 	}
 
@@ -482,7 +482,7 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 	// Open the file for writing.
 	w, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 	defer w.Close()
 

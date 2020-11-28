@@ -3,7 +3,6 @@ module github.com/pterodactyl/wings
 go 1.13
 
 require (
-	emperror.dev/errors v0.8.0
 	github.com/AlecAivazis/survey/v2 v2.1.0
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Jeffail/gabs/v2 v2.5.1
@@ -18,7 +17,6 @@ require (
 	github.com/containerd/containerd v1.3.7 // indirect
 	github.com/containerd/fifo v0.0.0-20200410184934-f15a3290365b // indirect
 	github.com/creasty/defaults v1.5.0
-	github.com/docker/cli v17.12.1-ce-rc2+incompatible
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
 	github.com/docker/go-connections v0.4.0
@@ -58,6 +56,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pierrec/lz4 v2.5.2+incompatible // indirect
+	github.com/pkg/errors v0.9.1
 	github.com/pkg/profile v1.5.0
 	github.com/pkg/sftp v1.11.0
 	github.com/prometheus/common v0.11.1 // indirect

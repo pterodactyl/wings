@@ -2,11 +2,11 @@ package docker
 
 import (
 	"context"
-	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/environment"
 	"os"
@@ -26,7 +26,7 @@ func (e *Environment) OnBeforeStart() error {
 	// the Panel is usee.
 	if err := e.client.ContainerRemove(context.Background(), e.Id, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
 		if !client.IsErrNotFound(err) {
-			return errors.WrapIf(err, "failed to remove server docker container during pre-boot")
+			return errors.WithMessage(err, "failed to remove server docker container during pre-boot")
 		}
 	}
 
@@ -69,7 +69,7 @@ func (e *Environment) Start() error {
 		//
 		// @see https://github.com/pterodactyl/panel/issues/2000
 		if !client.IsErrNotFound(err) {
-			return errors.WithStackIf(err)
+			return err
 		}
 	} else {
 		// If the server is running update our internal state and continue on with the attach.
@@ -84,7 +84,7 @@ func (e *Environment) Start() error {
 		// to truncate them.
 		if _, err := os.Stat(c.LogPath); err == nil {
 			if err := os.Truncate(c.LogPath, 0); err != nil {
-				return errors.WithStackIf(err)
+				return err
 			}
 		}
 	}
@@ -99,14 +99,14 @@ func (e *Environment) Start() error {
 	// exists on the system, and rebuild the container if that is required for server booting to
 	// occur.
 	if err := e.OnBeforeStart(); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	if err := e.client.ContainerStart(ctx, e.Id, types.ContainerStartOptions{}); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	// No errors, good to continue through.
@@ -169,7 +169,7 @@ func (e *Environment) Stop() error {
 // will be terminated forcefully depending on the value of the second argument.
 func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 	if err := e.Stop(); err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(seconds)*time.Second)
@@ -185,10 +185,10 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 			if terminate {
 				log.WithField("container_id", e.Id).Info("server did not stop in time, executing process termination")
 
-				return errors.WithStackIf(e.Terminate(os.Kill))
+				return e.Terminate(os.Kill)
 			}
 
-			return errors.WithStackIf(ctxErr)
+			return ctxErr
 		}
 	case err := <-errChan:
 		if err != nil {
@@ -197,13 +197,13 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 				if errors.Is(err, context.DeadlineExceeded) {
 					l.Warn("deadline exceeded for container stop; terminating process")
 				} else {
-					l.WithField("error", errors.WithStackIf(err)).Warn("error while waiting for container stop; terminating process")
+					l.WithField("error", err).Warn("error while waiting for container stop; terminating process")
 				}
 
-				return errors.WithStackIf(e.Terminate(os.Kill))
+				return e.Terminate(os.Kill)
 			}
 
-			return errors.WithStackIf(err)
+			return err
 		}
 	case <-ok:
 	}
@@ -215,7 +215,7 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 func (e *Environment) Terminate(signal os.Signal) error {
 	c, err := e.client.ContainerInspect(context.Background(), e.Id)
 	if err != nil {
-		return errors.WithStackIf(err)
+		return err
 	}
 
 	if !c.State.Running {

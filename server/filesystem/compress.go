@@ -2,7 +2,6 @@ package filesystem
 
 import (
 	"context"
-	"emperror.dev/errors"
 	"fmt"
 	"github.com/karrick/godirwalk"
 	"github.com/pterodactyl/wings/server/backup"
@@ -27,7 +26,7 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 
 	i, err := ignore.CompileIgnoreLines(ignored...)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	// Walk through all of the files and directories on a server. This callback only returns
@@ -65,7 +64,7 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 		},
 	})
 
-	return inc, errors.WithStackIf(err)
+	return inc, err
 }
 
 // Compresses all of the files matching the given paths in the specified directory. This function
@@ -141,7 +140,7 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 	d := path.Join(cleanedRootDir, fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")))
 
 	if err := a.Create(d, context.Background()); err != nil {
-		return nil, errors.WithStackIf(err)
+		return nil, err
 	}
 
 	f, err := os.Stat(d)
