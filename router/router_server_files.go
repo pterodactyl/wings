@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/router/tokens"
@@ -366,8 +367,8 @@ func postServerDecompressFiles(c *gin.Context) {
 }
 
 type chmodFile struct {
-	File string      `json:"file"`
-	Mode os.FileMode `json:"mode"`
+	File string `json:"file"`
+	Mode string `json:"mode"`
 }
 
 func postServerChmodFile(c *gin.Context) {
@@ -379,6 +380,7 @@ func postServerChmodFile(c *gin.Context) {
 	}
 
 	if err := c.BindJSON(&data); err != nil {
+		log.Debug(err.Error())
 		return
 	}
 
@@ -398,7 +400,12 @@ func postServerChmodFile(c *gin.Context) {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				if err := s.Filesystem().Chmod(path.Join(data.Root, p.File), p.Mode); err != nil {
+				mode, err := strconv.ParseUint(p.Mode, 10, 32)
+				if err != nil {
+					return err
+				}
+
+				if err := s.Filesystem().Chmod(path.Join(data.Root, p.File), os.FileMode(uint32(mode))); err != nil {
 					// Return nil if the error is an is not exists.
 					// NOTE: os.IsNotExist() does not work if the error is wrapped.
 					if errors.Is(err, os.ErrNotExist) {
