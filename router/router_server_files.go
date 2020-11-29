@@ -365,6 +365,62 @@ func postServerDecompressFiles(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+type chmodFile struct {
+	File string      `json:"file"`
+	Mode os.FileMode `json:"mode"`
+}
+
+func postServerChmodFile(c *gin.Context) {
+	s := GetServer(c.Param("server"))
+
+	var data struct {
+		Root  string      `json:"root"`
+		Files []chmodFile `json:"files"`
+	}
+
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
+
+	if len(data.Files) == 0 {
+		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "No files to chmod were provided.",
+		})
+		return
+	}
+
+	g, ctx := errgroup.WithContext(context.Background())
+
+	// Loop over the array of files passed in and perform the move or rename action against each.
+	for _, p := range data.Files {
+		g.Go(func() error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				if err := s.Filesystem().Chmod(path.Join(data.Root, p.File), p.Mode); err != nil {
+					// Return nil if the error is an is not exists.
+					// NOTE: os.IsNotExist() does not work if the error is wrapped.
+					if errors.Is(err, os.ErrNotExist) {
+						return nil
+					}
+
+					return err
+				}
+
+				return nil
+			}
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		TrackedServerError(err, s).AbortFilesystemError(c)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 func postServerUploadFiles(c *gin.Context) {
 	token := tokens.UploadPayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
