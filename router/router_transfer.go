@@ -94,27 +94,40 @@ func postServerArchive(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
 	go func(s *server.Server) {
+		r := api.New()
+
+		// Attempt to get an archive of the server.  This **WILL NOT** modify the source files of a server,
+		// this process is 100% safe and will not corrupt a server's files if it fails.
 		if err := s.Archiver.Archive(); err != nil {
 			s.Log().WithField("error", err).Error("failed to get archive for server")
+
+			if err := r.SendArchiveStatus(s.Id(), false); err != nil {
+				if !api.IsRequestError(err) {
+					s.Log().WithField("error", err).Error("failed to notify panel of failed archive status")
+					return
+				}
+
+				s.Log().WithField("error", err.Error()).Error("panel returned an error when notifying it of a failed archive status")
+				return
+			}
+
+			s.Log().Info("successfully notified panel of failed archive status")
 			return
 		}
 
 		s.Log().Debug("successfully created server archive, notifying panel")
 
-		r := api.New()
-		err := r.SendArchiveStatus(s.Id(), true)
-		if err != nil {
+		if err := r.SendArchiveStatus(s.Id(), true); err != nil {
 			if !api.IsRequestError(err) {
-				s.Log().WithField("error", err).Error("failed to notify panel of archive status")
+				s.Log().WithField("error", err).Error("failed to notify panel of successful archive status")
 				return
 			}
 
-			s.Log().WithField("error", err.Error()).Error("panel returned an error when sending the archive status")
-
+			s.Log().WithField("error", err.Error()).Error("panel returned an error when notifying it of a successful archive status")
 			return
 		}
 
-		s.Log().Debug("successfully notified panel of archive status")
+		s.Log().Info("successfully notified panel of successful archive status")
 	}(s)
 
 	c.Status(http.StatusAccepted)
