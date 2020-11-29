@@ -400,12 +400,12 @@ func postServerChmodFile(c *gin.Context) {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				mode, err := strconv.ParseUint(p.Mode, 10, 32)
+				mode, err := strconv.ParseUint(p.Mode, 8, 32)
 				if err != nil {
 					return err
 				}
 
-				if err := s.Filesystem().Chmod(path.Join(data.Root, p.File), os.FileMode(uint32(mode))); err != nil {
+				if err := s.Filesystem().Chmod(path.Join(data.Root, p.File), os.FileMode(mode)); err != nil {
 					// Return nil if the error is an is not exists.
 					// NOTE: os.IsNotExist() does not work if the error is wrapped.
 					if errors.Is(err, os.ErrNotExist) {
