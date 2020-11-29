@@ -89,8 +89,8 @@ func postUpdateConfiguration(c *gin.Context) {
 	//
 	// If you pass through manual locations in the API call this logic will be skipped.
 	if strings.HasPrefix(cfg.Api.Ssl.KeyFile, "/etc/letsencrypt/live/") {
-		cfg.Api.Ssl.KeyFile = ccopy.Api.Ssl.KeyFile
-		cfg.Api.Ssl.CertificateFile = ccopy.Api.Ssl.CertificateFile
+		cfg.Api.Ssl.KeyFile = strings.ToLower(ccopy.Api.Ssl.KeyFile)
+		cfg.Api.Ssl.CertificateFile = strings.ToLower(ccopy.Api.Ssl.CertificateFile)
 	}
 
 	config.Set(&cfg)

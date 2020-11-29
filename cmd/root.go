@@ -336,7 +336,6 @@ func rootCmdRun(*cobra.Command, []string) {
 		if err := s.ListenAndServeTLS("", ""); err != nil {
 			log.WithFields(log.Fields{"auto_tls": true, "tls_hostname": tlsHostname, "error": err}).
 				Fatal("failed to configure HTTP server using auto-tls")
-			os.Exit(1)
 		}
 
 		return
@@ -344,9 +343,8 @@ func rootCmdRun(*cobra.Command, []string) {
 
 	// Check if main http server should run with TLS.
 	if c.Api.Ssl.Enabled {
-		if err := s.ListenAndServeTLS(c.Api.Ssl.CertificateFile, c.Api.Ssl.KeyFile); err != nil {
+		if err := s.ListenAndServeTLS(strings.ToLower(c.Api.Ssl.CertificateFile), strings.ToLower(c.Api.Ssl.KeyFile)); err != nil {
 			log.WithFields(log.Fields{"auto_tls": false, "error": err}).Fatal("failed to configure HTTPS server")
-			os.Exit(1)
 		}
 		return
 	}
@@ -355,7 +353,6 @@ func rootCmdRun(*cobra.Command, []string) {
 	s.TLSConfig = nil
 	if err := s.ListenAndServe(); err != nil {
 		log.WithField("error", err).Fatal("failed to configure HTTP server")
-		os.Exit(1)
 	}
 }
 
