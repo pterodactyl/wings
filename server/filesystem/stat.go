@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/gabriel-vasile/mimetype"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -18,6 +19,7 @@ func (s *Stat) MarshalJSON() ([]byte, error) {
 		Created   string `json:"created"`
 		Modified  string `json:"modified"`
 		Mode      string `json:"mode"`
+		ModeBits  string `json:"mode_bits"`
 		Size      int64  `json:"size"`
 		Directory bool   `json:"directory"`
 		File      bool   `json:"file"`
@@ -28,6 +30,7 @@ func (s *Stat) MarshalJSON() ([]byte, error) {
 		Created:   s.CTime().Format(time.RFC3339),
 		Modified:  s.Info.ModTime().Format(time.RFC3339),
 		Mode:      s.Info.Mode().String(),
+		ModeBits:  strconv.FormatUint(uint64(s.Info.Mode()), 8),
 		Size:      s.Info.Size(),
 		Directory: s.Info.IsDir(),
 		File:      !s.Info.IsDir(),
