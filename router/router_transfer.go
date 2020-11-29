@@ -177,12 +177,10 @@ func postTransfer(c *gin.Context) {
 			_, err := ioutil.ReadAll(res.Body)
 			if err != nil {
 				l.WithField("error", err).WithField("status", res.StatusCode).Error("failed read transfer response body")
-
 				return
 			}
 
 			l.WithField("error", err).WithField("status", res.StatusCode).Error("failed to request server archive")
-
 			return
 		}
 
@@ -199,7 +197,6 @@ func postTransfer(c *gin.Context) {
 		} else {
 			if err := os.Remove(archivePath); err != nil {
 				l.WithField("error", err).Warn("failed to remove old archive file")
-
 				return
 			}
 		}
@@ -208,7 +205,6 @@ func postTransfer(c *gin.Context) {
 		file, err := os.Create(archivePath)
 		if err != nil {
 			l.WithField("error", err).Error("failed to open archive on disk")
-
 			return
 		}
 
@@ -217,16 +213,27 @@ func postTransfer(c *gin.Context) {
 		_, err = io.CopyBuffer(file, res.Body, buf)
 		if err != nil {
 			l.WithField("error", err).Error("failed to copy archive file to disk")
-
 			return
 		}
 
 		// Close the file so it can be opened to verify the checksum.
 		if err := file.Close(); err != nil {
 			l.WithField("error", err).Error("failed to close archive file")
-
 			return
 		}
+
+		// Whenever the transfer fails or succeeds, delete the temporary transfer archive.
+		defer func() {
+			log.WithField("server", serverID).Debug("deleting temporary transfer archive..")
+			if err := os.Remove(archivePath); err != nil && !os.IsNotExist(err) {
+				l.WithFields(log.Fields{
+					"server": serverID,
+					"error":  err,
+				}).Warn("failed to delete transfer archive")
+			} else {
+				l.WithField("server", serverID).Debug("deleted temporary transfer archive successfully")
+			}
+		}()
 
 		l.WithField("server", serverID).Debug("server archive downloaded, computing checksum...")
 
@@ -282,7 +289,7 @@ func postTransfer(c *gin.Context) {
 			return
 		}
 
-		// Un-archive the archive. That sounds weird..
+		// Un-archive the archive, that sounds weird..
 		if err := archiver.NewTarGz().Unarchive(archivePath, i.Server().Filesystem().Path()); err != nil {
 			l.WithField("error", err).Error("failed to extract server archive")
 			return
@@ -307,7 +314,7 @@ func postTransfer(c *gin.Context) {
 			return
 		}
 
-		l.Info("successfully notified panel of transfer success")
+		l.WithField("server", serverID).Info("successfully notified panel of transfer success")
 	}(buf.Bytes())
 
 	c.Status(http.StatusAccepted)
