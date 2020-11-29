@@ -153,8 +153,7 @@ func postTransfer(c *gin.Context) {
 			}
 
 			l.Info("server transfer failed, notifying panel")
-			err := api.New().SendTransferFailure(serverID)
-			if err != nil {
+			if err := api.New().SendTransferFailure(serverID); err != nil {
 				if !api.IsRequestError(err) {
 					l.WithField("error", err).Error("failed to notify panel with transfer failure")
 					return
@@ -201,8 +200,7 @@ func postTransfer(c *gin.Context) {
 		archivePath := filepath.Join(config.Get().System.ArchiveDirectory, serverID+".tar.gz")
 
 		// Check if the archive already exists and delete it if it does.
-		_, err = os.Stat(archivePath)
-		if err != nil {
+		if _, err = os.Stat(archivePath); err != nil {
 			if !os.IsNotExist(err) {
 				l.WithField("error", err).Error("failed to stat archive file")
 				return
