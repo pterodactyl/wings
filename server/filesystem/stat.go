@@ -26,11 +26,12 @@ func (s *Stat) MarshalJSON() ([]byte, error) {
 		Symlink   bool   `json:"symlink"`
 		Mime      string `json:"mime"`
 	}{
-		Name:      s.Info.Name(),
-		Created:   s.CTime().Format(time.RFC3339),
-		Modified:  s.Info.ModTime().Format(time.RFC3339),
-		Mode:      s.Info.Mode().String(),
-		ModeBits:  strconv.FormatUint(uint64(s.Info.Mode()), 8),
+		Name:     s.Info.Name(),
+		Created:  s.CTime().Format(time.RFC3339),
+		Modified: s.Info.ModTime().Format(time.RFC3339),
+		Mode:     s.Info.Mode().String(),
+		// Using `&os.ModePerm` on the file's mode will cause the mode to only have the permission values, and nothing else.
+		ModeBits:  strconv.FormatUint(uint64(s.Info.Mode()&os.ModePerm), 8),
 		Size:      s.Info.Size(),
 		Directory: s.Info.IsDir(),
 		File:      !s.Info.IsDir(),
