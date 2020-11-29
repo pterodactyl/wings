@@ -242,11 +242,11 @@ func postTransfer(c *gin.Context) {
 					"error":  err,
 				}).Warn("failed to delete transfer archive")
 			} else {
-				l.WithField("server", serverID).Debug("deleted temporary transfer archive successfully")
+				l.Debug("deleted temporary transfer archive successfully")
 			}
 		}()
 
-		l.WithField("server", serverID).Debug("server archive downloaded, computing checksum...")
+		l.Debug("server archive downloaded, computing checksum...")
 
 		// Open the archive file for computing a checksum.
 		file, err = os.Open(archivePath)
@@ -325,7 +325,7 @@ func postTransfer(c *gin.Context) {
 			return
 		}
 
-		l.WithField("server", serverID).Info("successfully notified panel of transfer success")
+		l.Info("successfully notified panel of transfer success")
 	}(buf.Bytes())
 
 	c.Status(http.StatusAccepted)
