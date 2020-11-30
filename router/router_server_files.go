@@ -238,6 +238,40 @@ func postServerWriteFile(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// Writes the contents of the remote URL to a file on a server.
+func postServerWriteFileFromUrl(c *gin.Context) {
+	s := GetServer(c.Param("server"))
+
+	f, err := url.QueryUnescape(c.Query("url"))
+	if err != nil {
+		TrackedServerError(err, s).AbortWithServerError(c)
+		return
+	}
+	f = "/" + strings.TrimLeft(f, "/")
+
+	resp, err := http.Get(c.Query("url"))
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Bad URL.",
+		})
+		return
+	}
+
+	if err := s.Filesystem().Writefile(f, resp.Body); err != nil {
+		if errors.Is(err, filesystem.ErrIsDirectory) {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "Cannot write file, name conflicts with an existing directory by the same name.",
+			})
+			return
+		}
+
+		TrackedServerError(err, s).AbortFilesystemError(c)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 // Create a directory on a server.
 func postServerCreateDirectory(c *gin.Context) {
 	s := GetServer(c.Param("server"))
