@@ -38,15 +38,26 @@ func (a *Allocations) Bindings() nat.PortMap {
 				continue
 			}
 
-			binding := []nat.PortBinding{
-				{
-					HostIP:   ip,
-					HostPort: strconv.Itoa(port),
-				},
+			binding := nat.PortBinding{
+				HostIP:   ip,
+				HostPort: strconv.Itoa(port),
 			}
 
-			out[nat.Port(fmt.Sprintf("%d/tcp", port))] = binding
-			out[nat.Port(fmt.Sprintf("%d/udp", port))] = binding
+			tcpPort, ok := out[nat.Port(fmt.Sprintf("%d/tcp", port))]
+
+			if !ok {
+				out[nat.Port(fmt.Sprintf("%d/tcp", port))] = []nat.PortBinding{binding}
+			} else {
+				out[nat.Port(fmt.Sprintf("%d/tcp", port))] = append(tcpPort, binding)
+			}
+
+			udpPort, ok := out[nat.Port(fmt.Sprintf("%d/udp", port))]
+
+			if !ok {
+				out[nat.Port(fmt.Sprintf("%d/udp", port))] = []nat.PortBinding{binding}
+			} else {
+				out[nat.Port(fmt.Sprintf("%d/udp", port))] = append(udpPort, binding)
+			}
 		}
 	}
 
