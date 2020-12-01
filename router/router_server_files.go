@@ -247,17 +247,19 @@ func postServerWriteFileFromUrl(c *gin.Context) {
 		TrackedServerError(err, s).AbortWithServerError(c)
 		return
 	}
-	f = "/" + strings.TrimLeft(f, "/")
 
-	resp, err := http.Get(c.Query("url"))
+	f = strings.TrimLeft(f, "/") // File URL
+	n := strings.Split(f, "/") // File name
+
+	resp, err := http.Get(f)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": "Bad URL.",
+			"error": "Bad URL " + f,
 		})
 		return
 	}
 
-	if err := s.Filesystem().Writefile(f, resp.Body); err != nil {
+	if err := s.Filesystem().Writefile(c.Query("path") + "/" + n[len(n)-1], resp.Body); err != nil {
 		if errors.Is(err, filesystem.ErrIsDirectory) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 				"error": "Cannot write file, name conflicts with an existing directory by the same name.",
