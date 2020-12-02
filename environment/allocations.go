@@ -43,17 +43,11 @@ func (a *Allocations) Bindings() nat.PortMap {
 				HostPort: strconv.Itoa(port),
 			}
 
-			if v, ok := out[nat.Port(fmt.Sprintf("%d/tcp", port))]; ok {
-				out[nat.Port(fmt.Sprintf("%d/tcp", port))] = append(v, binding)
-			} else {
-				out[nat.Port(fmt.Sprintf("%d/tcp", port))] = []nat.PortBinding{binding}
-			}
+			tcp := nat.Port(fmt.Sprintf("%d/tcp", port))
+			udp := nat.Port(fmt.Sprintf("%d/udp", port))
 
-			if v, ok := out[nat.Port(fmt.Sprintf("%d/udp", port))]; ok {
-				out[nat.Port(fmt.Sprintf("%d/udp", port))] = append(v, binding)
-			} else {
-				out[nat.Port(fmt.Sprintf("%d/udp", port))] = []nat.PortBinding{binding}
-			}
+			out[tcp] = append(out[tcp], binding)
+			out[udp] = append(out[udp], binding)
 		}
 	}
 
