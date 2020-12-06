@@ -17,7 +17,7 @@ import (
 var Default = New(os.Stderr, true)
 
 var bold = color2.New(color2.Bold)
-var boldred = bold.Add(color2.FgRed)
+var boldred = *bold.Add(color2.FgRed)
 
 var Strings = [...]string{
 	log.DebugLevel: "DEBUG",
