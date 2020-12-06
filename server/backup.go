@@ -13,8 +13,7 @@ import (
 // Notifies the panel of a backup's state and returns an error if one is encountered
 // while performing this action.
 func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, successful bool) error {
-	err := api.New().SendBackupStatus(uuid, ad.ToRequest(successful))
-	if err != nil {
+	if err := api.New().SendBackupStatus(uuid, ad.ToRequest(successful)); err != nil {
 		if !api.IsRequestError(err) {
 			s.Log().WithFields(log.Fields{
 				"backup": uuid,

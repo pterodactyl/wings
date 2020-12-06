@@ -95,7 +95,7 @@ func getErrorStack(err error, i bool) errors.StackTrace {
 			// The errors.WrapIf did not return a interface compatible with `tracer`, so
 			// we don't have an easy way to get the stacktrace, this should probably be changed
 			// at some point, but without this the application may panic when handling some errors.
-			return nil
+			return errors.WithStack(err).(tracer).StackTrace()
 		}
 
 		return getErrorStack(errors.WithMessage(err, err.Error()), true)

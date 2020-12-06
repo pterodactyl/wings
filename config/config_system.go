@@ -59,11 +59,6 @@ type SystemConfiguration struct {
 	// disk usage is not a concern.
 	DiskCheckInterval int64 `default:"150" yaml:"disk_check_interval"`
 
-	// Determines if Wings should detect a server that stops with a normal exit code of
-	// "0" as being crashed if the process stopped without any Wings interaction. E.g.
-	// the user did not press the stop button, but the process stopped cleanly.
-	DetectCleanExitAsCrash bool `default:"true" yaml:"detect_clean_exit_as_crash"`
-
 	// If set to true, file permissions for a server will be checked when the process is
 	// booted. This can cause boot delays if the server has a large amount of files. In most
 	// cases disabling this should not have any major impact unless external processes are
@@ -78,6 +73,20 @@ type SystemConfiguration struct {
 	WebsocketLogCount int `default:"150" yaml:"websocket_log_count"`
 
 	Sftp SftpConfiguration `yaml:"sftp"`
+
+	CrashDetection CrashDetection `yaml:"crash_detection"`
+}
+
+type CrashDetection struct {
+	// Determines if Wings should detect a server that stops with a normal exit code of
+	// "0" as being crashed if the process stopped without any Wings interaction. E.g.
+	// the user did not press the stop button, but the process stopped cleanly.
+	DetectCleanExitAsCrash bool `default:"true" yaml:"detect_clean_exit_as_crash"`
+
+	// Timeout specifies the timeout between crashes that will not cause the server
+	// to be automatically restarted, this value is used to prevent servers from
+	// becoming stuck in a boot-loop after multiple consecutive crashes.
+	Timeout int `default:"60" json:"timeout"`
 }
 
 // Ensures that all of the system directories exist on the system. These directories are
