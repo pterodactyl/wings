@@ -8,7 +8,7 @@ import (
 )
 
 // backupUploadIDs stores a cache of active S3 backups.
-var backupUploadIDs *cache.Cache
+var backupUploadIDs = cache.New(time.Hour*3, time.Minute*5)
 
 type BackupRemoteUploadResponse struct {
 	UploadID string   `json:"upload_id"`
@@ -35,7 +35,7 @@ func (r *Request) GetBackupRemoteUploadURLs(backup string, size int64) (*BackupR
 	// Store the backup upload id for later use, this is a janky way to be able to use it later with SendBackupStatus.
 	// Yes, the timeout of 3 hours is intentional, if this value is removed before the backup completes,
 	// the backup will fail even if it uploaded properly.
-	backupUploadIDs.Set(backup, res.UploadID, time.Hour*3)
+	backupUploadIDs.Set(backup, res.UploadID, 0)
 
 	return &res, nil
 }
