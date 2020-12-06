@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -47,8 +48,7 @@ func (s *Server) handleServerCrash() error {
 	if s.Environment.State() != environment.ProcessOfflineState || !s.Config().CrashDetectionEnabled {
 		if !s.Config().CrashDetectionEnabled {
 			s.Log().Debug("server triggered crash detection but handler is disabled for server process")
-
-			s.PublishConsoleOutputFromDaemon("Server detected as crashed; crash detection is disabled for this instance.")
+			s.PublishConsoleOutputFromDaemon("Aborting automatic restart, crash detection is disabled for this instance.")
 		}
 
 		return nil
@@ -61,9 +61,8 @@ func (s *Server) handleServerCrash() error {
 
 	// If the system is not configured to detect a clean exit code as a crash, and the
 	// crash is not the result of the program running out of memory, do nothing.
-	if exitCode == 0 && !oomKilled && !config.Get().System.DetectCleanExitAsCrash {
+	if exitCode == 0 && !oomKilled && !config.Get().System.CrashDetection.DetectCleanExitAsCrash {
 		s.Log().Debug("server exited with successful exit code; system is configured to not detect this as a crash")
-
 		return nil
 	}
 
@@ -72,11 +71,14 @@ func (s *Server) handleServerCrash() error {
 	s.PublishConsoleOutputFromDaemon(fmt.Sprintf("Out of memory: %t", oomKilled))
 
 	c := s.crasher.LastCrashTime()
-	// If the last crash time was within the last 60 seconds we do not want to perform
-	// an automatic reboot of the process. Return an error that can be handled.
-	if !c.IsZero() && c.Add(time.Second*60).After(time.Now()) {
-		s.PublishConsoleOutputFromDaemon("Aborting automatic reboot: last crash occurred less than 60 seconds ago.")
+	timeout := config.Get().System.CrashDetection.Timeout
 
+	// If the last crash time was within the last `timeout` seconds we do not want to perform
+	// an automatic reboot of the process. Return an error that can be handled.
+	//
+	// If timeout is set to 0, always reboot the server (this is probably a terrible idea, but some people want it)
+	if timeout != 0 && !c.IsZero() && c.Add(time.Second*time.Duration(config.Get().System.CrashDetection.Timeout)).After(time.Now()) {
+		s.PublishConsoleOutputFromDaemon("Aborting automatic restart, last crash occurred less than " + strconv.Itoa(timeout) + " seconds ago.")
 		return &crashTooFrequent{}
 	}
 

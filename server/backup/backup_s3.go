@@ -1,7 +1,6 @@
 package backup
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/apex/log"
@@ -10,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 )
 
 type S3Backup struct {
@@ -75,10 +73,12 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 		return err
 	}
 
-	log.WithFields(log.Fields{
+	l := log.WithFields(log.Fields{
 		"backup_id": s.Uuid,
 		"adapter":   "s3",
-	}).Info("attempting to upload backup..")
+	})
+
+	l.Info("attempting to upload backup..")
 
 	handlePart := func(part string, size int64) (string, error) {
 		r, err := http.NewRequest(http.MethodPut, part, nil)
@@ -91,7 +91,7 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 		r.Header.Add("Content-Type", "application/x-gzip")
 
 		// Limit the reader to the size of the part.
-		r.Body = Reader{io.LimitReader(rc, size)}
+		r.Body = Reader{Reader: io.LimitReader(rc, size)}
 
 		// This http request can block forever due to it not having a timeout,
 		// but we are uploading up to 5GB of data, so there is not really
@@ -111,10 +111,6 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 		return res.Header.Get("ETag"), nil
 	}
 
-	// Start assembling the body that will be sent as apart of the CompleteMultipartUpload request.
-	var completeUploadBody bytes.Buffer
-	completeUploadBody.WriteString("<CompleteMultipartUpload>\n")
-
 	partCount := len(urls.Parts)
 	for i, part := range urls.Parts {
 		// Get the size for the current part.
@@ -128,67 +124,13 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 		}
 
 		// Attempt to upload the part.
-		etag, err := handlePart(part, partSize)
-		if err != nil {
-			log.WithError(err).Warn("failed to upload part")
-
-			// Send an AbortMultipartUpload request.
-			if err := s.finishUpload(urls.AbortMultipartUpload, nil); err != nil {
-				log.WithError(err).Warn("failed to abort multipart backup upload")
-			}
-
+		if _, err := handlePart(part, partSize); err != nil {
+			l.WithField("part_id", part).WithError(err).Warn("failed to upload part")
 			return err
 		}
-
-		// Add the part to the CompleteMultipartUpload body.
-		completeUploadBody.WriteString("\t<Part>\n")
-		completeUploadBody.WriteString("\t\t<ETag>\"" + etag + "\"</ETag>\n")
-		completeUploadBody.WriteString("\t\t<PartNumber>" + strconv.Itoa(i+1) + "</PartNumber>\n")
-		completeUploadBody.WriteString("\t</Part>\n")
-	}
-	completeUploadBody.WriteString("</CompleteMultipartUpload>")
-
-	// Send a CompleteMultipartUpload request.
-	if err := s.finishUpload(urls.CompleteMultipartUpload, &completeUploadBody); err != nil {
-		return err
 	}
 
-	log.WithFields(log.Fields{
-		"backup_id": s.Uuid,
-		"adapter":   "s3",
-	}).Info("backup has been successfully uploaded")
-	return nil
-}
-
-// finishUpload sends a requests to the specified url to either complete or abort the upload.
-func (s *S3Backup) finishUpload(url string, body io.Reader) error {
-	r, err := http.NewRequest(http.MethodPost, url, body)
-	if err != nil {
-		return err
-	}
-
-	// Create a new http client with a 10 second timeout.
-	c := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	res, err := c.Do(r)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-
-	// Handle non-200 status codes.
-	if res.StatusCode != http.StatusOK {
-		// If no body was sent, we were aborting the upload.
-		if body == nil {
-			return fmt.Errorf("failed to abort S3 multipart upload, %d:%s", res.StatusCode, res.Status)
-		}
-
-		// If a body was sent we were completing the upload.
-		// TODO: Attempt to send abort request?
-		return fmt.Errorf("failed to complete S3 multipart upload, %d:%s", res.StatusCode, res.Status)
-	}
+	l.Info("backup has been successfully uploaded")
 
 	return nil
 }
