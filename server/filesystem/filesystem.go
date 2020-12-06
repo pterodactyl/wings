@@ -227,6 +227,23 @@ func (fs *Filesystem) Chown(path string) error {
 	})
 }
 
+func (fs *Filesystem) Chmod(path string, mode os.FileMode) error {
+	cleaned, err := fs.SafePath(path)
+	if err != nil {
+		return err
+	}
+
+	if fs.isTest {
+		return nil
+	}
+
+	if err := os.Chmod(cleaned, mode); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Begin looping up to 50 times to try and create a unique copy file name. This will take
 // an input of "file.txt" and generate "file copy.txt". If that name is already taken, it will
 // then try to write "file copy 2.txt" and so on, until reaching 50 loops. At that point we

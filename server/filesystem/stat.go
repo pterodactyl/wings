@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/gabriel-vasile/mimetype"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -18,16 +19,19 @@ func (s *Stat) MarshalJSON() ([]byte, error) {
 		Created   string `json:"created"`
 		Modified  string `json:"modified"`
 		Mode      string `json:"mode"`
+		ModeBits  string `json:"mode_bits"`
 		Size      int64  `json:"size"`
 		Directory bool   `json:"directory"`
 		File      bool   `json:"file"`
 		Symlink   bool   `json:"symlink"`
 		Mime      string `json:"mime"`
 	}{
-		Name:      s.Info.Name(),
-		Created:   s.CTime().Format(time.RFC3339),
-		Modified:  s.Info.ModTime().Format(time.RFC3339),
-		Mode:      s.Info.Mode().String(),
+		Name:     s.Info.Name(),
+		Created:  s.CTime().Format(time.RFC3339),
+		Modified: s.Info.ModTime().Format(time.RFC3339),
+		Mode:     s.Info.Mode().String(),
+		// Using `&os.ModePerm` on the file's mode will cause the mode to only have the permission values, and nothing else.
+		ModeBits:  strconv.FormatUint(uint64(s.Info.Mode()&os.ModePerm), 8),
 		Size:      s.Info.Size(),
 		Directory: s.Info.IsDir(),
 		File:      !s.Info.IsDir(),
