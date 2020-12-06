@@ -8,6 +8,7 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/pkg/errors"
 	"io"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 var Default = New(os.Stderr, true)
 
 var bold = color2.New(color2.Bold)
+var boldred = bold.Add(color2.FgRed)
 
 var Strings = [...]string{
 	log.DebugLevel: "DEBUG",
@@ -60,7 +62,6 @@ func (h *Handler) HandleLog(e *log.Entry) error {
 		if name == "source" {
 			continue
 		}
-
 		fmt.Fprintf(h.Writer, " %s=%v", color.Sprint(name), e.Fields.Get(name))
 	}
 
@@ -70,24 +71,14 @@ func (h *Handler) HandleLog(e *log.Entry) error {
 		if name != "error" {
 			continue
 		}
-
 		if err, ok := e.Fields.Get("error").(error); ok {
-			br := color2.New(color2.Bold, color2.FgRed)
-
 			if e, ok := errors.Cause(err).(tracer); ok {
 				st := e.StackTrace()
-
-				l := len(st)
-				if l > 10 {
-					l = 10
-				}
-
-				fmt.Fprintf(h.Writer, "\n%s%+v\n\n", br.Sprintf("Stacktrace:"), st[0:l])
+				l := math.Min(float64(len(st)), 10)
+				fmt.Fprintf(h.Writer, "\n%s%+v\n\n", boldred.Sprintf("Stacktrace:"), st[0:int(l)])
 			} else {
-				fmt.Fprintf(h.Writer, "\n%s\n%+v\n\n", br.Sprintf("Stacktrace:"), err)
+				fmt.Fprintf(h.Writer, "\n%s\n%+v\n\n", boldred.Sprintf("Stacktrace:"), err)
 			}
-		} else {
-			fmt.Printf("\n\nINVALID ERROR\n\n")
 		}
 	}
 
