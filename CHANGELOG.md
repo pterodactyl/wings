@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.1.3
+### Fixed
+* Fixes `archive/tar: write too long` error when creating a server backup.
+* Fixes server installation docker images not using authentication properly during the pull.
+* Fixes temporary transfer files not being removed after the transfer is completed.
+* Fixes TLS certificate checking to be all lowercase to avoid any lookup issues when an all-caps domain is provided.
+* Fixes multiple interfaces with the same port not being publishable for a server.
+* Fixes errors encountered during websocket processes being incorrectly passed back to the Panel as a JWT error rather than a generic Wings error for admin users.
+
+### Added
+* Added logic to notify the Panel when archive generation fails.
+* Added endpoint to run `chmod` commands against server files and updated API response to include the mode bits when requesting files.
+
+### Changed
+* Updated internals to call `Server.Environment.State()` rather than deprecated `Server.GetState()` functions.
+* Improved error handling logic and massively simplified error passing around the codebase.
+
 ## v1.1.2
 ### Fixed
 * Fixes binaries built as part of the release process not being usable in MUSL based environments (such as our Docker images).
