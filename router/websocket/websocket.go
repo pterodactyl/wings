@@ -32,10 +32,9 @@ const (
 )
 
 type Handler struct {
-	sync.RWMutex
-
-	Connection *websocket.Conn
-	jwt        *tokens.WebsocketPayload `json:"-"`
+	sync.RWMutex `json:"-"`
+	Connection *websocket.Conn `json:"-"`
+	jwt        *tokens.WebsocketPayload
 	server     *server.Server
 	uuid       uuid.UUID
 }
@@ -130,7 +129,6 @@ func (h *Handler) SendJson(v *Message) error {
 			Event: JwtErrorEvent,
 			Args:  []string{err.Error()},
 		})
-
 		return nil
 	}
 
@@ -219,8 +217,11 @@ func (h *Handler) SendErrorJson(msg Message, err error, shouldLog ...bool) error
 		Event: ErrorEvent,
 		Args:  []string{"an unexpected error was encountered while handling this request"},
 	}
+
 	if isJWTError || (j != nil && j.HasPermission(PermissionReceiveErrors)) {
-		wsm.Event = JwtErrorEvent
+		if isJWTError {
+			wsm.Event = JwtErrorEvent
+		}
 		wsm.Args = []string{err.Error()}
 	}
 
@@ -229,7 +230,7 @@ func (h *Handler) SendErrorJson(msg Message, err error, shouldLog ...bool) error
 
 	if !isJWTError && (len(shouldLog) == 0 || (len(shouldLog) == 1 && shouldLog[0] == true)) {
 		h.server.Log().WithFields(log.Fields{"event": msg.Event, "error_identifier": u.String(), "error": err}).
-			Error("failed to handle websocket process; an error was encountered processing an event")
+			Errorf("error processing websocket event \"%s\"", msg.Event)
 	}
 
 	return h.unsafeSendJson(wsm)
@@ -267,7 +268,6 @@ func (h *Handler) HandleInbound(m Message) error {
 				Event: JwtErrorEvent,
 				Args:  []string{err.Error()},
 			})
-
 			return nil
 		}
 	}
