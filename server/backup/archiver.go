@@ -4,8 +4,10 @@ import (
 	"archive/tar"
 	"context"
 	"github.com/apex/log"
+	"github.com/juju/ratelimit"
 	gzip "github.com/klauspost/pgzip"
 	"github.com/pkg/errors"
+	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
 	"golang.org/x/sync/errgroup"
 	"io"
@@ -30,13 +32,30 @@ func (a *Archive) Create(dst string, ctx context.Context) error {
 	}
 	defer f.Close()
 
+	// Select a writer based off of the WriteLimit configuration option.
+	var writer io.Writer
+	if writeLimit := config.Get().System.Backups.WriteLimit; writeLimit < 1 {
+		writer = f
+	} else {
+		// Token bucket with a capacity of 25MB, adding 25MB/s
+		bucket := ratelimit.NewBucketWithRate(float64(writeLimit)*1024*1024, int64(writeLimit)*1024*1024)
+
+		// Wrap the file with the token bucket limiter.
+		writer = ratelimit.Writer(f, bucket)
+	}
+
 	maxCpu := runtime.NumCPU() / 2
 	if maxCpu > 4 {
 		maxCpu = 4
 	}
 
-	gzw, _ := gzip.NewWriterLevel(f, gzip.BestSpeed)
-	_ = gzw.SetConcurrency(1<<20, maxCpu)
+	gzw, err := gzip.NewWriterLevel(writer, gzip.BestSpeed)
+	if err != nil {
+		return errors.WithMessage(err, "failed to create gzip writer")
+	}
+	if err := gzw.SetConcurrency(1<<20, maxCpu); err != nil {
+		return errors.WithMessage(err, "failed to set gzip concurrency")
+	}
 
 	defer gzw.Flush()
 	defer gzw.Close()
