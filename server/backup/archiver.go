@@ -35,12 +35,13 @@ func (a *Archive) Create(dst string, ctx context.Context) error {
 	// Select a writer based off of the WriteLimit configuration option.
 	var writer io.Writer
 	if writeLimit := config.Get().System.Backups.WriteLimit; writeLimit < 1 {
+		// If there is no write limit, use the file as the writer.
 		writer = f
 	} else {
-		// Token bucket with a capacity of 25MB, adding 25MB/s
+		// Token bucket with a capacity of "writeLimit" MiB, adding "writeLimit" MiB/s
 		bucket := ratelimit.NewBucketWithRate(float64(writeLimit)*1024*1024, int64(writeLimit)*1024*1024)
 
-		// Wrap the file with the token bucket limiter.
+		// Wrap the file writer with the token bucket limiter.
 		writer = ratelimit.Writer(f, bucket)
 	}
 
