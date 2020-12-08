@@ -1,10 +1,18 @@
 name: Run Tests
+
 on:
   push:
+    branches:
+      - 'develop'
+
     branches-ignore:
       - 'master'
       - 'release/**'
+
   pull_request:
+    branches:
+      - 'develop'
+
 jobs:
   build:
     strategy:
