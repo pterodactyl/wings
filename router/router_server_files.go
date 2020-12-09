@@ -22,14 +22,7 @@ import (
 // Returns the contents of a file on the server.
 func getServerFileContents(c *gin.Context) {
 	s := GetServer(c.Param("server"))
-
-	p, err := url.QueryUnescape(c.Query("file"))
-	if err != nil {
-		TrackedServerError(err, s).AbortWithServerError(c)
-		return
-	}
-	p = "/" + strings.TrimLeft(p, "/")
-
+	p := "/" + strings.TrimLeft(c.Query("file"), "/")
 	st, err := s.Filesystem().Stat(p)
 	if err != nil {
 		TrackedServerError(err, s).AbortFilesystemError(c)
@@ -65,13 +58,7 @@ func getServerFileContents(c *gin.Context) {
 func getServerListDirectory(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	d, err := url.QueryUnescape(c.Query("directory"))
-	if err != nil {
-		TrackedServerError(err, s).AbortWithServerError(c)
-		return
-	}
-
-	stats, err := s.Filesystem().ListDirectory(d)
+	stats, err := s.Filesystem().ListDirectory(c.Query("directory"))
 	if err != nil {
 		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
