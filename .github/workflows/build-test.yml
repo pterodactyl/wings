@@ -1,10 +1,14 @@
 name: Run Tests
+
 on:
   push:
-    branches-ignore:
-      - 'master'
-      - 'release/**'
+    branches:
+      - 'develop'
+
   pull_request:
+    branches:
+      - 'develop'
+
 jobs:
   build:
     strategy:
@@ -15,7 +19,7 @@ jobs:
         os: [ ubuntu-20.04 ]
         go: [ 1.15.6 ]
         goos: [ linux ]
-        goarch: [ amd64, arm, arm64 ]
+        goarch: [ amd64, arm64 ]
 
     runs-on: ${{ matrix.os }}
 
