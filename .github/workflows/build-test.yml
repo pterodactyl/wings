@@ -13,7 +13,7 @@ jobs:
 
       matrix:
         os: [ ubuntu-20.04 ]
-        go: [ 1.15.5 ]
+        go: [ 1.15.6 ]
         goos: [ linux ]
         goarch: [ amd64, arm, arm64 ]
 
@@ -26,13 +26,40 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
 
+      - name: Print Environment
+        id: env
+        run: |
+          printf "Go Executable Path: $(which go)\n"
+          printf "Go Version: $(go version)\n"
+          printf "\n\nGo Environment:\n\n"
+          go env
+          printf "\n\nSystem Environment:\n\n"
+          env
+
+          echo "::set-output name=version_tag::${GITHUB_REF/refs\/tags\//}"
+          echo "::set-output name=short_sha::$(git rev-parse --short HEAD)"
+          echo "::set-output name=go_cache::$(go env GOCACHE)"
+
+      - name: Build Cache
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.env.outputs.go_cache }}
+          key: ${{ runner.os }}-${{ matrix.go }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.go }}-go
+
+      - name: Get Dependencies
+        run: |
+          go get -v -t -d ./...
+
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
+          SRC_PATH: github.com/pterodactyl/wings
         run: |
-          go build -v -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_${{ matrix.goos }}_${{ matrix.goarch }} wings.go
+          go build -v -trimpath -ldflags="-s -w -X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_${{ matrix.goos }}_${{ matrix.goarch }} wings.go
 
       - name: Test
         run: go test ./...
