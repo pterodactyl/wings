@@ -212,6 +212,7 @@ func (e *Environment) Create() error {
 			Config: map[string]string{
 				"max-size": "5m",
 				"max-file": "1",
+				"compress": "false",
 			},
 		},
 
