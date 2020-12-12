@@ -31,12 +31,13 @@ import (
 )
 
 var (
-	profiler        = ""
-	configPath      = config.DefaultLocation
-	debug           = false
-	useAutomaticTls = false
-	tlsHostname     = ""
-	showVersion     = false
+	profiler                = ""
+	configPath              = config.DefaultLocation
+	debug                   = false
+	useAutomaticTls         = false
+	tlsHostname             = ""
+	showVersion             = false
+	ignoreCertificateErrors = false
 )
 
 var root = &cobra.Command{
@@ -59,6 +60,7 @@ func init() {
 	root.PersistentFlags().StringVar(&profiler, "profiler", "", "the profiler to run for this instance")
 	root.PersistentFlags().BoolVar(&useAutomaticTls, "auto-tls", false, "pass in order to have wings generate and manage it's own SSL certificates using Let's Encrypt")
 	root.PersistentFlags().StringVar(&tlsHostname, "tls-hostname", "", "required with --auto-tls, the FQDN for the generated SSL certificate")
+	root.PersistentFlags().BoolVar(&ignoreCertificateErrors, "ignore-certificate-errors", false, "if passed any SSL certificate errors will be ignored by wings")
 
 	root.AddCommand(configureCmd)
 	root.AddCommand(diagnosticsCmd)
@@ -139,8 +141,10 @@ func rootCmdRun(*cobra.Command, []string) {
 	log.WithField("path", c.GetPath()).Info("loading configuration from path")
 	if c.Debug {
 		log.Debug("running in debug mode")
-		log.Warn("certificate checking is disabled")
+	}
 
+	if ignoreCertificateErrors {
+		log.Warn("running with --ignore-certificate-errors: TLS certificate host chains and name will not be verified")
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
 			InsecureSkipVerify: true,
 		}
