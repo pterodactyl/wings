@@ -95,47 +95,51 @@ func postServerArchive(c *gin.Context) {
 
 	go func(s *server.Server) {
 		r := api.New()
+		l := log.WithField("server", s.Id())
 
 		// Attempt to get an archive of the server.  This **WILL NOT** modify the source files of a server,
 		// this process is 100% safe and will not corrupt a server's files if it fails.
 		if err := s.Archiver.Archive(); err != nil {
-			s.Log().WithField("error", err).Error("failed to get archive for server")
+			l.WithField("error", err).Error("failed to get transfer archive for server")
 
 			if err := r.SendArchiveStatus(s.Id(), false); err != nil {
 				if !api.IsRequestError(err) {
-					s.Log().WithField("error", err).Error("failed to notify panel of failed archive status")
+					l.WithField("error", err).Error("failed to notify panel of failed archive status")
 					return
 				}
 
-				s.Log().WithField("error", err.Error()).Error("panel returned an error when notifying it of a failed archive status")
+				l.WithField("error", err.Error()).Error("panel returned an error when notifying it of a failed archive status")
 				return
 			}
 
-			s.Log().Info("successfully notified panel of failed archive status")
+			l.Info("successfully notified panel of failed archive status")
 			return
 		}
 
-		s.Log().Debug("successfully created server archive, notifying panel")
+		l.Info("successfully created server transfer archive, notifying panel..")
 
 		if err := r.SendArchiveStatus(s.Id(), true); err != nil {
 			if !api.IsRequestError(err) {
-				s.Log().WithField("error", err).Error("failed to notify panel of successful archive status")
+				l.WithField("error", err).Error("failed to notify panel of successful archive status")
 				return
 			}
 
-			s.Log().WithField("error", err.Error()).Error("panel returned an error when notifying it of a successful archive status")
+			l.WithField("error", err.Error()).Error("panel returned an error when notifying it of a successful archive status")
 			return
 		}
 
-		s.Log().Info("successfully notified panel of successful archive status")
+		l.Info("successfully notified panel of successful transfer archive status")
 	}(s)
 
 	c.Status(http.StatusAccepted)
 }
 
 func postTransfer(c *gin.Context) {
-	buf := bytes.Buffer{}
-	buf.ReadFrom(c.Request.Body)
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(c.Request.Body); err != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
 
 	go func(data []byte) {
 		serverID, _ := jsonparser.GetString(data, "server_id")
@@ -143,6 +147,7 @@ func postTransfer(c *gin.Context) {
 		token, _ := jsonparser.GetString(data, "token")
 
 		l := log.WithField("server", serverID)
+		l.Info("incoming transfer for server")
 		// Create an http client with no timeout.
 		client := &http.Client{Timeout: 0}
 
@@ -176,6 +181,7 @@ func postTransfer(c *gin.Context) {
 		// Add the authorization header.
 		req.Header.Set("Authorization", token)
 
+		l.Info("requesting archive for server transfer..")
 		// Execute the http request.
 		res, err := client.Do(req)
 		if err != nil {
@@ -205,11 +211,9 @@ func postTransfer(c *gin.Context) {
 				l.WithField("error", err).Error("failed to stat archive file")
 				return
 			}
-		} else {
-			if err := os.Remove(archivePath); err != nil {
-				l.WithField("error", err).Warn("failed to remove old archive file")
-				return
-			}
+		} else if err := os.Remove(archivePath); err != nil {
+			l.WithField("error", err).Warn("failed to remove old archive file")
+			return
 		}
 
 		// Create the file.
@@ -219,6 +223,7 @@ func postTransfer(c *gin.Context) {
 			return
 		}
 
+		l.Info("writing transfer archive to disk..")
 		// Copy the file.
 		buf := make([]byte, 1024*4)
 		_, err = io.CopyBuffer(file, res.Body, buf)
@@ -232,6 +237,7 @@ func postTransfer(c *gin.Context) {
 			l.WithField("error", err).Error("failed to close archive file")
 			return
 		}
+		l.Info("finished writing transfer archive to disk")
 
 		// Whenever the transfer fails or succeeds, delete the temporary transfer archive.
 		defer func() {
@@ -246,7 +252,7 @@ func postTransfer(c *gin.Context) {
 			}
 		}()
 
-		l.Debug("server archive downloaded, computing checksum...")
+		l.Info("server transfer archive downloaded, computing checksum...")
 
 		// Open the archive file for computing a checksum.
 		file, err = os.Open(archivePath)
@@ -263,9 +269,12 @@ func postTransfer(c *gin.Context) {
 			return
 		}
 
+		checksum := hex.EncodeToString(hash.Sum(nil))
+		l.WithField("checksum", checksum).Info("computed checksum of transfer archive")
+
 		// Verify the two checksums.
-		if hex.EncodeToString(hash.Sum(nil)) != res.Header.Get("X-Checksum") {
-			l.Error("checksum verification failed for archive")
+		if checksum != res.Header.Get("X-Checksum") {
+			l.WithField("source_checksum", res.Header.Get("X-Checksum")).Error("checksum verification failed for archive")
 			return
 		}
 
@@ -275,7 +284,7 @@ func postTransfer(c *gin.Context) {
 			return
 		}
 
-		l.Info("server archive transfer was successful")
+		l.Info("server archive transfer checksums have been validated, creating server environment..")
 
 		// Get the server data from the request.
 		serverData, t, _, _ := jsonparser.Get(data, "server")
@@ -300,7 +309,8 @@ func postTransfer(c *gin.Context) {
 			return
 		}
 
-		// Un-archive the archive, that sounds weird..
+		l.Info("server environment configured, extracting transfer archive..")
+		// Extract the transfer archive.
 		if err := archiver.NewTarGz().Unarchive(archivePath, i.Server().Filesystem().Path()); err != nil {
 			l.WithField("error", err).Error("failed to extract server archive")
 			return
@@ -312,6 +322,8 @@ func postTransfer(c *gin.Context) {
 		// It may be useful to retry sending the transfer success every so often just in case of a small
 		// hiccup or the fix of whatever error causing the success request to fail.
 		hasError = false
+
+		l.Info("server transfer archive has been extracted, notifying panel..")
 
 		// Notify the panel that the transfer succeeded.
 		err = api.New().SendTransferSuccess(serverID)
