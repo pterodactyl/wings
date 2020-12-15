@@ -1,47 +1,55 @@
 name: Publish Docker Image
+
 on:
   push:
     branches:
       - 'develop'
     tags:
       - 'v*'
+
 jobs:
-  push_to_registry:
-    name: Push Image to GitHub Packages
-    runs-on: ubuntu-latest
-    # Always run against a tag, even if the commit into the tag has [docker skip]
-    # within the commit message.
+  push:
+    name: Push
+    runs-on: ubuntu-20.04
+
+    # Always run against a tag, even if the commit into the tag has [docker skip] within the commit message.
     if: "!contains(github.ref, 'develop') || (!contains(github.event.head_commit.message, 'skip docker') && !contains(github.event.head_commit.message, 'docker skip'))"
+
     steps:
-      - uses: actions/checkout@v2
-      - uses: crazy-max/ghaction-docker-meta@v1
-        id: docker_meta
+      - name: Code Checkout
+        uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Install buildx
+        uses: docker/setup-buildx-action@v1
         with:
-          images: ghcr.io/pterodactyl/wings
-      - uses: docker/setup-qemu-action@v1
-      - uses: docker/setup-buildx-action@v1
-      - uses: docker/login-action@v1
+          version: v0.5.1
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.REGISTRY_TOKEN }}
+
       - name: Release Production Build
         uses: docker/build-push-action@v2
         if: "!contains(github.ref, 'develop')"
-        env:
-          REF: ${{ github.ref }}
         with:
-          push: true
           build-args: |
-            VERSION=${REF:11}
-          tags: ${{ steps.docker_meta.outputs.tags }}
+            VERSION=${GITHUB_REF:11}
           labels: ${{ steps.docker_meta.outputs.labels }}
+          push: true
+          tags: ${{ steps.docker_meta.outputs.tags }}
+
       - name: Release Development Build
         uses: docker/build-push-action@v2
         if: "contains(github.ref, 'develop')"
         with:
-          push: ${{ github.event_name != 'pull_request' }}
           build-args: |
-            VERSION=dev-${GIT_COMMIT:0:7}
-          tags: ${{ steps.docker_meta.outputs.tags }}
+            VERSION=dev-$(git rev-parse --short "$GITHUB_SHA"}
           labels: ${{ steps.docker_meta.outputs.labels }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.docker_meta.outputs.tags }}

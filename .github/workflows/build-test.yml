@@ -12,7 +12,6 @@ on:
 jobs:
   build:
     strategy:
-      # Default is true, cancels jobs for other platforms in the matrix if one fails
       fail-fast: false
 
       matrix:
@@ -24,9 +23,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Code Checkout
+        uses: actions/checkout@v2
 
-      - uses: actions/setup-go@v2
+      - name: Setup Go v${{ matrix.go }}
+        uses: actions/setup-go@v2
         with:
           go-version: ${{ matrix.go }}
 
@@ -64,22 +65,14 @@ jobs:
           SRC_PATH: github.com/pterodactyl/wings
         run: |
           go build -v -trimpath -ldflags="-s -w -X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_${{ matrix.goos }}_${{ matrix.goarch }} wings.go
+          upx build/wings_${{ matrix.goos }}_${{ matrix.goarch }}
+          chmod +x build/wings_${{ matrix.goos }}_${{ matrix.goarch }}
 
       - name: Test
         run: go test ./...
 
-      - name: Compress binary and make it executable
-        if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
-        run: |
-          upx build/wings_${{ matrix.goos }}_${{ matrix.goarch }} && chmod +x build/wings_${{ matrix.goos }}_${{ matrix.goarch }}
-
-      - uses: actions/upload-artifact@v2
-        if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
-        with:
-          name: wings_${{ matrix.goos }}_${{ matrix.goarch }}
-          path: build/wings_${{ matrix.goos }}_${{ matrix.goarch }}
-
-      - uses: actions/upload-artifact@v2
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
         if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
         with:
           name: wings_${{ matrix.goos }}_${{ matrix.goarch }}
