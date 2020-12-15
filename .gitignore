@@ -45,7 +45,6 @@ test_*/
 # Keep all gitkeep files (This needs to stay at the bottom)
 !.gitkeep
 debug
-data/.states.json
 .DS_Store
 *.pprof
 *.pdf
