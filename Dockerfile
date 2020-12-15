@@ -27,8 +27,8 @@ RUN         upx wings
 FROM        busybox:1.32.0
 
 LABEL       org.opencontainers.image.title="Wings"
-LABEL       org.opencontainers.image.version="v1.1.3"
-LABEL       org.opencontainers.image.description="Server control layer for Pterodactyl"
+LABEL       org.opencontainers.image.version="$VERSION"
+LABEL       org.opencontainers.image.description="The server control plane for Pterodactyl Panel. Written from the ground-up with security, speed, and stability in mind."
 LABEL       org.opencontainers.image.url="https://pterodactyl.io"
 LABEL       org.opencontainers.image.documentation="https://pterodactyl.io/project/introduction.html"
 LABEL       org.opencontainers.image.vendor="Pterodactyl Software"
