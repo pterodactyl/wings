@@ -56,7 +56,7 @@ jobs:
         if: "contains(github.ref, 'develop')"
         with:
           build-args: |
-            VERSION=dev-$(git rev-parse --short $GITHUB_SHA)
+            VERSION=dev-${GITHUB_SHA:8}
           labels: ${{ steps.docker_meta.outputs.labels }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta.outputs.tags }}
