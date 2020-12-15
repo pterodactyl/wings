@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'develop'
+
     tags:
       - 'v*'
 
@@ -18,6 +19,12 @@ jobs:
     steps:
       - name: Code Checkout
         uses: actions/checkout@v2
+
+      - name: Docker Meta
+        id: docker_meta
+        uses: crazy-max/ghaction-docker-meta@v1
+        with:
+          images: ghcr.io/pterodactyl/wings
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -49,7 +56,7 @@ jobs:
         if: "contains(github.ref, 'develop')"
         with:
           build-args: |
-            VERSION=dev-$(git rev-parse --short "$GITHUB_SHA"}
+            VERSION=dev-$(git rev-parse --short $GITHUB_SHA)
           labels: ${{ steps.docker_meta.outputs.labels }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta.outputs.tags }}
