@@ -41,12 +41,18 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.REGISTRY_TOKEN }}
 
+      - name: Get Build Information
+        id: build_info
+        run: |
+          echo "::set-output name=version_tag::${GITHUB_REF/refs\/tags\//}"
+          echo "::set-output name=short_sha::$(git rev-parse --short HEAD)"
+
       - name: Release Production Build
         uses: docker/build-push-action@v2
         if: "!contains(github.ref, 'develop')"
         with:
           build-args: |
-            VERSION=${GITHUB_REF:11}
+            VERSION=${{ steps.build_info.outputs.version_tag }}
           labels: ${{ steps.docker_meta.outputs.labels }}
           push: true
           tags: ${{ steps.docker_meta.outputs.tags }}
@@ -56,7 +62,7 @@ jobs:
         if: "contains(github.ref, 'develop')"
         with:
           build-args: |
-            VERSION=dev-${GITHUB_SHA:8}
+            VERSION=dev-${{ steps.build_info.outputs.short_sha }}
           labels: ${{ steps.docker_meta.outputs.labels }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta.outputs.tags }}
