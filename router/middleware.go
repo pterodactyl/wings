@@ -1,6 +1,7 @@
 package router
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -100,6 +101,9 @@ func (m *Middleware) RequireAuthorization() gin.HandlerFunc {
 }
 
 // Helper function to fetch a server out of the servers collection stored in memory.
+//
+// This function should not be used in new controllers, prefer ExtractServer where
+// possible.
 func GetServer(uuid string) *server.Server {
 	return server.GetServers().Find(func(s *server.Server) bool {
 		return uuid == s.Id()
