@@ -19,17 +19,17 @@ func (m *Middleware) ErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 		err := c.Errors.Last()
-		if err == nil {
+		if err == nil || err.Err == nil {
 			return
 		}
-		tracked := NewTrackedError(err)
+		tracked := NewTrackedError(err.Err)
 		// If there is a server in the context for this request pull it out so that we can
 		// track the error specifically for that server.
 		if s, ok := c.Get("server"); ok {
-			tracked = NewServerError(err, s.(*server.Server))
+			tracked = NewServerError(err.Err, s.(*server.Server))
 		}
 		// This error occurs if you submit invalid JSON data to an endpoint.
-		if err.Error() == io.EOF.Error() {
+		if err.Err.Error() == io.EOF.Error() {
 			c.JSON(c.Writer.Status(), gin.H{"error": "A JSON formatted body is required for this endpoint."})
 			return
 		}
