@@ -1,14 +1,13 @@
 package cli
 
 import (
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
 	color2 "github.com/fatih/color"
 	"github.com/mattn/go-colorable"
-	"github.com/pkg/errors"
 	"io"
-	"math"
 	"os"
 	"sync"
 	"time"
@@ -42,10 +41,6 @@ func New(w io.Writer, useColors bool) *Handler {
 	return &Handler{Writer: colorable.NewNonColorable(w), Padding: 2}
 }
 
-type tracer interface {
-	StackTrace() errors.StackTrace
-}
-
 // HandleLog implements log.Handler.
 func (h *Handler) HandleLog(e *log.Entry) error {
 	color := cli.Colors[e.Level]
@@ -71,13 +66,10 @@ func (h *Handler) HandleLog(e *log.Entry) error {
 			continue
 		}
 		if err, ok := e.Fields.Get("error").(error); ok {
-			if e, ok := errors.Cause(err).(tracer); ok {
-				st := e.StackTrace()
-				l := math.Min(float64(len(st)), 10)
-				fmt.Fprintf(h.Writer, "\n%s%+v\n\n", boldred.Sprintf("Stacktrace:"), st[0:int(l)])
-			} else {
-				fmt.Fprintf(h.Writer, "\n%s\n%+v\n\n", boldred.Sprintf("Stacktrace:"), err)
-			}
+			// Attach the stacktrace if it is missing at this point, but don't point
+			// it specifically to this line since that is irrelevant.
+			err = errors.WithStackDepthIf(err, 1)
+			fmt.Fprintf(h.Writer, "\n%s\n%+v\n\n", boldred.Sprintf("Stacktrace:"), err)
 		}
 	}
 

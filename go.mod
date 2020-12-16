@@ -3,6 +3,7 @@ module github.com/pterodactyl/wings
 go 1.13
 
 require (
+	emperror.dev/errors v0.8.0
 	github.com/AlecAivazis/survey/v2 v2.1.0
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Jeffail/gabs/v2 v2.5.1

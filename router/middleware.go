@@ -1,9 +1,9 @@
 package router
 
 import (
+	"emperror.dev/errors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"io"

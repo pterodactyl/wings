@@ -1,11 +1,11 @@
 package router
 
 import (
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"net/http"
@@ -18,6 +18,15 @@ type RequestError struct {
 	uuid    string
 	message string
 	server  *server.Server
+}
+
+// Attaches an error to the gin.Context object for the request and ensures that it
+// has a proper stacktrace associated with it when doing so.
+//
+// If you just call c.Error(err) without using this function you'll likely end up
+// with an error that has no annotated stack on it.
+func WithError(c *gin.Context, err error) error {
+	return c.Error(errors.WithStackDepthIf(err, 1))
 }
 
 // Generates a new tracked error, which simply tracks the specific error that
@@ -42,9 +51,9 @@ func NewServerError(err error, s *server.Server) *RequestError {
 
 func (e *RequestError) logger() *log.Entry {
 	if e.server != nil {
-		return e.server.Log().WithField("error_id", e.uuid)
+		return e.server.Log().WithField("error_id", e.uuid).WithField("error", e.err)
 	}
-	return log.WithField("error_id", e.uuid)
+	return log.WithField("error_id", e.uuid).WithField("error", e.err)
 }
 
 // Sets the output message to display to the user in the error.
@@ -67,7 +76,7 @@ func (e *RequestError) AbortWithStatus(status int, c *gin.Context) {
 	// If this error is because the resource does not exist, we likely do not need to log
 	// the error anywhere, just return a 404 and move on with our lives.
 	if errors.Is(e.err, os.ErrNotExist) {
-		e.logger().WithField("error", e.err).Debug("encountered os.IsNotExist error while handling request")
+		e.logger().Debug("encountered os.IsNotExist error while handling request")
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"error": "The requested resource was not found on the system.",
 		})
@@ -84,9 +93,9 @@ func (e *RequestError) AbortWithStatus(status int, c *gin.Context) {
 
 	// Otherwise, log the error to zap, and then report the error back to the user.
 	if status >= 500 {
-		e.logger().WithField("error", e.err).Error("unexpected error while handling HTTP request")
+		e.logger().Error("unexpected error while handling HTTP request")
 	} else {
-		e.logger().WithField("error", e.err).Debug("non-server error encountered while handling HTTP request")
+		e.logger().Debug("non-server error encountered while handling HTTP request")
 	}
 
 	if e.message == "" {

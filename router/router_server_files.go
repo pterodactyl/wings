@@ -57,14 +57,11 @@ func getServerFileContents(c *gin.Context) {
 // Returns the contents of a directory for a server.
 func getServerListDirectory(c *gin.Context) {
 	s := ExtractServer(c)
-
-	stats, err := s.Filesystem().ListDirectory(c.Query("directory"))
-	if err != nil {
-		NewServerError(err, s).AbortFilesystemError(c)
-		return
+	if stats, err := s.Filesystem().ListDirectory(c.Query("directory")); err != nil {
+		WithError(c, err)
+	} else {
+		c.JSON(http.StatusOK, stats)
 	}
-
-	c.JSON(http.StatusOK, stats)
 }
 
 type renameFile struct {
