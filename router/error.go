@@ -93,7 +93,7 @@ func (e *RequestError) AbortWithStatus(status int, c *gin.Context) {
 
 // Helper function to just abort with an internal server error. This is generally the response
 // from most errors encountered by the API.
-func (e *RequestError) AbortWithServerError(c *gin.Context) {
+func (e *RequestError) Abort(c *gin.Context) {
 	e.AbortWithStatus(http.StatusInternalServerError, c)
 }
 
@@ -128,7 +128,7 @@ func (e *RequestError) AbortFilesystemError(c *gin.Context) {
 		return
 	}
 
-	e.AbortWithServerError(c)
+	e.Abort(c)
 }
 
 // Format the error to a string and include the UUID.

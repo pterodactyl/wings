@@ -192,7 +192,7 @@ func postServerDeleteFiles(c *gin.Context) {
 	}
 
 	if err := g.Wait(); err != nil {
-		TrackedServerError(err, s).AbortWithServerError(c)
+		TrackedServerError(err, s).Abort(c)
 		return
 	}
 
@@ -205,7 +205,7 @@ func postServerWriteFile(c *gin.Context) {
 
 	f, err := url.QueryUnescape(c.Query("file"))
 	if err != nil {
-		TrackedServerError(err, s).AbortWithServerError(c)
+		TrackedServerError(err, s).Abort(c)
 		return
 	}
 	f = "/" + strings.TrimLeft(f, "/")
@@ -218,6 +218,51 @@ func postServerWriteFile(c *gin.Context) {
 			return
 		}
 
+		TrackedServerError(err, s).AbortFilesystemError(c)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// Writes the contents of the remote URL to a file on a server.
+func postServerDownloadRemoteFile(c *gin.Context) {
+	s := ExtractServer(c)
+	var data struct {
+		URL      string `binding:"required" json:"url"`
+		BasePath string `json:"path"`
+	}
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
+
+	u, err := url.Parse(data.URL)
+	if err != nil {
+		if e, ok := err.(*url.Error); ok {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "An error occurred while parsing that URL: " + e.Err.Error(),
+			})
+			return
+		}
+		TrackedServerError(err, s).Abort(c)
+		return
+	}
+
+	resp, err := http.Get(u.String())
+	if err != nil {
+		TrackedServerError(err, s).Abort(c)
+		return
+	}
+	defer resp.Body.Close()
+
+	filename := strings.Split(u.Path, "/")
+	if err := s.Filesystem().Writefile(filepath.Join(data.BasePath, filename[len(filename)-1]), resp.Body); err != nil {
+		if errors.Is(err, filesystem.ErrIsDirectory) {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "Cannot write file, name conflicts with an existing directory by the same name.",
+			})
+			return
+		}
 		TrackedServerError(err, s).AbortFilesystemError(c)
 		return
 	}
@@ -246,7 +291,7 @@ func postServerCreateDirectory(c *gin.Context) {
 			return
 		}
 
-		TrackedServerError(err, s).AbortWithServerError(c)
+		TrackedServerError(err, s).Abort(c)
 		return
 	}
 
@@ -315,7 +360,7 @@ func postServerDecompressFiles(c *gin.Context) {
 			return
 		}
 
-		TrackedServerError(err, s).AbortWithServerError(c)
+		TrackedServerError(err, s).Abort(c)
 		return
 	}
 
@@ -418,7 +463,7 @@ func postServerChmodFile(c *gin.Context) {
 func postServerUploadFiles(c *gin.Context) {
 	token := tokens.UploadPayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
-		TrackedError(err).AbortWithServerError(c)
+		TrackedError(err).Abort(c)
 		return
 	}
 

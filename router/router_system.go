@@ -16,7 +16,7 @@ import (
 func getSystemInformation(c *gin.Context) {
 	i, err := system.GetSystemInformation()
 	if err != nil {
-		TrackedError(err).AbortWithServerError(c)
+		TrackedError(err).Abort(c)
 
 		return
 	}
@@ -45,7 +45,7 @@ func postCreateServer(c *gin.Context) {
 			return
 		}
 
-		TrackedError(err).AbortWithServerError(c)
+		TrackedError(err).Abort(c)
 		return
 	}
 
@@ -99,7 +99,7 @@ func postUpdateConfiguration(c *gin.Context) {
 		// before this code was run.
 		config.Set(&ccopy)
 
-		TrackedError(err).AbortWithServerError(c)
+		TrackedError(err).Abort(c)
 		return
 	}
 

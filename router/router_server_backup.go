@@ -34,7 +34,7 @@ func postServerBackup(c *gin.Context) {
 	}
 
 	if err != nil {
-		TrackedServerError(err, s).AbortWithServerError(c)
+		TrackedServerError(err, s).Abort(c)
 		return
 	}
 
@@ -63,7 +63,7 @@ func deleteServerBackup(c *gin.Context) {
 			return
 		}
 
-		TrackedServerError(err, s).AbortWithServerError(c)
+		TrackedServerError(err, s).Abort(c)
 		return
 	}
 
@@ -72,7 +72,7 @@ func deleteServerBackup(c *gin.Context) {
 		// the backup previously and it is now missing when we go to delete, just treat it as having
 		// been successful, rather than returning a 404.
 		if !errors.Is(err, os.ErrNotExist) {
-			TrackedServerError(err, s).AbortWithServerError(c)
+			TrackedServerError(err, s).Abort(c)
 			return
 		}
 	}
