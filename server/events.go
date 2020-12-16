@@ -15,6 +15,7 @@ const (
 	StatusEvent           = "status"
 	StatsEvent            = "stats"
 	BackupCompletedEvent  = "backup completed"
+	SendTransferLogsEvent = "send transfer logs"
 )
 
 // Returns the server's emitter instance.
