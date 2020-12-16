@@ -37,7 +37,7 @@ func getServerArchive(c *gin.Context) {
 
 	token := tokens.TransferPayload{}
 	if err := tokens.ParseToken([]byte(auth[1]), &token); err != nil {
-		TrackedError(err).Abort(c)
+		NewTrackedError(err).Abort(c)
 		return
 	}
 
@@ -53,7 +53,7 @@ func getServerArchive(c *gin.Context) {
 	st, err := s.Archiver.Stat()
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			TrackedServerError(err, s).SetMessage("failed to stat archive").Abort(c)
+			NewServerError(err, s).SetMessage("failed to stat archive").Abort(c)
 			return
 		}
 
@@ -63,13 +63,13 @@ func getServerArchive(c *gin.Context) {
 
 	checksum, err := s.Archiver.Checksum()
 	if err != nil {
-		TrackedServerError(err, s).SetMessage("failed to calculate checksum").Abort(c)
+		NewServerError(err, s).SetMessage("failed to calculate checksum").Abort(c)
 		return
 	}
 
 	file, err := os.Open(s.Archiver.Path())
 	if err != nil {
-		tserr := TrackedServerError(err, s)
+		tserr := NewServerError(err, s)
 		if !os.IsNotExist(err) {
 			tserr.SetMessage("failed to open archive for reading")
 		} else {

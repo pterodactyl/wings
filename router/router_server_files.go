@@ -25,7 +25,7 @@ func getServerFileContents(c *gin.Context) {
 	p := "/" + strings.TrimLeft(c.Query("file"), "/")
 	st, err := s.Filesystem().Stat(p)
 	if err != nil {
-		TrackedServerError(err, s).AbortFilesystemError(c)
+		NewServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -49,7 +49,7 @@ func getServerFileContents(c *gin.Context) {
 	// happen since we're doing so much before this point that would normally throw an error if there
 	// was a problem with the file.
 	if err := s.Filesystem().Readfile(p, c.Writer); err != nil {
-		TrackedServerError(err, s).AbortFilesystemError(c)
+		NewServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 }
@@ -60,7 +60,7 @@ func getServerListDirectory(c *gin.Context) {
 
 	stats, err := s.Filesystem().ListDirectory(c.Query("directory"))
 	if err != nil {
-		TrackedServerError(err, s).AbortFilesystemError(c)
+		NewServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -127,7 +127,7 @@ func putServerRenameFiles(c *gin.Context) {
 			return
 		}
 
-		TrackedServerError(err, s).AbortFilesystemError(c)
+		NewServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -147,7 +147,7 @@ func postServerCopyFile(c *gin.Context) {
 	}
 
 	if err := s.Filesystem().Copy(data.Location); err != nil {
-		TrackedServerError(err, s).AbortFilesystemError(c)
+		NewServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -192,7 +192,7 @@ func postServerDeleteFiles(c *gin.Context) {
 	}
 
 	if err := g.Wait(); err != nil {
-		TrackedServerError(err, s).Abort(c)
+		NewServerError(err, s).Abort(c)
 		return
 	}
 
@@ -205,7 +205,7 @@ func postServerWriteFile(c *gin.Context) {
 
 	f, err := url.QueryUnescape(c.Query("file"))
 	if err != nil {
-		TrackedServerError(err, s).Abort(c)
+		NewServerError(err, s).Abort(c)
 		return
 	}
 	f = "/" + strings.TrimLeft(f, "/")
@@ -218,7 +218,7 @@ func postServerWriteFile(c *gin.Context) {
 			return
 		}
 
-		TrackedServerError(err, s).AbortFilesystemError(c)
+		NewServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -244,13 +244,13 @@ func postServerDownloadRemoteFile(c *gin.Context) {
 			})
 			return
 		}
-		TrackedServerError(err, s).Abort(c)
+		NewServerError(err, s).Abort(c)
 		return
 	}
 
 	resp, err := http.Get(u.String())
 	if err != nil {
-		TrackedServerError(err, s).Abort(c)
+		NewServerError(err, s).Abort(c)
 		return
 	}
 	defer resp.Body.Close()
@@ -263,7 +263,7 @@ func postServerDownloadRemoteFile(c *gin.Context) {
 			})
 			return
 		}
-		TrackedServerError(err, s).AbortFilesystemError(c)
+		NewServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -291,7 +291,7 @@ func postServerCreateDirectory(c *gin.Context) {
 			return
 		}
 
-		TrackedServerError(err, s).Abort(c)
+		NewServerError(err, s).Abort(c)
 		return
 	}
 
@@ -326,7 +326,7 @@ func postServerCompressFiles(c *gin.Context) {
 
 	f, err := s.Filesystem().CompressFiles(data.RootPath, data.Files)
 	if err != nil {
-		TrackedServerError(err, s).AbortFilesystemError(c)
+		NewServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -359,7 +359,7 @@ func postServerDecompressFiles(c *gin.Context) {
 			return
 		}
 
-		TrackedServerError(err, s).Abort(c)
+		NewServerError(err, s).Abort(c)
 		return
 	}
 
@@ -390,7 +390,7 @@ func postServerDecompressFiles(c *gin.Context) {
 			return
 		}
 
-		TrackedServerError(err, s).AbortFilesystemError(c)
+		NewServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -452,7 +452,7 @@ func postServerChmodFile(c *gin.Context) {
 	}
 
 	if err := g.Wait(); err != nil {
-		TrackedServerError(err, s).AbortFilesystemError(c)
+		NewServerError(err, s).AbortFilesystemError(c)
 		return
 	}
 
@@ -462,7 +462,7 @@ func postServerChmodFile(c *gin.Context) {
 func postServerUploadFiles(c *gin.Context) {
 	token := tokens.UploadPayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
-		TrackedError(err).Abort(c)
+		NewTrackedError(err).Abort(c)
 		return
 	}
 
@@ -500,14 +500,14 @@ func postServerUploadFiles(c *gin.Context) {
 	for _, header := range headers {
 		p, err := s.Filesystem().SafePath(filepath.Join(directory, header.Filename))
 		if err != nil {
-			TrackedServerError(err, s).AbortFilesystemError(c)
+			NewServerError(err, s).AbortFilesystemError(c)
 			return
 		}
 
 		// We run this in a different method so I can use defer without any of
 		// the consequences caused by calling it in a loop.
 		if err := handleFileUpload(p, s, header); err != nil {
-			TrackedServerError(err, s).AbortFilesystemError(c)
+			NewServerError(err, s).AbortFilesystemError(c)
 			return
 		}
 	}

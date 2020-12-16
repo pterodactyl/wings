@@ -41,7 +41,7 @@ func getServerLogs(c *gin.Context) {
 
 	out, err := s.ReadLogfile(l)
 	if err != nil {
-		TrackedServerError(err, s).Abort(c)
+		NewServerError(err, s).Abort(c)
 		return
 	}
 
@@ -110,7 +110,7 @@ func postServerCommands(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
 	if running, err := s.Environment.IsRunning(); err != nil {
-		TrackedServerError(err, s).Abort(c)
+		NewServerError(err, s).Abort(c)
 		return
 	} else if !running {
 		c.AbortWithStatusJSON(http.StatusBadGateway, gin.H{
@@ -144,7 +144,7 @@ func patchServer(c *gin.Context) {
 	buf.ReadFrom(c.Request.Body)
 
 	if err := s.UpdateDataStructure(buf.Bytes()); err != nil {
-		TrackedServerError(err, s).Abort(c)
+		NewServerError(err, s).Abort(c)
 		return
 	}
 
@@ -214,7 +214,7 @@ func deleteServer(c *gin.Context) {
 	// forcibly terminate it before removing the container, so we do not need to handle
 	// that here.
 	if err := s.Environment.Destroy(); err != nil {
-		TrackedServerError(err, s).Abort(c)
+		NewServerError(err, s).Abort(c)
 	}
 
 	// Once the environment is terminated, remove the server files from the system. This is

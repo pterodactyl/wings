@@ -14,7 +14,7 @@ func getServerWebsocket(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 	handler, err := websocket.GetHandler(s, c.Writer, c.Request)
 	if err != nil {
-		TrackedServerError(err, s).Abort(c)
+		NewServerError(err, s).Abort(c)
 		return
 	}
 	defer handler.Connection.Close()

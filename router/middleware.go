@@ -22,23 +22,15 @@ func (m *Middleware) ErrorHandler() gin.HandlerFunc {
 		if err == nil {
 			return
 		}
-
-		tracked := TrackedError(err)
+		tracked := NewTrackedError(err)
 		// If there is a server in the context for this request pull it out so that we can
 		// track the error specifically for that server.
 		if s, ok := c.Get("server"); ok {
-			tracked = TrackedServerError(err, s.(*server.Server))
+			tracked = NewServerError(err, s.(*server.Server))
 		}
-
-		// Sometimes requests have already modifed the status by the time this handler is
-		// called. In those cases, try to attach the error message but don't try to change
-		// the response status since it has already been set.
-		if c.Writer.Status() != 200 {
-			if err.Error() == io.EOF.Error() {
-				c.JSON(c.Writer.Status(), gin.H{"error": "A JSON formatted body is required for this endpoint."})
-			} else {
-				tracked.AbortWithStatus(c.Writer.Status(), c)
-			}
+		// This error occurs if you submit invalid JSON data to an endpoint.
+		if err.Error() == io.EOF.Error() {
+			c.JSON(c.Writer.Status(), gin.H{"error": "A JSON formatted body is required for this endpoint."})
 			return
 		}
 		tracked.Abort(c)
