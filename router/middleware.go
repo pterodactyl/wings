@@ -1,6 +1,7 @@
 package router
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/pterodactyl/wings/config"
@@ -60,6 +61,9 @@ func AuthorizationMiddleware(c *gin.Context) {
 }
 
 // Helper function to fetch a server out of the servers collection stored in memory.
+//
+// This function should not be used in new controllers, prefer ExtractServer where
+// possible.
 func GetServer(uuid string) *server.Server {
 	return server.GetServers().Find(func(s *server.Server) bool {
 		return uuid == s.Id()
@@ -70,12 +74,24 @@ func GetServer(uuid string) *server.Server {
 // locate it.
 func ServerExists(c *gin.Context) {
 	u, err := uuid.Parse(c.Param("server"))
-	if err != nil || GetServer(u.String()) == nil {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-			"error": "The resource you requested does not exist.",
-		})
-		return
+	if err == nil {
+		if s := GetServer(u.String()); s != nil {
+			c.Set("server", s)
+			c.Next()
+			return
+		}
 	}
+	c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+		"error": "The resource you requested does not exist.",
+	})
+}
 
-	c.Next()
+// Returns the server instance from the gin context. If there is no server set in the
+// context (e.g. calling from a controller not protected by ServerExists) this function
+// will panic.
+func ExtractServer(c *gin.Context) *server.Server {
+	if s, ok := c.Get("server"); ok {
+		return s.(*server.Server)
+	}
+	panic(errors.New("cannot extract server, missing on gin context"))
 }

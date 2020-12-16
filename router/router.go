@@ -83,7 +83,7 @@ func Configure() *gin.Engine {
 			files.PUT("/rename", putServerRenameFiles)
 			files.POST("/copy", postServerCopyFile)
 			files.POST("/write", postServerWriteFile)
-			files.POST("/writeUrl", postServerWriteFileFromUrl)
+			files.POST("/writeUrl", postServerDownloadRemoteFile)
 			files.POST("/create-directory", postServerCreateDirectory)
 			files.POST("/delete", postServerDeleteFiles)
 			files.POST("/compress", postServerCompressFiles)
