@@ -2,9 +2,9 @@ package config
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/apex/log"
-	"github.com/pkg/errors"
 	"html/template"
 	"io/ioutil"
 	"os"

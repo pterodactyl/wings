@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"github.com/pkg/errors"
+	"emperror.dev/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/server/filesystem"

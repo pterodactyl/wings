@@ -1,11 +1,11 @@
 package config
 
 import (
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/cobaugh/osrelease"
 	"github.com/creasty/defaults"
 	"github.com/gbrlsnchs/jwt/v3"
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"

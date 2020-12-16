@@ -1,10 +1,10 @@
 package installer
 
 import (
+	"emperror.dev/errors"
 	"encoding/json"
 	"github.com/asaskevich/govalidator"
 	"github.com/buger/jsonparser"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/server"

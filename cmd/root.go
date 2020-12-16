@@ -2,32 +2,30 @@ package cmd
 
 import (
 	"crypto/tls"
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/NYTimes/logrotate"
+	"github.com/apex/log"
 	"github.com/apex/log/handlers/multi"
 	"github.com/docker/docker/client"
 	"github.com/gammazero/workerpool"
-	"golang.org/x/crypto/acme"
-	"net/http"
-	"os"
-	"path"
-	"path/filepath"
-	"strings"
-
-	"github.com/apex/log"
 	"github.com/mitchellh/colorstring"
-	"github.com/pterodactyl/wings/loggers/cli"
-	"golang.org/x/crypto/acme/autocert"
-
-	"github.com/pkg/errors"
 	"github.com/pkg/profile"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/loggers/cli"
 	"github.com/pterodactyl/wings/router"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/sftp"
 	"github.com/pterodactyl/wings/system"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/acme/autocert"
+	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
 )
 
 var (

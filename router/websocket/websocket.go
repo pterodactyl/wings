@@ -2,13 +2,13 @@ package websocket
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"encoding/json"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/gbrlsnchs/jwt/v3"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/environment/docker"
@@ -33,10 +33,10 @@ const (
 
 type Handler struct {
 	sync.RWMutex `json:"-"`
-	Connection *websocket.Conn `json:"-"`
-	jwt        *tokens.WebsocketPayload
-	server     *server.Server
-	uuid       uuid.UUID
+	Connection   *websocket.Conn `json:"-"`
+	jwt          *tokens.WebsocketPayload
+	server       *server.Server
+	uuid         uuid.UUID
 }
 
 var (

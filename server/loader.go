@@ -1,12 +1,12 @@
 package server
 
 import (
+	"emperror.dev/errors"
 	"encoding/json"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/creasty/defaults"
 	"github.com/gammazero/workerpool"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"

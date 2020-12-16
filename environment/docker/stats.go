@@ -2,10 +2,10 @@ package docker
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"encoding/json"
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/environment"
 	"io"
 	"math"

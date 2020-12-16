@@ -1,9 +1,9 @@
 package filesystem
 
 import (
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/apex/log"
-	"github.com/pkg/errors"
 	"os"
 	"path/filepath"
 )

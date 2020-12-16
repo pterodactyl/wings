@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/pkg/errors"
+	"emperror.dev/errors"
 )
 
 var ErrIsRunning = errors.New("server is running")

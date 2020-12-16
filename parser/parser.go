@@ -2,13 +2,13 @@ package parser
 
 import (
 	"bufio"
+	"emperror.dev/errors"
 	"encoding/json"
 	"github.com/apex/log"
 	"github.com/beevik/etree"
 	"github.com/buger/jsonparser"
 	"github.com/icza/dyno"
 	"github.com/magiconair/properties"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v2"

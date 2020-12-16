@@ -2,8 +2,8 @@ package server
 
 import (
 	"bufio"
+	"emperror.dev/errors"
 	"github.com/apex/log"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/server/backup"
 	"os"

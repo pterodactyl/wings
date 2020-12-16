@@ -4,9 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"emperror.dev/errors"
 	"encoding/json"
 	"github.com/docker/docker/api/types"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/environment"
 	"strconv"
 )

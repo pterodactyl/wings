@@ -2,8 +2,8 @@ package filesystem
 
 import (
 	"bytes"
+	"emperror.dev/errors"
 	. "github.com/franela/goblin"
-	"github.com/pkg/errors"
 	"os"
 	"path/filepath"
 	"testing"

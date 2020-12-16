@@ -2,9 +2,9 @@ package filesystem
 
 import (
 	"bufio"
+	"emperror.dev/errors"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/karrick/godirwalk"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/system"
 	"io"

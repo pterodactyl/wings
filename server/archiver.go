@@ -2,9 +2,9 @@ package server
 
 import (
 	"crypto/sha256"
+	"emperror.dev/errors"
 	"encoding/hex"
 	"github.com/mholt/archiver/v3"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"io"

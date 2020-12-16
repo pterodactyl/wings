@@ -2,11 +2,11 @@ package parser
 
 import (
 	"bytes"
+	"emperror.dev/errors"
 	"github.com/Jeffail/gabs/v2"
 	"github.com/apex/log"
 	"github.com/buger/jsonparser"
 	"github.com/iancoleman/strcase"
-	"github.com/pkg/errors"
 	"io/ioutil"
 	"os"
 	"regexp"

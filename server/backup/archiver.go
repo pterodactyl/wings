@@ -3,10 +3,10 @@ package backup
 import (
 	"archive/tar"
 	"context"
+	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/juju/ratelimit"
 	gzip "github.com/klauspost/pgzip"
-	"github.com/pkg/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/remeh/sizedwaitgroup"
 	"golang.org/x/sync/errgroup"
