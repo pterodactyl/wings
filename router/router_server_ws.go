@@ -24,14 +24,14 @@ func getServerWebsocket(c *gin.Context) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Track this open connection on the server so that we can close them all programtically
+	// Track this open connection on the server so that we can close them all programmatically
 	// if the server is deleted.
 	s.Websockets().Push(handler.Uuid(), &cancel)
 	defer s.Websockets().Remove(handler.Uuid())
 
 	// Listen for the context being canceled and then close the websocket connection. This normally
 	// just happens because you're disconnecting from the socket in the browser, however in some
-	// cases we close the connections programatically (e.g. deleting the server) and need to send
+	// cases we close the connections programmatically (e.g. deleting the server) and need to send
 	// a close message to the websocket so it disconnects.
 	go func(ctx context.Context, c *ws.Conn) {
 	ListenerLoop:
