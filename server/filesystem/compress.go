@@ -40,7 +40,7 @@ func (fs *Filesystem) GetIncludedFiles(dir string, ignored []string) (*backup.In
 			if e.IsSymlink() {
 				sp, err = fs.SafePath(p)
 				if err != nil {
-					if IsBadPathResolutionError(err) {
+					if IsErrorCode(err, ErrCodePathResolution) {
 						return godirwalk.SkipThis
 					}
 
@@ -114,7 +114,7 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 						// use the resolved location for the rest of this function.
 						sp, err = fs.SafePath(p)
 						if err != nil {
-							if IsBadPathResolutionError(err) {
+							if IsErrorCode(err, ErrCodePathResolution) {
 								return godirwalk.SkipThis
 							}
 

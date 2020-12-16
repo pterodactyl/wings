@@ -99,8 +99,8 @@ func (e *RequestError) Abort(c *gin.Context) {
 
 // Handle specific filesystem errors for a server.
 func (e *RequestError) AbortFilesystemError(c *gin.Context) {
-	if errors.Is(e.Err, os.ErrNotExist) || filesystem.IsBadPathResolutionError(e.Err) {
-		if filesystem.IsBadPathResolutionError(e.Err) {
+	if errors.Is(e.Err, os.ErrNotExist) || filesystem.IsErrorCode(e.Err, filesystem.ErrCodePathResolution) {
+		if filesystem.IsErrorCode(e.Err, filesystem.ErrCodePathResolution) {
 			e.logger().Warn(e.Err.Error())
 		}
 
@@ -108,7 +108,7 @@ func (e *RequestError) AbortFilesystemError(c *gin.Context) {
 		return
 	}
 
-	if errors.Is(e.Err, filesystem.ErrNotEnoughDiskSpace) {
+	if filesystem.IsErrorCode(e.Err, filesystem.ErrCodeDiskSpace) {
 		c.AbortWithStatusJSON(http.StatusConflict, gin.H{"error": "There is not enough disk space available to perform that action."})
 		return
 	}

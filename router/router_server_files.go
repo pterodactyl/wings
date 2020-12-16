@@ -56,7 +56,7 @@ func getServerFileContents(c *gin.Context) {
 
 // Returns the contents of a directory for a server.
 func getServerListDirectory(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	stats, err := s.Filesystem().ListDirectory(c.Query("directory"))
 	if err != nil {
@@ -211,7 +211,7 @@ func postServerWriteFile(c *gin.Context) {
 	f = "/" + strings.TrimLeft(f, "/")
 
 	if err := s.Filesystem().Writefile(f, c.Request.Body); err != nil {
-		if errors.Is(err, filesystem.ErrIsDirectory) {
+		if filesystem.IsErrorCode(err, filesystem.ErrCodeIsDirectory) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 				"error": "Cannot write file, name conflicts with an existing directory by the same name.",
 			})
@@ -257,7 +257,7 @@ func postServerDownloadRemoteFile(c *gin.Context) {
 
 	filename := strings.Split(u.Path, "/")
 	if err := s.Filesystem().Writefile(filepath.Join(data.BasePath, filename[len(filename)-1]), resp.Body); err != nil {
-		if errors.Is(err, filesystem.ErrIsDirectory) {
+		if filesystem.IsErrorCode(err, filesystem.ErrCodeIsDirectory) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 				"error": "Cannot write file, name conflicts with an existing directory by the same name.",
 			})
@@ -351,9 +351,8 @@ func postServerDecompressFiles(c *gin.Context) {
 	hasSpace, err := s.Filesystem().SpaceAvailableForDecompression(data.RootPath, data.File)
 	if err != nil {
 		// Handle an unknown format error.
-		if errors.Is(err, filesystem.ErrUnknownArchiveFormat) {
+		if filesystem.IsErrorCode(err, filesystem.ErrCodeUnknownArchive) {
 			s.Log().WithField("error", err).Warn("failed to decompress file due to unknown format")
-
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 				"error": "unknown archive format",
 			})

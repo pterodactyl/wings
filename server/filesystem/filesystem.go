@@ -62,7 +62,7 @@ func (fs *Filesystem) Readfile(p string, w io.Writer) error {
 	if st, err := os.Stat(cleaned); err != nil {
 		return err
 	} else if st.IsDir() {
-		return ErrIsDirectory
+		return &Error{code: ErrCodeIsDirectory}
 	}
 
 	f, err := os.Open(cleaned)
@@ -100,7 +100,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 		}
 	} else {
 		if stat.IsDir() {
-			return ErrIsDirectory
+			return &Error{code: ErrCodeIsDirectory}
 		}
 
 		currentSize = stat.Size()

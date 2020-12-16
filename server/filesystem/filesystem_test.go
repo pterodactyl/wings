@@ -98,7 +98,7 @@ func TestFilesystem_Readfile(t *testing.T) {
 
 			err = fs.Readfile("test.txt", buf)
 			g.Assert(err).IsNotNil()
-			g.Assert(errors.Is(err, ErrIsDirectory)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodeIsDirectory)).IsTrue()
 		})
 
 		g.It("cannot open a file outside the root directory", func() {
@@ -107,7 +107,7 @@ func TestFilesystem_Readfile(t *testing.T) {
 
 			err = fs.Readfile("/../test.txt", buf)
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.AfterEach(func() {
@@ -168,7 +168,7 @@ func TestFilesystem_Writefile(t *testing.T) {
 
 			err := fs.Writefile("/some/../foo/../../test.txt", r)
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("cannot write a file that exceeds the disk limits", func() {
@@ -182,7 +182,7 @@ func TestFilesystem_Writefile(t *testing.T) {
 			r := bytes.NewReader(b)
 			err = fs.Writefile("test.txt", r)
 			g.Assert(err).IsNotNil()
-			g.Assert(errors.Is(err, ErrNotEnoughDiskSpace)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodeDiskSpace)).IsTrue()
 		})
 
 		/*g.It("updates the total space used when a file is appended to", func() {
@@ -259,7 +259,7 @@ func TestFilesystem_CreateDirectory(t *testing.T) {
 		g.It("should not allow the creation of directories outside the root", func() {
 			err := fs.CreateDirectory("test", "e/../../something")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("should not increment the disk usage", func() {
@@ -309,7 +309,7 @@ func TestFilesystem_Rename(t *testing.T) {
 		g.It("does not allow renaming to a location outside the root", func() {
 			err := fs.Rename("source.txt", "../target.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("does not allow renaming from a location outside the root", func() {
@@ -317,7 +317,7 @@ func TestFilesystem_Rename(t *testing.T) {
 
 			err = fs.Rename("/../ext-source.txt", "target.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("allows a file to be renamed", func() {
@@ -395,7 +395,7 @@ func TestFilesystem_Copy(t *testing.T) {
 
 			err = fs.Copy("../ext-source.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("should return an error if the source directory is outside the root", func() {
@@ -407,11 +407,11 @@ func TestFilesystem_Copy(t *testing.T) {
 
 			err = fs.Copy("../nested/in/dir/ext-source.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 
 			err = fs.Copy("nested/in/../../../nested/in/dir/ext-source.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("should return an error if the source is a directory", func() {
@@ -428,7 +428,7 @@ func TestFilesystem_Copy(t *testing.T) {
 
 			err := fs.Copy("source.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(errors.Is(err, ErrNotEnoughDiskSpace)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodeDiskSpace)).IsTrue()
 		})
 
 		g.It("should create a copy of the file and increment the disk used", func() {
@@ -503,7 +503,7 @@ func TestFilesystem_Delete(t *testing.T) {
 
 			err = fs.Delete("../ext-source.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("does not allow the deletion of the root directory", func() {

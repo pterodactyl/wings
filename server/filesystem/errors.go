@@ -8,42 +8,72 @@ import (
 	"path/filepath"
 )
 
-var ErrIsDirectory = errors.New("filesystem: is a directory")
-var ErrNotEnoughDiskSpace = errors.New("filesystem: not enough disk space")
-var ErrUnknownArchiveFormat = errors.New("filesystem: unknown archive format")
+type ErrorCode string
 
-type BadPathResolutionError struct {
+const (
+	ErrCodeIsDirectory    ErrorCode = "E_ISDIR"
+	ErrCodeDiskSpace      ErrorCode = "E_NODISK"
+	ErrCodeUnknownArchive ErrorCode = "E_UNKNFMT"
+	ErrCodePathResolution ErrorCode = "E_BADPATH"
+)
+
+type Error struct {
+	code     ErrorCode
 	path     string
 	resolved string
 }
 
-// Returns the specific error for a bad path resolution.
-func (b *BadPathResolutionError) Error() string {
-	r := b.resolved
-	if r == "" {
-		r = "<empty>"
+// Returns a human-readable error string to identify the Error by.
+func (e *Error) Error() string {
+	switch e.code {
+	case ErrCodeIsDirectory:
+		return "filesystem: is a directory"
+	case ErrCodeDiskSpace:
+		return "filesystem: not enough disk space"
+	case ErrCodeUnknownArchive:
+		return "filesystem: unknown archive format"
+	case ErrCodePathResolution:
+		r := e.resolved
+		if r == "" {
+			r = "<empty>"
+		}
+		return fmt.Sprintf("filesystem: server path [%s] resolves to a location outside the server root: %s", e.path, r)
 	}
+	return "filesystem: unhandled error type"
+}
 
-	return fmt.Sprintf("filesystem: server path [%s] resolves to a location outside the server root: %s", b.path, r)
+// Returns the ErrorCode for this specific error instance.
+func (e *Error) Code() ErrorCode {
+	return e.code
+}
+
+// Checks if the given error is one of the Filesystem errors.
+func IsFilesystemError(err error) (*Error, bool) {
+	if e := errors.Unwrap(err); e != nil {
+		err = e
+	}
+	if fserr, ok := err.(*Error); ok {
+		return fserr, true
+	}
+	return nil, false
+}
+
+// Checks if "err" is a filesystem Error type. If so, it will then drop in and check
+// that the error code is the same as the provided ErrorCode passed in "code".
+func IsErrorCode(err error, code ErrorCode) bool {
+	if e, ok := IsFilesystemError(err); ok {
+		return e.code == code
+	}
+	return false
+}
+
+func NewDiskSpaceError() *Error {
+	return &Error{code: ErrCodeDiskSpace}
 }
 
 // Returns a new BadPathResolution error.
-func NewBadPathResolution(path string, resolved string) *BadPathResolutionError {
-	return &BadPathResolutionError{path, resolved}
-}
-
-// Determines if the given error is a bad path resolution error.
-func IsBadPathResolutionError(err error) bool {
-	e := errors.Unwrap(err)
-	if e == nil {
-		e = err
-	}
-
-	if _, ok := e.(*BadPathResolutionError); ok {
-		return true
-	}
-
-	return false
+func NewBadPathResolution(path string, resolved string) *Error {
+	return &Error{code: ErrCodePathResolution, path: path, resolved: resolved}
 }
 
 // Generates an error logger instance with some basic information.
@@ -57,7 +87,7 @@ func (fs *Filesystem) error(err error) *log.Entry {
 // directory, otherwise return nil. Returning this error for a file will stop the walking
 // for the remainder of the directory. This is assuming an os.FileInfo struct was even returned.
 func (fs *Filesystem) handleWalkerError(err error, f os.FileInfo) error {
-	if !IsBadPathResolutionError(err) {
+	if !IsErrorCode(err, ErrCodePathResolution) {
 		return err
 	}
 

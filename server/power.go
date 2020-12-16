@@ -169,7 +169,7 @@ func (s *Server) onBeforeStart() error {
 	} else {
 		s.PublishConsoleOutputFromDaemon("Checking server disk space usage, this could take a few seconds...")
 		if !s.Filesystem().HasSpaceAvailable(false) {
-			return filesystem.ErrNotEnoughDiskSpace
+			return filesystem.NewDiskSpaceError()
 		}
 	}
 

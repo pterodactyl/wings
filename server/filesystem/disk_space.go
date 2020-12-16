@@ -171,7 +171,7 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 			// it. Otherwise, allow it to continue.
 			if e.IsSymlink() {
 				if _, err := fs.SafePath(p); err != nil {
-					if IsBadPathResolutionError(err) {
+					if IsErrorCode(err, ErrCodePathResolution) {
 						return godirwalk.SkipThis
 					}
 
@@ -205,7 +205,7 @@ func (fs *Filesystem) hasSpaceFor(size int64) error {
 	}
 
 	if (s + size) > fs.MaxDisk() {
-		return ErrNotEnoughDiskSpace
+		return &Error{code: ErrCodeDiskSpace}
 	}
 
 	return nil

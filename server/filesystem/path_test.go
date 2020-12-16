@@ -73,22 +73,22 @@ func TestFilesystem_SafePath(t *testing.T) {
 		g.It("blocks access to files outside the root directory", func() {
 			p, err := fs.SafePath("../test.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 			g.Assert(p).Equal("")
 
 			p, err = fs.SafePath("/../test.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 			g.Assert(p).Equal("")
 
 			p, err = fs.SafePath("./foo/../../test.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 			g.Assert(p).Equal("")
 
 			p, err = fs.SafePath("..")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 			g.Assert(p).Equal("")
 		})
 	})
@@ -124,7 +124,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 
 			err := fs.Readfile("symlinked.txt", &b)
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 	})
 
@@ -134,7 +134,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 
 			err := fs.Writefile("symlinked.txt", r)
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("cannot write a file to a directory symlinked outside the root", func() {
@@ -142,7 +142,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 
 			err := fs.Writefile("external_dir/foo.txt", r)
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 	})
 
@@ -150,19 +150,19 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 		g.It("cannot create a directory outside the root", func() {
 			err := fs.CreateDirectory("my_dir", "external_dir")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("cannot create a nested directory outside the root", func() {
 			err := fs.CreateDirectory("my/nested/dir", "external_dir/foo/bar")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("cannot create a nested directory outside the root", func() {
 			err := fs.CreateDirectory("my/nested/dir", "external_dir/server")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 	})
 
@@ -170,13 +170,13 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 		g.It("cannot rename a file symlinked outside the directory root", func() {
 			err := fs.Rename("symlinked.txt", "foo.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("cannot rename a symlinked directory outside the root", func() {
 			err := fs.Rename("external_dir", "foo")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("cannot rename a file to a location outside the directory root", func() {
@@ -184,7 +184,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 
 			err := fs.Rename("my_file.txt", "external_dir/my_file.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 	})
 
@@ -192,13 +192,13 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 		g.It("cannot chown a file symlinked outside the directory root", func() {
 			err := fs.Chown("symlinked.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 
 		g.It("cannot chown a directory symlinked outside the directory root", func() {
 			err := fs.Chown("external_dir")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 	})
 
@@ -206,7 +206,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 		g.It("cannot copy a file symlinked outside the directory root", func() {
 			err := fs.Copy("symlinked.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsBadPathResolutionError(err)).IsTrue()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})
 	})
 

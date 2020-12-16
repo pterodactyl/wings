@@ -36,7 +36,7 @@ func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (b
 	// Walk over the archive and figure out just how large the final output would be from unarchiving it.
 	err = archiver.Walk(source, func(f archiver.File) error {
 		if atomic.AddInt64(&size, f.Size())+dirSize > fs.MaxDisk() {
-			return ErrNotEnoughDiskSpace
+			return &Error{code: ErrCodeDiskSpace}
 		}
 
 		return nil
@@ -44,7 +44,7 @@ func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (b
 
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "format ") {
-			return false, ErrUnknownArchiveFormat
+			return false, &Error{code: ErrCodeUnknownArchive}
 		}
 
 		return false, err
@@ -100,7 +100,7 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 	})
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "format ") {
-			return ErrUnknownArchiveFormat
+			return &Error{code: ErrCodeUnknownArchive}
 		}
 
 		return err
