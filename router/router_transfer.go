@@ -97,6 +97,8 @@ func postServerArchive(c *gin.Context) {
 		r := api.New()
 		l := log.WithField("server", s.Id())
 
+		s.Events().Publish(server.SendTransferLogsEvent, "Creating archive of server..")
+
 		// Attempt to get an archive of the server.  This **WILL NOT** modify the source files of a server,
 		// this process is 100% safe and will not corrupt a server's files if it fails.
 		if err := s.Archiver.Archive(); err != nil {
