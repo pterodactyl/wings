@@ -229,8 +229,6 @@ func postTransfer(c *gin.Context) {
 			})
 		}()
 
-		time.Sleep(10 * time.Second)
-
 		// This function automatically adds the Node UUID and Timestamp to the log output before sending it to the client.
 		sendTransferLog := func(data string) {
 			i.Server().Events().Publish(server.TransferLogsEvent, "\x1b[0;90m"+time.Now().Format(time.RFC1123)+"\x1b[0m \x1b[1;33m[Target Node]:\x1b[0m "+data)
