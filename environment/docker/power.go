@@ -147,8 +147,8 @@ func (e *Environment) Stop() error {
 	}
 
 	t := time.Second * 30
-	err := e.client.ContainerStop(context.Background(), e.Id, &t)
-	if err != nil {
+
+	if err := e.client.ContainerStop(context.Background(), e.Id, &t); err != nil {
 		// If the container does not exist just mark the process as stopped and return without
 		// an error.
 		if client.IsErrNotFound(err) {
