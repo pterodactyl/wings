@@ -23,7 +23,6 @@ jobs:
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" -o build/wings_linux_amd64 -v wings.go
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" -o build/wings_linux_arm64 -v wings.go
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" -o build/wings_linux_arm -v wings.go
 
       - name: Test
         run: go test ./...
@@ -32,7 +31,6 @@ jobs:
         run: |
           upx build/wings_linux_amd64 && chmod +x build/wings_linux_amd64
           upx build/wings_linux_arm64 && chmod +x build/wings_linux_arm64
-          upx build/wings_linux_arm && chmod +x build/wings_linux_arm
 
       - name: Extract changelog
         env:
@@ -45,9 +43,8 @@ jobs:
         run: |
           SUM=`cd build && sha256sum wings_linux_amd64`
           SUM2=`cd build && sha256sum wings_linux_arm64`
-          SUM3=`cd build && sha256sum wings_linux_arm`
-          echo -e "\n#### SHA256 Checksum\n\`\`\`\n$SUM\n$SUM2\n$SUM3\n\`\`\`\n" >> ./RELEASE_CHANGELOG
-          echo -e "$SUM\n$SUM2\n$SUM3" > checksums.txt
+          echo -e "\n#### SHA256 Checksum\n\`\`\`\n$SUM\n$SUM2\n\`\`\`\n" >> ./RELEASE_CHANGELOG
+          echo -e "$SUM\n$SUM2" > checksums.txt
 
       - name: Create release branch
         env:
@@ -93,16 +90,6 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: build/wings_linux_arm64
           asset_name: wings_linux_arm64
-          asset_content_type: application/octet-stream
-
-      - name: Upload arm Binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/wings_linux_arm
-          asset_name: wings_linux_arm
           asset_content_type: application/octet-stream
 
       - name: Upload checksum
