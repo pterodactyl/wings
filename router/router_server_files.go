@@ -22,7 +22,12 @@ import (
 // Returns the contents of a file on the server.
 func getServerFileContents(c *gin.Context) {
 	s := GetServer(c.Param("server"))
-	p := "/" + strings.TrimLeft(c.Query("file"), "/")
+	f, err := url.QueryUnescape(c.Query("file"))
+	if err != nil {
+		WithError(c, err)
+		return
+	}
+	p := "/" + strings.TrimLeft(f, "/")
 	st, err := s.Filesystem().Stat(p)
 	if err != nil {
 		NewServerError(err, s).AbortFilesystemError(c)
@@ -57,7 +62,12 @@ func getServerFileContents(c *gin.Context) {
 // Returns the contents of a directory for a server.
 func getServerListDirectory(c *gin.Context) {
 	s := ExtractServer(c)
-	if stats, err := s.Filesystem().ListDirectory(c.Query("directory")); err != nil {
+	dir, err := url.QueryUnescape(c.Query("directory"))
+	if err != nil {
+		WithError(c, err)
+		return
+	}
+	if stats, err := s.Filesystem().ListDirectory(dir); err != nil {
 		WithError(c, err)
 	} else {
 		c.JSON(http.StatusOK, stats)

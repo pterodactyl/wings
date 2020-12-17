@@ -83,6 +83,13 @@ func (e *RequestError) AbortWithStatus(status int, c *gin.Context) {
 		return
 	}
 
+	if strings.HasPrefix(e.err.Error(), "invalid URL escape") {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Some of the data provided in the request appears to be escaped improperly.",
+		})
+		return
+	}
+
 	// If this is a Filesystem error just return it without all of the tracking code nonsense
 	// since we don't need to be logging it into the logs or anything, its just a normal error
 	// that the user can solve on their end.
