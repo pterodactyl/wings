@@ -35,7 +35,7 @@ func (ru *ResourceUsage) MarshalJSON() ([]byte, error) {
 	// Alias the resource usage so that we don't infinitely recurse when marshaling the struct.
 	type alias ResourceUsage
 
-	return json.Marshal(alias(*ru))
+	return json.Marshal((*alias)(ru))
 }
 
 // Returns the resource usage stats for the server instance. If the server is not running, only the
