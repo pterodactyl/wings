@@ -61,7 +61,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 				atomic.AddUint64(&tx, nw.RxBytes)
 			}
 
-			st := &environment.Stats{
+			st := environment.Stats{
 				Memory:      calculateDockerMemory(v.MemoryStats),
 				MemoryLimit: v.MemoryStats.Limit,
 				CpuAbsolute: calculateDockerAbsoluteCpu(&v.PreCPUStats, &v.CPUStats),

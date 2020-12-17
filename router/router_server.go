@@ -23,7 +23,7 @@ func getServer(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
 	c.JSON(http.StatusOK, serverProcData{
-		ResourceUsage: *s.Proc(),
+		ResourceUsage: s.Proc(),
 		Suspended:     s.IsSuspended(),
 	})
 }

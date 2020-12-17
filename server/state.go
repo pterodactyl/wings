@@ -62,11 +62,11 @@ func saveServerStates() error {
 // Sets the state of the server internally. This function handles crash detection as
 // well as reporting to event listeners for the server.
 func (s *Server) OnStateChange() {
-	prevState := s.Proc().State.Load()
+	prevState := s.resources.State.Load()
 
 	st := s.Environment.State()
 	// Update the currently tracked state for the server.
-	s.Proc().State.Store(st)
+	s.resources.State.Store(st)
 
 	// Emit the event to any listeners that are currently registered.
 	if prevState != s.Environment.State() {
@@ -91,10 +91,7 @@ func (s *Server) OnStateChange() {
 	// Reset the resource usage to 0 when the process fully stops so that all of the UI
 	// views in the Panel correctly display 0.
 	if st == environment.ProcessOfflineState {
-		s.resources.mu.Lock()
-		s.resources.Empty()
-		s.resources.mu.Unlock()
-
+		s.resources.Reset()
 		s.emitProcUsage()
 	}
 

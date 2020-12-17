@@ -1,13 +1,9 @@
 package environment
 
-import "sync"
-
 // Defines the current resource usage for a given server instance. If a server is offline you
 // should obviously expect memory and CPU usage to be 0. However, disk will always be returned
 // since that is not dependent on the server being running to collect that data.
 type Stats struct {
-	mu sync.RWMutex
-
 	// The total amount of memory, in bytes, that this server instance is consuming. This is
 	// calculated slightly differently than just using the raw Memory field that the stats
 	// return from the container, so please check the code setting this value for how that
@@ -32,16 +28,4 @@ type Stats struct {
 		RxBytes uint64 `json:"rx_bytes"`
 		TxBytes uint64 `json:"tx_bytes"`
 	} `json:"network"`
-}
-
-// Resets the usages values to zero, used when a server is stopped to ensure we don't hold
-// onto any values incorrectly.
-func (s *Stats) Empty() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.Memory = 0
-	s.CpuAbsolute = 0
-	s.Network.TxBytes = 0
-	s.Network.RxBytes = 0
 }

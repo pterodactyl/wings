@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/system"
 	"sync"
@@ -26,32 +25,27 @@ type ResourceUsage struct {
 	Disk int64 `json:"disk_bytes"`
 }
 
-// Custom marshaler to ensure that the object is locked when we're converting it to JSON in
-// order to avoid race conditions.
-func (ru *ResourceUsage) MarshalJSON() ([]byte, error) {
-	ru.mu.Lock()
-	defer ru.mu.Unlock()
-
-	// Alias the resource usage so that we don't infinitely recurse when marshaling the struct.
-	type alias ResourceUsage
-
-	return json.Marshal((*alias)(ru))
-}
-
-// Returns the resource usage stats for the server instance. If the server is not running, only the
-// disk space currently used will be returned. When the server is running all of the other stats will
-// be returned.
-//
-// When a process is stopped all of the stats are zeroed out except for the disk.
-func (s *Server) Proc() *ResourceUsage {
+// Returns the current resource usage stats for the server instance. This returns
+// a copy of the tracked resources, so making any changes to the response will not
+// have the desired outcome for you most likely.
+func (s *Server) Proc() ResourceUsage {
+	s.resources.mu.Lock()
+	defer s.resources.mu.Unlock()
 	// Store the updated disk usage when requesting process usage.
 	atomic.StoreInt64(&s.resources.Disk, s.Filesystem().CachedUsage())
+	//goland:noinspection GoVetCopyLock
+	return s.resources
+}
 
-	// Acquire a lock before attempting to return the value of resources.
-	s.resources.mu.RLock()
-	defer s.resources.mu.RUnlock()
-
-	return &s.resources
+// Resets the usages values to zero, used when a server is stopped to ensure we don't hold
+// onto any values incorrectly.
+func (ru *ResourceUsage) Reset() {
+	ru.mu.Lock()
+	defer ru.mu.Unlock()
+	ru.Memory = 0
+	ru.CpuAbsolute = 0
+	ru.Network.TxBytes = 0
+	ru.Network.RxBytes = 0
 }
 
 func (s *Server) emitProcUsage() {
