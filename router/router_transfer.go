@@ -132,6 +132,9 @@ func postServerArchive(c *gin.Context) {
 			l.Info("successfully notified panel of failed archive status")
 		}()
 
+		// Mark the server as transferring to prevent problems.
+		s.SetTransferring(true)
+
 		// Ensure the server is offline.
 		if err := s.Environment.WaitForStop(30, false); err != nil {
 			// Sometimes a "No such container" error gets through which means the server is already stopped.
@@ -228,6 +231,9 @@ func postTransfer(c *gin.Context) {
 			return
 		}
 
+		// Mark the server as transferring to prevent problems.
+		i.Server().SetTransferring(true)
+
 		// Add the server to the collection.
 		server.GetServers().Add(i.Server())
 		defer func() {
@@ -299,7 +305,7 @@ func postTransfer(c *gin.Context) {
 		archivePath := filepath.Join(config.Get().System.ArchiveDirectory, serverID+".tar.gz")
 
 		// Check if the archive already exists and delete it if it does.
-		if _, err = os.Stat(archivePath); err != nil {
+		if _, err := os.Stat(archivePath); err != nil {
 			if !os.IsNotExist(err) {
 				sendTransferLog("Failed to stat archive file: " + err.Error())
 				l.WithField("error", err).Error("failed to stat archive file")
@@ -324,8 +330,7 @@ func postTransfer(c *gin.Context) {
 
 		// Copy the file.
 		buf := make([]byte, 1024*4)
-		_, err = io.CopyBuffer(file, res.Body, buf)
-		if err != nil {
+		if _, err := io.CopyBuffer(file, res.Body, buf); err != nil {
 			sendTransferLog("Failed to write archive file to disk: " + err.Error())
 			l.WithField("error", err).Error("failed to copy archive file to disk")
 			return
@@ -344,10 +349,7 @@ func postTransfer(c *gin.Context) {
 		defer func() {
 			log.WithField("server", serverID).Debug("deleting temporary transfer archive..")
 			if err := os.Remove(archivePath); err != nil && !os.IsNotExist(err) {
-				l.WithFields(log.Fields{
-					"server": serverID,
-					"error":  err,
-				}).Warn("failed to delete transfer archive")
+				l.WithField("error", err).Warn("failed to delete transfer archive")
 			} else {
 				l.Debug("deleted temporary transfer archive successfully")
 			}
@@ -411,6 +413,14 @@ func postTransfer(c *gin.Context) {
 		l.Info("server environment configured, extracting transfer archive..")
 		// Extract the transfer archive.
 		if err := archiver.NewTarGz().Unarchive(archivePath, i.Server().Filesystem().Path()); err != nil {
+			// Unarchiving failed, delete the server's data directory.
+			if err := os.RemoveAll(i.Server().Filesystem().Path()); err != nil && !os.IsNotExist(err) {
+				sendTransferLog("Failed to delete server filesystem: " + err.Error())
+				l.WithField("error", err).Warn("failed to delete server filesystem")
+			} else {
+				l.Debug("deleted server filesystem due to failed transfer")
+			}
+
 			sendTransferLog("Failed to extract archive: " + err.Error())
 			l.WithField("error", err).Error("failed to extract server archive")
 			return
@@ -439,6 +449,8 @@ func postTransfer(c *gin.Context) {
 			l.WithField("error", err.Error()).Error("panel responded with error after transfer success")
 			return
 		}
+
+		i.Server().SetTransferring(false)
 
 		sendTransferLog("Successfully notified panel of transfer success")
 		l.Info("successfully notified panel of transfer success")

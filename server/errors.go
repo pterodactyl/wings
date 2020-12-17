@@ -4,8 +4,12 @@ import (
 	"emperror.dev/errors"
 )
 
-var ErrIsRunning = errors.New("server is running")
-var ErrSuspended = errors.New("server is currently in a suspended state")
+var (
+	ErrIsRunning            = errors.New("server is running")
+	ErrSuspended            = errors.New("server is currently in a suspended state")
+	ErrServerIsInstalling   = errors.New("server is currently installing")
+	ErrServerIsTransferring = errors.New("server is currently being transferred")
+)
 
 type crashTooFrequent struct {
 }
