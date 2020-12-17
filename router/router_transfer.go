@@ -98,7 +98,8 @@ func postServerArchive(c *gin.Context) {
 		r := api.New()
 		l := log.WithField("server", s.Id())
 
-		// This function automatically adds the Node UUID and Timestamp to the log output before sending it to the client.
+		// This function automatically adds the Source Node prefix and Timestamp to the log output before sending it
+		// over the websocket.
 		sendTransferLog := func(data string) {
 			s.Events().Publish(server.TransferLogsEvent, "\x1b[0;90m"+time.Now().Format(time.RFC1123)+"\x1b[0m \x1b[1;33m[Source Node]:\x1b[0m "+data)
 		}
@@ -113,15 +114,8 @@ func postServerArchive(c *gin.Context) {
 			}
 
 			s.Events().Publish(server.TransferStatusEvent, "failure")
-		}()
 
-		// Attempt to get an archive of the server.  This **WILL NOT** modify the source files of a server,
-		// this process is 100% safe and will not corrupt a server's files if it fails.
-		if err := s.Archiver.Archive(); err != nil {
-			sendTransferLog("An error occurred while archiving the server: " + err.Error())
-			l.WithField("error", err).Error("failed to get transfer archive for server")
-
-			sendTransferLog("Attempting to notify panel of transfer failure..")
+			sendTransferLog("Attempting to notify panel of archive failure..")
 			if err := r.SendArchiveStatus(s.Id(), false); err != nil {
 				if !api.IsRequestError(err) {
 					sendTransferLog("Failed to notify panel of archive failure: " + err.Error())
@@ -136,6 +130,13 @@ func postServerArchive(c *gin.Context) {
 
 			sendTransferLog("Successfully notified panel of failed archive status")
 			l.Info("successfully notified panel of failed archive status")
+		}()
+
+		// Attempt to get an archive of the server.  This **WILL NOT** modify the source files of a server,
+		// this process is 100% safe and will not corrupt a server's files if it fails.
+		if err := s.Archiver.Archive(); err != nil {
+			sendTransferLog("An error occurred while archiving the server: " + err.Error())
+			l.WithField("error", err).Error("failed to get transfer archive for server")
 			return
 		}
 
@@ -156,7 +157,9 @@ func postServerArchive(c *gin.Context) {
 
 		hasError = false
 
+		// This log may not be displayed by the client due to the status event being sent before or at the same time.
 		sendTransferLog("Successfully notified panel of successful archive status")
+
 		l.Info("successfully notified panel of successful transfer archive status")
 		s.Events().Publish(server.TransferStatusEvent, "archived")
 	}(s)
@@ -229,9 +232,13 @@ func postTransfer(c *gin.Context) {
 			})
 		}()
 
-		// This function automatically adds the Node UUID and Timestamp to the log output before sending it to the client.
+		// This function automatically adds the Target Node prefix and Timestamp to the log output before sending it
+		// over the websocket.
 		sendTransferLog := func(data string) {
-			i.Server().Events().Publish(server.TransferLogsEvent, "\x1b[0;90m"+time.Now().Format(time.RFC1123)+"\x1b[0m \x1b[1;33m[Target Node]:\x1b[0m "+data)
+			i.Server().Events().Publish(
+				server.TransferLogsEvent,
+				"\x1b[0;90m"+time.Now().Format(time.RFC1123)+"\x1b[0m \x1b[1;33m[Target Node]:\x1b[0m "+data,
+			)
 		}
 		defer func() {
 			if !hasError {
@@ -246,17 +253,21 @@ func postTransfer(c *gin.Context) {
 		// Make a new GET request to the URL the panel gave us.
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
+			sendTransferLog("Failed to create http request: " + err.Error())
 			log.WithField("error", err).Error("failed to create http request for archive transfer")
 			return
 		}
 
-		// Add the authorization header.
+		// Add the authorization header on the request.
 		req.Header.Set("Authorization", token)
 
+		sendTransferLog("Requesting archive from source node..")
 		l.Info("requesting archive for server transfer..")
+
 		// Execute the http request.
 		res, err := client.Do(req)
 		if err != nil {
+			sendTransferLog("Failed to send get archive request: " + err.Error())
 			l.WithField("error", err).Error("failed to send archive http request")
 			return
 		}
@@ -265,6 +276,7 @@ func postTransfer(c *gin.Context) {
 		// Handle non-200 status codes.
 		if res.StatusCode != 200 {
 			sendTransferLog("Expected 200 but received \"" + strconv.Itoa(res.StatusCode) + "\" from source node while requesting archive")
+
 			if _, err := ioutil.ReadAll(res.Body); err != nil {
 				l.WithField("error", err).WithField("status", res.StatusCode).Error("failed read transfer response body")
 				return
@@ -300,6 +312,7 @@ func postTransfer(c *gin.Context) {
 
 		sendTransferLog("Starting to write archive to disk..")
 		l.Info("writing transfer archive to disk..")
+
 		// Copy the file.
 		buf := make([]byte, 1024*4)
 		_, err = io.CopyBuffer(file, res.Body, buf)
@@ -362,22 +375,23 @@ func postTransfer(c *gin.Context) {
 		checksum := hex.EncodeToString(hash.Sum(nil))
 
 		sendTransferLog("Successfully computed checksum")
-		sendTransferLog("  - Source Checksum: " + sourceChecksum)
+		sendTransferLog("  -   Source Checksum: " + sourceChecksum)
 		sendTransferLog("  - Computed Checksum: " + checksum)
 
 		l.WithField("checksum", checksum).Info("computed checksum of transfer archive")
 
 		// Verify the two checksums.
 		if checksum != sourceChecksum {
-			sendTransferLog("Checksum verification failed")
+			sendTransferLog("Checksum verification failed, aborting..")
 			l.WithField("source_checksum", sourceChecksum).Error("checksum verification failed for archive")
 			return
 		}
 
-		sendTransferLog("Archive checksum has been validated")
+		sendTransferLog("Archive checksum has been validated, continuing with transfer")
 		l.Info("server archive transfer checksums have been validated, creating server environment..")
 
-		// Create the server's environment (note this does not execute the install script)
+		// Create the server's environment.
+		sendTransferLog("Creating server environment, this could take a while..")
 		if err := i.Server().CreateEnvironment(); err != nil {
 			sendTransferLog("Failed to create server environment: " + err.Error())
 			l.WithField("error", err).Error("failed to create server environment")
@@ -417,9 +431,11 @@ func postTransfer(c *gin.Context) {
 			return
 		}
 
-		sendTransferLog("Transfer completed")
+		sendTransferLog("Successfully notified panel of transfer success")
 		l.Info("successfully notified panel of transfer success")
+
 		i.Server().Events().Publish(server.TransferStatusEvent, "success")
+		sendTransferLog("Transfer completed")
 	}(buf.Bytes())
 
 	c.Status(http.StatusAccepted)
