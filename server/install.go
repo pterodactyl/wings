@@ -147,7 +147,8 @@ func (s *Server) acquireInstallationLock() error {
 		s.installer.sem = semaphore.NewWeighted(1)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 
 	return s.installer.sem.Acquire(ctx, 1)
 }
@@ -184,6 +185,20 @@ func (s *Server) AbortInstallation() {
 		s.Log().Warn("aborting running installation process")
 		cancel()
 	}
+}
+
+func (s *Server) IsTransferring() bool {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.transferring
+}
+
+func (s *Server) SetTransferring(state bool) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.transferring = state
 }
 
 // Removes the installer container for the server.

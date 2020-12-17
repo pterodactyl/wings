@@ -52,6 +52,8 @@ type Server struct {
 	// installer process is still running.
 	installer InstallerDetails
 
+	transferring bool
+
 	// The console throttler instance used to control outputs.
 	throttler *ConsoleThrottler
 
