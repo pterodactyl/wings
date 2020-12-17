@@ -132,8 +132,14 @@ func postServerArchive(c *gin.Context) {
 			l.Info("successfully notified panel of failed archive status")
 		}()
 
-		// Attempt to get an archive of the server.  This **WILL NOT** modify the source files of a server,
-		// this process is 100% safe and will not corrupt a server's files if it fails.
+		// Ensure the server is offline.
+		if err := s.Environment.WaitForStop(30, false); err != nil {
+			sendTransferLog("Failed to stop server, aborting transfer..")
+			l.WithField("error", err).Error("failed to stop server")
+			return
+		}
+
+		// Attempt to get an archive of the server.
 		if err := s.Archiver.Archive(); err != nil {
 			sendTransferLog("An error occurred while archiving the server: " + err.Error())
 			l.WithField("error", err).Error("failed to get transfer archive for server")
