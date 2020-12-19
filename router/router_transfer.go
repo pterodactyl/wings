@@ -6,9 +6,11 @@ import (
 	"crypto/sha256"
 	"emperror.dev/errors"
 	"encoding/hex"
+	"fmt"
 	"github.com/apex/log"
 	"github.com/buger/jsonparser"
 	"github.com/gin-gonic/gin"
+	"github.com/juju/ratelimit"
 	"github.com/mholt/archiver/v3"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
@@ -22,6 +24,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -136,7 +139,7 @@ func postServerArchive(c *gin.Context) {
 		s.SetTransferring(true)
 
 		// Ensure the server is offline.
-		if err := s.Environment.WaitForStop(30, false); err != nil {
+		if err := s.Environment.WaitForStop(60, false); err != nil {
 			// Sometimes a "No such container" error gets through which means the server is already stopped.
 			if !strings.Contains(err.Error(), "No such container") {
 				sendTransferLog("Failed to stop server, aborting transfer..")
@@ -177,6 +180,39 @@ func postServerArchive(c *gin.Context) {
 	}(s)
 
 	c.Status(http.StatusAccepted)
+}
+
+// Number of ticks in the progress bar
+const ticks = 25
+
+// 100% / number of ticks = percentage represented by each tick
+const tickPercentage = 100 / ticks
+
+type downloadProgress struct {
+	size     uint64
+	progress uint64
+}
+
+func (w *downloadProgress) Write(v []byte) (int, error) {
+	n := len(v)
+
+	atomic.AddUint64(&w.progress, uint64(n))
+
+	return n, nil
+}
+
+func formatBytes(b uint64) string {
+	if b < 1024 {
+		return fmt.Sprintf("%d B", b)
+	}
+
+	div, exp := int64(1024), 0
+	for n := b / 1024; n >= 1024; n /= 1024 {
+		div *= 1024
+		exp++
+	}
+
+	return fmt.Sprintf("%.1f %ciB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
 func postTransfer(c *gin.Context) {
@@ -301,6 +337,13 @@ func postTransfer(c *gin.Context) {
 			return
 		}
 
+		size, err := strconv.ParseUint(res.Header.Get("Content-Length"), 10, 64)
+		if err != nil {
+			sendTransferLog("Failed to parse 'Content-Length' header: " + err.Error())
+			l.WithField("error", err).Warn("failed to parse 'Content-Length' header")
+			return
+		}
+
 		// Get the path to the archive.
 		archivePath := filepath.Join(config.Get().System.ArchiveDirectory, serverID+".tar.gz")
 
@@ -329,12 +372,54 @@ func postTransfer(c *gin.Context) {
 		l.Info("writing transfer archive to disk..")
 
 		// Copy the file.
+		progress := &downloadProgress{size: size}
+		ticker := time.NewTicker(3 * time.Second)
+
+		go func(progress *downloadProgress, t *time.Ticker) {
+			for range ticker.C {
+				// p = 100 (Downloaded)
+				// size = 1000 (Content-Length)
+				// p / size = 0.1
+				// * 100 = 10% (Multiply by 100 to get a percentage of the download)
+				// 10% / tickPercentage = (10% / (100 / 25)) (Divide by tick percentage to get the number of ticks)
+				// 2.5 (Number of ticks as a float64)
+				// 2 (convert to an integer)
+
+				p := atomic.LoadUint64(&progress.progress)
+
+				// We have to cast these numbers to float in order to get a float result from the division.
+				width := float64(p) / float64(size)
+				width *= 100
+				width /= tickPercentage
+
+				bar := strings.Repeat("=", int(width)) + strings.Repeat(" ", ticks-int(width))
+				sendTransferLog("Downloading [" + bar + "] " + formatBytes(p) + " / " + formatBytes(progress.size))
+			}
+		}(progress, ticker)
+
+		var reader io.Reader
+		if downloadLimit := config.Get().System.Transfers.DownloadLimit; downloadLimit < 1 {
+			// If there is no write limit, use the file as the writer.
+			reader = res.Body
+		} else {
+			// Token bucket with a capacity of "downloadLimit" MiB, adding "downloadLimit" MiB/s
+			bucket := ratelimit.NewBucketWithRate(float64(downloadLimit)*1024*1024, int64(downloadLimit)*1024*1024)
+
+			// Wrap the file writer with the token bucket limiter.
+			reader = ratelimit.Reader(res.Body, bucket)
+		}
+
 		buf := make([]byte, 1024*4)
-		if _, err := io.CopyBuffer(file, res.Body, buf); err != nil {
+		if _, err := io.CopyBuffer(file, io.TeeReader(reader, progress), buf); err != nil {
 			sendTransferLog("Failed to write archive file to disk: " + err.Error())
 			l.WithField("error", err).Error("failed to copy archive file to disk")
 			return
 		}
+		ticker.Stop()
+
+		// Show 100% completion.
+		humanSize := formatBytes(progress.size)
+		sendTransferLog("Downloading [" + strings.Repeat("=", ticks) + "] " + humanSize + " / " + humanSize)
 
 		// Close the file so it can be opened to verify the checksum.
 		if err := file.Close(); err != nil {

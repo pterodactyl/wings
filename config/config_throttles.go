@@ -22,6 +22,6 @@ type ConsoleThrottles struct {
 	DecayInterval uint64 `json:"decay_interval" yaml:"decay_interval" default:"10000"`
 
 	// The amount of time that a server is allowed to be stopping for before it is terminated
-	// forfully if it triggers output throttles.
+	// forcefully if it triggers output throttles.
 	StopGracePeriod uint `json:"stop_grace_period" yaml:"stop_grace_period" default:"15"`
 }
