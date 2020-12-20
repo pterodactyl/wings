@@ -3,6 +3,7 @@ package downloader
 import (
 	"context"
 	"emperror.dev/errors"
+	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/pterodactyl/wings/server"
 	"io"
@@ -28,7 +29,7 @@ func (c *Counter) Write(p []byte) (int, error) {
 
 type Downloader struct {
 	mu            sync.RWMutex
-	downloadCache map[string]Download
+	downloadCache map[string]*Download
 	serverCache   map[string][]string
 }
 
@@ -39,6 +40,7 @@ type DownloadRequest struct {
 
 type Download struct {
 	Identifier string
+	mu         sync.RWMutex
 	req        DownloadRequest
 	server     *server.Server
 	progress   float64
@@ -48,7 +50,7 @@ type Download struct {
 var client = &http.Client{Timeout: time.Hour * 12}
 var instance = &Downloader{
 	// Tracks all of the active downloads.
-	downloadCache: make(map[string]Download),
+	downloadCache: make(map[string]*Download),
 	// Tracks all of the downloads active for a given server instance. This is
 	// primarily used to make things quicker and keep the code a little more
 	// legible throughout here.
@@ -63,13 +65,15 @@ func New(s *server.Server, r DownloadRequest) *Download {
 		req:        r,
 		server:     s,
 	}
-	instance.track(dl)
+	instance.track(&dl)
 	return &dl
 }
 
 // Returns all of the tracked downloads for a given server instance.
-func ByServer(sid string) []Download {
-	var downloads []Download
+func ByServer(sid string) []*Download {
+	instance.mu.Lock()
+	defer instance.mu.Unlock()
+	var downloads []*Download
 	if v, ok := instance.serverCache[sid]; ok {
 		for _, id := range v {
 			if dl, dlok := instance.downloadCache[id]; dlok {
@@ -82,11 +86,19 @@ func ByServer(sid string) []Download {
 
 // Returns a single Download matching a given identifier. If no download is found
 // the second argument in the response will be false.
-func ByID(dlid string) (Download, bool) {
-	if v, ok := instance.downloadCache[dlid]; ok {
-		return v, true
-	}
-	return Download{}, false
+func ByID(dlid string) *Download {
+	return instance.find(dlid)
+}
+
+//goland:noinspection GoVetCopyLock
+func (dl Download) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Identifier string
+		Progress   float64
+	}{
+		Identifier: dl.Identifier,
+		Progress:   dl.Progress(),
+	})
 }
 
 // Executes a given download for the server and begins writing the file to the disk. Once
@@ -140,20 +152,29 @@ func (dl *Download) BelongsTo(s *server.Server) bool {
 	return dl.server.Id() == s.Id()
 }
 
+// Returns the current progress of the download as a float value between 0 and 1 where
+// 1 indicates that the download is completed.
+func (dl *Download) Progress() float64 {
+	dl.mu.RLock()
+	defer dl.mu.RUnlock()
+	return dl.progress
+}
+
 // Handles a write event by updating the progress completed percentage and firing off
 // events to the server websocket as needed.
 func (dl *Download) counter(contentLength int64) *Counter {
 	onWrite := func(t int) {
+		dl.mu.Lock()
+		defer dl.mu.Unlock()
 		dl.progress = float64(t) / float64(contentLength)
 	}
-
 	return &Counter{
 		onWrite: onWrite,
 	}
 }
 
 // Tracks a download in the internal cache for this instance.
-func (d *Downloader) track(dl Download) {
+func (d *Downloader) track(dl *Download) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	sid := dl.server.Id()
@@ -167,13 +188,13 @@ func (d *Downloader) track(dl Download) {
 }
 
 // Finds a given download entry using the provided ID and returns it.
-func (d *Downloader) find(dlid string) (Download, bool) {
+func (d *Downloader) find(dlid string) *Download {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	if entry, ok := d.downloadCache[dlid]; ok {
-		return entry, true
+		return entry
 	}
-	return Download{}, false
+	return nil
 }
 
 // Remove the given download reference from the cache storing them. This also updates

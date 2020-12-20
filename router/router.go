@@ -82,13 +82,15 @@ func Configure() *gin.Engine {
 			files.PUT("/rename", putServerRenameFiles)
 			files.POST("/copy", postServerCopyFile)
 			files.POST("/write", postServerWriteFile)
-			files.POST("/pull", postServerPullRemoteFile)
-			files.DELETE("/pull/:download", deleteServerPullRemoteFile)
 			files.POST("/create-directory", postServerCreateDirectory)
 			files.POST("/delete", postServerDeleteFiles)
 			files.POST("/compress", postServerCompressFiles)
 			files.POST("/decompress", postServerDecompressFiles)
 			files.POST("/chmod", postServerChmodFile)
+
+			files.GET("/pull", getServerPullingFiles)
+			files.POST("/pull", postServerPullRemoteFile)
+			files.DELETE("/pull/:download", deleteServerPullRemoteFile)
 		}
 
 		backup := server.Group("/backup")

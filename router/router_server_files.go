@@ -233,6 +233,17 @@ func postServerWriteFile(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// Returns all of the currently in-progress file downloads and their current download
+// progress. The progress is also pushed out via a websocket event allowing you to just
+// call this once to get current downloads, and then listen to targeted websocket events
+// with the current progress for everything.
+func getServerPullingFiles(c *gin.Context) {
+	s := ExtractServer(c)
+	c.JSON(http.StatusOK, gin.H{
+		"downloads": downloader.ByServer(s.Id()),
+	})
+}
+
 // Writes the contents of the remote URL to a file on a server.
 func postServerPullRemoteFile(c *gin.Context) {
 	s := ExtractServer(c)
@@ -284,7 +295,7 @@ func postServerPullRemoteFile(c *gin.Context) {
 // Stops a remote file download if it exists and belongs to this server.
 func deleteServerPullRemoteFile(c *gin.Context) {
 	s := ExtractServer(c)
-	if dl, ok := downloader.ByID(c.Param("download")); ok && dl.BelongsTo(s) {
+	if dl := downloader.ByID(c.Param("download")); dl != nil && dl.BelongsTo(s) {
 		dl.Cancel()
 	}
 	c.Status(http.StatusNoContent)
