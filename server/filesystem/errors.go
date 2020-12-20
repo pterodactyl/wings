@@ -67,10 +67,6 @@ func IsErrorCode(err error, code ErrorCode) bool {
 	return false
 }
 
-func NewDiskSpaceError() *Error {
-	return &Error{code: ErrCodeDiskSpace}
-}
-
 // Returns a new BadPathResolution error.
 func NewBadPathResolution(path string, resolved string) *Error {
 	return &Error{code: ErrCodePathResolution, path: path, resolved: resolved}

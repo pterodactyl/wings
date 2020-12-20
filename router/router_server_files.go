@@ -256,6 +256,11 @@ func postServerPullRemoteFile(c *gin.Context) {
 		return
 	}
 
+	if err := s.Filesystem().HasSpaceErr(true); err != nil {
+		WithError(c, err)
+		return
+	}
+
 	dl := downloader.New(s, downloader.DownloadRequest{
 		URL:       u,
 		Directory: data.Directory,

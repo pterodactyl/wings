@@ -5,7 +5,6 @@ import (
 	"emperror.dev/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
-	"github.com/pterodactyl/wings/server/filesystem"
 	"golang.org/x/sync/semaphore"
 	"os"
 	"time"
@@ -168,8 +167,8 @@ func (s *Server) onBeforeStart() error {
 		s.Filesystem().HasSpaceAvailable(true)
 	} else {
 		s.PublishConsoleOutputFromDaemon("Checking server disk space usage, this could take a few seconds...")
-		if !s.Filesystem().HasSpaceAvailable(false) {
-			return filesystem.NewDiskSpaceError()
+		if err := s.Filesystem().HasSpaceErr(false); err != nil {
+			return err
 		}
 	}
 

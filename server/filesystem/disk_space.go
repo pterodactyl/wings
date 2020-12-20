@@ -48,6 +48,15 @@ func (fs *Filesystem) SetDiskLimit(i int64) {
 	fs.mu.Unlock()
 }
 
+// The same concept as HasSpaceAvailable however this will return an error if there is
+// no space, rather than a boolean value.
+func (fs *Filesystem) HasSpaceErr(allowStaleValue bool) error {
+	if !fs.HasSpaceAvailable(allowStaleValue) {
+		return &Error{code: ErrCodeDiskSpace}
+	}
+	return nil
+}
+
 // Determines if the directory a file is trying to be added to has enough space available
 // for the file to be written to.
 //

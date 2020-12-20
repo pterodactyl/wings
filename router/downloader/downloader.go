@@ -60,7 +60,6 @@ func (dl *Download) Execute() error {
 	dl.cancelFunc = &cancel
 	defer dl.Cancel()
 
-	fnameparts := strings.Split(dl.req.URL.Path, "/")
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, dl.req.URL.String(), nil)
 	res, err := client.Do(req)
 	if err != nil {
@@ -70,6 +69,8 @@ func (dl *Download) Execute() error {
 	if res.StatusCode >= 300 || res.StatusCode < 200 {
 		return errors.New("downloader: got bad response status from endpoint: " + res.Status)
 	}
+
+	fnameparts := strings.Split(dl.req.URL.Path, "/")
 	p := filepath.Join(dl.req.Directory, fnameparts[len(fnameparts)-1])
 	dl.server.Log().WithField("path", p).Debug("writing remote file to disk")
 	if err := dl.server.Filesystem().Writefile(p, res.Body); err != nil {
