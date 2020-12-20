@@ -5,6 +5,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/router/downloader"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
@@ -233,11 +234,11 @@ func postServerWriteFile(c *gin.Context) {
 }
 
 // Writes the contents of the remote URL to a file on a server.
-func postServerDownloadRemoteFile(c *gin.Context) {
+func postServerPullRemoteFile(c *gin.Context) {
 	s := ExtractServer(c)
 	var data struct {
-		URL      string `binding:"required" json:"url"`
-		BasePath string `json:"path"`
+		URL       string `binding:"required" json:"url"`
+		Directory string `binding:"required,omitempty" json:"directory"`
 	}
 	if err := c.BindJSON(&data); err != nil {
 		return
@@ -251,28 +252,21 @@ func postServerDownloadRemoteFile(c *gin.Context) {
 			})
 			return
 		}
-		NewServerError(err, s).Abort(c)
+		WithError(c, err)
 		return
 	}
 
-	resp, err := http.Get(u.String())
-	if err != nil {
-		NewServerError(err, s).Abort(c)
-		return
-	}
-	defer resp.Body.Close()
+	dl := downloader.New(s, downloader.DownloadRequest{
+		URL:       u,
+		Directory: data.Directory,
+	})
 
-	filename := strings.Split(u.Path, "/")
-	if err := s.Filesystem().Writefile(filepath.Join(data.BasePath, filename[len(filename)-1]), resp.Body); err != nil {
-		if filesystem.IsErrorCode(err, filesystem.ErrCodeIsDirectory) {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-				"error": "Cannot write file, name conflicts with an existing directory by the same name.",
-			})
-			return
-		}
-		NewServerError(err, s).AbortFilesystemError(c)
+	s.Log().WithField("download_id", dl.Identifier).WithField("url", u.String()).Info("starting pull of remote file to disk")
+	if err := dl.Execute(); err != nil {
+		WithError(c, err)
 		return
 	}
+	s.Log().WithField("download_id", dl.Identifier).Info("completed pull of remote file")
 
 	c.Status(http.StatusNoContent)
 }
