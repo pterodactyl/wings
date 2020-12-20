@@ -83,6 +83,7 @@ func Configure() *gin.Engine {
 			files.POST("/copy", postServerCopyFile)
 			files.POST("/write", postServerWriteFile)
 			files.POST("/pull", postServerPullRemoteFile)
+			files.DELETE("/pull/:download", deleteServerPullRemoteFile)
 			files.POST("/create-directory", postServerCreateDirectory)
 			files.POST("/delete", postServerDeleteFiles)
 			files.POST("/compress", postServerCompressFiles)

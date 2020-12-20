@@ -266,13 +266,27 @@ func postServerPullRemoteFile(c *gin.Context) {
 		Directory: data.Directory,
 	})
 
-	s.Log().WithField("download_id", dl.Identifier).WithField("url", u.String()).Info("starting pull of remote file to disk")
-	if err := dl.Execute(); err != nil {
-		WithError(c, err)
-		return
-	}
-	s.Log().WithField("download_id", dl.Identifier).Info("completed pull of remote file")
+	// Execute this pull in a seperate thread since it may take a long time to complete.
+	go func() {
+		s.Log().WithField("download_id", dl.Identifier).WithField("url", u.String()).Info("starting pull of remote file to disk")
+		if err := dl.Execute(); err != nil {
+			s.Log().WithField("download_id", dl.Identifier).WithField("error", err).Error("failed to pull remote file")
+		} else {
+			s.Log().WithField("download_id", dl.Identifier).Info("completed pull of remote file")
+		}
+	}()
 
+	c.JSON(http.StatusAccepted, gin.H{
+		"identifier": dl.Identifier,
+	})
+}
+
+// Stops a remote file download if it exists and belongs to this server.
+func deleteServerPullRemoteFile(c *gin.Context) {
+	s := ExtractServer(c)
+	if dl, ok := downloader.ByID(c.Param("download")); ok && dl.BelongsTo(s) {
+		dl.Cancel()
+	}
 	c.Status(http.StatusNoContent)
 }
 

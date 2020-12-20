@@ -121,16 +121,20 @@ func (e *RequestError) Abort(c *gin.Context) {
 // Looks at the given RequestError and determines if it is a specific filesystem error that
 // we can process and return differently for the user.
 func (e *RequestError) getAsFilesystemError() (int, string) {
-	if errors.Is(e.err, os.ErrNotExist) || filesystem.IsErrorCode(e.err, filesystem.ErrCodePathResolution) {
+	err := errors.Unwrap(e.err)
+	if err == nil {
+		return 0, ""
+	}
+	if errors.Is(err, os.ErrNotExist) || filesystem.IsErrorCode(err, filesystem.ErrCodePathResolution) {
 		return http.StatusNotFound, "The requested resource was not found on the system."
 	}
-	if filesystem.IsErrorCode(e.err, filesystem.ErrCodeDiskSpace) {
+	if filesystem.IsErrorCode(err, filesystem.ErrCodeDiskSpace) {
 		return http.StatusConflict, "There is not enough disk space available to perform that action."
 	}
-	if strings.HasSuffix(e.err.Error(), "file name too long") {
+	if strings.HasSuffix(err.Error(), "file name too long") {
 		return http.StatusBadRequest, "Cannot perform that action: file name is too long."
 	}
-	if e, ok := e.err.(*os.SyscallError); ok && e.Syscall == "readdirent" {
+	if e, ok := err.(*os.SyscallError); ok && e.Syscall == "readdirent" {
 		return http.StatusNotFound, "The requested directory does not exist."
 	}
 	return 0, ""

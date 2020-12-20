@@ -6,6 +6,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/router/downloader"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"net/http"
@@ -209,6 +210,11 @@ func deleteServer(c *gin.Context) {
 	s.Events().Destroy()
 	s.Throttler().StopTimer()
 	s.Websockets().CancelAll()
+
+	// Remove any pending remote file downloads for the server.
+	for _, dl := range downloader.ByServer(s.Id()) {
+		dl.Cancel()
+	}
 
 	// Destroy the environment; in Docker this will handle a running container and
 	// forcibly terminate it before removing the container, so we do not need to handle
