@@ -86,32 +86,34 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	var currentSize int64
 	// If the file does not exist on the system already go ahead and create the pathway
 	// to it and an empty file. We'll then write to it later on after this completes.
-	if stat, err := os.Stat(cleaned); err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-
-		if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
-			return err
-		}
-
-		if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
-			return err
-		}
-	} else {
+	stat, err := os.Stat(cleaned)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	} else if err == nil {
 		if stat.IsDir() {
 			return &Error{code: ErrCodeIsDirectory}
 		}
-
 		currentSize = stat.Size()
 	}
 
 	br := bufio.NewReader(r)
-	// Check that the new size we're writing to the disk can fit. If there is currently a file
-	// we'll subtract that current file size from the size of the buffer to determine the amount
-	// of new data we're writing (or amount we're removing if smaller).
-	if err := fs.hasSpaceFor(int64(br.Size()) - currentSize); err != nil {
+	// Check that the new size we're writing to the disk can fit. If there is currently
+	// a file we'll subtract that current file size from the size of the buffer to determine
+	// the amount of new data we're writing (or amount we're removing if smaller).
+	if err := fs.HasSpaceFor(int64(br.Size()) - currentSize); err != nil {
 		return err
+	}
+
+	// If we were unable to stat the location because it did not exist, go ahead and create
+	// it now. We do this after checking the disk space so that we do not just create empty
+	// directories at random.
+	if err != nil {
+		if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
+			return err
+		}
+		if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
+			return err
+		}
 	}
 
 	o := &fileOpener{}
@@ -298,7 +300,7 @@ func (fs *Filesystem) Copy(p string) error {
 	}
 
 	// Check that copying this file wouldn't put the server over its limit.
-	if err := fs.hasSpaceFor(s.Size()); err != nil {
+	if err := fs.HasSpaceFor(s.Size()); err != nil {
 		return err
 	}
 

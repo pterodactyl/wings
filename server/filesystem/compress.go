@@ -150,7 +150,7 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 		return nil, err
 	}
 
-	if err := fs.hasSpaceFor(f.Size()); err != nil {
+	if err := fs.HasSpaceFor(f.Size()); err != nil {
 		_ = os.Remove(d)
 
 		return nil, err

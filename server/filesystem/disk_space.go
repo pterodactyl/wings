@@ -203,7 +203,7 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 // Helper function to determine if a server has space available for a file of a given size.
 // If space is available, no error will be returned, otherwise an ErrNotEnoughSpace error
 // will be raised.
-func (fs *Filesystem) hasSpaceFor(size int64) error {
+func (fs *Filesystem) HasSpaceFor(size int64) error {
 	if fs.MaxDisk() == 0 {
 		return nil
 	}

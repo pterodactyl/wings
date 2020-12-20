@@ -66,8 +66,17 @@ func (dl *Download) Execute() error {
 		return errors.New("downloader: failed opening request to download file")
 	}
 	defer res.Body.Close()
-	if res.StatusCode >= 300 || res.StatusCode < 200 {
+	if res.StatusCode != http.StatusOK {
 		return errors.New("downloader: got bad response status from endpoint: " + res.Status)
+	}
+
+	// If there is a Content-Length header on this request go ahead and check that we can
+	// even write the whole file before beginning this process. If there is no header present
+	// we'll just have to give it a spin and see how it goes.
+	if res.ContentLength > 0 {
+		if err := dl.server.Filesystem().HasSpaceFor(res.ContentLength); err != nil {
+			return errors.WrapIf(err, "downloader: failed to write file: not enough space")
+		}
 	}
 
 	fnameparts := strings.Split(dl.req.URL.Path, "/")
