@@ -35,17 +35,12 @@ func (ult *usageLookupTime) Get() time.Time {
 
 // Returns the maximum amount of disk space that this Filesystem instance is allowed to use.
 func (fs *Filesystem) MaxDisk() int64 {
-	fs.mu.RLock()
-	defer fs.mu.RUnlock()
-
-	return fs.diskLimit
+	return atomic.LoadInt64(&fs.diskLimit)
 }
 
 // Sets the disk space limit for this Filesystem instance.
 func (fs *Filesystem) SetDiskLimit(i int64) {
-	fs.mu.Lock()
-	fs.diskLimit = i
-	fs.mu.Unlock()
+	atomic.SwapInt64(&fs.diskLimit, i)
 }
 
 // The same concept as HasSpaceAvailable however this will return an error if there is
@@ -87,10 +82,7 @@ func (fs *Filesystem) HasSpaceAvailable(allowStaleValue bool) bool {
 // function for critical logical checks. It should only be used in areas where the actual disk usage
 // does not need to be perfect, e.g. API responses for server resource usage.
 func (fs *Filesystem) CachedUsage() int64 {
-	fs.mu.RLock()
-	defer fs.mu.RUnlock()
-
-	return fs.diskUsed
+	return atomic.LoadInt64(&fs.diskUsed)
 }
 
 // Internal helper function to allow other parts of the codebase to check the total used disk space
