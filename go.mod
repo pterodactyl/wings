@@ -62,7 +62,7 @@ require (
 	github.com/pkg/sftp v1.11.0
 	github.com/prometheus/common v0.11.1 // indirect
 	github.com/remeh/sizedwaitgroup v1.0.0
-	github.com/sabhiram/go-gitignore v0.0.0-20180611051255-d3107576ba94
+	github.com/sabhiram/go-gitignore v0.0.0-20201211210132-54b8a0bf510f
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/ulikunitz/xz v0.5.7 // indirect

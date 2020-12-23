@@ -1,8 +1,8 @@
 package backup
 
 import (
-	"context"
 	"errors"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"os"
 )
 
@@ -17,8 +17,8 @@ var _ BackupInterface = (*LocalBackup)(nil)
 func LocateLocal(uuid string) (*LocalBackup, os.FileInfo, error) {
 	b := &LocalBackup{
 		Backup{
-			Uuid:         uuid,
-			IgnoredFiles: nil,
+			Uuid:   uuid,
+			Ignore: "",
 		},
 	}
 
@@ -41,13 +41,13 @@ func (b *LocalBackup) Remove() error {
 
 // Generates a backup of the selected files and pushes it to the defined location
 // for this instance.
-func (b *LocalBackup) Generate(included *IncludedFiles, prefix string) (*ArchiveDetails, error) {
-	a := &Archive{
-		TrimPrefix: prefix,
-		Files:      included,
+func (b *LocalBackup) Generate(basePath, ignore string) (*ArchiveDetails, error) {
+	a := &filesystem.Archive{
+		BasePath: basePath,
+		Ignore:   ignore,
 	}
 
-	if err := a.Create(b.Path(), context.Background()); err != nil {
+	if err := a.Create(b.Path()); err != nil {
 		return nil, err
 	}
 

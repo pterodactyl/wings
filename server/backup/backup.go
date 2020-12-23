@@ -40,7 +40,7 @@ type Backup struct {
 
 	// An array of files to ignore when generating this backup. This should be
 	// compatible with a standard .gitignore structure.
-	IgnoredFiles []string `json:"ignored_files"`
+	Ignore string `json:"ignore"`
 }
 
 // noinspection GoNameStartsWithPackageName
@@ -50,12 +50,12 @@ type BackupInterface interface {
 
 	// Generates a backup in whatever the configured source for the specific
 	// implementation is.
-	Generate(*IncludedFiles, string) (*ArchiveDetails, error)
+	Generate(string, string) (*ArchiveDetails, error)
 
 	// Returns the ignored files for this backup instance.
-	Ignored() []string
+	Ignored() string
 
-	// Returns a SHA256 checksum for the generated backup.
+	// Returns a SHA1 checksum for the generated backup.
 	Checksum() ([]byte, error)
 
 	// Returns the size of the generated backup.
@@ -153,6 +153,6 @@ func (b *Backup) Details() *ArchiveDetails {
 	}
 }
 
-func (b *Backup) Ignored() []string {
-	return b.IgnoredFiles
+func (b *Backup) Ignored() string {
+	return b.Ignore
 }
