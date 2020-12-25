@@ -2,23 +2,23 @@ package router
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/sha256"
 	"emperror.dev/errors"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"github.com/apex/log"
-	"github.com/buger/jsonparser"
 	"github.com/gin-gonic/gin"
 	"github.com/juju/ratelimit"
 	"github.com/mholt/archiver/v3"
+	"github.com/mitchellh/colorstring"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/system"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,6 +28,26 @@ import (
 	"time"
 )
 
+// Number of ticks in the progress bar
+const ticks = 25
+
+// 100% / number of ticks = percentage represented by each tick
+const tickPercentage = 100 / ticks
+
+type downloadProgress struct {
+	size     int64
+	progress int64
+}
+
+// Data passed over to initiate a server transfer.
+type serverTransferRequest struct {
+	ServerID string          `binding:"required" json:"server_id"`
+	URL      string          `binding:"required" json:"url"`
+	Token    string          `binding:"required" json:"token"`
+	Server   json.RawMessage `json:"server"`
+}
+
+// Returns the archive for a server so that it can be transfered to a new node.
 func getServerArchive(c *gin.Context) {
 	auth := strings.SplitN(c.GetHeader("Authorization"), " ", 2)
 
@@ -45,22 +65,20 @@ func getServerArchive(c *gin.Context) {
 		return
 	}
 
-	if token.Subject != c.Param("server") {
+	s := ExtractServer(c)
+	if token.Subject != s.Id() {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"error": "( .. •˘___˘• .. )",
+			"error": "Missing required token subject, or subject is not valid for the requested server.",
 		})
 		return
 	}
 
-	s := GetServer(c.Param("server"))
-
 	st, err := s.Archiver.Stat()
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			NewServerError(err, s).SetMessage("failed to stat archive").Abort(c)
+			WithError(c, err)
 			return
 		}
-
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
@@ -73,14 +91,7 @@ func getServerArchive(c *gin.Context) {
 
 	file, err := os.Open(s.Archiver.Path())
 	if err != nil {
-		tserr := NewServerError(err, s)
-		if !os.IsNotExist(err) {
-			tserr.SetMessage("failed to open archive for reading")
-		} else {
-			tserr.SetMessage("failed to open archive")
-		}
-
-		tserr.Abort(c)
+		WithError(c, err)
 		return
 	}
 	defer file.Close()
@@ -182,199 +193,176 @@ func postServerArchive(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
-// Number of ticks in the progress bar
-const ticks = 25
-
-// 100% / number of ticks = percentage represented by each tick
-const tickPercentage = 100 / ticks
-
-type downloadProgress struct {
-	size     uint64
-	progress uint64
-}
-
 func (w *downloadProgress) Write(v []byte) (int, error) {
 	n := len(v)
-
-	atomic.AddUint64(&w.progress, uint64(n))
-
+	atomic.AddInt64(&w.progress, int64(n))
 	return n, nil
 }
 
-func formatBytes(b uint64) string {
-	if b < 1024 {
-		return fmt.Sprintf("%d B", b)
-	}
-
-	div, exp := int64(1024), 0
-	for n := b / 1024; n >= 1024; n /= 1024 {
-		div *= 1024
-		exp++
-	}
-
-	return fmt.Sprintf("%.1f %ciB", float64(b)/float64(div), "KMGTPE"[exp])
+// Log helper function to attach all errors and info output to a consistently formatted
+// log string for easier querying.
+func (str serverTransferRequest) log() *log.Entry {
+	return log.WithField("subsystem", "transfers").WithField("server_id", str.ServerID)
 }
 
+// Downloads an archive from the machine that the server currently lives on.
+func (str serverTransferRequest) downloadArchive() (*http.Response, error) {
+	client := http.Client{Timeout: 0}
+	req, err := http.NewRequest(http.MethodGet, str.URL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", str.Token)
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// Returns the path to the local archive on the system.
+func (str serverTransferRequest) path() string {
+	return filepath.Join(config.Get().System.ArchiveDirectory, str.ServerID+".tar.gz")
+}
+
+// Creates the archive location on this machine by first checking that the required file
+// does not already exist. If it does exist, the file is deleted and then re-created as
+// an empty file.
+func (str serverTransferRequest) createArchiveFile() (*os.File, error) {
+	p := str.path()
+	if _, err := os.Stat(p); err != nil {
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+	} else if err := os.Remove(p); err != nil {
+		return nil, err
+	}
+	return os.Create(p)
+}
+
+// Deletes the archive from the local filesystem. This is executed as a deferred function.
+func (str serverTransferRequest) removeArchivePath() {
+	p := str.path()
+	str.log().Debug("deleting temporary transfer archive")
+	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+		str.log().WithField("path", p).WithField("error", err).Error("failed to delete temporary transfer archive file")
+		return
+	}
+	str.log().Debug("deleted temporary transfer archive successfully")
+}
+
+// Verifies that the SHA-256 checksum of the file on the local filesystem matches the
+// expected value from the transfer request. The string value returned is the computed
+// checksum on the system.
+func (str serverTransferRequest) verifyChecksum(matches string) (bool, string, error) {
+	file, err := os.Open(str.path())
+	if err != nil {
+		return false, "", err
+	}
+	defer file.Close()
+	hash := sha256.New()
+	buf := make([]byte, 1024*4)
+	if _, err := io.CopyBuffer(hash, file, buf); err != nil {
+		return false, "", err
+	}
+	checksum := hex.EncodeToString(hash.Sum(nil))
+	return checksum == matches, checksum, nil
+}
+
+// Sends a notification to the Panel letting it know what the status of this transfer is.
+func (str serverTransferRequest) sendTransferStatus(successful bool) error {
+	lg := str.log().WithField("transfer_successful", successful)
+	lg.Info("notifying Panel of server transfer state")
+	if err := api.New().SendTransferStatus(str.ServerID, successful); err != nil {
+		lg.WithField("error", err).Error("error notifying panel of transfer state")
+		return err
+	}
+	lg.Debug("notified panel of transfer state")
+	return nil
+}
+
+// Initiates a transfer between two nodes for a server by downloading an archive from the
+// remote node and then applying the server details to this machine.
 func postTransfer(c *gin.Context) {
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(c.Request.Body); err != nil {
-		c.AbortWithStatus(http.StatusBadRequest)
+	var data serverTransferRequest
+	if err := c.BindJSON(&data); err != nil {
 		return
 	}
 
-	go func(data []byte) {
-		serverID, _ := jsonparser.GetString(data, "server_id")
-		url, _ := jsonparser.GetString(data, "url")
-		token, _ := jsonparser.GetString(data, "token")
-
-		l := log.WithField("server", serverID)
-		l.Info("incoming transfer for server")
-
-		// Create an http client with no timeout.
-		client := &http.Client{Timeout: 0}
-
+	data.log().Info("handling incoming server transfer request")
+	go func(data *serverTransferRequest) {
 		hasError := true
 		defer func() {
-			if !hasError {
-				return
-			}
-
-			l.Info("server transfer failed, notifying panel")
-			if err := api.New().SendTransferFailure(serverID); err != nil {
-				if !api.IsRequestError(err) {
-					l.WithField("error", err).Error("failed to notify panel with transfer failure")
-					return
-				}
-
-				l.WithField("error", err.Error()).Error("received error response from panel while notifying of transfer failure")
-				return
-			}
-
-			l.Debug("notified panel of transfer failure")
+			_ = data.sendTransferStatus(!hasError)
 		}()
 
-		// Get the server data from the request.
-		serverData, t, _, _ := jsonparser.Get(data, "server")
-		if t != jsonparser.Object {
-			l.Error("invalid server data passed in request")
-			return
-		}
-
-		// Create a new server installer (note this does not execute the install script)
-		i, err := installer.New(serverData)
+		// Create a new server installer. This will only configure the environment and not
+		// run the installer scripts.
+		i, err := installer.New(data.Server)
 		if err != nil {
-			l.WithField("error", err).Error("failed to validate received server data")
+			data.log().WithField("error", err).Error("failed to validate received server data")
 			return
 		}
-
-		// Mark the server as transferring to prevent problems.
-		i.Server().SetTransferring(true)
-
-		// Add the server to the collection.
-		server.GetServers().Add(i.Server())
-		defer func() {
-			if !hasError {
-				return
-			}
-
-			// Remove the server if the transfer has failed.
-			server.GetServers().Remove(func(s *server.Server) bool {
-				return i.Server().Id() == s.Id()
-			})
-		}()
 
 		// This function automatically adds the Target Node prefix and Timestamp to the log output before sending it
 		// over the websocket.
 		sendTransferLog := func(data string) {
-			i.Server().Events().Publish(
-				server.TransferLogsEvent,
-				"\x1b[0;90m"+time.Now().Format(time.RFC1123)+"\x1b[0m \x1b[1;33m[Target Node]:\x1b[0m "+data,
-			)
+			output := colorstring.Color(fmt.Sprintf("[yellow][bold]%s [Pterodactyl Transfer System] [Target Node]:[default] %s", time.Now().Format(time.RFC1123), data))
+			i.Server().Events().Publish(server.TransferLogsEvent, output)
 		}
-		defer func() {
-			if !hasError {
-				return
+
+		// Mark the server as transferring to prevent problems later on during the process and
+		// then push the server into the global server collection for this instance.
+		i.Server().SetTransferring(true)
+		server.GetServers().Add(i.Server())
+		defer func(s *server.Server) {
+			// In the event that this transfer call fails, remove the server from the global
+			// server tracking so that we don't have a dangling instance.
+			if hasError {
+				sendTransferLog("Server transfer failed, check Wings logs for additional information.")
+				s.Events().Publish(server.TransferStatusEvent, "failure")
+				server.GetServers().Remove(func(s2 *server.Server) bool {
+					return s.Id() == s2.Id()
+				})
+			} else {
+				i.Server().SetTransferring(false)
+				i.Server().Events().Publish(server.TransferStatusEvent, "success")
 			}
+		}(i.Server())
 
-			i.Server().Events().Publish(server.TransferStatusEvent, "failure")
-		}()
-
-		sendTransferLog("Received incoming transfer from Panel, attempting to download archive from source node..")
-
-		// Make a new GET request to the URL the panel gave us.
-		req, err := http.NewRequest("GET", url, nil)
+		data.log().Info("downloading server archive from current server node")
+		sendTransferLog("Received incoming transfer from Panel, attempting to download archive from source node...")
+		res, err := data.downloadArchive()
 		if err != nil {
-			sendTransferLog("Failed to create http request: " + err.Error())
-			log.WithField("error", err).Error("failed to create http request for archive transfer")
-			return
-		}
-
-		// Add the authorization header on the request.
-		req.Header.Set("Authorization", token)
-
-		sendTransferLog("Requesting archive from source node..")
-		l.Info("requesting archive for server transfer..")
-
-		// Execute the http request.
-		res, err := client.Do(req)
-		if err != nil {
-			sendTransferLog("Failed to send get archive request: " + err.Error())
-			l.WithField("error", err).Error("failed to send archive http request")
+			sendTransferLog("Failed to retrieve server archive from remote node: " + err.Error())
+			data.log().WithField("error", err).Error("failed to download archive for server transfer")
 			return
 		}
 		defer res.Body.Close()
-
-		// Handle non-200 status codes.
 		if res.StatusCode != 200 {
-			sendTransferLog("Expected 200 but received \"" + strconv.Itoa(res.StatusCode) + "\" from source node while requesting archive")
-
-			if _, err := ioutil.ReadAll(res.Body); err != nil {
-				l.WithField("error", err).WithField("status", res.StatusCode).Error("failed read transfer response body")
-				return
-			}
-
-			l.WithField("error", err).WithField("status", res.StatusCode).Error("failed to request server archive")
+			data.log().WithField("error", err).WithField("status", res.StatusCode).Error("unexpected error response from transfer endpoint")
 			return
 		}
 
-		size, err := strconv.ParseUint(res.Header.Get("Content-Length"), 10, 64)
+		size := res.ContentLength
+		if size == 0 {
+			data.log().WithField("error", err).Error("recieved an archive response with Content-Length of 0")
+			return
+		}
+		sendTransferLog("Got server archive response from remote node. (Content-Length: " + strconv.Itoa(int(size)) + ")")
+		sendTransferLog("Creating local archive file...")
+		file, err := data.createArchiveFile()
 		if err != nil {
-			sendTransferLog("Failed to parse 'Content-Length' header: " + err.Error())
-			l.WithField("error", err).Warn("failed to parse 'Content-Length' header")
+			data.log().WithField("error", err).Error("failed to create archive file on local filesystem")
 			return
 		}
 
-		// Get the path to the archive.
-		archivePath := filepath.Join(config.Get().System.ArchiveDirectory, serverID+".tar.gz")
-
-		// Check if the archive already exists and delete it if it does.
-		if _, err := os.Stat(archivePath); err != nil {
-			if !os.IsNotExist(err) {
-				sendTransferLog("Failed to stat archive file: " + err.Error())
-				l.WithField("error", err).Error("failed to stat archive file")
-				return
-			}
-		} else if err := os.Remove(archivePath); err != nil {
-			sendTransferLog("Failed to remove old archive file: " + err.Error())
-			l.WithField("error", err).Warn("failed to remove old archive file")
-			return
-		}
-
-		// Create the file.
-		file, err := os.Create(archivePath)
-		if err != nil {
-			sendTransferLog("Failed to open archive: " + err.Error())
-			l.WithField("error", err).Error("failed to open archive on disk")
-			return
-		}
-
-		sendTransferLog("Starting to write archive to disk..")
-		l.Info("writing transfer archive to disk..")
+		sendTransferLog("Writing archive to disk...")
+		data.log().Info("writing transfer archive to disk..")
 
 		// Copy the file.
 		progress := &downloadProgress{size: size}
 		ticker := time.NewTicker(3 * time.Second)
-
 		go func(progress *downloadProgress, t *time.Ticker) {
 			for range ticker.C {
 				// p = 100 (Downloaded)
@@ -384,130 +372,75 @@ func postTransfer(c *gin.Context) {
 				// 10% / tickPercentage = (10% / (100 / 25)) (Divide by tick percentage to get the number of ticks)
 				// 2.5 (Number of ticks as a float64)
 				// 2 (convert to an integer)
-
-				p := atomic.LoadUint64(&progress.progress)
-
+				p := atomic.LoadInt64(&progress.progress)
 				// We have to cast these numbers to float in order to get a float result from the division.
-				width := float64(p) / float64(size)
-				width *= 100
-				width /= tickPercentage
-
+				width := ((float64(p) / float64(size)) * 100) / tickPercentage
 				bar := strings.Repeat("=", int(width)) + strings.Repeat(" ", ticks-int(width))
-				sendTransferLog("Downloading [" + bar + "] " + formatBytes(p) + " / " + formatBytes(progress.size))
+				sendTransferLog("Downloading [" + bar + "] " + system.FormatBytes(p) + " / " + system.FormatBytes(progress.size))
 			}
 		}(progress, ticker)
 
-		var reader io.Reader
-		if downloadLimit := config.Get().System.Transfers.DownloadLimit; downloadLimit < 1 {
-			// If there is no write limit, use the file as the writer.
-			reader = res.Body
-		} else {
-			// Token bucket with a capacity of "downloadLimit" MiB, adding "downloadLimit" MiB/s
-			bucket := ratelimit.NewBucketWithRate(float64(downloadLimit)*1024*1024, int64(downloadLimit)*1024*1024)
-
-			// Wrap the file writer with the token bucket limiter.
-			reader = ratelimit.Reader(res.Body, bucket)
+		var reader io.Reader = res.Body
+		downloadLimit := float64(config.Get().System.Transfers.DownloadLimit) * 1024 * 1024
+		if downloadLimit > 0 {
+			// Wrap the body with a reader that is limited to the defined download limit speed.
+			reader = ratelimit.Reader(res.Body, ratelimit.NewBucketWithRate(downloadLimit, int64(downloadLimit)))
 		}
 
 		buf := make([]byte, 1024*4)
 		if _, err := io.CopyBuffer(file, io.TeeReader(reader, progress), buf); err != nil {
-			sendTransferLog("Failed to write archive file to disk: " + err.Error())
-			l.WithField("error", err).Error("failed to copy archive file to disk")
+			ticker.Stop()
+			sendTransferLog("Failed while writing archive file to disk: " + err.Error())
+			data.log().WithField("error", err).Error("failed to copy archive file to disk")
 			return
 		}
 		ticker.Stop()
 
 		// Show 100% completion.
-		humanSize := formatBytes(progress.size)
+		humanSize := system.FormatBytes(progress.size)
 		sendTransferLog("Downloading [" + strings.Repeat("=", ticks) + "] " + humanSize + " / " + humanSize)
 
-		// Close the file so it can be opened to verify the checksum.
 		if err := file.Close(); err != nil {
-			sendTransferLog("Failed to close archive file: " + err.Error())
-			l.WithField("error", err).Error("failed to close archive file")
+			data.log().WithField("error", err).Error("unable to close archive file on local filesystem")
 			return
 		}
-		sendTransferLog("Successfully wrote archive to disk")
-		l.Info("finished writing transfer archive to disk")
+		data.log().Info("finished writing transfer archive to disk")
+		sendTransferLog("Successfully wrote archive to disk.")
 
-		// Whenever the transfer fails or succeeds, delete the temporary transfer archive.
-		defer func() {
-			log.WithField("server", serverID).Debug("deleting temporary transfer archive..")
-			if err := os.Remove(archivePath); err != nil && !os.IsNotExist(err) {
-				l.WithField("error", err).Warn("failed to delete transfer archive")
-			} else {
-				l.Debug("deleted temporary transfer archive successfully")
-			}
-		}()
+		// Whenever the transfer fails or succeeds, delete the temporary transfer archive that
+		// was created on the disk.
+		defer data.removeArchivePath()
 
-		sendTransferLog("Successfully downloaded archive, computing checksum..")
-		l.Info("server transfer archive downloaded, computing checksum...")
-
-		// Open the archive file for computing a checksum.
-		file, err = os.Open(archivePath)
-		if err != nil {
-			sendTransferLog("Failed to open archive file: " + err.Error())
-			l.WithField("error", err).Error("failed to open archive on disk")
+		sendTransferLog("Verifying checksum of downloaded archive...")
+		data.log().Info("computing checksum of downloaded archive file")
+		expected := res.Header.Get("X-Checksum")
+		if matches, computed, err := data.verifyChecksum(expected); err != nil {
+			data.log().WithField("error", err).Error("encountered an error while calculating local filesystem archive checksum")
+			return
+		} else if !matches {
+			sendTransferLog("@@@@@ CHECKSUM VERIFICATION FAILED @@@@@")
+			sendTransferLog("  -   Source Checksum: " + expected)
+			sendTransferLog("  - Computed Checksum: " + computed)
+			data.log().WithField("expected_sum", expected).WithField("computed_checksum", computed).Error("checksum mismatch when verifying integrity of local archive")
 			return
 		}
-
-		// Compute the sha256 checksum of the file.
-		hash := sha256.New()
-		buf = make([]byte, 1024*4)
-		if _, err := io.CopyBuffer(hash, file, buf); err != nil {
-			sendTransferLog("Failed to copy archive file for checksum compute: " + err.Error())
-			l.WithField("error", err).Error("failed to copy archive file for checksum computation")
-			return
-		}
-
-		// Close the file.
-		if err := file.Close(); err != nil {
-			sendTransferLog("Failed to close archive: " + err.Error())
-			l.WithField("error", err).Error("failed to close archive file after calculating checksum")
-			return
-		}
-
-		sourceChecksum := res.Header.Get("X-Checksum")
-		checksum := hex.EncodeToString(hash.Sum(nil))
-
-		sendTransferLog("Successfully computed checksum")
-		sendTransferLog("  -   Source Checksum: " + sourceChecksum)
-		sendTransferLog("  - Computed Checksum: " + checksum)
-
-		l.WithField("checksum", checksum).Info("computed checksum of transfer archive")
-
-		// Verify the two checksums.
-		if checksum != sourceChecksum {
-			sendTransferLog("Checksum verification failed, aborting..")
-			l.WithField("source_checksum", sourceChecksum).Error("checksum verification failed for archive")
-			return
-		}
-
-		sendTransferLog("Archive checksum has been validated, continuing with transfer")
-		l.Info("server archive transfer checksums have been validated, creating server environment..")
 
 		// Create the server's environment.
 		sendTransferLog("Creating server environment, this could take a while..")
+		data.log().Info("creating server environment")
 		if err := i.Server().CreateEnvironment(); err != nil {
-			sendTransferLog("Failed to create server environment: " + err.Error())
-			l.WithField("error", err).Error("failed to create server environment")
+			data.log().WithField("error", err).Error("failed to create server environment")
 			return
 		}
 
 		sendTransferLog("Server environment has been created, extracting transfer archive..")
-		l.Info("server environment configured, extracting transfer archive..")
-		// Extract the transfer archive.
-		if err := archiver.NewTarGz().Unarchive(archivePath, i.Server().Filesystem().Path()); err != nil {
+		data.log().Info("server environment configured, extracting transfer archive")
+		if err := archiver.NewTarGz().Unarchive(data.path(), i.Server().Filesystem().Path()); err != nil {
 			// Unarchiving failed, delete the server's data directory.
 			if err := os.RemoveAll(i.Server().Filesystem().Path()); err != nil && !os.IsNotExist(err) {
-				sendTransferLog("Failed to delete server filesystem: " + err.Error())
-				l.WithField("error", err).Warn("failed to delete server filesystem")
-			} else {
-				l.Debug("deleted server filesystem due to failed transfer")
+				data.log().WithField("error", err).Warn("failed to delete local server files directory")
 			}
-
-			sendTransferLog("Failed to extract archive: " + err.Error())
-			l.WithField("error", err).Error("failed to extract server archive")
+			data.log().WithField("error", err).Error("failed to extract server archive")
 			return
 		}
 
@@ -517,32 +450,9 @@ func postTransfer(c *gin.Context) {
 		// It may be useful to retry sending the transfer success every so often just in case of a small
 		// hiccup or the fix of whatever error causing the success request to fail.
 		hasError = false
-
-		sendTransferLog("Archive has been extracted, attempting to notify panel..")
-		l.Info("server transfer archive has been extracted, notifying panel..")
-
-		// Notify the panel that the transfer succeeded.
-		err = api.New().SendTransferSuccess(serverID)
-		if err != nil {
-			if !api.IsRequestError(err) {
-				sendTransferLog("Failed to notify panel of transfer success: " + err.Error())
-				l.WithField("error", err).Error("failed to notify panel of transfer success")
-				return
-			}
-
-			sendTransferLog("Panel returned an error while notifying it of transfer success: " + err.Error())
-			l.WithField("error", err.Error()).Error("panel responded with error after transfer success")
-			return
-		}
-
-		i.Server().SetTransferring(false)
-
-		sendTransferLog("Successfully notified panel of transfer success")
-		l.Info("successfully notified panel of transfer success")
-
-		i.Server().Events().Publish(server.TransferStatusEvent, "success")
-		sendTransferLog("Transfer completed")
-	}(buf.Bytes())
+		data.log().Info("archive transfered successfully, notifying panel of status")
+		sendTransferLog("Archive transfered successfully.")
+	}(&data)
 
 	c.Status(http.StatusAccepted)
 }

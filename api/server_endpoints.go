@@ -189,22 +189,15 @@ func (r *Request) SendArchiveStatus(uuid string, successful bool) error {
 	return resp.Error()
 }
 
-func (r *Request) SendTransferFailure(uuid string) error {
-	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/failure", uuid), nil)
+func (r *Request) SendTransferStatus(uuid string, successful bool) error {
+	state := "failure"
+	if successful {
+		state = "success"
+	}
+	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/%s", uuid, state), nil)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-
-	return resp.Error()
-}
-
-func (r *Request) SendTransferSuccess(uuid string) error {
-	resp, err := r.Get(fmt.Sprintf("/servers/%s/transfer/success", uuid), nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
 	return resp.Error()
 }
