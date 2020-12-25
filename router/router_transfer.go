@@ -213,7 +213,7 @@ func (str serverTransferRequest) downloadArchive() (*http.Response, error) {
 		return nil, err
 	}
 	req.Header.Set("Authorization", str.Token)
-	res, err := client.Do(req)
+	res, err := client.Do(req) // lgtm[go/request-forgery]
 	if err != nil {
 		return nil, err
 	}
