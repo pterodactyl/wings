@@ -17,8 +17,6 @@ import (
 
 const memory = 4 * 1024
 
-var writeLimit = int64(config.Get().System.Backups.WriteLimit * 1024 * 1024)
-
 var pool = sync.Pool{
 	New: func() interface{} {
 		b := make([]byte, memory)
@@ -51,6 +49,7 @@ func (a *Archive) Create(dst string) error {
 	// Select a writer based off of the WriteLimit configuration option. If there is no
 	// write limit, use the file as the writer.
 	var writer io.Writer = f
+	writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024)
 	if writeLimit > 0 {
 		// Token bucket with a capacity of "writeLimit" MiB, adding "writeLimit" MiB/s
 		// and then wrap the file writer with the token bucket limiter.
