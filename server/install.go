@@ -170,17 +170,11 @@ func (s *Server) IsInstalling() bool {
 }
 
 func (s *Server) IsTransferring() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.transferring
+	return s.transferring.Get()
 }
 
 func (s *Server) SetTransferring(state bool) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.transferring = state
+	s.transferring.Set(state)
 }
 
 // Removes the installer container for the server.

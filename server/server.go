@@ -12,6 +12,7 @@ import (
 	"github.com/pterodactyl/wings/environment/docker"
 	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/server/filesystem"
+	"github.com/pterodactyl/wings/system"
 	"golang.org/x/sync/semaphore"
 	"strings"
 	"sync"
@@ -56,7 +57,7 @@ type Server struct {
 	// installer process is still running.
 	installer InstallerDetails
 
-	transferring bool
+	transferring system.AtomicBool
 
 	// The console throttler instance used to control outputs.
 	throttler *ConsoleThrottler
