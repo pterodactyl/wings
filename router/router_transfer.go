@@ -106,20 +106,21 @@ func getServerArchive(c *gin.Context) {
 }
 
 func postServerArchive(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	go func(s *server.Server) {
 		r := api.New()
 		l := log.WithField("server", s.Id())
 
-		// This function automatically adds the Source Node prefix and Timestamp to the log output before sending it
-		// over the websocket.
+		// This function automatically adds the Source Node prefix and Timestamp to the log
+		// output before sending it over the websocket.
 		sendTransferLog := func(data string) {
-			s.Events().Publish(server.TransferLogsEvent, "\x1b[0;90m"+time.Now().Format(time.RFC1123)+"\x1b[0m \x1b[1;33m[Source Node]:\x1b[0m "+data)
+			output := colorstring.Color(fmt.Sprintf("[yellow][bold]%s [Pterodactyl Transfer System] [Source Node]:[default] %s", time.Now().Format(time.RFC1123), data))
+			s.Events().Publish(server.TransferLogsEvent, output)
 		}
 
 		s.Events().Publish(server.TransferStatusEvent, "starting")
-		sendTransferLog("Attempting to archive server..")
+		sendTransferLog("Attempting to archive server...")
 
 		hasError := true
 		defer func() {
@@ -149,14 +150,12 @@ func postServerArchive(c *gin.Context) {
 		// Mark the server as transferring to prevent problems.
 		s.SetTransferring(true)
 
-		// Ensure the server is offline.
-		if err := s.Environment.WaitForStop(60, false); err != nil {
-			// Sometimes a "No such container" error gets through which means the server is already stopped.
-			if !strings.Contains(err.Error(), "No such container") {
-				sendTransferLog("Failed to stop server, aborting transfer..")
-				l.WithField("error", err).Error("failed to stop server")
-				return
-			}
+		// Ensure the server is offline. Sometimes a "No such container" error gets through
+		// which means the server is already stopped. We can ignore that.
+		if err := s.Environment.WaitForStop(60, false); err != nil && !strings.Contains(strings.ToLower(err.Error()), "no such container") {
+			sendTransferLog("Failed to stop server, aborting transfer..")
+			l.WithField("error", err).Error("failed to stop server")
+			return
 		}
 
 		// Attempt to get an archive of the server.
