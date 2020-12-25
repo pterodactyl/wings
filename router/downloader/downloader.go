@@ -4,8 +4,10 @@ import (
 	"context"
 	"emperror.dev/errors"
 	"encoding/json"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/system"
 	"io"
 	"net/http"
 	"net/url"
@@ -109,6 +111,7 @@ func (dl *Download) Execute() error {
 	defer dl.Cancel()
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, dl.req.URL.String(), nil)
+	req.Header.Set("User-Agent", fmt.Sprintf("Pterodactyl Panel (Wings v%s) (https://pterodactyl.io)", system.Version))
 	res, err := client.Do(req)
 	if err != nil {
 		return errors.New("downloader: failed opening request to download file")

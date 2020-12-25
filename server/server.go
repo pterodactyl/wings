@@ -5,6 +5,7 @@ import (
 	"emperror.dev/errors"
 	"fmt"
 	"github.com/apex/log"
+	"github.com/creasty/defaults"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -21,6 +22,9 @@ type Server struct {
 	// Internal mutex used to block actions that need to occur sequentially, such as
 	// writing the configuration to the disk.
 	sync.RWMutex
+	ctx       context.Context
+	ctxCancel *context.CancelFunc
+
 	emitterLock  sync.Mutex
 	powerLock    *semaphore.Weighted
 	throttleLock sync.Mutex
@@ -63,18 +67,48 @@ type Server struct {
 }
 
 type InstallerDetails struct {
-	// The cancel function for the installer. This will be a non-nil value while there
-	// is an installer running for the server.
-	cancel *context.CancelFunc
-
 	// Installer lock. You should obtain an exclusive lock on this context while running
 	// the installation process and release it when finished.
 	sem *semaphore.Weighted
 }
 
+// Returns a new server instance with a context and all of the default values set on
+// the instance.
+func New() (*Server, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	s := Server{
+		ctx: ctx,
+		ctxCancel: &cancel,
+	}
+	if err := defaults.Set(&s); err != nil {
+		return nil, err
+	}
+	if err := defaults.Set(&s.cfg); err != nil {
+		return nil, err
+	}
+	s.resources.State.Store(environment.ProcessOfflineState)
+	return &s, nil
+}
+
 // Returns the UUID for the server instance.
 func (s *Server) Id() string {
 	return s.Config().GetUuid()
+}
+
+// Cancels the context assigned to this server instance. Assuming background tasks
+// are using this server's context for things, all of the background tasks will be
+// stopped as a result.
+func (s *Server) CtxCancel() {
+	if s.ctxCancel != nil {
+		(*s.ctxCancel)()
+	}
+}
+
+// Returns a context instance for the server. This should be used to allow background
+// tasks to be canceled if the server is removed. It will only be canceled when the
+// application is stopped or if the server gets deleted.
+func (s *Server) Context() context.Context {
+	return s.ctx
 }
 
 // Returns all of the environment variables that should be assigned to a running

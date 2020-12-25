@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/apex/log"
-	"github.com/creasty/defaults"
 	"github.com/gammazero/workerpool"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
@@ -87,24 +86,13 @@ func LoadDirectory() error {
 // given struct using a YAML marshaler. This will also configure the given environment
 // for a server.
 func FromConfiguration(data api.ServerConfigurationResponse) (*Server, error) {
-	cfg := Configuration{}
-	if err := defaults.Set(&cfg); err != nil {
-		return nil, errors.WithMessage(err, "failed to set struct defaults for server configuration")
+	s, err := New()
+	if err != nil {
+		return nil, errors.WithMessage(err, "loader: failed to instantiate empty server struct")
 	}
-
-	s := new(Server)
-	if err := defaults.Set(s); err != nil {
-		return nil, errors.WithMessage(err, "failed to set struct defaults for server")
-	}
-
-	s.cfg = cfg
 	if err := s.UpdateDataStructure(data.Settings); err != nil {
 		return nil, err
 	}
-
-	s.resources = ResourceUsage{}
-	defaults.Set(&s.resources)
-	s.resources.State.Store(environment.ProcessOfflineState)
 
 	s.Archiver = Archiver{Server: s}
 	s.fs = filesystem.New(filepath.Join(config.Get().System.Data, s.Id()), s.DiskSpace())
@@ -128,7 +116,7 @@ func FromConfiguration(data api.ServerConfigurationResponse) (*Server, error) {
 	} else {
 		s.Environment = env
 		s.StartEventListeners()
-		s.Throttler().StartTimer()
+		s.Throttler().StartTimer(s.Context())
 	}
 
 	// Forces the configuration to be synced with the panel.

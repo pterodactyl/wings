@@ -127,14 +127,11 @@ func NewInstallationProcess(s *Server, script *api.InstallationScript) (*Install
 		Server: s,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	s.installer.cancel = &cancel
-
 	if c, err := environment.DockerClient(); err != nil {
 		return nil, err
 	} else {
 		proc.client = c
-		proc.context = ctx
+		proc.context = s.Context()
 	}
 
 	return proc, nil
@@ -170,21 +167,6 @@ func (s *Server) IsInstalling() bool {
 	}
 
 	return true
-}
-
-// Aborts the server installation process by calling the cancel function on the installer
-// context.
-func (s *Server) AbortInstallation() {
-	if !s.IsInstalling() {
-		return
-	}
-
-	if s.installer.cancel != nil {
-		cancel := *s.installer.cancel
-
-		s.Log().Warn("aborting running installation process")
-		cancel()
-	}
 }
 
 func (s *Server) IsTransferring() bool {
@@ -230,7 +212,6 @@ func (ip *InstallationProcess) Run() error {
 	defer func() {
 		ip.Server.Log().Debug("releasing installation process lock")
 		ip.Server.installer.sem.Release(1)
-		ip.Server.installer.cancel = nil
 	}()
 
 	if err := ip.BeforeExecute(); err != nil {

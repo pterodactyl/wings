@@ -1,9 +1,27 @@
 package system
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 )
+
+// Runs a given work function every "d" duration until the provided context is canceled.
+func Every(ctx context.Context, d time.Duration, work func(t time.Time)) {
+	ticker := time.NewTicker(d)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case t := <-ticker.C:
+				work(t)
+			}
+		}
+	}()
+}
 
 type AtomicBool struct {
 	flag uint32
@@ -30,8 +48,8 @@ type AtomicString struct {
 	mu sync.RWMutex
 }
 
-func NewAtomicString(v string) *AtomicString {
-	return &AtomicString{v: v}
+func NewAtomicString(v string) AtomicString {
+	return AtomicString{v: v}
 }
 
 // Stores the string value passed atomically.
@@ -53,6 +71,7 @@ func (as *AtomicString) UnmarshalText(b []byte) error {
 	return nil
 }
 
-func (as *AtomicString) MarshalText() ([]byte, error) {
+//goland:noinspection GoVetCopyLock
+func (as AtomicString) MarshalText() ([]byte, error) {
 	return []byte(as.Load()), nil
 }

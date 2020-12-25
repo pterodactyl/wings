@@ -1,0 +1,207 @@
+package filesystem
+
+import (
+	"archive/tar"
+	"emperror.dev/errors"
+	"github.com/juju/ratelimit"
+	"github.com/karrick/godirwalk"
+	"github.com/klauspost/pgzip"
+	"github.com/pterodactyl/wings/config"
+	"github.com/sabhiram/go-gitignore"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+)
+
+const memory = 4 * 1024
+
+var pool = sync.Pool{
+	New: func() interface{} {
+		b := make([]byte, memory)
+		return b
+	},
+}
+
+type Archive struct {
+	// BasePath is the absolute path to create the archive from where Files and Ignore are
+	// relative to.
+	BasePath string
+
+	// Ignore is a gitignore string (most likely read from a file) of files to ignore
+	// from the archive.
+	Ignore string
+
+	// Files specifies the files to archive, this takes priority over the Ignore option, if
+	// unspecified, all files in the BasePath will be archived unless Ignore is set.
+	Files []string
+}
+
+// Creates an archive at dst with all of the files defined in the included files struct.
+func (a *Archive) Create(dst string) error {
+	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Select a writer based off of the WriteLimit configuration option. If there is no
+	// write limit, use the file as the writer.
+	var writer io.Writer = f
+	writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024)
+	if writeLimit > 0 {
+		// Token bucket with a capacity of "writeLimit" MiB, adding "writeLimit" MiB/s
+		// and then wrap the file writer with the token bucket limiter.
+		writer = ratelimit.Writer(f, ratelimit.NewBucketWithRate(float64(writeLimit), writeLimit))
+	}
+
+	// Create a new gzip writer around the file.
+	gw, _ := pgzip.NewWriterLevel(writer, pgzip.BestSpeed)
+	_ = gw.SetConcurrency(1<<20, 1)
+	defer gw.Close()
+
+	// Create a new tar writer around the gzip writer.
+	tw := tar.NewWriter(gw)
+	defer tw.Close()
+
+	// Configure godirwalk.
+	options := &godirwalk.Options{
+		FollowSymbolicLinks: false,
+		Unsorted:            true,
+		Callback:            a.callback(tw),
+	}
+
+	// If we're specifically looking for only certain files, or have requested
+	// that certain files be ignored we'll update the callback function to reflect
+	// that request.
+	if len(a.Files) == 0 && len(a.Ignore) > 0 {
+		i := ignore.CompileIgnoreLines(strings.Split(a.Ignore, "\n")...)
+		options.Callback = a.callback(tw, func(_ string, rp string) error {
+			if i.MatchesPath(rp) {
+				return godirwalk.SkipThis
+			}
+			return nil
+		})
+	} else if len(a.Files) > 0 {
+		options.Callback = a.withFilesCallback(tw)
+	}
+
+	// Recursively walk the path we are archiving.
+	return godirwalk.Walk(a.BasePath, options)
+}
+
+// Callback function used to determine if a given file should be included in the archive
+// being generated.
+func (a *Archive) callback(tw *tar.Writer, opts ...func(path string, relative string) error) func(path string, de *godirwalk.Dirent) error {
+	return func(path string, de *godirwalk.Dirent) error {
+		// Skip directories because we walking them recursively.
+		if de.IsDir() {
+			return nil
+		}
+
+		relative := filepath.ToSlash(strings.TrimPrefix(path, a.BasePath+string(filepath.Separator)))
+		// Call the additional options passed to this callback function. If any of them return
+		// a non-nil error we will exit immediately.
+		for _, opt := range opts {
+			if err := opt(path, relative); err != nil {
+				return err
+			}
+		}
+
+		// Add the file to the archive, if it is nested in a directory,
+		// the directory will be automatically "created" in the archive.
+		return a.addToArchive(path, relative, tw)
+	}
+}
+
+// Pushes only files defined in the Files key to the final archive.
+func (a *Archive) withFilesCallback(tw *tar.Writer) func(path string, de *godirwalk.Dirent) error {
+	return a.callback(tw, func(p string, rp string) error {
+		for _, f := range a.Files {
+			// If the given doesn't match, or doesn't have the same prefix continue
+			// to the next item in the loop.
+			if p != f && !strings.HasPrefix(p, f) {
+				continue
+			}
+			// Once we have a match return a nil value here so that the loop stops and the
+			// call to this function will correctly include the file in the archive. If there
+			// are no matches we'll never make it to this line, and the final error returned
+			// will be the godirwalk.SkipThis error.
+			return nil
+		}
+		return godirwalk.SkipThis
+	})
+}
+
+// Adds a given file path to the final archive being created.
+func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
+	// Lstat the file, this will give us the same information as Stat except
+	// that it will not follow a symlink to it's target automatically.
+	s, err := os.Lstat(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return errors.WithMessage(err, "failed to Lstat '"+rp+"'")
+	}
+
+	// Resolve the symlink target if the file is a symlink.
+	var target string
+	if s.Mode()&os.ModeSymlink != 0 {
+		// Read the target of the symlink.
+		target, err = os.Readlink(s.Name())
+		if err != nil {
+			return errors.WithMessage(err, "failed to read symlink target for '"+rp+"'")
+		}
+	}
+
+	// Get the tar FileInfoHeader in order to add the file to the archive.
+	header, err := tar.FileInfoHeader(s, filepath.ToSlash(target))
+	if err != nil {
+		return errors.WithMessagef(err, "failed to get tar#FileInfoHeader for '%s'", rp)
+	}
+
+	// Fix the header name if the file is not a symlink.
+	if s.Mode()&os.ModeSymlink == 0 {
+		header.Name = rp
+	}
+
+	// Write the tar FileInfoHeader to the archive.
+	if err := w.WriteHeader(header); err != nil {
+		return errors.WithMessagef(err, "failed to write tar#FileInfoHeader for '%s'", rp)
+	}
+
+	// If the size of the file is less than 1 (most likely for symlinks), skip writing the file.
+	if header.Size < 1 {
+		return nil
+	}
+
+	// If the buffer size is larger than the file size, create a smaller buffer to hold the file.
+	var buf []byte
+	if header.Size < memory {
+		buf = make([]byte, header.Size)
+	} else {
+		// Get a fixed-size buffer from the pool to save on allocations.
+		buf = pool.Get().([]byte)
+		defer func() {
+			buf = make([]byte, memory)
+			pool.Put(buf)
+		}()
+	}
+
+	// Open the file.
+	f, err := os.Open(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return errors.WithMessagef(err, "failed to open '%s' for copying", header.Name)
+	}
+	defer f.Close()
+	// Copy the file's contents to the archive using our buffer.
+	if _, err := io.CopyBuffer(w, io.LimitReader(f, header.Size), buf); err != nil {
+		return errors.WithMessagef(err, "failed to copy '%s' to archive", header.Name)
+	}
+	return nil
+}

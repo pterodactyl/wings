@@ -1,10 +1,10 @@
 package backup
 
 import (
-	"context"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"io"
 	"net/http"
 	"os"
@@ -19,15 +19,15 @@ var _ BackupInterface = (*S3Backup)(nil)
 
 // Generates a new backup on the disk, moves it into the S3 bucket via the provided
 // presigned URL, and then deletes the backup from the disk.
-func (s *S3Backup) Generate(included *IncludedFiles, prefix string) (*ArchiveDetails, error) {
+func (s *S3Backup) Generate(basePath, ignore string) (*ArchiveDetails, error) {
 	defer s.Remove()
 
-	a := &Archive{
-		TrimPrefix: prefix,
-		Files:      included,
+	a := &filesystem.Archive{
+		BasePath: basePath,
+		Ignore:   ignore,
 	}
 
-	if err := a.Create(s.Path(), context.Background()); err != nil {
+	if err := a.Create(s.Path()); err != nil {
 		return nil, err
 	}
 
