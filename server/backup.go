@@ -7,7 +7,6 @@ import (
 	"github.com/pterodactyl/wings/server/backup"
 	"io/ioutil"
 	"os"
-	"path"
 )
 
 // Notifies the panel of a backup's state and returns an error if one is encountered
@@ -31,43 +30,20 @@ func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, suc
 
 // Get all of the ignored files for a server based on its .pteroignore file in the root.
 func (s *Server) getServerwideIgnoredFiles() (string, error) {
-	p := path.Join(s.Filesystem().Path(), ".pteroignore")
-
-	// Stat the file and don't resolve any symlink targets.
-	stat, err := os.Lstat(p)
+	f, st, err := s.Filesystem().File(".pteroignore")
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return "", err
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
 		}
-
+		return "", err
+	} else if st.Mode()&os.ModeSymlink != 0 || st.Size() > 32*1024 {
+		// Don't read a symlinked ignore file, or a file larger than 32KiB in size.
 		return "", nil
 	}
-
-	// Do not read directories or symlinks.
-	if stat.Mode()&os.ModeDir != 0 || stat.Mode()&os.ModeSymlink != 0 {
-		return "", nil
-	}
-
-	// If the file is bigger than 32 KiB, don't read it at all.
-	if stat.Size() > 32*1024 {
-		return "", nil
-	}
-
-	f, err := os.Open(p)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return "", err
-		}
-
-		return "", nil
-	}
-
-	// Read the entire file into memory.
 	b, err := ioutil.ReadAll(f)
 	if err != nil {
 		return "", err
 	}
-
 	return string(b), nil
 }
 
