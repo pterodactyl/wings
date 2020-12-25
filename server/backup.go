@@ -43,8 +43,8 @@ func (s *Server) getServerwideIgnoredFiles() (string, error) {
 		return "", nil
 	}
 
-	// Do not read symlinks.
-	if stat.Mode()&os.ModeSymlink != 0 {
+	// Do not read directories or symlinks.
+	if stat.Mode()&os.ModeDir != 0 || stat.Mode()&os.ModeSymlink != 0 {
 		return "", nil
 	}
 
