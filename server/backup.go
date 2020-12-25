@@ -52,16 +52,13 @@ func (s *Server) getServerwideIgnoredFiles() (string, error) {
 // let the actual backup system handle notifying the panel of the status, but that
 // won't emit a websocket event.
 func (s *Server) Backup(b backup.BackupInterface) error {
-	var ignored string
+	ignored := b.Ignored()
 	if b.Ignored() == "" {
-		i, err := s.getServerwideIgnoredFiles()
-		if err != nil {
+		if i, err := s.getServerwideIgnoredFiles(); err != nil {
 			log.WithField("server", s.Id()).WithField("error", err).Warn("failed to get server-wide ignored files")
+		} else {
+			ignored = i
 		}
-
-		ignored = i
-	} else {
-		ignored = b.Ignored()
 	}
 
 	ad, err := b.Generate(s.Filesystem().Path(), ignored)
