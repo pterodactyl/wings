@@ -271,6 +271,13 @@ func postServerPullRemoteFile(c *gin.Context) {
 		WithError(c, err)
 		return
 	}
+	// Do not allow more than three simultaneous remote file downloads at one time.
+	if len(downloader.ByServer(s.Id())) >= 3 {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "This server has reached its limit of 3 simultaneous remote file downloads at once. Please wait for one to complete before trying again.",
+		})
+		return
+	}
 
 	dl := downloader.New(s, downloader.DownloadRequest{
 		URL:       u,
