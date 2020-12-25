@@ -61,51 +61,17 @@ func (ct *ConsoleThrottler) Throttled() bool {
 }
 
 // Starts a timer that runs in a seperate thread and will continually decrement the lines processed
-// and number of activations, regardless of the current console message volume.
-func (ct *ConsoleThrottler) StartTimer() {
-	ctx, cancel := context.WithCancel(context.Background())
+// and number of activations, regardless of the current console message volume. All of the timers
+// are canceled if the context passed through is canceled.
+func (ct *ConsoleThrottler) StartTimer(ctx context.Context) {
+	system.Every(ctx, time.Duration(int64(ct.LineResetInterval)) * time.Millisecond, func(_ time.Time) {
+		ct.isThrottled.Set(false)
+		atomic.StoreUint64(&ct.count, 0)
+	})
 
-	reset := time.NewTicker(time.Duration(int64(ct.LineResetInterval)) * time.Millisecond)
-	decay := time.NewTicker(time.Duration(int64(ct.DecayInterval)) * time.Millisecond)
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				reset.Stop()
-				return
-			case <-reset.C:
-				ct.isThrottled.Set(false)
-				atomic.StoreUint64(&ct.count, 0)
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				decay.Stop()
-				return
-			case <-decay.C:
-				ct.markActivation(false)
-			}
-		}
-	}()
-
-	ct.timerCancel = &cancel
-}
-
-// Stops a running timer processes if one exists. This is only called when the server is deleted since
-// we want this to always be running. If there is no process currently running nothing will really happen.
-func (ct *ConsoleThrottler) StopTimer() {
-	ct.mu.Lock()
-	defer ct.mu.Unlock()
-	if ct.timerCancel != nil {
-		c := *ct.timerCancel
-		c()
-		ct.timerCancel = nil
-	}
+	system.Every(ctx, time.Duration(int64(ct.DecayInterval)) * time.Millisecond, func(_ time.Time) {
+		ct.markActivation(false)
+	})
 }
 
 // Handles output from a server's console. This code ensures that a server is not outputting

@@ -356,6 +356,12 @@ func rootCmdRun(*cobra.Command, []string) {
 	if err := s.ListenAndServe(); err != nil {
 		log.WithField("error", err).Fatal("failed to configure HTTP server")
 	}
+
+	// Cancel the context on all of the running servers at this point, even though the
+	// program is just shutting down.
+	for _, s := range server.GetServers().All() {
+		s.CtxCancel()
+	}
 }
 
 // Execute calls cobra to handle cli commands

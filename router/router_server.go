@@ -189,27 +189,24 @@ func postServerReinstall(c *gin.Context) {
 
 // Deletes a server from the wings daemon and dissociate it's objects.
 func deleteServer(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	// Immediately suspend the server to prevent a user from attempting
 	// to start it while this process is running.
 	s.Config().SetSuspended(true)
 
-	// If the server is currently installing, abort it.
-	if s.IsInstalling() {
-		s.AbortInstallation()
-	}
+	// Stop all running background tasks for this server that are using the context on
+	// the server struct. This will cancel any running install processes for the server
+	// as well.
+	s.CtxCancel()
+	s.Events().Destroy()
+	s.Websockets().CancelAll()
 
 	// Delete the server's archive if it exists. We intentionally don't return
 	// here, if the archive fails to delete, the server can still be removed.
 	if err := s.Archiver.DeleteIfExists(); err != nil {
 		s.Log().WithField("error", err).Warn("failed to delete server archive during deletion process")
 	}
-
-	// Unsubscribe all of the event listeners.
-	s.Events().Destroy()
-	s.Throttler().StopTimer()
-	s.Websockets().CancelAll()
 
 	// Remove any pending remote file downloads for the server.
 	for _, dl := range downloader.ByServer(s.Id()) {
@@ -220,7 +217,8 @@ func deleteServer(c *gin.Context) {
 	// forcibly terminate it before removing the container, so we do not need to handle
 	// that here.
 	if err := s.Environment.Destroy(); err != nil {
-		NewServerError(err, s).Abort(c)
+		WithError(c, err)
+		return
 	}
 
 	// Once the environment is terminated, remove the server files from the system. This is
@@ -231,10 +229,7 @@ func deleteServer(c *gin.Context) {
 	// so we don't want to block the HTTP call while waiting on this.
 	go func(p string) {
 		if err := os.RemoveAll(p); err != nil {
-			log.WithFields(log.Fields{
-				"path":  p,
-				"error": err,
-			}).Warn("failed to remove server files during deletion process")
+			log.WithFields(log.Fields{"path":  p, "error": err}).Warn("failed to remove server files during deletion process")
 		}
 	}(s.Filesystem().Path())
 
