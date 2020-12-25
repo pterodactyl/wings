@@ -110,7 +110,7 @@ func (dl *Download) Execute() error {
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, dl.req.URL.String(), nil)
 	req.Header.Set("User-Agent", "Pterodactyl Panel (https://pterodactyl.io)")
-	res, err := client.Do(req) // lgtm[go/request-forgery]
+	res, err := client.Do(req) // lgtm [go/request-forgery]
 	if err != nil {
 		return errors.New("downloader: failed opening request to download file")
 	}
