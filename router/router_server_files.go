@@ -22,7 +22,7 @@ import (
 
 // Returns the contents of a file on the server.
 func getServerFileContents(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 	f, err := url.QueryUnescape(c.Query("file"))
 	if err != nil {
 		WithError(c, err)
@@ -31,7 +31,7 @@ func getServerFileContents(c *gin.Context) {
 	p := "/" + strings.TrimLeft(f, "/")
 	st, err := s.Filesystem().Stat(p)
 	if err != nil {
-		NewServerError(err, s).AbortFilesystemError(c)
+		WithError(c, err)
 		return
 	}
 
@@ -55,9 +55,10 @@ func getServerFileContents(c *gin.Context) {
 	// happen since we're doing so much before this point that would normally throw an error if there
 	// was a problem with the file.
 	if err := s.Filesystem().Readfile(p, c.Writer); err != nil {
-		NewServerError(err, s).AbortFilesystemError(c)
+		WithError(c, err)
 		return
 	}
+	c.Writer.Flush()
 }
 
 // Returns the contents of a directory for a server.
