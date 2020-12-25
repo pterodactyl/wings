@@ -84,19 +84,11 @@ func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request) (*Hand
 			if o == config.Get().PanelLocation {
 				return true
 			}
-
 			for _, origin := range config.Get().AllowedOrigins {
-				if origin == "*" {
+				if origin == "*" || origin == o {
 					return true
 				}
-
-				if o != origin {
-					continue
-				}
-
-				return true
 			}
-
 			return false
 		},
 	}
