@@ -441,6 +441,8 @@ type chmodFile struct {
 	Mode string `json:"mode"`
 }
 
+var errInvalidFileMode = errors.New("invalid file mode")
+
 func postServerChmodFile(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
@@ -472,7 +474,7 @@ func postServerChmodFile(c *gin.Context) {
 			default:
 				mode, err := strconv.ParseUint(p.Mode, 8, 32)
 				if err != nil {
-					return err
+					return errInvalidFileMode
 				}
 
 				if err := s.Filesystem().Chmod(path.Join(data.Root, p.File), os.FileMode(mode)); err != nil {
@@ -491,6 +493,13 @@ func postServerChmodFile(c *gin.Context) {
 	}
 
 	if err := g.Wait(); err != nil {
+		if errors.Is(err, errInvalidFileMode) {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "Invalid file mode.",
+			})
+			return
+		}
+
 		NewServerError(err, s).AbortFilesystemError(c)
 		return
 	}

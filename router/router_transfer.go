@@ -326,6 +326,7 @@ func postTransfer(c *gin.Context) {
 			} else {
 				i.Server().SetTransferring(false)
 				i.Server().Events().Publish(server.TransferStatusEvent, "success")
+				sendTransferLog("Transfer completed.")
 			}
 		}(i.Server())
 
@@ -449,8 +450,9 @@ func postTransfer(c *gin.Context) {
 		// It may be useful to retry sending the transfer success every so often just in case of a small
 		// hiccup or the fix of whatever error causing the success request to fail.
 		hasError = false
-		data.log().Info("archive transfered successfully, notifying panel of status")
-		sendTransferLog("Archive transfered successfully.")
+
+		data.log().Info("archive transferred successfully, notifying panel of status")
+		sendTransferLog("Archive transferred successfully.")
 	}(&data)
 
 	c.Status(http.StatusAccepted)

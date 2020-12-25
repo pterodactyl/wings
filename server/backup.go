@@ -31,7 +31,10 @@ func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, suc
 
 // Get all of the ignored files for a server based on its .pteroignore file in the root.
 func (s *Server) getServerwideIgnoredFiles() (string, error) {
-	f, err := os.Open(path.Join(s.Filesystem().Path(), ".pteroignore"))
+	p := path.Join(s.Filesystem().Path(), ".pteroignore")
+
+	// Stat the file and don't resolve any symlink targets.
+	stat, err := os.Lstat(p)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return "", err
@@ -40,6 +43,26 @@ func (s *Server) getServerwideIgnoredFiles() (string, error) {
 		return "", nil
 	}
 
+	// Do not read directories or symlinks.
+	if stat.Mode()&os.ModeDir != 0 || stat.Mode()&os.ModeSymlink != 0 {
+		return "", nil
+	}
+
+	// If the file is bigger than 32 KiB, don't read it at all.
+	if stat.Size() > 32*1024 {
+		return "", nil
+	}
+
+	f, err := os.Open(p)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+
+		return "", nil
+	}
+
+	// Read the entire file into memory.
 	b, err := ioutil.ReadAll(f)
 	if err != nil {
 		return "", err
@@ -75,7 +98,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 			}).Info("notified panel of failed backup state")
 		}
 
-		s.Events().PublishJson(BackupCompletedEvent+":"+b.Identifier(), map[string]interface{}{
+		_ = s.Events().PublishJson(BackupCompletedEvent+":"+b.Identifier(), map[string]interface{}{
 			"uuid":          b.Identifier(),
 			"is_successful": false,
 			"checksum":      "",
