@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/juju/ratelimit"
 	"github.com/mholt/archiver/v3"
 	"github.com/mitchellh/colorstring"
@@ -287,6 +288,16 @@ func postTransfer(c *gin.Context) {
 	if err := c.BindJSON(&data); err != nil {
 		return
 	}
+
+	u, err := uuid.Parse(data.ServerID)
+	if err != nil {
+		WithError(c, err)
+		return
+	}
+	// Force the server ID to be a valid UUID string at this point. If it is not an error
+	// is returned to the caller. This limits injection vulnerabilities that would cause
+	// the str.path() function to return a location not within the server archive directory.
+	data.ServerID = u.String()
 
 	data.log().Info("handling incoming server transfer request")
 	go func(data *serverTransferRequest) {
