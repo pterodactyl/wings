@@ -15,6 +15,8 @@ const (
 	StatusEvent           = "status"
 	StatsEvent            = "stats"
 	BackupCompletedEvent  = "backup completed"
+	TransferLogsEvent     = "transfer logs"
+	TransferStatusEvent   = "transfer status"
 )
 
 // Returns the server's emitter instance.

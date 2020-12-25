@@ -144,7 +144,8 @@ func (s *Server) acquireInstallationLock() error {
 		s.installer.sem = semaphore.NewWeighted(1)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 
 	return s.installer.sem.Acquire(ctx, 1)
 }
@@ -166,6 +167,14 @@ func (s *Server) IsInstalling() bool {
 	}
 
 	return true
+}
+
+func (s *Server) IsTransferring() bool {
+	return s.transferring.Get()
+}
+
+func (s *Server) SetTransferring(state bool) {
+	s.transferring.Set(state)
 }
 
 // Removes the installer container for the server.

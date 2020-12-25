@@ -130,7 +130,7 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 		}
 	}
 
-	l.Info("backup has been successfully uploaded")
+	l.WithField("parts", partCount).Info("backup has been successfully uploaded")
 
 	return nil
 }

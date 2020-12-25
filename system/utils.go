@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -21,6 +22,18 @@ func Every(ctx context.Context, d time.Duration, work func(t time.Time)) {
 			}
 		}
 	}()
+}
+
+func FormatBytes(b int64) string {
+	if b < 1024 {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(1024), 0
+	for n := b / 1024; n >= 1024; n /= 1024 {
+		div *= 1024
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
 type AtomicBool struct {

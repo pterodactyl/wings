@@ -61,6 +61,14 @@ func (s *Server) ExecutingPowerAction() bool {
 // function rather than making direct calls to the start/stop/restart functions on the
 // environment struct.
 func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error {
+	if s.IsInstalling() {
+		return ErrServerIsInstalling
+	}
+
+	if s.IsTransferring() {
+		return ErrServerIsTransferring
+	}
+
 	if s.powerLock == nil {
 		s.powerLock = semaphore.NewWeighted(1)
 	}

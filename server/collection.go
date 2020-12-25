@@ -60,6 +60,8 @@ func (c *Collection) Find(filter func(*Server) bool) *Server {
 }
 
 // Removes all items from the collection that match the filter function.
+//
+// TODO: cancel the context?
 func (c *Collection) Remove(filter func(*Server) bool) {
 	c.Lock()
 	defer c.Unlock()

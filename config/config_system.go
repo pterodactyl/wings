@@ -77,6 +77,8 @@ type SystemConfiguration struct {
 	CrashDetection CrashDetection `yaml:"crash_detection"`
 
 	Backups Backups `yaml:"backups"`
+
+	Transfers Transfers `yaml:"transfers"`
 }
 
 type CrashDetection struct {
@@ -97,10 +99,20 @@ type Backups struct {
 	// upload it to any external storage provider.
 	//
 	// If the value is less than 1, the write speed is unlimited,
-	// if the value is greater than 0, the write speed is the value in MB/s.
+	// if the value is greater than 0, the write speed is the value in MiB/s.
 	//
 	// Defaults to 0 (unlimited)
 	WriteLimit int `default:"0" yaml:"write_limit"`
+}
+
+type Transfers struct {
+	// DownloadLimit imposes a Network I/O read limit when downloading a transfer archive.
+	//
+	// If the value is less than 1, the write speed is unlimited,
+	// if the value is greater than 0, the write speed is the value in MiB/s.
+	//
+	// Defaults to 0 (unlimited)
+	DownloadLimit int `default:"0" yaml:"download_limit"`
 }
 
 // Ensures that all of the system directories exist on the system. These directories are

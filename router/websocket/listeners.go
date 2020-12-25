@@ -45,6 +45,8 @@ var e = []string{
 	server.InstallCompletedEvent,
 	server.DaemonMessageEvent,
 	server.BackupCompletedEvent,
+	server.TransferLogsEvent,
+	server.TransferStatusEvent,
 }
 
 // Listens for different events happening on a server and sends them along
