@@ -4,39 +4,29 @@ on:
   push:
     branches:
       - 'develop'
-
   pull_request:
     branches:
       - 'develop'
-
   schedule:
     - cron: '0 9 * * 4'
-
 jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-20.04
-
     strategy:
       fail-fast: false
       matrix:
         language:
           - go
-
     steps:
       - name: Code Checkout
         uses: actions/checkout@v2
-        with:
-          fetch-depth: 2
-
       - name: Checkout Head
         run: git checkout HEAD^2
         if: ${{ github.event_name == 'pull_request' }}
-
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v1
         with:
           languages: ${{ matrix.language }}
-
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v1
