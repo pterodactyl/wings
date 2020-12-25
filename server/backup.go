@@ -36,7 +36,9 @@ func (s *Server) getServerwideIgnoredFiles() (string, error) {
 			return "", nil
 		}
 		return "", err
-	} else if st.Mode()&os.ModeSymlink != 0 || st.Size() > 32*1024 {
+	}
+	defer f.Close()
+	if st.Mode()&os.ModeSymlink != 0 || st.Size() > 32*1024 {
 		// Don't read a symlinked ignore file, or a file larger than 32KiB in size.
 		return "", nil
 	}
