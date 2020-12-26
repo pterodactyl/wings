@@ -1,10 +1,14 @@
 package system
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -37,20 +41,47 @@ func FormatBytes(b int64) string {
 }
 
 type AtomicBool struct {
-	flag uint32
+	v  bool
+	mu sync.RWMutex
 }
 
-func (ab *AtomicBool) Set(v bool) {
-	i := 0
-	if v {
-		i = 1
+func NewAtomicBool(v bool) *AtomicBool {
+	return &AtomicBool{v: v}
+}
+
+func (ab *AtomicBool) Store(v bool) {
+	ab.mu.Lock()
+	ab.v = v
+	ab.mu.Unlock()
+}
+
+// Stores the value "v" if the current value stored in the AtomicBool is the opposite
+// boolean value. If successfully swapped, the response is "true", otherwise "false"
+// is returned.
+func (ab *AtomicBool) SwapIf(v bool) bool {
+	ab.mu.Lock()
+	defer ab.mu.Unlock()
+	if ab.v != v {
+		ab.v = v
+		return true
 	}
-
-	atomic.StoreUint32(&ab.flag, uint32(i))
+	return false
 }
 
-func (ab *AtomicBool) Get() bool {
-	return atomic.LoadUint32(&ab.flag) == 1
+func (ab *AtomicBool) Load() bool {
+	ab.mu.RLock()
+	defer ab.mu.RUnlock()
+	return ab.v
+}
+
+func (ab *AtomicBool) UnmarshalJSON(b []byte) error {
+	ab.mu.Lock()
+	defer ab.mu.Unlock()
+	return json.Unmarshal(b, &ab.v)
+}
+
+func (ab *AtomicBool) MarshalJSON() ([]byte, error) {
+	return json.Marshal(ab.Load())
 }
 
 // AtomicString allows for reading/writing to a given struct field without having to worry
@@ -61,8 +92,8 @@ type AtomicString struct {
 	mu sync.RWMutex
 }
 
-func NewAtomicString(v string) AtomicString {
-	return AtomicString{v: v}
+func NewAtomicString(v string) *AtomicString {
+	return &AtomicString{v: v}
 }
 
 // Stores the string value passed atomically.
@@ -79,12 +110,12 @@ func (as *AtomicString) Load() string {
 	return as.v
 }
 
-func (as *AtomicString) UnmarshalText(b []byte) error {
-	as.Store(string(b))
-	return nil
+func (as *AtomicString) UnmarshalJSON(b []byte) error {
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	return json.Unmarshal(b, &as.v)
 }
 
-//goland:noinspection GoVetCopyLock
-func (as AtomicString) MarshalText() ([]byte, error) {
-	return []byte(as.Load()), nil
+func (as *AtomicString) MarshalJSON() ([]byte, error) {
+	return json.Marshal(as.Load())
 }

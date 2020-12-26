@@ -22,7 +22,7 @@ import (
 type Filesystem struct {
 	mu                sync.RWMutex
 	lastLookupTime    *usageLookupTime
-	lookupInProgress  system.AtomicBool
+	lookupInProgress  *system.AtomicBool
 	diskUsed          int64
 	diskCheckInterval time.Duration
 
@@ -42,6 +42,7 @@ func New(root string, size int64) *Filesystem {
 		diskLimit:         size,
 		diskCheckInterval: time.Duration(config.Get().System.DiskCheckInterval),
 		lastLookupTime:    &usageLookupTime{},
+		lookupInProgress:  system.NewAtomicBool(false),
 	}
 }
 

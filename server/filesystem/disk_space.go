@@ -107,7 +107,7 @@ func (fs *Filesystem) DiskUsage(allowStaleValue bool) (int64, error) {
 		// value. This is a blocking operation to the calling process.
 		if !allowStaleValue {
 			return fs.updateCachedDiskUsage()
-		} else if !fs.lookupInProgress.Get() {
+		} else if !fs.lookupInProgress.Load() {
 			// Otherwise, if we allow a stale value and there isn't a valid item in the cache and we aren't
 			// currently performing a lookup, just do the disk usage calculation in the background.
 			go func(fs *Filesystem) {
@@ -133,8 +133,8 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	// Signal that we're currently updating the disk size so that other calls to the disk checking
 	// functions can determine if they should queue up additional calls to this function. Ensure that
 	// we always set this back to "false" when this process is done executing.
-	fs.lookupInProgress.Set(true)
-	defer fs.lookupInProgress.Set(false)
+	fs.lookupInProgress.Store(true)
+	defer fs.lookupInProgress.Store(false)
 
 	// If there is no size its either because there is no data (in which case running this function
 	// will have effectively no impact), or there is nothing in the cache, in which case we need to

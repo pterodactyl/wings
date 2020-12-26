@@ -26,7 +26,7 @@ type ConsoleThrottler struct {
 
 	// Wether or not the console output is being throttled. It is up to calling code to
 	// determine what to do if it is.
-	isThrottled system.AtomicBool
+	isThrottled *system.AtomicBool
 
 	// The total number of lines processed so far during the given time period.
 	timerCancel *context.CancelFunc
@@ -36,7 +36,7 @@ type ConsoleThrottler struct {
 func (ct *ConsoleThrottler) Reset() {
 	atomic.StoreUint64(&ct.count, 0)
 	atomic.StoreUint64(&ct.activations, 0)
-	ct.isThrottled.Set(false)
+	ct.isThrottled.Store(false)
 }
 
 // Triggers an activation for a server. You can also decrement the number of activations
@@ -57,19 +57,19 @@ func (ct *ConsoleThrottler) markActivation(increment bool) uint64 {
 // Determines if the console is currently being throttled. Calls to this function can be used to
 // determine if output should be funneled along to the websocket processes.
 func (ct *ConsoleThrottler) Throttled() bool {
-	return ct.isThrottled.Get()
+	return ct.isThrottled.Load()
 }
 
 // Starts a timer that runs in a seperate thread and will continually decrement the lines processed
 // and number of activations, regardless of the current console message volume. All of the timers
 // are canceled if the context passed through is canceled.
 func (ct *ConsoleThrottler) StartTimer(ctx context.Context) {
-	system.Every(ctx, time.Duration(int64(ct.LineResetInterval)) * time.Millisecond, func(_ time.Time) {
-		ct.isThrottled.Set(false)
+	system.Every(ctx, time.Duration(int64(ct.LineResetInterval))*time.Millisecond, func(_ time.Time) {
+		ct.isThrottled.Store(false)
 		atomic.StoreUint64(&ct.count, 0)
 	})
 
-	system.Every(ctx, time.Duration(int64(ct.DecayInterval)) * time.Millisecond, func(_ time.Time) {
+	system.Every(ctx, time.Duration(int64(ct.DecayInterval))*time.Millisecond, func(_ time.Time) {
 		ct.markActivation(false)
 	})
 }
@@ -99,7 +99,7 @@ func (ct *ConsoleThrottler) Increment(onTrigger func()) error {
 	// activation. Once the throttle is triggered and has passed the kill at value we will trigger a server
 	// stop automatically.
 	if atomic.AddUint64(&ct.count, 1) >= ct.Lines && !ct.Throttled() {
-		ct.isThrottled.Set(true)
+		ct.isThrottled.Store(true)
 		if ct.markActivation(true) >= ct.MaximumTriggerCount {
 			return ErrTooMuchConsoleData
 		}
@@ -112,15 +112,12 @@ func (ct *ConsoleThrottler) Increment(onTrigger func()) error {
 
 // Returns the throttler instance for the server or creates a new one.
 func (s *Server) Throttler() *ConsoleThrottler {
-	s.throttleLock.Lock()
-	defer s.throttleLock.Unlock()
-
-	if s.throttler == nil {
+	s.throttleOnce.Do(func() {
 		s.throttler = &ConsoleThrottler{
+			isThrottled: system.NewAtomicBool(false),
 			ConsoleThrottles: config.Get().Throttles,
 		}
-	}
-
+	})
 	return s.throttler
 }
 

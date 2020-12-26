@@ -28,7 +28,7 @@ type Server struct {
 
 	emitterLock  sync.Mutex
 	powerLock    *semaphore.Weighted
-	throttleLock sync.Mutex
+	throttleOnce sync.Once
 
 	// Maintains the configuration for the server. This is the data that gets returned by the Panel
 	// such as build settings and container images.
@@ -55,9 +55,8 @@ type Server struct {
 	// two installer processes at the same time. This also allows us to cancel a running
 	// installation process, for example when a server is deleted from the panel while the
 	// installer process is still running.
-	installer InstallerDetails
-
-	transferring system.AtomicBool
+	installing   *system.AtomicBool
+	transferring *system.AtomicBool
 
 	// The console throttler instance used to control outputs.
 	throttler *ConsoleThrottler
@@ -67,19 +66,15 @@ type Server struct {
 	wsBagLocker sync.Mutex
 }
 
-type InstallerDetails struct {
-	// Installer lock. You should obtain an exclusive lock on this context while running
-	// the installation process and release it when finished.
-	sem *semaphore.Weighted
-}
-
 // Returns a new server instance with a context and all of the default values set on
 // the instance.
 func New() (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := Server{
-		ctx: ctx,
-		ctxCancel: &cancel,
+		ctx:          ctx,
+		ctxCancel:    &cancel,
+		installing:   system.NewAtomicBool(false),
+		transferring: system.NewAtomicBool(false),
 	}
 	if err := defaults.Set(&s); err != nil {
 		return nil, err
@@ -87,7 +82,7 @@ func New() (*Server, error) {
 	if err := defaults.Set(&s.cfg); err != nil {
 		return nil, err
 	}
-	s.resources.State.Store(environment.ProcessOfflineState)
+	s.resources.State = system.NewAtomicString(environment.ProcessOfflineState)
 	return &s, nil
 }
 

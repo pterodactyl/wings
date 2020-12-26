@@ -47,7 +47,7 @@ type Environment struct {
 	emitter *events.EventBus
 
 	// Tracks the environment state.
-	st system.AtomicString
+	st *system.AtomicString
 }
 
 // Creates a new base Docker environment. The ID passed through will be the ID that is used to
