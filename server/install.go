@@ -506,21 +506,15 @@ func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) erro
 	if err != nil {
 		return err
 	}
-
 	defer reader.Close()
 
-	s := bufio.NewScanner(reader)
-	for s.Scan() {
-		ip.Server.Events().Publish(InstallOutputEvent, s.Text())
+	evts := ip.Server.Events()
+	err = system.ScanReader(reader, func(line string) {
+		evts.Publish(InstallOutputEvent, line)
+	})
+	if err != nil {
+		ip.Server.Log().WithFields(log.Fields{"container_id": id, "error": err}).Warn("error processing install output lines")
 	}
-
-	if err := s.Err(); err != nil {
-		ip.Server.Log().WithFields(log.Fields{
-			"container_id": id,
-			"error":        err,
-		}).Warn("error processing scanner line in installation output for server")
-	}
-
 	return nil
 }
 

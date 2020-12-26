@@ -12,6 +12,54 @@ import (
 	"time"
 )
 
+var cr = []byte(" \r")
+var crr = []byte("\r\n")
+
+func ScanReader(r io.Reader, callback func(line string)) error {
+	br := bufio.NewReader(r)
+	// Avoid constantly re-allocating memory when we're flooding lines through this
+	// function by using the same buffer for the duration of the call and just truncating
+	// the value back to 0 every loop.
+	var str strings.Builder
+	for {
+		str.Reset()
+		var err error
+		var line []byte
+		var isPrefix bool
+
+		for {
+			// Read the line and write it to the buffer.
+			line, isPrefix, err = br.ReadLine()
+			// Certain games like Minecraft output absolutely random carriage returns in the output seemingly
+			// in line with that it thinks is the terminal size. Those returns break a lot of output handling,
+			// so we'll just replace them with proper new-lines and then split it later and send each line as
+			// its own event in the response.
+			str.Write(bytes.Replace(line, cr, crr, -1))
+			// Finish this loop and begin outputting the line if there is no prefix (the line fit into
+			// the default buffer), or if we hit the end of the line.
+			if !isPrefix || err == io.EOF {
+				break
+			}
+			// If we encountered an error with something in ReadLine that was not an EOF just abort
+			// the entire process here.
+			if err != nil {
+				return err
+			}
+		}
+		// Publish the line for this loop. Break on new-line characters so every line is sent as a single
+		// output event, otherwise you get funky handling in the browser console.
+		for _, line := range strings.Split(str.String(), "\r\n") {
+			callback(line)
+		}
+		// If the error we got previously that lead to the line being output is an io.EOF we want to
+		// exit the entire looping process.
+		if err == io.EOF {
+			break
+		}
+	}
+	return nil
+}
+
 // Runs a given work function every "d" duration until the provided context is canceled.
 func Every(ctx context.Context, d time.Duration, work func(t time.Time)) {
 	ticker := time.NewTicker(d)
