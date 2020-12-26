@@ -292,7 +292,9 @@ func (e *Environment) followOutput() error {
 	}
 
 	reader, err := e.client.ContainerLogs(context.Background(), e.Id, opts)
-
+	if err != nil {
+		return err
+	}
 	go func(reader io.ReadCloser) {
 		defer reader.Close()
 		evts := e.Events()
@@ -303,8 +305,7 @@ func (e *Environment) followOutput() error {
 			log.WithField("error", err).WithField("container_id", e.Id).Warn("error processing scanner line in console output")
 		}
 	}(reader)
-
-	return err
+	return nil
 }
 
 // Pulls the image from Docker. If there is an error while pulling the image from the source
