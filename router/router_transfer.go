@@ -48,7 +48,7 @@ type serverTransferRequest struct {
 	Server   json.RawMessage `json:"server"`
 }
 
-// Returns the archive for a server so that it can be transfered to a new node.
+// Returns the archive for a server so that it can be transferred to a new node.
 func getServerArchive(c *gin.Context) {
 	auth := strings.SplitN(c.GetHeader("Authorization"), " ", 2)
 
@@ -302,14 +302,12 @@ func postTransfer(c *gin.Context) {
 	data.log().Info("handling incoming server transfer request")
 	go func(data *serverTransferRequest) {
 		hasError := true
-		defer func() {
-			_ = data.sendTransferStatus(!hasError)
-		}()
 
 		// Create a new server installer. This will only configure the environment and not
 		// run the installer scripts.
 		i, err := installer.New(data.Server)
 		if err != nil {
+			_ = data.sendTransferStatus(false)
 			data.log().WithField("error", err).Error("failed to validate received server data")
 			return
 		}
@@ -328,15 +326,23 @@ func postTransfer(c *gin.Context) {
 		defer func(s *server.Server) {
 			// In the event that this transfer call fails, remove the server from the global
 			// server tracking so that we don't have a dangling instance.
-			if hasError {
+			if err := data.sendTransferStatus(!hasError); hasError || err != nil {
 				sendTransferLog("Server transfer failed, check Wings logs for additional information.")
 				s.Events().Publish(server.TransferStatusEvent, "failure")
 				server.GetServers().Remove(func(s2 *server.Server) bool {
 					return s.Id() == s2.Id()
 				})
+
+				// If the transfer status was successful but the request failed, act like the transfer failed.
+				if !hasError && err != nil {
+					// Delete all extracted files.
+					if err := os.RemoveAll(s.Filesystem().Path()); err != nil && !os.IsNotExist(err) {
+						data.log().WithField("error", err).Warn("failed to delete local server files directory")
+					}
+				}
 			} else {
-				i.Server().SetTransferring(false)
-				i.Server().Events().Publish(server.TransferStatusEvent, "success")
+				s.SetTransferring(false)
+				s.Events().Publish(server.TransferStatusEvent, "success")
 				sendTransferLog("Transfer completed.")
 			}
 		}(i.Server())
@@ -357,7 +363,7 @@ func postTransfer(c *gin.Context) {
 
 		size := res.ContentLength
 		if size == 0 {
-			data.log().WithField("error", err).Error("recieved an archive response with Content-Length of 0")
+			data.log().WithField("error", err).Error("received an archive response with Content-Length of 0")
 			return
 		}
 		sendTransferLog("Got server archive response from remote node. (Content-Length: " + strconv.Itoa(int(size)) + ")")
@@ -401,6 +407,8 @@ func postTransfer(c *gin.Context) {
 		buf := make([]byte, 1024*4)
 		if _, err := io.CopyBuffer(file, io.TeeReader(reader, progress), buf); err != nil {
 			ticker.Stop()
+			_ = file.Close()
+
 			sendTransferLog("Failed while writing archive file to disk: " + err.Error())
 			data.log().WithField("error", err).Error("failed to copy archive file to disk")
 			return
@@ -447,7 +455,7 @@ func postTransfer(c *gin.Context) {
 		sendTransferLog("Server environment has been created, extracting transfer archive..")
 		data.log().Info("server environment configured, extracting transfer archive")
 		if err := archiver.NewTarGz().Unarchive(data.path(), i.Server().Filesystem().Path()); err != nil {
-			// Unarchiving failed, delete the server's data directory.
+			// Un-archiving failed, delete the server's data directory.
 			if err := os.RemoveAll(i.Server().Filesystem().Path()); err != nil && !os.IsNotExist(err) {
 				data.log().WithField("error", err).Warn("failed to delete local server files directory")
 			}
@@ -462,8 +470,8 @@ func postTransfer(c *gin.Context) {
 		// hiccup or the fix of whatever error causing the success request to fail.
 		hasError = false
 
-		data.log().Info("archive transferred successfully, notifying panel of status")
-		sendTransferLog("Archive transferred successfully.")
+		data.log().Info("archive extracted successfully, notifying Panel of status")
+		sendTransferLog("Archive extracted successfully.")
 	}(&data)
 
 	c.Status(http.StatusAccepted)

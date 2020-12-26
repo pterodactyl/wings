@@ -229,11 +229,11 @@ func deleteServer(c *gin.Context) {
 	// so we don't want to block the HTTP call while waiting on this.
 	go func(p string) {
 		if err := os.RemoveAll(p); err != nil {
-			log.WithFields(log.Fields{"path":  p, "error": err}).Warn("failed to remove server files during deletion process")
+			log.WithFields(log.Fields{"path": p, "error": err}).Warn("failed to remove server files during deletion process")
 		}
 	}(s.Filesystem().Path())
 
-	var uuid = s.Id()
+	uuid := s.Id()
 	server.GetServers().Remove(func(s2 *server.Server) bool {
 		return s2.Id() == uuid
 	})
