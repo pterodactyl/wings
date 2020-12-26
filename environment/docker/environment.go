@@ -23,7 +23,7 @@ var _ environment.ProcessEnvironment = (*Environment)(nil)
 
 type Environment struct {
 	mu      sync.RWMutex
-	eventMu sync.Mutex
+	eventMu sync.Once
 
 	// The public identifier for this environment. In this case it is the Docker container
 	// name that will be used for all instances created under it.
@@ -90,13 +90,9 @@ func (e *Environment) IsAttached() bool {
 }
 
 func (e *Environment) Events() *events.EventBus {
-	e.eventMu.Lock()
-	defer e.eventMu.Unlock()
-
-	if e.emitter == nil {
+	e.eventMu.Do(func() {
 		e.emitter = events.New()
-	}
-
+	})
 	return e.emitter
 }
 
