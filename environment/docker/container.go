@@ -2,7 +2,6 @@ package docker
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"emperror.dev/errors"
 	"encoding/json"
@@ -15,6 +14,7 @@ import (
 	"github.com/docker/docker/daemon/logger/jsonfilelog"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/system"
 	"io"
 	"strconv"
 	"strings"
@@ -295,60 +295,10 @@ func (e *Environment) followOutput() error {
 
 	go func(reader io.ReadCloser) {
 		defer reader.Close()
-
-		r := bufio.NewReader(reader)
-
-		// Micro-optimization to create these replacements one time when this routine
-		// fires up, rather than on every line that is executed.
-		cr := []byte(" \r")
-		crr := []byte("\r\n")
-
-		// Avoid constantly re-allocating memory when we're flooding lines through this
-		// function by using the same buffer for the duration of the call and just truncating
-		// the value back to 0 every loop.
-		var str strings.Builder
-	ParentLoop:
-		for {
-			str.Reset()
-			var line []byte
-			var isPrefix bool
-
-			for {
-				// Read the line and write it to the buffer.
-				line, isPrefix, err = r.ReadLine()
-
-				// Certain games like Minecraft output absolutely random carriage returns in the output seemingly
-				// in line with that it thinks is the terminal size. Those returns break a lot of output handling,
-				// so we'll just replace them with proper new-lines and then split it later and send each line as
-				// its own event in the response.
-				str.Write(bytes.Replace(line, cr, crr, -1))
-
-				// Finish this loop and begin outputting the line if there is no prefix (the line fit into
-				// the default buffer), or if we hit the end of the line.
-				if !isPrefix || err == io.EOF {
-					break
-				}
-
-				// If we encountered an error with something in ReadLine that was not an EOF just abort
-				// the entire process here.
-				if err != nil {
-					break ParentLoop
-				}
-			}
-
-			// Publish the line for this loop. Break on new-line characters so every line is sent as a single
-			// output event, otherwise you get funky handling in the browser console.
-			for _, line := range strings.Split(str.String(), "\r\n") {
-				e.Events().Publish(environment.ConsoleOutputEvent, line)
-			}
-
-			// If the error we got previously that lead to the line being output is an io.EOF we want to
-			// exit the entire looping process.
-			if err == io.EOF {
-				break
-			}
-		}
-
+		evts := e.Events()
+		err := system.ScanReader(reader, func(line string) {
+			evts.Publish(environment.ConsoleOutputEvent, line)
+		})
 		if err != nil && err != io.EOF {
 			log.WithField("error", err).WithField("container_id", e.Id).Warn("error processing scanner line in console output")
 		}
