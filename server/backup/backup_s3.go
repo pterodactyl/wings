@@ -135,11 +135,11 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 
 		// Attempt to upload the part.
 		if _, err := handlePart(part, partSize); err != nil {
-			l.WithField("part_id", part).WithError(err).Warn("failed to upload part")
+			l.WithField("part_id", i+1).WithError(err).Warn("failed to upload part")
 			return err
 		}
 
-		l.WithField("part_id", part).Info("successfully uploaded backup part")
+		l.WithField("part_id", i+1).Info("successfully uploaded backup part")
 	}
 
 	l.WithField("parts", partCount).Info("backup has been successfully uploaded")
