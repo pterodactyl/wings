@@ -32,11 +32,11 @@ func (s *S3Backup) Generate(basePath, ignore string) (*ArchiveDetails, error) {
 		"adapter":   "s3",
 	})
 
-	l.Info("attempting to create backup..")
+	l.Info("creating backup for server...")
 	if err := a.Create(s.Path()); err != nil {
 		return nil, err
 	}
-	l.Info("created backup successfully.")
+	l.Info("created backup successfully")
 
 	rc, err := os.Open(s.Path())
 	if err != nil {
@@ -75,21 +75,21 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 		"adapter":   "s3",
 	})
 
-	l.Debug("attempting to get size of backup..")
+	l.Debug("attempting to get size of backup...")
 	size, err := s.Backup.Size()
 	if err != nil {
 		return err
 	}
 	l.WithField("size", size).Debug("got size of backup")
 
-	l.Debug("attempting to get S3 upload urls from Panel..")
+	l.Debug("attempting to get S3 upload urls from Panel...")
 	urls, err := api.New().GetBackupRemoteUploadURLs(s.Backup.Uuid, size)
 	if err != nil {
 		return err
 	}
 	l.Debug("got S3 upload urls from the Panel")
 	partCount := len(urls.Parts)
-	l.WithField("parts", partCount).Info("attempting to upload backup..")
+	l.WithField("parts", partCount).Info("attempting to upload backup...")
 
 	handlePart := func(part string, size int64) (string, error) {
 		r, err := http.NewRequest(http.MethodPut, part, nil)
@@ -139,7 +139,7 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 			return err
 		}
 
-		l.WithField("part_id", part).Info("successfully uploaded backup part.")
+		l.WithField("part_id", part).Info("successfully uploaded backup part")
 	}
 
 	l.WithField("parts", partCount).Info("backup has been successfully uploaded")

@@ -123,7 +123,7 @@ func (b *Backup) Details() *ArchiveDetails {
 	go func() {
 		defer wg.Done()
 
-		l.Info("computing checksum for backup..")
+		l.Info("computing checksum for backup...")
 		resp, err := b.Checksum()
 		if err != nil {
 			log.WithFields(log.Fields{

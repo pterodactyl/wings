@@ -375,7 +375,7 @@ func postTransfer(c *gin.Context) {
 		}
 
 		sendTransferLog("Writing archive to disk...")
-		data.log().Info("writing transfer archive to disk..")
+		data.log().Info("writing transfer archive to disk...")
 
 		// Copy the file.
 		progress := &downloadProgress{size: size}

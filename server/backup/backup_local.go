@@ -53,11 +53,11 @@ func (b *LocalBackup) Generate(basePath, ignore string) (*ArchiveDetails, error)
 		"adapter":   "local",
 	})
 
-	l.Info("attempting to create backup..")
+	l.Info("creating backup for server...")
 	if err := a.Create(b.Path()); err != nil {
 		return nil, err
 	}
-	l.Info("created backup successfully.")
+	l.Info("created backup successfully")
 
 	return b.Details(), nil
 }
