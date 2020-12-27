@@ -27,9 +27,16 @@ func (s *S3Backup) Generate(basePath, ignore string) (*ArchiveDetails, error) {
 		Ignore:   ignore,
 	}
 
+	l := log.WithFields(log.Fields{
+		"backup_id": s.Uuid,
+		"adapter":   "s3",
+	})
+
+	l.Info("attempting to create backup..")
 	if err := a.Create(s.Path()); err != nil {
 		return nil, err
 	}
+	l.Info("created backup successfully.")
 
 	rc, err := os.Open(s.Path())
 	if err != nil {
@@ -63,22 +70,26 @@ func (Reader) Close() error {
 func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 	defer rc.Close()
 
-	size, err := s.Backup.Size()
-	if err != nil {
-		return err
-	}
-
-	urls, err := api.New().GetBackupRemoteUploadURLs(s.Backup.Uuid, size)
-	if err != nil {
-		return err
-	}
-
 	l := log.WithFields(log.Fields{
 		"backup_id": s.Uuid,
 		"adapter":   "s3",
 	})
 
-	l.Info("attempting to upload backup..")
+	l.Debug("attempting to get size of backup..")
+	size, err := s.Backup.Size()
+	if err != nil {
+		return err
+	}
+	l.WithField("size", size).Debug("got size of backup")
+
+	l.Debug("attempting to get S3 upload urls from Panel..")
+	urls, err := api.New().GetBackupRemoteUploadURLs(s.Backup.Uuid, size)
+	if err != nil {
+		return err
+	}
+	l.Debug("got S3 upload urls from the Panel")
+	partCount := len(urls.Parts)
+	l.WithField("parts", partCount).Info("attempting to upload backup..")
 
 	handlePart := func(part string, size int64) (string, error) {
 		r, err := http.NewRequest(http.MethodPut, part, nil)
@@ -111,7 +122,6 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 		return res.Header.Get("ETag"), nil
 	}
 
-	partCount := len(urls.Parts)
 	for i, part := range urls.Parts {
 		// Get the size for the current part.
 		var partSize int64
@@ -128,6 +138,8 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 			l.WithField("part_id", part).WithError(err).Warn("failed to upload part")
 			return err
 		}
+
+		l.WithField("part_id", part).Info("successfully uploaded backup part.")
 	}
 
 	l.WithField("parts", partCount).Info("backup has been successfully uploaded")

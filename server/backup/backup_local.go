@@ -2,6 +2,7 @@ package backup
 
 import (
 	"errors"
+	"github.com/apex/log"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"os"
 )
@@ -47,9 +48,16 @@ func (b *LocalBackup) Generate(basePath, ignore string) (*ArchiveDetails, error)
 		Ignore:   ignore,
 	}
 
+	l := log.WithFields(log.Fields{
+		"backup_id": b.Uuid,
+		"adapter":   "local",
+	})
+
+	l.Info("attempting to create backup..")
 	if err := a.Create(b.Path()); err != nil {
 		return nil, err
 	}
+	l.Info("created backup successfully.")
 
 	return b.Details(), nil
 }

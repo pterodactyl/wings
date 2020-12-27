@@ -408,7 +408,7 @@ __ [blue][bold]Pterodactyl[reset] _____/___/_______ _______ ______
         \___/\___/___/___/___/___    /______/
                             /_______/ [bold]v%s[reset]
 
-Copyright © 2018 - 2020 Dane Everitt & Contributors
+Copyright © 2018 - 2021 Dane Everitt & Contributors
 
 Website:  https://pterodactyl.io
  Source:  https://github.com/pterodactyl/wings

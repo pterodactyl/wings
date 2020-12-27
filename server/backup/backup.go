@@ -116,11 +116,14 @@ func (b *Backup) Details() *ArchiveDetails {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
+	l := log.WithField("backup_id", b.Uuid)
+
 	var checksum string
 	// Calculate the checksum for the file.
 	go func() {
 		defer wg.Done()
 
+		l.Info("computing checksum for backup..")
 		resp, err := b.Checksum()
 		if err != nil {
 			log.WithFields(log.Fields{
@@ -131,6 +134,7 @@ func (b *Backup) Details() *ArchiveDetails {
 		}
 
 		checksum = hex.EncodeToString(resp)
+		l.WithField("checksum", checksum).Info("computed checksum for backup")
 	}()
 
 	var sz int64
