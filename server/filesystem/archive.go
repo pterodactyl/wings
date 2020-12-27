@@ -48,11 +48,13 @@ func (a *Archive) Create(dst string) error {
 
 	// Select a writer based off of the WriteLimit configuration option. If there is no
 	// write limit, use the file as the writer.
-	var writer io.Writer = f
+	var writer io.Writer
 	if writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024); writeLimit > 0 {
 		// Token bucket with a capacity of "writeLimit" MiB, adding "writeLimit" MiB/s
 		// and then wrap the file writer with the token bucket limiter.
 		writer = ratelimit.Writer(f, ratelimit.NewBucketWithRate(float64(writeLimit), writeLimit))
+	} else {
+		writer = f
 	}
 
 	// Create a new gzip writer around the file.
@@ -150,8 +152,8 @@ func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
 	if s.Mode()&os.ModeSymlink != 0 {
 		// Read the target of the symlink.
 		target, err = os.Readlink(s.Name())
-		if err != nil {
-			return errors.WithMessage(err, "failed to read symlink target for '"+rp+"'")
+		if err != nil && !os.IsNotExist(err) {
+			return errors.WithMessagef(err, "failed to read symlink target for '%s'", rp)
 		}
 	}
 
