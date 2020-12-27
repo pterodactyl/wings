@@ -159,9 +159,9 @@ func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
 		target, err = os.Readlink(s.Name())
 		if err != nil {
 			// Skip symlinks if the target does not exist.
-			/*if os.IsNotExist(err) {
+			if os.IsNotExist(err) {
 				return nil
-			}*/
+			}
 
 			return errors.WrapIff(err, "failed to read symlink target for '%s'", rp)
 		}
