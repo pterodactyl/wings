@@ -264,7 +264,7 @@ func (fs *Filesystem) Chmod(path string, mode os.FileMode) error {
 // looping endlessly.
 func (fs *Filesystem) findCopySuffix(dir string, name string, extension string) (string, error) {
 	var i int
-	var suffix = " copy"
+	suffix := " copy"
 
 	for i = 0; i < 51; i++ {
 		if i > 0 {

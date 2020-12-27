@@ -66,7 +66,7 @@ func init() {
 
 // Get the configuration path based on the arguments provided.
 func readConfiguration() (*config.Configuration, error) {
-	var p = configPath
+	p := configPath
 	if !strings.HasPrefix(p, "/") {
 		d, err := os.Getwd()
 		if err != nil {

@@ -397,11 +397,13 @@ func postTransfer(c *gin.Context) {
 			}
 		}(progress, ticker)
 
-		var reader io.Reader = res.Body
+		var reader io.Reader
 		downloadLimit := float64(config.Get().System.Transfers.DownloadLimit) * 1024 * 1024
 		if downloadLimit > 0 {
 			// Wrap the body with a reader that is limited to the defined download limit speed.
 			reader = ratelimit.Reader(res.Body, ratelimit.NewBucketWithRate(downloadLimit, int64(downloadLimit)))
+		} else {
+			reader = res.Body
 		}
 
 		buf := make([]byte, 1024*4)

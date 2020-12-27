@@ -225,7 +225,7 @@ func (e *Environment) Create() error {
 		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
 	}
 
-	if _, err := e.client.ContainerCreate(context.Background(), conf, hostConf, nil, e.Id); err != nil {
+	if _, err := e.client.ContainerCreate(context.Background(), conf, hostConf, nil, nil, e.Id); err != nil {
 		return err
 	}
 

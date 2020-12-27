@@ -219,7 +219,7 @@ func (f *ConfigurationFile) parseXmlFile(path string) error {
 			parts := strings.Split(replacement.Match, ".")
 
 			// Set the initial element to be the root element, and then work from there.
-			var element = doc.Root()
+			element := doc.Root()
 
 			// Iterate over the path to create the required structure for the given element's path.
 			// This does not set a value, only ensures that the base structure exists. We start at index

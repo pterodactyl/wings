@@ -150,7 +150,7 @@ func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
 			return errors.WithMessage(err, "error while parsing array element at path")
 		}
 
-		var t = make([]interface{}, 1)
+		t := make([]interface{}, 1)
 		// If the length of matches is 4 it means we're trying to access an object down in this array
 		// key, so make sure we generate the array as an array of objects, and not just a generic nil
 		// array.

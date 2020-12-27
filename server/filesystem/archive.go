@@ -49,8 +49,7 @@ func (a *Archive) Create(dst string) error {
 	// Select a writer based off of the WriteLimit configuration option. If there is no
 	// write limit, use the file as the writer.
 	var writer io.Writer = f
-	writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024)
-	if writeLimit > 0 {
+	if writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024); writeLimit > 0 {
 		// Token bucket with a capacity of "writeLimit" MiB, adding "writeLimit" MiB/s
 		// and then wrap the file writer with the token bucket limiter.
 		writer = ratelimit.Writer(f, ratelimit.NewBucketWithRate(float64(writeLimit), writeLimit))
@@ -199,9 +198,11 @@ func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
 		return errors.WithMessagef(err, "failed to open '%s' for copying", header.Name)
 	}
 	defer f.Close()
+
 	// Copy the file's contents to the archive using our buffer.
 	if _, err := io.CopyBuffer(w, io.LimitReader(f, header.Size), buf); err != nil {
 		return errors.WithMessagef(err, "failed to copy '%s' to archive", header.Name)
 	}
+
 	return nil
 }

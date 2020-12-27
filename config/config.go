@@ -238,7 +238,7 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 		return nil, err
 	}
 
-	var command = fmt.Sprintf("useradd --system --no-create-home --shell /bin/false %s", c.System.Username)
+	command := fmt.Sprintf("useradd --system --no-create-home --shell /bin/false %s", c.System.Username)
 
 	// Alpine Linux is the only OS we currently support that doesn't work with the useradd command, so
 	// in those cases we just modify the command a bit to work as expected.
