@@ -78,10 +78,12 @@ func (a *Archive) Create(dst string) error {
 	// that request.
 	if len(a.Files) == 0 && len(a.Ignore) > 0 {
 		i := ignore.CompileIgnoreLines(strings.Split(a.Ignore, "\n")...)
+
 		options.Callback = a.callback(tw, func(_ string, rp string) error {
 			if i.MatchesPath(rp) {
 				return godirwalk.SkipThis
 			}
+
 			return nil
 		})
 	} else if len(a.Files) > 0 {
@@ -102,6 +104,7 @@ func (a *Archive) callback(tw *tar.Writer, opts ...func(path string, relative st
 		}
 
 		relative := filepath.ToSlash(strings.TrimPrefix(path, a.BasePath+string(filepath.Separator)))
+
 		// Call the additional options passed to this callback function. If any of them return
 		// a non-nil error we will exit immediately.
 		for _, opt := range opts {
@@ -125,12 +128,14 @@ func (a *Archive) withFilesCallback(tw *tar.Writer) func(path string, de *godirw
 			if p != f && !strings.HasPrefix(p, f) {
 				continue
 			}
+
 			// Once we have a match return a nil value here so that the loop stops and the
 			// call to this function will correctly include the file in the archive. If there
 			// are no matches we'll never make it to this line, and the final error returned
 			// will be the godirwalk.SkipThis error.
 			return nil
 		}
+
 		return godirwalk.SkipThis
 	})
 }
@@ -144,7 +149,7 @@ func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return errors.WithMessage(err, "failed to Lstat '"+rp+"'")
+		return errors.WrapIff(err, "failed to Lstat '"+rp+"'")
 	}
 
 	// Resolve the symlink target if the file is a symlink.
@@ -154,18 +159,18 @@ func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
 		target, err = os.Readlink(s.Name())
 		if err != nil {
 			// Skip symlinks if the target does not exist.
-			if os.IsNotExist(err) {
+			/*if os.IsNotExist(err) {
 				return nil
-			}
+			}*/
 
-			return errors.WithMessagef(err, "failed to read symlink target for '%s'", rp)
+			return errors.WrapIff(err, "failed to read symlink target for '%s'", rp)
 		}
 	}
 
 	// Get the tar FileInfoHeader in order to add the file to the archive.
 	header, err := tar.FileInfoHeader(s, filepath.ToSlash(target))
 	if err != nil {
-		return errors.WithMessagef(err, "failed to get tar#FileInfoHeader for '%s'", rp)
+		return errors.WrapIff(err, "failed to get tar#FileInfoHeader for '%s'", rp)
 	}
 
 	// Fix the header name if the file is not a symlink.
@@ -175,7 +180,7 @@ func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
 
 	// Write the tar FileInfoHeader to the archive.
 	if err := w.WriteHeader(header); err != nil {
-		return errors.WithMessagef(err, "failed to write tar#FileInfoHeader for '%s'", rp)
+		return errors.WrapIff(err, "failed to write tar#FileInfoHeader for '%s'", rp)
 	}
 
 	// If the size of the file is less than 1 (most likely for symlinks), skip writing the file.
@@ -202,13 +207,13 @@ func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return errors.WithMessagef(err, "failed to open '%s' for copying", header.Name)
+		return errors.WrapIff(err, "failed to open '%s' for copying", header.Name)
 	}
 	defer f.Close()
 
 	// Copy the file's contents to the archive using our buffer.
 	if _, err := io.CopyBuffer(w, io.LimitReader(f, header.Size), buf); err != nil {
-		return errors.WithMessagef(err, "failed to copy '%s' to archive", header.Name)
+		return errors.WrapIff(err, "failed to copy '%s' to archive", header.Name)
 	}
 
 	return nil
