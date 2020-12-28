@@ -1,7 +1,7 @@
 package router
 
 import (
-	"errors"
+	"emperror.dev/errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/server"
@@ -38,9 +38,14 @@ func postServerBackup(c *gin.Context) {
 		return
 	}
 
+	// Attach the server ID to the backup log output for easier parsing.
+	adapter.WithLogContext(map[string]interface{}{
+		"server": s.Id(),
+	})
+
 	go func(b backup.BackupInterface, serv *server.Server) {
 		if err := serv.Backup(b); err != nil {
-			serv.Log().WithField("error", err).Error("failed to generate backup for server")
+			serv.Log().WithField("error", errors.WithStackIf(err)).Error("failed to generate backup for server")
 		}
 	}(adapter, s)
 

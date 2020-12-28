@@ -70,10 +70,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 				"error":  notifyError,
 			}).Warn("failed to notify panel of failed backup state")
 		} else {
-			s.Log().WithFields(log.Fields{
-				"backup": b.Identifier(),
-				"error":  err,
-			}).Info("notified panel of failed backup state")
+			s.Log().WithFields(log.Fields{"backup": b.Identifier()}).Info("notified panel of failed backup state")
 		}
 
 		_ = s.Events().PublishJson(BackupCompletedEvent+":"+b.Identifier(), map[string]interface{}{

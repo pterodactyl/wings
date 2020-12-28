@@ -6,9 +6,9 @@ import (
 )
 
 type Request struct {
-	Adapter string `json:"adapter"`
-	Uuid    string `json:"uuid"`
-	Ignore  string `json:"ignore"`
+	Adapter AdapterType `json:"adapter"`
+	Uuid    string      `json:"uuid"`
+	Ignore  string      `json:"ignore"`
 }
 
 // Generates a new local backup struct.
@@ -19,8 +19,9 @@ func (r *Request) NewLocalBackup() (*LocalBackup, error) {
 
 	return &LocalBackup{
 		Backup{
-			Uuid:   r.Uuid,
-			Ignore: r.Ignore,
+			Uuid:    r.Uuid,
+			Ignore:  r.Ignore,
+			adapter: LocalBackupAdapter,
 		},
 	}, nil
 }
@@ -33,8 +34,9 @@ func (r *Request) NewS3Backup() (*S3Backup, error) {
 
 	return &S3Backup{
 		Backup: Backup{
-			Uuid:   r.Uuid,
-			Ignore: r.Ignore,
+			Uuid:    r.Uuid,
+			Ignore:  r.Ignore,
+			adapter: S3BackupAdapter,
 		},
 	}, nil
 }

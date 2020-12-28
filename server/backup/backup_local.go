@@ -2,7 +2,6 @@ package backup
 
 import (
 	"errors"
-	"github.com/apex/log"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"os"
 )
@@ -40,6 +39,11 @@ func (b *LocalBackup) Remove() error {
 	return os.Remove(b.Path())
 }
 
+// Attaches additional context to the log output for this backup.
+func (b *LocalBackup) WithLogContext(c map[string]interface{}) {
+	b.logContext = c
+}
+
 // Generates a backup of the selected files and pushes it to the defined location
 // for this instance.
 func (b *LocalBackup) Generate(basePath, ignore string) (*ArchiveDetails, error) {
@@ -48,16 +52,11 @@ func (b *LocalBackup) Generate(basePath, ignore string) (*ArchiveDetails, error)
 		Ignore:   ignore,
 	}
 
-	l := log.WithFields(log.Fields{
-		"backup_id": b.Uuid,
-		"adapter":   "local",
-	})
-
-	l.Info("creating backup for server...")
+	b.log().Info("creating backup for server...")
 	if err := a.Create(b.Path()); err != nil {
 		return nil, err
 	}
-	l.Info("created backup successfully")
+	b.log().Info("created backup successfully")
 
 	return b.Details(), nil
 }

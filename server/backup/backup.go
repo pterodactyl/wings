@@ -12,9 +12,11 @@ import (
 	"sync"
 )
 
+type AdapterType string
+
 const (
-	LocalBackupAdapter = "wings"
-	S3BackupAdapter    = "s3"
+	LocalBackupAdapter AdapterType = "wings"
+	S3BackupAdapter    AdapterType = "s3"
 )
 
 type ArchiveDetails struct {
@@ -41,12 +43,18 @@ type Backup struct {
 	// An array of files to ignore when generating this backup. This should be
 	// compatible with a standard .gitignore structure.
 	Ignore string `json:"ignore"`
+
+	adapter    AdapterType
+	logContext map[string]interface{}
 }
 
 // noinspection GoNameStartsWithPackageName
 type BackupInterface interface {
 	// Returns the UUID of this backup as tracked by the panel instance.
 	Identifier() string
+
+	// Attaches additional context to the log output for this backup.
+	WithLogContext(map[string]interface{})
 
 	// Generates a backup in whatever the configured source for the specific
 	// implementation is.
@@ -159,4 +167,14 @@ func (b *Backup) Details() *ArchiveDetails {
 
 func (b *Backup) Ignored() string {
 	return b.Ignore
+}
+
+// Returns a logger instance for this backup with the additional context fields
+// assigned to the output.
+func (b *Backup) log() *log.Entry {
+	l := log.WithField("backup", b.Identifier()).WithField("adapter", b.adapter)
+	for k, v := range b.logContext {
+		l = l.WithField(k, v)
+	}
+	return l
 }
