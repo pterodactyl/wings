@@ -143,8 +143,9 @@ func (a *Archive) withFilesCallback(tw *tar.Writer) func(path string, de *godirw
 
 // Adds a given file path to the final archive being created.
 func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
-	// Lstat the file, this will give us the same information as Stat except
-	// that it will not follow a symlink to it's target automatically.
+	// Lstat the file, this will give us the same information as Stat except that it will not
+	// follow a symlink to it's target automatically. This is important to avoid including
+	// files that exist outside the server root unintentionally in the backup.
 	s, err := os.Lstat(p)
 	if err != nil {
 		if os.IsNotExist(err) {
