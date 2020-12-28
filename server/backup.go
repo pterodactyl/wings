@@ -64,13 +64,13 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 
 	ad, err := b.Generate(s.Filesystem().Path(), ignored)
 	if err != nil {
-		if notifyError := s.notifyPanelOfBackup(b.Identifier(), &backup.ArchiveDetails{}, false); notifyError != nil {
+		if err := s.notifyPanelOfBackup(b.Identifier(), &backup.ArchiveDetails{}, false); err != nil {
 			s.Log().WithFields(log.Fields{
 				"backup": b.Identifier(),
-				"error":  notifyError,
+				"error":  err,
 			}).Warn("failed to notify panel of failed backup state")
 		} else {
-			s.Log().WithFields(log.Fields{"backup": b.Identifier()}).Info("notified panel of failed backup state")
+			s.Log().WithField("backup", b.Identifier()).Info("notified panel of failed backup state")
 		}
 
 		_ = s.Events().PublishJson(BackupCompletedEvent+":"+b.Identifier(), map[string]interface{}{
@@ -81,7 +81,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 			"file_size":     0,
 		})
 
-		return errors.WithMessage(err, "backup: error while generating server backup")
+		return errors.WrapIf(err, "backup: error while generating server backup")
 	}
 
 	// Try to notify the panel about the status of this backup. If for some reason this request
