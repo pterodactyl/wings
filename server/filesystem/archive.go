@@ -3,6 +3,7 @@ package filesystem
 import (
 	"archive/tar"
 	"emperror.dev/errors"
+	"github.com/apex/log"
 	"github.com/juju/ratelimit"
 	"github.com/karrick/godirwalk"
 	"github.com/klauspost/pgzip"
@@ -149,21 +150,23 @@ func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return errors.WrapIff(err, "failed to Lstat '"+rp+"'")
+		return errors.WrapIff(err, "failed executing os.Lstat on '%s'", rp)
 	}
 
 	// Resolve the symlink target if the file is a symlink.
 	var target string
 	if s.Mode()&os.ModeSymlink != 0 {
-		// Read the target of the symlink.
+		// Read the target of the symlink. If there are any errors we will dump them out to
+		// the logs, but we're not going to stop the backup. There are far too many cases of
+		// symlinks causing all sorts of unnecessary pain in this process. Sucks to suck if
+		// it doesn't work.
 		target, err = os.Readlink(s.Name())
 		if err != nil {
-			// Skip symlinks if the target does not exist.
-			if os.IsNotExist(err) {
-				return nil
+			// Ignore the not exist errors specifically, since theres nothing important about that.
+			if !os.IsNotExist(err) {
+				log.WithField("path", rp).WithField("readlink_err", err.Error()).Warn("failed reading symlink for target path; skipping...")
 			}
-
-			return errors.WrapIff(err, "failed to read symlink target for '%s'", rp)
+			return nil
 		}
 	}
 
