@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.2.0
+### Fixed
+* Fixes log compression being set on the Docker containers being created to avoid errors on some versions of Docker.
+* Cleaned up logic handling server resource usage to avoid race conditions in the future and make the logic simpler.
+* Fixes directories being created when writing a file before checking if there was space for the file to even be written to the disk.
+* Significant performance and resource usage fixes to backups and server transfers to avoid obliterating machine `i/o` and causing excessive resource exhaustion on busy systems or low end machines.
+* Fixes server install process to not unintentionally exit and cause invalid states if a line during the install process was too long.
+* Fixes symlink error handling in backups to not unexpectedly tank a request. Any errors due to a symlink are now ignored and will not impact the generation of a backup (including for server transfers).
+
+### Changed
+* Changed `--debug` flag to no longer ignore certificate errors on requests. Use `--ignore-certificate-errors` to ignore any certificate errors encountered when in development environments.
+* Changed all Filesystem related errors to be of the same internal error type making error checking significantly easier and less error prone.
+* Improves log output stacktraces to be more accurate as to the source of the issue.
+
+### Added
+* Adds support for downloading files to a server's data directory and optionally checking the status of or canceling in-progress downloads.
+* Adds a `context.Context` to `server.Server` structs allowing for cancelation of long running background tasks when a server is deleted without additional complexity on developer's end.
+
 ## v1.1.3
 ### Fixed
 * Fixes `archive/tar: write too long` error when creating a server backup.
