@@ -2,14 +2,6 @@ package router
 
 import (
 	"context"
-	"emperror.dev/errors"
-	"github.com/apex/log"
-	"github.com/gin-gonic/gin"
-	"github.com/pterodactyl/wings/router/downloader"
-	"github.com/pterodactyl/wings/router/tokens"
-	"github.com/pterodactyl/wings/server"
-	"github.com/pterodactyl/wings/server/filesystem"
-	"golang.org/x/sync/errgroup"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -18,16 +10,21 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"emperror.dev/errors"
+	"github.com/apex/log"
+	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/router/downloader"
+	"github.com/pterodactyl/wings/router/tokens"
+	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/server/filesystem"
+	"golang.org/x/sync/errgroup"
 )
 
 // Returns the contents of a file on the server.
 func getServerFileContents(c *gin.Context) {
 	s := ExtractServer(c)
-	f, err := url.QueryUnescape(c.Query("file"))
-	if err != nil {
-		WithError(c, err)
-		return
-	}
+	f := c.Query("file")
 	p := "/" + strings.TrimLeft(f, "/")
 	st, err := s.Filesystem().Stat(p)
 	if err != nil {
@@ -64,11 +61,7 @@ func getServerFileContents(c *gin.Context) {
 // Returns the contents of a directory for a server.
 func getServerListDirectory(c *gin.Context) {
 	s := ExtractServer(c)
-	dir, err := url.QueryUnescape(c.Query("directory"))
-	if err != nil {
-		WithError(c, err)
-		return
-	}
+	dir := c.Query("directory")
 	if stats, err := s.Filesystem().ListDirectory(dir); err != nil {
 		WithError(c, err)
 	} else {
@@ -212,11 +205,7 @@ func postServerDeleteFiles(c *gin.Context) {
 func postServerWriteFile(c *gin.Context) {
 	s := GetServer(c.Param("server"))
 
-	f, err := url.QueryUnescape(c.Query("file"))
-	if err != nil {
-		NewServerError(err, s).Abort(c)
-		return
-	}
+	f := c.Query("file")
 	f = "/" + strings.TrimLeft(f, "/")
 
 	if err := s.Filesystem().Writefile(f, c.Request.Body); err != nil {
