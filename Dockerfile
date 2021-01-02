@@ -26,14 +26,7 @@ RUN         upx wings
 # Stage 2 (Final)
 FROM        busybox:1.32.0
 
-LABEL       org.opencontainers.image.title="Wings"
-LABEL       org.opencontainers.image.version="$VERSION"
-LABEL       org.opencontainers.image.description="The server control plane for Pterodactyl Panel. Written from the ground-up with security, speed, and stability in mind."
-LABEL       org.opencontainers.image.url="https://pterodactyl.io"
-LABEL       org.opencontainers.image.documentation="https://pterodactyl.io/project/introduction.html"
-LABEL       org.opencontainers.image.vendor="Pterodactyl Software"
-LABEL       org.opencontainers.image.source="https://github.com/pterodactyl/wings"
-LABEL       org.opencontainers.image.licenses="MIT"
+RUN         echo "ID=\"busybox\"" > /etc/os-release
 
 COPY        --from=builder /app/wings /usr/bin/
 

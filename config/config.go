@@ -223,6 +223,36 @@ func (c *Configuration) GetPath() string {
 // If files are not owned by this user there will be issues with permissions on Docker
 // mount points.
 func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
+	sysName, err := getSystemName()
+	if err != nil {
+		return nil, err
+	}
+
+	// Our way of detecting if wings is running inside of Docker.
+	if sysName == "busybox" {
+		uid := os.Getenv("WINGS_UID")
+		if uid == "" {
+			uid = "988"
+		}
+
+		gid := os.Getenv("WINGS_GID")
+		if gid == "" {
+			gid = "988"
+		}
+
+		username := os.Getenv("WINGS_USERNAME")
+		if username == "" {
+			username = "pterodactyl"
+		}
+
+		u := &user.User{
+			Uid:      uid,
+			Gid:      gid,
+			Username: username,
+		}
+		return u, c.setSystemUser(u)
+	}
+
 	u, err := user.Lookup(c.System.Username)
 
 	// If an error is returned but it isn't the unknown user error just abort
@@ -233,17 +263,12 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 		return nil, err
 	}
 
-	sysName, err := getSystemName()
-	if err != nil {
-		return nil, err
-	}
-
-	command := fmt.Sprintf("useradd --system --no-create-home --shell /bin/false %s", c.System.Username)
+	command := fmt.Sprintf("useradd --system --no-create-home --shell /usr/sbin/nologin %s", c.System.Username)
 
 	// Alpine Linux is the only OS we currently support that doesn't work with the useradd command, so
 	// in those cases we just modify the command a bit to work as expected.
 	if strings.HasPrefix(sysName, "alpine") {
-		command = fmt.Sprintf("adduser -S -D -H -G %[1]s -s /bin/false %[1]s", c.System.Username)
+		command = fmt.Sprintf("adduser -S -D -H -G %[1]s -s /sbin/nologin %[1]s", c.System.Username)
 
 		// We have to create the group first on Alpine, so do that here before continuing on
 		// to the user creation process.
@@ -267,8 +292,15 @@ func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
 // Set the system user into the configuration and then write it to the disk so that
 // it is persisted on boot.
 func (c *Configuration) setSystemUser(u *user.User) error {
-	uid, _ := strconv.Atoi(u.Uid)
-	gid, _ := strconv.Atoi(u.Gid)
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return err
+	}
+
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return err
+	}
 
 	c.Lock()
 	c.System.Username = u.Username

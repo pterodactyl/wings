@@ -1,4 +1,5 @@
 version: '3.8'
+
 services:
   wings:
     image: ghcr.io/pterodactyl/wings:latest
@@ -11,7 +12,9 @@ services:
     tty: true
     environment:
       TZ: "UTC"
-      DEBUG: "false"
+      WINGS_UID: 988
+      WINGS_GID: 988
+      WINGS_USERNAME: pterodactyl
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/lib/docker/containers/:/var/lib/docker/containers/"
@@ -23,6 +26,7 @@ services:
       #- "/srv/daemon-data/:/srv/daemon-data/"
       # Required for ssl if you user let's encrypt. uncomment to use.
       #- "/etc/letsencrypt/:/etc/letsencrypt/"
+
 networks:
   wings0:
     name: wings0

@@ -48,3 +48,9 @@ debug
 .DS_Store
 *.pprof
 *.pdf
+
+Dockerfile
+CHANGELOG.md
+Makefile
+README.md
+wings-api.paw
