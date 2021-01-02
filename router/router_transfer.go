@@ -129,6 +129,9 @@ func postServerArchive(c *gin.Context) {
 				return
 			}
 
+			// Mark the server as not being transferred so it can actually be used.
+			s.SetTransferring(false)
+
 			s.Events().Publish(server.TransferStatusEvent, "failure")
 
 			sendTransferLog("Attempting to notify panel of archive failure..")
