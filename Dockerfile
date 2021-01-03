@@ -24,7 +24,7 @@ RUN         upx wings
 # --------------------------------------- #
 
 # Stage 2 (Final)
-FROM        busybox:1.32.0
+FROM        busybox:1.33.0
 
 RUN         echo "ID=\"busybox\"" > /etc/os-release
 
