@@ -76,6 +76,10 @@ func (e *Environment) Attach() error {
 			}
 		}()
 
+		// Block the completion of this routine until the container is no longer running. This allows
+		// the pollResources function to run until it needs to be stopped. Because the container
+		// can be polled for resource usage, even when sropped, we need to have this logic present
+		// in order to cancel the context and therefore stop the routine that is spawned.
 		ok, err := e.client.ContainerWait(ctx, e.Id, container.WaitConditionNotRunning)
 		select {
 		case <-ctx.Done():

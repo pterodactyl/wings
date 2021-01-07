@@ -24,8 +24,10 @@ type Stats struct {
 	// Disk int64 `json:"disk_bytes"`
 
 	// Current network transmit in & out for a container.
-	Network struct {
-		RxBytes uint64 `json:"rx_bytes"`
-		TxBytes uint64 `json:"tx_bytes"`
-	} `json:"network"`
+	Network NetworkStats `json:"network"`
+}
+
+type NetworkStats struct {
+	RxBytes uint64 `json:"rx_bytes"`
+	TxBytes uint64 `json:"tx_bytes"`
 }
