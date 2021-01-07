@@ -4,7 +4,6 @@ import (
 	"context"
 	"emperror.dev/errors"
 	"encoding/json"
-	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/pterodactyl/wings/environment"
 	"io"
@@ -19,11 +18,10 @@ func (e *Environment) pollResources(ctx context.Context) error {
 		return errors.New("cannot enable resource polling on a stopped server")
 	}
 
-	l := log.WithField("container_id", e.Id)
-	l.Debug("starting resource polling for container")
-	defer l.Debug("stopped resource polling for container")
+	e.log().Info("starting resource polling for container")
+	defer e.log().Debug("stopped resource polling for container")
 
-	stats, err := e.client.ContainerStats(context.Background(), e.Id, true)
+	stats, err := e.client.ContainerStats(ctx, e.Id, true)
 	if err != nil {
 		return err
 	}
@@ -39,10 +37,10 @@ func (e *Environment) pollResources(ctx context.Context) error {
 			var v *types.StatsJSON
 
 			if err := dec.Decode(&v); err != nil {
-				if err != io.EOF {
-					l.WithField("error", err).Warn("error while processing Docker stats output for container")
+				if err != io.EOF && !errors.Is(err, context.Canceled) {
+					e.log().WithField("error", err).Warn("error while processing Docker stats output for container")
 				} else {
-					l.Debug("io.EOF encountered during stats decode, stopping polling...")
+					e.log().Debug("io.EOF encountered during stats decode, stopping polling...")
 				}
 
 				return nil
@@ -50,7 +48,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 
 			// Disable collection if the server is in an offline state and this process is still running.
 			if e.st.Load() == environment.ProcessOfflineState {
-				l.Debug("process in offline state while resource polling is still active; stopping poll")
+				e.log().Debug("process in offline state while resource polling is still active; stopping poll")
 				return nil
 			}
 
@@ -75,7 +73,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 			}
 
 			if b, err := json.Marshal(st); err != nil {
-				l.WithField("error", err).Warn("error while marshaling stats object for environment")
+				e.log().WithField("error", err).Warn("error while marshaling stats object for environment")
 			} else {
 				e.Events().Publish(environment.ResourceEvent, string(b))
 			}

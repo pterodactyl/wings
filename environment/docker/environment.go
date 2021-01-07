@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/pterodactyl/wings/api"
@@ -68,6 +69,10 @@ func New(id string, m *Metadata, c *environment.Configuration) (*Environment, er
 	}
 
 	return e, nil
+}
+
+func (e *Environment) log() *log.Entry {
+	return log.WithField("environment", e.Type()).WithField("container_id", e.Id)
 }
 
 func (e *Environment) Type() string {
