@@ -406,7 +406,7 @@ __ [blue][bold]Pterodactyl[reset] _____/___/_______ _______ ______
 \_____\    \/\/    /   /       /  __   /   ___/
    \___\          /   /   /   /  /_/  /___   /
         \___/\___/___/___/___/___    /______/
-                            /_______/ [bold]v%s[reset]
+                            /_______/ [bold]%s[reset]
 
 Copyright © 2018 - 2021 Dane Everitt & Contributors
 
