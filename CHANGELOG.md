@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.2.1
+### Fixed
+* Fixes servers not be properly marked as no longer transfering if an error occurs during the archive process.
+* Fixes problems with user detection when running Wings inside a Docker container.
+* Fixes filename decoding issues with multiple endpoints related to the file manager (namely move/copy/delete).
+* **[Security]** Fixes vulnerability allowing a malicious user to abuse the remote file download utilitity to scan or access resources on the local network.
+* Fixes network `tx` stats not correctly being reported (was previously reporting `rx` for both `rx` and `tx`).
+
+### Changed
+* Cleans up the logic related to polling resources for the server to make a little more sense and not do pointless `io.Copy()` operations.
+
 ## v1.2.0
 ### Fixed
 * Fixes log compression being set on the Docker containers being created to avoid errors on some versions of Docker.
