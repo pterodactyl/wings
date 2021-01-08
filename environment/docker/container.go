@@ -309,16 +309,21 @@ func (e *Environment) followOutput() error {
 	if err != nil {
 		return err
 	}
+
 	go func(reader io.ReadCloser) {
 		defer reader.Close()
-		evts := e.Events()
+
+		events := e.Events()
+
 		err := system.ScanReader(reader, func(line string) {
-			evts.Publish(environment.ConsoleOutputEvent, line)
+			events.Publish(environment.ConsoleOutputEvent, line)
 		})
+
 		if err != nil && err != io.EOF {
 			log.WithField("error", err).WithField("container_id", e.Id).Warn("error processing scanner line in console output")
 		}
 	}(reader)
+
 	return nil
 }
 
@@ -405,9 +410,11 @@ func (e *Environment) ensureImageExists(image string) error {
 	// I'm not sure what the best approach here is, but this will block execution until the image
 	// is done being pulled, which is what we need.
 	scanner := bufio.NewScanner(out)
+
 	for scanner.Scan() {
 		s := imagePullStatus{}
 		fmt.Println(scanner.Text())
+
 		if err := json.Unmarshal(scanner.Bytes(), &s); err == nil {
 			e.Events().Publish(environment.DockerImagePullStatus, s.Status+" "+s.Progress)
 		}

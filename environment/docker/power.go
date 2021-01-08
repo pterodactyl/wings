@@ -20,10 +20,9 @@ import (
 //
 // This process will also confirm that the server environment exists and is in a bootable
 // state. This ensures that unexpected container deletion while Wings is running does
-// not result in the server becoming unbootable.
+// not result in the server becoming un-bootable.
 func (e *Environment) OnBeforeStart() error {
-	// Always destroy and re-create the server container to ensure that synced data from
-	// the Panel is usee.
+	// Always destroy and re-create the server container to ensure that synced data from the Panel is used.
 	if err := e.client.ContainerRemove(context.Background(), e.Id, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
 		if !client.IsErrNotFound(err) {
 			return errors.WithMessage(err, "failed to remove server docker container during pre-boot")
@@ -49,6 +48,7 @@ func (e *Environment) OnBeforeStart() error {
 // call to OnBeforeStart().
 func (e *Environment) Start() error {
 	sawError := false
+
 	// If sawError is set to true there was an error somewhere in the pipeline that
 	// got passed up, but we also want to ensure we set the server to be offline at
 	// that point.
@@ -235,7 +235,7 @@ func (e *Environment) Terminate(signal os.Signal) error {
 
 	sig := strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed")
 
-	if err := e.client.ContainerKill(context.Background(), e.Id, sig); err != nil {
+	if err := e.client.ContainerKill(context.Background(), e.Id, sig); err != nil && !client.IsErrNotFound(err) {
 		return err
 	}
 
