@@ -1,20 +1,20 @@
-package docker	
+package docker
 
-import "io"	
+import "io"
 
-type Console struct {	
-	HandlerFunc *func(string)	
-}	
+type Console struct {
+	HandlerFunc *func(string)
+}
 
-var _ io.Writer = Console{}	
+var _ io.Writer = Console{}
 
-func (c Console) Write(b []byte) (int, error) {	
-	if c.HandlerFunc != nil {	
-		l := make([]byte, len(b))	
-		copy(l, b)	
+func (c Console) Write(b []byte) (int, error) {
+	if c.HandlerFunc != nil {
+		l := make([]byte, len(b))
+		copy(l, b)
 
-		(*c.HandlerFunc)(string(l))	
-	}	
+		(*c.HandlerFunc)(string(l))
+	}
 
-	return len(b), nil	
+	return len(b), nil
 }
