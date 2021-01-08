@@ -30,10 +30,6 @@ type imagePullStatus struct {
 // of the process stream. This should not be used for reading console data as you *will*
 // miss important output at the beginning because of the time delay with attaching to the
 // output.
-//
-// Calling this function will poll resources for the container in the background until the
-// provided context is canceled by the caller. Failure to cancel said context will cause
-// background memory leaks as the goroutine will not exit.
 func (e *Environment) Attach() error {
 	if e.IsAttached() {
 		return nil
@@ -57,7 +53,8 @@ func (e *Environment) Attach() error {
 		e.SetStream(&st)
 	}
 
-	go func() {
+	c := new(Console)
+	go func(console *Console) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -68,38 +65,27 @@ func (e *Environment) Attach() error {
 			e.SetStream(nil)
 		}()
 
-		go func() {
+		// Poll resources in a separate thread since this will block the copy call below
+		// from being reached until it is completed if not run in a separate process. However,
+		// we still want it to be stopped when the copy operation below is finished running which
+		// indicates that the container is no longer running.
+		go func(ctx context.Context) {
 			if err := e.pollResources(ctx); err != nil {
+				l := log.WithField("environment_id", e.Id)
 				if !errors.Is(err, context.Canceled) {
-					e.log().WithField("error", err).Error("error during environment resource polling")
+					l.WithField("error", err).Error("error during environment resource polling")
 				} else {
-					e.log().Warn("stopping server resource polling: context canceled")
+					l.Warn("stopping server resource polling: context canceled")
 				}
 			}
-		}()
+		}(ctx)
 
-		// Block the completion of this routine until the container is no longer running. This allows
-		// the pollResources function to run until it needs to be stopped. Because the container
-		// can be polled for resource usage, even when stopped, we need to have this logic present
-		// in order to cancel the context and therefore stop the routine that is spawned.
-		ok, err := e.client.ContainerWait(ctx, e.Id, container.WaitConditionNotRunning)
-		select {
-		case <-ctx.Done():
-			// Do nothing, the context was canceled by a different process, there is no error
-			// to report at this point.
-			e.log().Debug("terminating ContainerWait blocking process, context canceled")
-			return
-		case _ = <-err:
-			// An error occurred with the ContainerWait call, report it here and then hope
-			// for the fucking best I guess?
-			e.log().WithField("error", err).Error("error while blocking using ContainerWait")
-			return
-		case <-ok:
-			// Do nothing, everything is running as expected. This will allow us to keep
-			// blocking the termination of this function until the container stops at which
-			// point all of our deferred functions can run.
+		// Stream the reader output to the console which will then fire off events and handle console
+		// throttling and sending the output to the user.
+		if _, err := io.Copy(console, e.stream.Reader); err != nil {
+			log.WithField("environment_id", e.Id).WithField("error", err).Error("error while copying environment output to console")
 		}
-	}()
+	}(c)
 
 	return nil
 }
@@ -295,6 +281,7 @@ func (e *Environment) followOutput() error {
 		if err != nil {
 			return err
 		}
+
 		return errors.New(fmt.Sprintf("no such container: %s", e.Id))
 	}
 
