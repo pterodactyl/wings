@@ -12,7 +12,9 @@ import (
 	"github.com/pterodactyl/wings/server"
 )
 
-type Middleware struct{}
+type Middleware struct {
+	serverManager server.Manager
+}
 
 // A custom handler function allowing for errors bubbled up by c.Error() to be returned in a
 // standardized format with tracking UUIDs on them for easier log searching.
@@ -92,14 +94,19 @@ func (m *Middleware) RequireAuthorization() gin.HandlerFunc {
 	}
 }
 
-// Helper function to fetch a server out of the servers collection stored in memory.
-//
-// This function should not be used in new controllers, prefer ExtractServer where
-// possible.
-func GetServer(uuid string) *server.Server {
-	return server.GetServers().Find(func(s *server.Server) bool {
-		return uuid == s.Id()
-	})
+func (m *Middleware) WithServerManager() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("servermanager", m.serverManager)
+	}
+}
+
+func ServerManagerFromContext(c *gin.Context) server.Manager {
+	if s, ok := c.Get("servermanager"); ok {
+		if srvs, ok := s.(server.Manager); ok {
+			return srvs
+		}
+	}
+	return nil
 }
 
 // Ensure that the requested server exists in this setup. Returns a 404 if we cannot
@@ -108,7 +115,7 @@ func (m *Middleware) ServerExists() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		u, err := uuid.Parse(c.Param("server"))
 		if err == nil {
-			if s := GetServer(u.String()); s != nil {
+			if s := m.serverManager.Get(u.String()); s != nil {
 				c.Set("server", s)
 				c.Next()
 				return

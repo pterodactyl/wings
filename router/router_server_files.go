@@ -76,7 +76,7 @@ type renameFile struct {
 
 // Renames (or moves) files for a server.
 func putServerRenameFiles(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	var data struct {
 		Root  string       `json:"root"`
@@ -138,7 +138,7 @@ func putServerRenameFiles(c *gin.Context) {
 
 // Copies a server file.
 func postServerCopyFile(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	var data struct {
 		Location string `json:"location"`
@@ -158,7 +158,7 @@ func postServerCopyFile(c *gin.Context) {
 
 // Deletes files from a server.
 func postServerDeleteFiles(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	var data struct {
 		Root  string   `json:"root"`
@@ -203,7 +203,7 @@ func postServerDeleteFiles(c *gin.Context) {
 
 // Writes the contents of the request to a file on a server.
 func postServerWriteFile(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	f := c.Query("file")
 	f = "/" + strings.TrimLeft(f, "/")
@@ -300,7 +300,7 @@ func deleteServerPullRemoteFile(c *gin.Context) {
 
 // Create a directory on a server.
 func postServerCreateDirectory(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	var data struct {
 		Name string `json:"name"`
@@ -327,7 +327,7 @@ func postServerCreateDirectory(c *gin.Context) {
 }
 
 func postServerCompressFiles(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	var data struct {
 		RootPath string   `json:"root"`
@@ -365,7 +365,7 @@ func postServerCompressFiles(c *gin.Context) {
 }
 
 func postServerDecompressFiles(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	var data struct {
 		RootPath string `json:"root"`
@@ -433,7 +433,7 @@ type chmodFile struct {
 var errInvalidFileMode = errors.New("invalid file mode")
 
 func postServerChmodFile(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	var data struct {
 		Root  string      `json:"root"`
@@ -497,13 +497,15 @@ func postServerChmodFile(c *gin.Context) {
 }
 
 func postServerUploadFiles(c *gin.Context) {
+	serverManager := ServerManagerFromContext(c)
+
 	token := tokens.UploadPayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
 		NewTrackedError(err).Abort(c)
 		return
 	}
 
-	s := GetServer(token.ServerUuid)
+	s := serverManager.Get(token.ServerUuid)
 	if s == nil || !token.IsUniqueRequest() {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"error": "The requested resource was not found on this server.",

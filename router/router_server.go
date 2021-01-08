@@ -22,7 +22,7 @@ type serverProcData struct {
 
 // Returns a single server from the collection of servers.
 func getServer(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	c.JSON(http.StatusOK, serverProcData{
 		ResourceUsage: s.Proc(),
@@ -32,7 +32,7 @@ func getServer(c *gin.Context) {
 
 // Returns the logs for a given server instance.
 func getServerLogs(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	l, _ := strconv.Atoi(c.DefaultQuery("size", "100"))
 	if l <= 0 {
@@ -59,7 +59,7 @@ func getServerLogs(c *gin.Context) {
 // things are happening, so theres no reason to sit and wait for a request to finish. We'll
 // just see over the socket if something isn't working correctly.
 func postServerPower(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	var data struct {
 		Action server.PowerAction `json:"action"`
@@ -109,7 +109,7 @@ func postServerPower(c *gin.Context) {
 
 // Sends an array of commands to a running server instance.
 func postServerCommands(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	if running, err := s.Environment.IsRunning(); err != nil {
 		NewServerError(err, s).Abort(c)
@@ -140,7 +140,7 @@ func postServerCommands(c *gin.Context) {
 
 // Updates information about a server internally.
 func patchServer(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	buf := bytes.Buffer{}
 	buf.ReadFrom(c.Request.Body)
@@ -157,7 +157,7 @@ func patchServer(c *gin.Context) {
 
 // Performs a server installation in a background thread.
 func postServerInstall(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	go func(serv *server.Server) {
 		if err := serv.Install(true); err != nil {
@@ -170,7 +170,7 @@ func postServerInstall(c *gin.Context) {
 
 // Reinstalls a server.
 func postServerReinstall(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	if s.ExecutingPowerAction() {
 		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
@@ -191,6 +191,7 @@ func postServerReinstall(c *gin.Context) {
 // Deletes a server from the wings daemon and dissociate it's objects.
 func deleteServer(c *gin.Context) {
 	s := ExtractServer(c)
+	sm := ServerManagerFromContext(c)
 
 	// Immediately suspend the server to prevent a user from attempting
 	// to start it while this process is running.
@@ -234,10 +235,7 @@ func deleteServer(c *gin.Context) {
 		}
 	}(s.Filesystem().Path())
 
-	uuid := s.Id()
-	server.GetServers().Remove(func(s2 *server.Server) bool {
-		return s2.Id() == uuid
-	})
+	sm.Remove(s)
 
 	// Deallocate the reference to this server.
 	s = nil

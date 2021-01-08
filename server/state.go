@@ -36,10 +36,10 @@ func CachedServerStates() (map[string]string, error) {
 }
 
 // saveServerStates .
-func saveServerStates() error {
+func (m *manager) saveServerStates() error {
 	// Get the states of all servers on the daemon.
 	states := map[string]string{}
-	for _, s := range GetServers().All() {
+	for _, s := range m.GetAll() {
 		states[s.Id()] = s.Environment.State()
 	}
 
@@ -84,7 +84,7 @@ func (s *Server) OnStateChange() {
 	// We also get the benefit of server status changes always propagating corrected configurations
 	// to the disk should we forget to do it elsewhere.
 	go func() {
-		if err := saveServerStates(); err != nil {
+		if err := s.manager.saveServerStates(); err != nil {
 			s.Log().WithField("error", err).Warn("failed to write server states to disk")
 		}
 	}()

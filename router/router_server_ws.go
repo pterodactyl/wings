@@ -12,7 +12,8 @@ import (
 
 // Upgrades a connection to a websocket and passes events along between.
 func getServerWebsocket(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	serverManager := ServerManagerFromContext(c)
+	s := serverManager.Get(c.Param("server"))
 	handler, err := websocket.GetHandler(s, c.Writer, c.Request)
 	if err != nil {
 		NewServerError(err, s).Abort(c)

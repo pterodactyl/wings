@@ -1,11 +1,13 @@
 package sftp
 
 import (
+	"time"
+
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/patrickmn/go-cache"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
-	"github.com/pterodactyl/wings/server"
 )
 
 var noMatchingServerError = errors.New("no matching server with that UUID was found")
@@ -22,14 +24,11 @@ func Initialize(config config.SystemConfiguration) error {
 			BindAddress: config.Sftp.Address,
 			BindPort:    config.Sftp.Port,
 		},
-		CredentialValidator: validateCredentials,
-		PathValidator:       validatePath,
-		DiskSpaceValidator:  validateDiskSpace,
+		cache: cache.New(5*time.Minute, 10*time.Minute),
 	}
-
-	if err := New(s); err != nil {
-		return err
-	}
+	s.CredentialValidator = s.validateCredentials
+	s.PathValidator = s.validatePath
+	s.DiskSpaceValidator = s.validateDiskSpace
 
 	// Initialize the SFTP server in a background thread since this is
 	// a long running operation.
@@ -42,33 +41,25 @@ func Initialize(config config.SystemConfiguration) error {
 	return nil
 }
 
-func validatePath(fs FileSystem, p string) (string, error) {
-	s := server.GetServers().Find(func(server *server.Server) bool {
-		return server.Id() == fs.UUID
-	})
-
-	if s == nil {
+func (s *Server) validatePath(fs FileSystem, p string) (string, error) {
+	srv := s.serverManager.Get(fs.UUID)
+	if srv == nil {
 		return "", noMatchingServerError
 	}
-
-	return s.Filesystem().SafePath(p)
+	return srv.Filesystem().SafePath(p)
 }
 
-func validateDiskSpace(fs FileSystem) bool {
-	s := server.GetServers().Find(func(server *server.Server) bool {
-		return server.Id() == fs.UUID
-	})
-
-	if s == nil {
+func (s *Server) validateDiskSpace(fs FileSystem) bool {
+	srv := s.serverManager.Get(fs.UUID)
+	if srv == nil {
 		return false
 	}
-
-	return s.Filesystem().HasSpaceAvailable(true)
+	return srv.Filesystem().HasSpaceAvailable(true)
 }
 
 // Validates a set of credentials for a SFTP login against Pterodactyl Panel and returns
 // the server's UUID if the credentials were valid.
-func validateCredentials(c api.SftpAuthRequest) (*api.SftpAuthResponse, error) {
+func (s *Server) validateCredentials(c api.SftpAuthRequest) (*api.SftpAuthResponse, error) {
 	f := log.Fields{"subsystem": "sftp", "username": c.User, "ip": c.IP}
 
 	log.WithFields(f).Debug("validating credentials for SFTP connection")
@@ -83,15 +74,12 @@ func validateCredentials(c api.SftpAuthRequest) (*api.SftpAuthResponse, error) {
 		return resp, err
 	}
 
-	s := server.GetServers().Find(func(server *server.Server) bool {
-		return server.Id() == resp.Server
-	})
-
-	if s == nil {
+	srv := s.serverManager.Get(resp.Server)
+	if srv == nil {
 		return resp, noMatchingServerError
 	}
 
-	s.Log().WithFields(f).Debug("credentials successfully validated and matched user to server instance")
+	srv.Log().WithFields(f).Debug("credentials successfully validated and matched user to server instance")
 
 	return resp, err
 }

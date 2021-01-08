@@ -27,6 +27,9 @@ type Server struct {
 	ctx       context.Context
 	ctxCancel *context.CancelFunc
 
+	// manager holds a reference to the manager responsible for the server
+	manager *manager
+
 	emitterLock  sync.Mutex
 	powerLock    *semaphore.Weighted
 	throttleOnce sync.Once
