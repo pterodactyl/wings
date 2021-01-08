@@ -60,8 +60,10 @@ func (e *Environment) Attach() error {
 	go func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+
+		defer e.stream.Close()
+
 		defer func() {
-			e.stream.Close()
 			e.SetState(environment.ProcessOfflineState)
 			e.SetStream(nil)
 		}()
@@ -78,7 +80,7 @@ func (e *Environment) Attach() error {
 
 		// Block the completion of this routine until the container is no longer running. This allows
 		// the pollResources function to run until it needs to be stopped. Because the container
-		// can be polled for resource usage, even when sropped, we need to have this logic present
+		// can be polled for resource usage, even when stopped, we need to have this logic present
 		// in order to cancel the context and therefore stop the routine that is spawned.
 		ok, err := e.client.ContainerWait(ctx, e.Id, container.WaitConditionNotRunning)
 		select {
@@ -272,6 +274,8 @@ func (e *Environment) Destroy() error {
 		Force:         true,
 	})
 
+	e.SetState(environment.ProcessOfflineState)
+
 	// Don't trigger a destroy failure if we try to delete a container that does not
 	// exist on the system. We're just a step ahead of ourselves in that case.
 	//
@@ -279,8 +283,6 @@ func (e *Environment) Destroy() error {
 	if err != nil && client.IsErrNotFound(err) {
 		return nil
 	}
-
-	e.SetState(environment.ProcessOfflineState)
 
 	return err
 }
