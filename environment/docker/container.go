@@ -26,6 +26,18 @@ type imagePullStatus struct {
 	Progress string `json:"progress"`
 }
 
+// A custom console writer that allows us to keep a function blocked until the
+// given stream is properly closed. This does nothing special, only exists to
+// make a noop io.Writer.
+type noopWriter struct{}
+
+var _ io.Writer = noopWriter{}
+
+// Implement the required Write function to satisfy the io.Writer interface.
+func (nw noopWriter) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
 // Attaches to the docker container itself and ensures that we can pipe data in and out
 // of the process stream. This should not be used for reading console data as you *will*
 // miss important output at the beginning because of the time delay with attaching to the
@@ -60,8 +72,8 @@ func (e *Environment) Attach() error {
 	go func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		defer e.stream.Close()
 		defer func() {
-			e.stream.Close()
 			e.SetState(environment.ProcessOfflineState)
 			e.SetStream(nil)
 		}()
@@ -80,22 +92,16 @@ func (e *Environment) Attach() error {
 		// the pollResources function to run until it needs to be stopped. Because the container
 		// can be polled for resource usage, even when sropped, we need to have this logic present
 		// in order to cancel the context and therefore stop the routine that is spawned.
-		ok, err := e.client.ContainerWait(ctx, e.Id, container.WaitConditionNotRunning)
-		select {
-		case <-ctx.Done():
-			// Do nothing, the context was canceled by a different process, there is no error
-			// to report at this point.
-			e.log().Debug("terminating ContainerWait blocking process, context canceled")
-			return
-		case _ = <-err:
-			// An error occurred with the ContainerWait call, report it here and then hope
-			// for the fucking best I guess?
-			e.log().WithField("error", err).Error("error while blocking using ContainerWait")
-			return
-		case <-ok:
-			// Do nothing, everything is running as expected. This will allow us to keep
-			// blocking the termination of this function until the container stops at which
-			// point all of our deferred functions can run.
+		//
+		// For now, DO NOT use client#ContainerWait from the Docker package. There is a nasty
+		// bug causing containers to hang on deletion and cause servers to lock up on the system.
+		//
+		// This weird code isn't intuitive, but it keeps the function from ending until the container
+		// is stopped and therefore the stream reader ends up closed.
+		// @see https://github.com/moby/moby/issues/41827
+		c := new(noopWriter)
+		if _, err := io.Copy(c, e.stream.Reader); err != nil {
+			e.log().WithField("error", err).Error("could not copy from environment stream to noop writer")
 		}
 	}()
 
