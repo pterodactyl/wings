@@ -75,6 +75,7 @@ func init() {
 	rootCommand.AddCommand(versionCommand)
 	rootCommand.AddCommand(configureCmd)
 	rootCommand.AddCommand(diagnosticsCmd)
+	rootCommand.AddCommand(newUpgradeCommand())
 }
 
 // Get the configuration path based on the arguments provided.
