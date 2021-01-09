@@ -82,8 +82,9 @@ func (e *Environment) Type() string {
 // Set if this process is currently attached to the process.
 func (e *Environment) SetStream(s *types.HijackedResponse) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	e.stream = s
-	e.mu.Unlock()
 }
 
 // Determine if the this process is currently attached to the container.
@@ -98,6 +99,7 @@ func (e *Environment) Events() *events.EventBus {
 	e.eventMu.Do(func() {
 		e.emitter = events.New()
 	})
+
 	return e.emitter
 }
 
@@ -174,12 +176,14 @@ func (e *Environment) Config() *environment.Configuration {
 // Sets the stop configuration for the environment.
 func (e *Environment) SetStopConfiguration(c api.ProcessStopConfiguration) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	e.meta.Stop = c
-	e.mu.Unlock()
 }
 
 func (e *Environment) SetImage(i string) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	e.meta.Image = i
-	e.mu.Unlock()
 }

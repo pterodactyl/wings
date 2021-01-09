@@ -19,8 +19,9 @@ var ErrNotAttached = errors.New("not attached to instance")
 
 func (e *Environment) setStream(s *types.HijackedResponse) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	e.stream = s
-	e.mu.Unlock()
 }
 
 // Sends the specified command to the stdin of the running container instance. There is no
@@ -71,7 +72,7 @@ func (e *Environment) Readlog(lines int) ([]string, error) {
 // Docker stores the logs for server output in a JSON format. This function will iterate over the JSON
 // that was read from the log file and parse it into a more human readable format.
 func (e *Environment) parseLogToStrings(b []byte) ([]string, error) {
-	var hasError = false
+	hasError := false
 	var out []string
 
 	scanner := bufio.NewScanner(bytes.NewReader(b))

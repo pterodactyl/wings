@@ -90,7 +90,7 @@ func (e *Environment) Attach() error {
 
 		// Block the completion of this routine until the container is no longer running. This allows
 		// the pollResources function to run until it needs to be stopped. Because the container
-		// can be polled for resource usage, even when sropped, we need to have this logic present
+		// can be polled for resource usage, even when stopped, we need to have this logic present
 		// in order to cancel the context and therefore stop the routine that is spawned.
 		//
 		// For now, DO NOT use client#ContainerWait from the Docker package. There is a nasty
@@ -278,6 +278,8 @@ func (e *Environment) Destroy() error {
 		Force:         true,
 	})
 
+	e.SetState(environment.ProcessOfflineState)
+
 	// Don't trigger a destroy failure if we try to delete a container that does not
 	// exist on the system. We're just a step ahead of ourselves in that case.
 	//
@@ -285,8 +287,6 @@ func (e *Environment) Destroy() error {
 	if err != nil && client.IsErrNotFound(err) {
 		return nil
 	}
-
-	e.SetState(environment.ProcessOfflineState)
 
 	return err
 }
@@ -313,17 +313,37 @@ func (e *Environment) followOutput() error {
 	if err != nil {
 		return err
 	}
-	go func(reader io.ReadCloser) {
-		defer reader.Close()
-		evts := e.Events()
-		err := system.ScanReader(reader, func(line string) {
-			evts.Publish(environment.ConsoleOutputEvent, line)
-		})
-		if err != nil && err != io.EOF {
-			log.WithField("error", err).WithField("container_id", e.Id).Warn("error processing scanner line in console output")
-		}
-	}(reader)
+
+	go e.scanOutput(reader)
+
 	return nil
+}
+
+func (e *Environment) scanOutput(reader io.ReadCloser) {
+	defer reader.Close()
+
+	events := e.Events()
+
+	err := system.ScanReader(reader, func(line string) {
+		events.Publish(environment.ConsoleOutputEvent, line)
+	})
+
+	if err != nil && err != io.EOF {
+		log.WithField("error", err).WithField("container_id", e.Id).Warn("error processing scanner line in console output")
+		return
+	}
+
+	// Return here if the server is offline or currently stopping.
+	if e.State() == environment.ProcessStoppingState || e.State() == environment.ProcessOfflineState {
+		return
+	}
+
+	// Close the current reader before starting a new one, the defer will still run
+	// but it will do nothing if we already closed the stream.
+	_ = reader.Close()
+
+	// Start following the output of the server again.
+	go e.followOutput()
 }
 
 // Pulls the image from Docker. If there is an error while pulling the image from the source
@@ -409,9 +429,11 @@ func (e *Environment) ensureImageExists(image string) error {
 	// I'm not sure what the best approach here is, but this will block execution until the image
 	// is done being pulled, which is what we need.
 	scanner := bufio.NewScanner(out)
+
 	for scanner.Scan() {
 		s := imagePullStatus{}
 		fmt.Println(scanner.Text())
+
 		if err := json.Unmarshal(scanner.Bytes(), &s); err == nil {
 			e.Events().Publish(environment.DockerImagePullStatus, s.Status+" "+s.Progress)
 		}

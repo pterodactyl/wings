@@ -64,9 +64,11 @@ func (s *Server) StartEventListeners() {
 			// to terminate again.
 			if s.Environment.State() != environment.ProcessStoppingState {
 				s.Environment.SetState(environment.ProcessStoppingState)
+
 				go func() {
 					s.Log().Warn("stopping server instance, violating throttle limits")
 					s.PublishConsoleOutputFromDaemon("Your server is being stopped for outputting too much data in a short period of time.")
+
 					// Completely skip over server power actions and terminate the running instance. This gives the
 					// server 15 seconds to finish stopping gracefully before it is forcefully terminated.
 					if err := s.Environment.WaitForStop(config.Get().Throttles.StopGracePeriod, true); err != nil {
