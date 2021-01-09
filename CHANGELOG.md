@@ -4,6 +4,9 @@
 ### Fixed
 * Reverts changes to logic handling blocking until a server process is done running when polling stats. This change exposed a bug in the underlying Docker system causing servers to enter a state in which Wings was unable to terminate the process and Docker commands would hang if executed against the container.
 
+### Changed
+* Adds logic to handle a console stream unexpectedly returning an EOF when reading console logs. New code should automatically re-attach the stream avoiding issues where the console would stop live updating for servers.
+
 ## v1.2.1
 ### Fixed
 * Fixes servers not be properly marked as no longer transfering if an error occurs during the archive process.
