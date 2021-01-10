@@ -1,4 +1,4 @@
-package panelapi
+package remote
 
 import (
 	"fmt"
