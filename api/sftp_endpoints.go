@@ -62,12 +62,6 @@ func (r *Request) ValidateSftpCredentials(request SftpAuthRequest) (*SftpAuthRes
 	e := resp.Error()
 	if e != nil {
 		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-			log.WithFields(log.Fields{
-				"subsystem": "sftp",
-				"username":  request.User,
-				"ip":        request.IP,
-			}).Warn(e.Error())
-
 			return nil, &sftpInvalidCredentialsError{}
 		}
 

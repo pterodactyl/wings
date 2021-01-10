@@ -136,7 +136,7 @@ func (s *Server) StartEventListeners() {
 		}
 	}
 
-	s.Log().Info("registering event listeners: console, state, resources...")
+	s.Log().Debug("registering event listeners: console, state, resources...")
 	s.Environment.Events().On(environment.ConsoleOutputEvent, &console)
 	s.Environment.Events().On(environment.StateChangeEvent, &state)
 	s.Environment.Events().On(environment.ResourceEvent, &stats)

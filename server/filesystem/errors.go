@@ -49,10 +49,8 @@ func (e *Error) Code() ErrorCode {
 
 // Checks if the given error is one of the Filesystem errors.
 func IsFilesystemError(err error) (*Error, bool) {
-	if e := errors.Unwrap(err); e != nil {
-		err = e
-	}
-	if fserr, ok := err.(*Error); ok {
+	var fserr *Error
+	if errors.As(err, &fserr) {
 		return fserr, true
 	}
 	return nil, false

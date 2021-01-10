@@ -2,11 +2,6 @@ package filesystem
 
 import (
 	"bufio"
-	"emperror.dev/errors"
-	"github.com/gabriel-vasile/mimetype"
-	"github.com/karrick/godirwalk"
-	"github.com/pterodactyl/wings/config"
-	"github.com/pterodactyl/wings/system"
 	"io"
 	"io/ioutil"
 	"os"
@@ -17,6 +12,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"emperror.dev/errors"
+	"github.com/gabriel-vasile/mimetype"
+	"github.com/karrick/godirwalk"
+	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/system"
 )
 
 type Filesystem struct {
@@ -71,6 +72,41 @@ func (fs *Filesystem) File(p string) (*os.File, os.FileInfo, error) {
 	return f, st, nil
 }
 
+// Acts by creating the given file and path on the disk if it is not present already. If
+// it is present, the file is opened using the defaults which will truncate the contents.
+// The opened file is then returned to the caller.
+func (fs *Filesystem) Touch(p string, flag int) (*os.File, error) {
+	cleaned, err := fs.SafePath(p)
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(cleaned, flag, 0644)
+	if err == nil {
+		return f, nil
+	}
+	// If the error is not because it doesn't exist then we just need to bail at this point.
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	// Create the path leading up to the file we're trying to create, setting the final perms
+	// on it as we go.
+	if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
+		return nil, err
+	}
+	if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
+		return nil, err
+	}
+	o := &fileOpener{}
+	// Try to open the file now that we have created the pathing necessary for it, and then
+	// Chown that file so that the permissions don't mess with things.
+	f, err = o.open(cleaned, flag, 0644)
+	if err != nil {
+		return nil, err
+	}
+	_ = fs.Chown(cleaned)
+	return f, nil
+}
+
 // Reads a file on the system and returns it as a byte representation in a file
 // reader. This is not the most memory efficient usage since it will be reading the
 // entirety of the file into memory.
@@ -112,22 +148,9 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 		return err
 	}
 
-	// If we were unable to stat the location because it did not exist, go ahead and create
-	// it now. We do this after checking the disk space so that we do not just create empty
-	// directories at random.
-	if err != nil {
-		if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
-			return err
-		}
-		if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
-			return err
-		}
-	}
-
-	o := &fileOpener{}
-	// This will either create the file if it does not already exist, or open and
-	// truncate the existing file.
-	file, err := o.open(cleaned, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	// Touch the file and return the handle to it at this point. This will create the file
+	// and any necessary directories as needed.
+	file, err := fs.Touch(cleaned, os.O_RDWR|os.O_CREATE|os.O_TRUNC)
 	if err != nil {
 		return err
 	}
@@ -150,7 +173,6 @@ func (fs *Filesystem) CreateDirectory(name string, p string) error {
 	if err != nil {
 		return err
 	}
-
 	return os.MkdirAll(cleaned, 0755)
 }
 
