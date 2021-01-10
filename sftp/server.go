@@ -178,7 +178,7 @@ func (c *SFTPServer) passwordCallback(conn ssh.ConnMetadata, pass []byte) (*ssh.
 		if api.IsInvalidCredentialsError(err) {
 			logger.Warn("failed to validate user credentials (invalid username or password)")
 		} else {
-			logger.Error("encountered an error while trying to validate user credentials")
+			logger.WithField("error", err).Error("encountered an error while trying to validate user credentials")
 		}
 		return nil, err
 	}
