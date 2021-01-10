@@ -11,7 +11,9 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/pkg/sftp"
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server/filesystem"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -28,6 +30,31 @@ type Handler struct {
 	fs          *filesystem.Filesystem
 	logger      *log.Entry
 	ro          bool
+}
+
+// Returns a new connection handler for the SFTP server. This allows a given user
+// to access the underlying filesystem.
+func NewHandler(sc *ssh.ServerConn, fs *filesystem.Filesystem) *Handler {
+	return &Handler{
+		fs:          fs,
+		ro:          config.Get().System.Sftp.ReadOnly,
+		permissions: strings.Split(sc.Permissions.Extensions["permissions"], ","),
+		logger: log.WithFields(log.Fields{
+			"subsystem": "sftp",
+			"username":  sc.User(),
+			"ip":        sc.RemoteAddr(),
+		}),
+	}
+}
+
+// Returns the sftp.Handlers for this struct.
+func (h *Handler) Handlers() sftp.Handlers {
+	return sftp.Handlers{
+		FileGet:  h,
+		FilePut:  h,
+		FileCmd:  h,
+		FileList: h,
+	}
 }
 
 // Fileread creates a reader for a file on the system and returns the reader back.
