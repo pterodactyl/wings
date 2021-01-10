@@ -272,8 +272,8 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	// Wait until all of the servers are ready to go before we fire up the SFTP and HTTP servers.
 	pool.StopWait()
 
-	// Initialize the SFTP server.
-	if err := sftp.Initialize(c.System); err != nil {
+	// Run the SFTP server.
+	if err := sftp.NewServer().Run(); err != nil {
 		log.WithError(err).Fatal("failed to initialize the sftp server")
 		return
 	}

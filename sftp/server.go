@@ -13,6 +13,7 @@ import (
 	"path"
 	"strings"
 
+	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/pkg/sftp"
 	"github.com/pterodactyl/wings/api"
@@ -21,59 +22,35 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type Settings struct {
+//goland:noinspection GoNameStartsWithPackageName
+type SFTPServer struct {
 	BasePath    string
 	ReadOnly    bool
 	BindPort    int
 	BindAddress string
 }
 
-type User struct {
-	Uid int
-	Gid int
+var noMatchingServerError = errors.Sentinel("sftp: no matching server with UUID")
+
+func NewServer() *SFTPServer {
+	cfg := config.Get().System
+	return &SFTPServer{
+		BasePath:    cfg.Data,
+		ReadOnly:    cfg.Sftp.ReadOnly,
+		BindAddress: cfg.Sftp.Address,
+		BindPort:    cfg.Sftp.Port,
+	}
 }
 
-//goland:noinspection GoNameStartsWithPackageName
-type SFTPServer struct {
-	Settings Settings
-	User     User
-	// Validator function that is called when a user connects to the server. This should
-	// check against whatever system is desired to confirm if the given username and password
-	// combination is valid. If so, should return an authentication response.
-	credentialValidator func(r api.SftpAuthRequest) (*api.SftpAuthResponse, error)
-}
-
-// Initialize the SFTP server and add a persistent listener to handle inbound SFTP connections.
-func (c *SFTPServer) Initialize() error {
+// Starts the SFTP server and add a persistent listener to handle inbound SFTP connections.
+func (c *SFTPServer) Run() error {
 	serverConfig := &ssh.ServerConfig{
-		NoClientAuth: false,
-		MaxAuthTries: 6,
-		PasswordCallback: func(conn ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
-			resp, err := c.credentialValidator(api.SftpAuthRequest{
-				User:          conn.User(),
-				Pass:          string(pass),
-				IP:            conn.RemoteAddr().String(),
-				SessionID:     conn.SessionID(),
-				ClientVersion: conn.ClientVersion(),
-			})
-
-			if err != nil {
-				return nil, err
-			}
-
-			sshPerm := &ssh.Permissions{
-				Extensions: map[string]string{
-					"uuid":        resp.Server,
-					"user":        conn.User(),
-					"permissions": strings.Join(resp.Permissions, ","),
-				},
-			}
-
-			return sshPerm, nil
-		},
+		NoClientAuth:     false,
+		MaxAuthTries:     6,
+		PasswordCallback: c.passwordCallback,
 	}
 
-	if _, err := os.Stat(path.Join(c.Settings.BasePath, ".sftp/id_rsa")); os.IsNotExist(err) {
+	if _, err := os.Stat(path.Join(c.BasePath, ".sftp/id_rsa")); os.IsNotExist(err) {
 		if err := c.generatePrivateKey(); err != nil {
 			return err
 		}
@@ -81,7 +58,7 @@ func (c *SFTPServer) Initialize() error {
 		return err
 	}
 
-	privateBytes, err := ioutil.ReadFile(path.Join(c.Settings.BasePath, ".sftp/id_rsa"))
+	privateBytes, err := ioutil.ReadFile(path.Join(c.BasePath, ".sftp/id_rsa"))
 	if err != nil {
 		return err
 	}
@@ -94,12 +71,12 @@ func (c *SFTPServer) Initialize() error {
 	// Add our private key to the server configuration.
 	serverConfig.AddHostKey(private)
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", c.Settings.BindAddress, c.Settings.BindPort))
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", c.BindAddress, c.BindPort))
 	if err != nil {
 		return err
 	}
 
-	log.WithField("host", c.Settings.BindAddress).WithField("port", c.Settings.BindPort).Info("sftp subsystem listening for connections")
+	log.WithField("host", c.BindAddress).WithField("port", c.BindPort).Info("sftp subsystem listening for connections")
 
 	for {
 		conn, _ := listener.Accept()
@@ -171,7 +148,7 @@ func (c SFTPServer) AcceptInboundConnection(conn net.Conn, config *ssh.ServerCon
 // Creates a new SFTP handler for a given server. The directory argument should
 // be the base directory for a server. All actions done on the server will be
 // relative to that directory, and the user will not be able to escape out of it.
-func (c SFTPServer) newHandler(sc *ssh.ServerConn) sftp.Handlers {
+func (c *SFTPServer) newHandler(sc *ssh.ServerConn) sftp.Handlers {
 	s := server.GetServers().Find(func(s *server.Server) bool {
 		return s.Id() == sc.Permissions.Extensions["uuid"]
 	})
@@ -196,17 +173,17 @@ func (c SFTPServer) newHandler(sc *ssh.ServerConn) sftp.Handlers {
 }
 
 // Generates a private key that will be used by the SFTP server.
-func (c SFTPServer) generatePrivateKey() error {
+func (c *SFTPServer) generatePrivateKey() error {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return err
 	}
 
-	if err := os.MkdirAll(path.Join(c.Settings.BasePath, ".sftp"), 0755); err != nil {
+	if err := os.MkdirAll(path.Join(c.BasePath, ".sftp"), 0755); err != nil {
 		return err
 	}
 
-	o, err := os.OpenFile(path.Join(c.Settings.BasePath, ".sftp/id_rsa"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	o, err := os.OpenFile(path.Join(c.BasePath, ".sftp/id_rsa"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -222,4 +199,39 @@ func (c SFTPServer) generatePrivateKey() error {
 	}
 
 	return nil
+}
+
+// A function capable of validating user credentials with the Panel API.
+func (c *SFTPServer) passwordCallback(conn ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
+	request := api.SftpAuthRequest{
+		User:          conn.User(),
+		Pass:          string(pass),
+		IP:            conn.RemoteAddr().String(),
+		SessionID:     conn.SessionID(),
+		ClientVersion: conn.ClientVersion(),
+	}
+
+	logger := log.WithFields(log.Fields{"subsystem": "sftp", "username": conn.User(), "ip": conn.RemoteAddr().String()})
+	logger.Debug("validating credentials for SFTP connection")
+
+	resp, err := api.New().ValidateSftpCredentials(request)
+	if err != nil {
+		if api.IsInvalidCredentialsError(err) {
+			logger.Warn("failed to validate user credentials (invalid username or password)")
+		} else {
+			logger.Error("encountered an error while trying to validate user credentials")
+		}
+		return nil, err
+	}
+
+	logger.WithField("server", resp.Server).Debug("credentials validated and matched to server instance")
+	sshPerm := &ssh.Permissions{
+		Extensions: map[string]string{
+			"uuid":        resp.Server,
+			"user":        conn.User(),
+			"permissions": strings.Join(resp.Permissions, ","),
+		},
+	}
+
+	return sshPerm, nil
 }
