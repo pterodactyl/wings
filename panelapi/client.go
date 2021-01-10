@@ -3,7 +3,7 @@ package panelapi
 import (
 	"context"
 	"net/http"
-	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pterodactyl/wings/api"
@@ -35,8 +35,9 @@ func CreateClient(base, tokenId, token string, opts ...ClientOption) Client {
 	httpClient := &http.Client{
 		Timeout: time.Second * 15,
 	}
+	base = strings.TrimSuffix(base, "/")
 	c := &client{
-		baseUrl:    filepath.Join(base, "api/remote"),
+		baseUrl:    base + "/api/remote",
 		tokenId:    tokenId,
 		token:      token,
 		httpClient: httpClient,

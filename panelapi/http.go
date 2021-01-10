@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"path/filepath"
 
 	"github.com/pterodactyl/wings/system"
 )
@@ -35,7 +34,7 @@ type q map[string]string
 // Prefer request() over this method when possible.
 // It appends the path to the endpoint of the client and adds the authentication token to the request.
 func (c *client) requestOnce(ctx context.Context, method, path string, body io.Reader, opts ...func(r *http.Request)) (*Response, error) {
-	req, err := http.NewRequest(method, filepath.Join(c.baseUrl, path), body)
+	req, err := http.NewRequest(method, c.baseUrl+path, body)
 	if err != nil {
 		return nil, err
 	}
