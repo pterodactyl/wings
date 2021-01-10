@@ -272,11 +272,13 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	// Wait until all of the servers are ready to go before we fire up the SFTP and HTTP servers.
 	pool.StopWait()
 
-	// Run the SFTP server.
-	if err := sftp.New().Run(); err != nil {
-		log.WithError(err).Fatal("failed to initialize the sftp server")
-		return
-	}
+	go func() {
+		// Run the SFTP server.
+		if err := sftp.New().Run(); err != nil {
+			log.WithError(err).Fatal("failed to initialize the sftp server")
+			return
+		}
+	}()
 
 	// Ensure the archive directory exists.
 	if err := os.MkdirAll(c.System.ArchiveDirectory, 0755); err != nil {
