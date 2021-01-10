@@ -18,7 +18,22 @@ import (
 	"time"
 )
 
-var client = &http.Client{Timeout: time.Hour * 12}
+var client = &http.Client{
+	Timeout: time.Hour * 12,
+	// Disallow any redirect on a HTTP call. This is a security requirement: do not modify
+	// this logic without first ensuring that the new target location IS NOT within the current
+	// instance's local network.
+	//
+	// This specific error response just causes the client to not follow the redirect and
+	// returns the actual redirect response to the caller. Not perfect, but simple and most
+	// people won't be using URLs that redirect anyways hopefully?
+	//
+	// We'll re-evaluate this down the road if needed.
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
+
 var instance = &Downloader{
 	// Tracks all of the active downloads.
 	downloadCache: make(map[string]*Download),

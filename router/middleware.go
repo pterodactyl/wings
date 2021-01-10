@@ -120,6 +120,21 @@ func (m *Middleware) ServerExists() gin.HandlerFunc {
 	}
 }
 
+// Checks if remote file downloading is enabled on this instance before allowing access
+// to the given endpoint.
+func (m *Middleware) CheckRemoteDownloadEnabled() gin.HandlerFunc {
+	disabled := config.Get().Api.DisableRemoteDownload
+	return func(c *gin.Context) {
+		if disabled {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "This functionality is not currently enabled on this instance.",
+			})
+			return
+		}
+		c.Next()
+	}
+}
+
 // Returns the server instance from the gin context. If there is no server set in the
 // context (e.g. calling from a controller not protected by ServerExists) this function
 // will panic.

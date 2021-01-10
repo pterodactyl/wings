@@ -88,9 +88,9 @@ func Configure() *gin.Engine {
 			files.POST("/decompress", postServerDecompressFiles)
 			files.POST("/chmod", postServerChmodFile)
 
-			files.GET("/pull", getServerPullingFiles)
-			files.POST("/pull", postServerPullRemoteFile)
-			files.DELETE("/pull/:download", deleteServerPullRemoteFile)
+			files.GET("/pull", m.CheckRemoteDownloadEnabled(), getServerPullingFiles)
+			files.POST("/pull", m.CheckRemoteDownloadEnabled(), postServerPullRemoteFile)
+			files.DELETE("/pull/:download", m.CheckRemoteDownloadEnabled(), deleteServerPullRemoteFile)
 		}
 
 		backup := server.Group("/backup")

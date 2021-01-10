@@ -88,10 +88,15 @@ type ApiConfiguration struct {
 
 	// SSL configuration for the daemon.
 	Ssl struct {
-		Enabled         bool   `default:"false"`
+		Enabled         bool   `json:"enabled" yaml:"enabled"`
 		CertificateFile string `json:"cert" yaml:"cert"`
 		KeyFile         string `json:"key" yaml:"key"`
 	}
+
+	// Determines if functionality for allowing remote download of files into server directories
+	// is enabled on this instance. If set to "true" remote downloads will not be possible for
+	// servers.
+	DisableRemoteDownload bool `json:"disable_remote_download" yaml:"disable_remote_download"`
 
 	// The maximum size for files uploaded through the Panel in bytes.
 	UploadLimit int `default:"100" json:"upload_limit" yaml:"upload_limit"`
