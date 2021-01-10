@@ -2,9 +2,10 @@ package environment
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/docker/go-connections/nat"
 	"github.com/pterodactyl/wings/config"
-	"strconv"
 )
 
 // Defines the allocations available for a given server. When using the Docker environment

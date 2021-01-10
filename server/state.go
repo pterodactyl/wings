@@ -2,12 +2,13 @@ package server
 
 import (
 	"encoding/json"
-	"github.com/pterodactyl/wings/config"
-	"github.com/pterodactyl/wings/environment"
 	"io"
 	"io/ioutil"
 	"os"
 	"sync"
+
+	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/environment"
 )
 
 var stateMutex sync.Mutex

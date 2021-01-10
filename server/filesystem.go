@@ -1,8 +1,9 @@
 package server
 
 import (
-	"github.com/pterodactyl/wings/server/filesystem"
 	"os"
+
+	"github.com/pterodactyl/wings/server/filesystem"
 )
 
 func (s *Server) Filesystem() *filesystem.Filesystem {

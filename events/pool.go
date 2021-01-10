@@ -1,8 +1,9 @@
 package events
 
 import (
-	"github.com/gammazero/workerpool"
 	"reflect"
+
+	"github.com/gammazero/workerpool"
 )
 
 type CallbackPool struct {

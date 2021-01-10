@@ -3,12 +3,13 @@ package router
 import (
 	"bufio"
 	"errors"
-	"github.com/gin-gonic/gin"
-	"github.com/pterodactyl/wings/router/tokens"
-	"github.com/pterodactyl/wings/server/backup"
 	"net/http"
 	"os"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/router/tokens"
+	"github.com/pterodactyl/wings/server/backup"
 )
 
 // Handle a download request for a server backup.

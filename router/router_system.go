@@ -2,14 +2,15 @@ package router
 
 import (
 	"bytes"
+	"net/http"
+	"strings"
+
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/system"
-	"net/http"
-	"strings"
 )
 
 // Returns information about the system that wings is running on.

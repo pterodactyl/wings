@@ -1,9 +1,10 @@
 package cmd
 
 import (
-	"github.com/pterodactyl/wings/config"
 	"os"
 	"path/filepath"
+
+	"github.com/pterodactyl/wings/config"
 )
 
 // We've gone through a couple of iterations of where the configuration is stored. This

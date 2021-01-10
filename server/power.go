@@ -2,12 +2,13 @@ package server
 
 import (
 	"context"
+	"os"
+	"time"
+
 	"emperror.dev/errors"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"golang.org/x/sync/semaphore"
-	"os"
-	"time"
 )
 
 type PowerAction string

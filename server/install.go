@@ -4,6 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"html/template"
+	"io"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
@@ -14,12 +21,6 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/system"
-	"html/template"
-	"io"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 )
 
 // Executes the installation stack for a server process. Bubbles any errors up to the calling

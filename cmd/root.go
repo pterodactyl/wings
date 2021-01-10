@@ -2,8 +2,15 @@ package cmd
 
 import (
 	"crypto/tls"
-	"emperror.dev/errors"
 	"fmt"
+	log2 "log"
+	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+
+	"emperror.dev/errors"
 	"github.com/NYTimes/logrotate"
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/multi"
@@ -21,12 +28,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
-	log2 "log"
-	"net/http"
-	"os"
-	"path"
-	"path/filepath"
-	"strings"
 )
 
 var (

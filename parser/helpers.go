@@ -2,16 +2,17 @@ package parser
 
 import (
 	"bytes"
-	"emperror.dev/errors"
-	"github.com/Jeffail/gabs/v2"
-	"github.com/apex/log"
-	"github.com/buger/jsonparser"
-	"github.com/iancoleman/strcase"
 	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"emperror.dev/errors"
+	"github.com/Jeffail/gabs/v2"
+	"github.com/apex/log"
+	"github.com/buger/jsonparser"
+	"github.com/iancoleman/strcase"
 )
 
 // Regex to match anything that has a value matching the format of {{ config.$1 }} which

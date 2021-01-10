@@ -2,10 +2,11 @@ package api
 
 import (
 	"encoding/json"
-	"github.com/apex/log"
-	"github.com/pterodactyl/wings/parser"
 	"regexp"
 	"strings"
+
+	"github.com/apex/log"
+	"github.com/pterodactyl/wings/parser"
 )
 
 type OutputLineMatcher struct {

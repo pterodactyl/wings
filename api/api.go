@@ -2,17 +2,18 @@ package api
 
 import (
 	"bytes"
-	"emperror.dev/errors"
 	"encoding/json"
 	"fmt"
-	"github.com/apex/log"
-	"github.com/pterodactyl/wings/config"
-	"github.com/pterodactyl/wings/system"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
+
+	"emperror.dev/errors"
+	"github.com/apex/log"
+	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/system"
 )
 
 // Initializes the requester instance.

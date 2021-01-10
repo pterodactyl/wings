@@ -1,8 +1,9 @@
 package environment
 
 import (
-	"github.com/pterodactyl/wings/events"
 	"os"
+
+	"github.com/pterodactyl/wings/events"
 )
 
 const (

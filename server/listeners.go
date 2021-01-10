@@ -2,14 +2,15 @@ package server
 
 import (
 	"encoding/json"
+	"regexp"
+	"strconv"
+	"sync"
+
 	"github.com/apex/log"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
-	"regexp"
-	"strconv"
-	"sync"
 )
 
 var dockerEvents = []string{

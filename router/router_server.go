@@ -3,15 +3,16 @@ package router
 import (
 	"bytes"
 	"context"
+	"net/http"
+	"os"
+	"strconv"
+
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/router/downloader"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
-	"net/http"
-	"os"
-	"strconv"
 )
 
 type serverProcData struct {

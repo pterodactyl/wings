@@ -2,9 +2,10 @@ package environment
 
 import (
 	"context"
-	"github.com/apex/log"
 	"strconv"
 	"sync"
+
+	"github.com/apex/log"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/network"

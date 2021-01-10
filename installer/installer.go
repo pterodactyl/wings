@@ -1,8 +1,9 @@
 package installer
 
 import (
-	"emperror.dev/errors"
 	"encoding/json"
+
+	"emperror.dev/errors"
 	"github.com/asaskevich/govalidator"
 	"github.com/buger/jsonparser"
 	"github.com/pterodactyl/wings/api"

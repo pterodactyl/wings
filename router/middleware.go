@@ -1,14 +1,15 @@
 package router
 
 import (
+	"io"
+	"net/http"
+	"strings"
+
 	"emperror.dev/errors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
-	"io"
-	"net/http"
-	"strings"
 )
 
 type Middleware struct{}
