@@ -497,7 +497,7 @@ func postServerChmodFile(c *gin.Context) {
 }
 
 func postServerUploadFiles(c *gin.Context) {
-	serverManager := ServerManagerFromContext(c)
+	serverManager := ExtractServerManager(c)
 
 	token := tokens.UploadPayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {

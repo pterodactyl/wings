@@ -14,7 +14,7 @@ import (
 
 // Handle a download request for a server backup.
 func getDownloadBackup(c *gin.Context) {
-	serverManager := ServerManagerFromContext(c)
+	serverManager := ExtractServerManager(c)
 
 	token := tokens.BackupPayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
@@ -59,7 +59,7 @@ func getDownloadBackup(c *gin.Context) {
 
 // Handles downloading a specific file for a server.
 func getDownloadFile(c *gin.Context) {
-	serverManager := ServerManagerFromContext(c)
+	serverManager := ExtractServerManager(c)
 
 	token := tokens.FilePayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {

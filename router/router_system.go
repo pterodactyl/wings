@@ -27,7 +27,7 @@ func getSystemInformation(c *gin.Context) {
 // Returns all of the servers that are registered and configured correctly on
 // this wings instance.
 func getAllServers(c *gin.Context) {
-	serverManager := ServerManagerFromContext(c)
+	serverManager := ExtractServerManager(c)
 	c.JSON(http.StatusOK, serverManager.GetAll())
 }
 
@@ -52,7 +52,7 @@ func postCreateServer(c *gin.Context) {
 
 	// Plop that server instance onto the request so that it can be referenced in
 	// requests from here-on out.
-	serverManager := ServerManagerFromContext(c)
+	serverManager := ExtractServerManager(c)
 	serverManager.Add(install.Server())
 
 	// Begin the installation process in the background to not block the request

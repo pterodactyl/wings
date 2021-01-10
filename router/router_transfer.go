@@ -323,7 +323,7 @@ func postTransfer(c *gin.Context) {
 			i.Server().Events().Publish(server.TransferLogsEvent, output)
 		}
 
-		serverManager := ServerManagerFromContext(c)
+		serverManager := ExtractServerManager(c)
 
 		// Mark the server as transferring to prevent problems later on during the process and
 		// then push the server into the global server collection for this instance.

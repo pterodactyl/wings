@@ -100,7 +100,7 @@ func (m *Middleware) WithServerManager() gin.HandlerFunc {
 	}
 }
 
-func ServerManagerFromContext(c *gin.Context) server.Manager {
+func ExtractServerManager(c *gin.Context) server.Manager {
 	if s, ok := c.Get("servermanager"); ok {
 		if srvs, ok := s.(server.Manager); ok {
 			return srvs

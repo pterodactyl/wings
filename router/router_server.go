@@ -191,7 +191,7 @@ func postServerReinstall(c *gin.Context) {
 // Deletes a server from the wings daemon and dissociate it's objects.
 func deleteServer(c *gin.Context) {
 	s := ExtractServer(c)
-	sm := ServerManagerFromContext(c)
+	sm := ExtractServerManager(c)
 
 	// Immediately suspend the server to prevent a user from attempting
 	// to start it while this process is running.
