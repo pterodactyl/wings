@@ -1,8 +1,9 @@
 package server
 
 import (
-	"github.com/gammazero/workerpool"
 	"runtime"
+
+	"github.com/gammazero/workerpool"
 )
 
 // Parent function that will update all of the defined configuration files for a server

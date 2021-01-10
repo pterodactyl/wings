@@ -1,12 +1,7 @@
 package config
 
 import (
-	"emperror.dev/errors"
 	"fmt"
-	"github.com/cobaugh/osrelease"
-	"github.com/creasty/defaults"
-	"github.com/gbrlsnchs/jwt/v3"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -14,6 +9,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"emperror.dev/errors"
+	"github.com/cobaugh/osrelease"
+	"github.com/creasty/defaults"
+	"github.com/gbrlsnchs/jwt/v3"
+	"gopkg.in/yaml.v2"
 )
 
 const DefaultLocation = "/etc/pterodactyl/config.yml"

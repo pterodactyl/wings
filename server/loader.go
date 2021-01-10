@@ -1,9 +1,14 @@
 package server
 
 import (
-	"emperror.dev/errors"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"time"
+
+	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gammazero/workerpool"
 	"github.com/pterodactyl/wings/api"
@@ -11,10 +16,6 @@ import (
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/environment/docker"
 	"github.com/pterodactyl/wings/server/filesystem"
-	"os"
-	"path/filepath"
-	"runtime"
-	"time"
 )
 
 var servers = NewCollection(nil)

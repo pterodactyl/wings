@@ -4,10 +4,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/pterodactyl/wings/config"
-	"github.com/spf13/cobra"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -15,6 +11,11 @@ import (
 	"path"
 	"regexp"
 	"time"
+
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/pterodactyl/wings/config"
+	"github.com/spf13/cobra"
 )
 
 var (

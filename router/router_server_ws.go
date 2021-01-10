@@ -3,10 +3,11 @@ package router
 import (
 	"context"
 	"encoding/json"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	ws "github.com/gorilla/websocket"
 	"github.com/pterodactyl/wings/router/websocket"
-	"time"
 )
 
 // Upgrades a connection to a websocket and passes events along between.

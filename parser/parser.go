@@ -2,8 +2,14 @@ package parser
 
 import (
 	"bufio"
-	"emperror.dev/errors"
 	"encoding/json"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/beevik/etree"
 	"github.com/buger/jsonparser"
@@ -12,11 +18,6 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 )
 
 // The file parsing options that are available for a server configuration file.

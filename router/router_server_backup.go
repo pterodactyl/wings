@@ -1,13 +1,14 @@
 package router
 
 import (
-	"emperror.dev/errors"
 	"fmt"
+	"net/http"
+	"os"
+
+	"emperror.dev/errors"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/backup"
-	"net/http"
-	"os"
 )
 
 // Backs up a server.

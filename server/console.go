@@ -2,14 +2,15 @@ package server
 
 import (
 	"context"
-	"emperror.dev/errors"
 	"fmt"
-	"github.com/mitchellh/colorstring"
-	"github.com/pterodactyl/wings/config"
-	"github.com/pterodactyl/wings/system"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"emperror.dev/errors"
+	"github.com/mitchellh/colorstring"
+	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/system"
 )
 
 var ErrTooMuchConsoleData = errors.New("console is outputting too much data")
@@ -114,7 +115,7 @@ func (ct *ConsoleThrottler) Increment(onTrigger func()) error {
 func (s *Server) Throttler() *ConsoleThrottler {
 	s.throttleOnce.Do(func() {
 		s.throttler = &ConsoleThrottler{
-			isThrottled: system.NewAtomicBool(false),
+			isThrottled:      system.NewAtomicBool(false),
 			ConsoleThrottles: config.Get().Throttles,
 		}
 	})

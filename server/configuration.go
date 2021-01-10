@@ -1,8 +1,9 @@
 package server
 
 import (
-	"github.com/pterodactyl/wings/environment"
 	"sync"
+
+	"github.com/pterodactyl/wings/environment"
 )
 
 type Configuration struct {

@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/base64"
 	"encoding/json"
+
 	"github.com/docker/docker/api/types"
 )
 

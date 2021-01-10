@@ -2,9 +2,7 @@ package config
 
 import (
 	"context"
-	"emperror.dev/errors"
 	"fmt"
-	"github.com/apex/log"
 	"html/template"
 	"io/ioutil"
 	"os"
@@ -13,6 +11,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"time"
+
+	"emperror.dev/errors"
+	"github.com/apex/log"
 )
 
 // Defines basic system configuration settings.

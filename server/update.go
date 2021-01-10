@@ -1,8 +1,9 @@
 package server
 
 import (
-	"emperror.dev/errors"
 	"encoding/json"
+
+	"emperror.dev/errors"
 	"github.com/buger/jsonparser"
 	"github.com/imdario/mergo"
 	"github.com/pterodactyl/wings/environment"

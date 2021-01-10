@@ -1,10 +1,11 @@
 package server
 
 import (
-	"github.com/pterodactyl/wings/environment"
-	"github.com/pterodactyl/wings/system"
 	"sync"
 	"sync/atomic"
+
+	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/system"
 )
 
 // Defines the current resource usage for a given server instance. If a server is offline you

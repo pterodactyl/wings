@@ -1,14 +1,15 @@
 package sftp
 
 import (
-	"github.com/apex/log"
-	"github.com/patrickmn/go-cache"
-	"github.com/pkg/sftp"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/apex/log"
+	"github.com/patrickmn/go-cache"
+	"github.com/pkg/sftp"
 )
 
 type FileSystem struct {

@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"sync"
+
 	"github.com/apex/log"
 	"github.com/pterodactyl/wings/config"
 	"golang.org/x/sync/errgroup"
-	"strconv"
-	"sync"
 )
 
 const (

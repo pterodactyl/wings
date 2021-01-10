@@ -1,12 +1,13 @@
 package server
 
 import (
+	"io/ioutil"
+	"os"
+
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/server/backup"
-	"io/ioutil"
-	"os"
 )
 
 // Notifies the panel of a backup's state and returns an error if one is encountered

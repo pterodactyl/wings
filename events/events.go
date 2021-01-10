@@ -2,9 +2,10 @@ package events
 
 import (
 	"encoding/json"
-	"github.com/gammazero/workerpool"
 	"strings"
 	"sync"
+
+	"github.com/gammazero/workerpool"
 )
 
 type Event struct {

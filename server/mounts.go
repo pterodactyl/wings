@@ -1,11 +1,12 @@
 package server
 
 import (
+	"path/filepath"
+	"strings"
+
 	"github.com/apex/log"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
-	"path/filepath"
-	"strings"
 )
 
 // To avoid confusion when working with mounts, assume that a server.Mount has not been properly

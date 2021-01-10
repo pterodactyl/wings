@@ -2,11 +2,12 @@ package server
 
 import (
 	"fmt"
-	"github.com/pterodactyl/wings/config"
-	"github.com/pterodactyl/wings/environment"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/environment"
 )
 
 type CrashHandler struct {

@@ -2,8 +2,11 @@ package server
 
 import (
 	"context"
-	"emperror.dev/errors"
 	"fmt"
+	"strings"
+	"sync"
+
+	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/creasty/defaults"
 	"github.com/pterodactyl/wings/api"
@@ -14,8 +17,6 @@ import (
 	"github.com/pterodactyl/wings/server/filesystem"
 	"github.com/pterodactyl/wings/system"
 	"golang.org/x/sync/semaphore"
-	"strings"
-	"sync"
 )
 
 // High level definition for a server instance being controlled by Wings.

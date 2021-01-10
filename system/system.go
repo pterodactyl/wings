@@ -1,8 +1,9 @@
 package system
 
 import (
-	"github.com/docker/docker/pkg/parsers/kernel"
 	"runtime"
+
+	"github.com/docker/docker/pkg/parsers/kernel"
 )
 
 type Information struct {

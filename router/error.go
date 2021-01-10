@@ -1,16 +1,17 @@
 package router
 
 import (
-	"emperror.dev/errors"
 	"fmt"
+	"net/http"
+	"os"
+	"strings"
+
+	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
-	"net/http"
-	"os"
-	"strings"
 )
 
 type RequestError struct {

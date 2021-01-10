@@ -2,8 +2,9 @@ package server
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 type WebsocketBag struct {
