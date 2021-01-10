@@ -12,12 +12,12 @@ import (
 	"os"
 	"path"
 	"strings"
-	"time"
 
 	"github.com/apex/log"
-	"github.com/patrickmn/go-cache"
 	"github.com/pkg/sftp"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/server"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -33,35 +33,23 @@ type User struct {
 	Gid int
 }
 
-type Server struct {
-	cache *cache.Cache
-
+//goland:noinspection GoNameStartsWithPackageName
+type SFTPServer struct {
 	Settings Settings
 	User     User
-
-	PathValidator      func(fs FileSystem, p string) (string, error)
-	DiskSpaceValidator func(fs FileSystem) bool
-
 	// Validator function that is called when a user connects to the server. This should
 	// check against whatever system is desired to confirm if the given username and password
 	// combination is valid. If so, should return an authentication response.
-	CredentialValidator func(r api.SftpAuthRequest) (*api.SftpAuthResponse, error)
-}
-
-// Create a new server configuration instance.
-func New(c *Server) error {
-	c.cache = cache.New(5*time.Minute, 10*time.Minute)
-
-	return nil
+	credentialValidator func(r api.SftpAuthRequest) (*api.SftpAuthResponse, error)
 }
 
 // Initialize the SFTP server and add a persistent listener to handle inbound SFTP connections.
-func (c *Server) Initialize() error {
+func (c *SFTPServer) Initialize() error {
 	serverConfig := &ssh.ServerConfig{
 		NoClientAuth: false,
 		MaxAuthTries: 6,
 		PasswordCallback: func(conn ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
-			resp, err := c.CredentialValidator(api.SftpAuthRequest{
+			resp, err := c.credentialValidator(api.SftpAuthRequest{
 				User:          conn.User(),
 				Pass:          string(pass),
 				IP:            conn.RemoteAddr().String(),
@@ -123,7 +111,7 @@ func (c *Server) Initialize() error {
 
 // Handles an inbound connection to the instance and determines if we should serve the request
 // or not.
-func (c Server) AcceptInboundConnection(conn net.Conn, config *ssh.ServerConfig) {
+func (c SFTPServer) AcceptInboundConnection(conn net.Conn, config *ssh.ServerConfig) {
 	defer conn.Close()
 
 	// Before beginning a handshake must be performed on the incoming net.Conn
@@ -165,19 +153,17 @@ func (c Server) AcceptInboundConnection(conn net.Conn, config *ssh.ServerConfig)
 			}
 		}(requests)
 
-		// Configure the user's home folder for the rest of the request cycle.
 		if sconn.Permissions.Extensions["uuid"] == "" {
 			continue
 		}
 
 		// Create a new handler for the currently logged in user's server.
-		fs := c.createHandler(sconn)
+		fs := c.newHandler(sconn)
 
 		// Create the server instance for the channel using the filesystem we created above.
-		server := sftp.NewRequestServer(channel, fs)
-
-		if err := server.Serve(); err == io.EOF {
-			server.Close()
+		handler := sftp.NewRequestServer(channel, fs)
+		if err := handler.Serve(); err == io.EOF {
+			handler.Close()
 		}
 	}
 }
@@ -185,15 +171,15 @@ func (c Server) AcceptInboundConnection(conn net.Conn, config *ssh.ServerConfig)
 // Creates a new SFTP handler for a given server. The directory argument should
 // be the base directory for a server. All actions done on the server will be
 // relative to that directory, and the user will not be able to escape out of it.
-func (c Server) createHandler(sc *ssh.ServerConn) sftp.Handlers {
-	p := FileSystem{
-		UUID:          sc.Permissions.Extensions["uuid"],
-		Permissions:   strings.Split(sc.Permissions.Extensions["permissions"], ","),
-		ReadOnly:      c.Settings.ReadOnly,
-		Cache:         c.cache,
-		User:          c.User,
-		HasDiskSpace:  c.DiskSpaceValidator,
-		PathValidator: c.PathValidator,
+func (c SFTPServer) newHandler(sc *ssh.ServerConn) sftp.Handlers {
+	s := server.GetServers().Find(func(s *server.Server) bool {
+		return s.Id() == sc.Permissions.Extensions["uuid"]
+	})
+
+	p := Handler{
+		fs:          s.Filesystem(),
+		permissions: strings.Split(sc.Permissions.Extensions["permissions"], ","),
+		ro:          config.Get().System.Sftp.ReadOnly,
 		logger: log.WithFields(log.Fields{
 			"subsystem": "sftp",
 			"username":  sc.User(),
@@ -202,15 +188,15 @@ func (c Server) createHandler(sc *ssh.ServerConn) sftp.Handlers {
 	}
 
 	return sftp.Handlers{
-		FileGet:  p,
-		FilePut:  p,
-		FileCmd:  p,
-		FileList: p,
+		FileGet:  &p,
+		FilePut:  &p,
+		FileCmd:  &p,
+		FileList: &p,
 	}
 }
 
 // Generates a private key that will be used by the SFTP server.
-func (c Server) generatePrivateKey() error {
+func (c SFTPServer) generatePrivateKey() error {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return err

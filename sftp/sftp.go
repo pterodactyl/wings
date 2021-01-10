@@ -11,7 +11,7 @@ import (
 var noMatchingServerError = errors.New("no matching server with that UUID was found")
 
 func Initialize(config config.SystemConfiguration) error {
-	s := &Server{
+	s := &SFTPServer{
 		User: User{
 			Uid: config.User.Uid,
 			Gid: config.User.Gid,
@@ -22,48 +22,18 @@ func Initialize(config config.SystemConfiguration) error {
 			BindAddress: config.Sftp.Address,
 			BindPort:    config.Sftp.Port,
 		},
-		CredentialValidator: validateCredentials,
-		PathValidator:       validatePath,
-		DiskSpaceValidator:  validateDiskSpace,
-	}
-
-	if err := New(s); err != nil {
-		return err
+		credentialValidator: validateCredentials,
 	}
 
 	// Initialize the SFTP server in a background thread since this is
 	// a long running operation.
-	go func(s *Server) {
+	go func(s *SFTPServer) {
 		if err := s.Initialize(); err != nil {
 			log.WithField("subsystem", "sftp").WithField("error", err).Error("failed to initialize SFTP subsystem")
 		}
 	}(s)
 
 	return nil
-}
-
-func validatePath(fs FileSystem, p string) (string, error) {
-	s := server.GetServers().Find(func(server *server.Server) bool {
-		return server.Id() == fs.UUID
-	})
-
-	if s == nil {
-		return "", noMatchingServerError
-	}
-
-	return s.Filesystem().SafePath(p)
-}
-
-func validateDiskSpace(fs FileSystem) bool {
-	s := server.GetServers().Find(func(server *server.Server) bool {
-		return server.Id() == fs.UUID
-	})
-
-	if s == nil {
-		return false
-	}
-
-	return s.Filesystem().HasSpaceAvailable(true)
 }
 
 // Validates a set of credentials for a SFTP login against Pterodactyl Panel and returns
