@@ -8,17 +8,18 @@ import (
 
 // Logs the request into the debug log with all of the important request bits.
 // The authorization key will be cleaned up before being output.
-//
-// TODO(schrej): Somehow only execute the logic when log level is debug.
 func debugLogRequest(req *http.Request) {
+	if l, ok := log.Log.(*log.Logger); ok && l.Level != log.DebugLevel {
+		return
+	}
 	headers := make(map[string][]string)
 	for k, v := range req.Header {
-		if k != "Authorization" || len(v) == 0 {
+		if k != "Authorization" || len(v) == 0 || len(v[0]) == 0 {
 			headers[k] = v
 			continue
 		}
 
-		headers[k] = []string{v[0][0:15] + "(redacted)"}
+		headers[k] = []string{"(redacted)"}
 	}
 
 	log.WithFields(log.Fields{
