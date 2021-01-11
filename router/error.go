@@ -77,7 +77,6 @@ func (e *RequestError) AbortWithStatus(status int, c *gin.Context) {
 	// If this error is because the resource does not exist, we likely do not need to log
 	// the error anywhere, just return a 404 and move on with our lives.
 	if errors.Is(e.err, os.ErrNotExist) {
-		e.logger().Debug("encountered os.IsNotExist error while handling request")
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"error": "The requested resource was not found on the system.",
 		})
@@ -122,16 +121,19 @@ func (e *RequestError) Abort(c *gin.Context) {
 // Looks at the given RequestError and determines if it is a specific filesystem error that
 // we can process and return differently for the user.
 func (e *RequestError) getAsFilesystemError() (int, string) {
-	if filesystem.IsErrorCode(e.err, filesystem.ErrCodePathResolution) || errors.Is(e.err, os.ErrNotExist) {
-		return http.StatusNotFound, "The requested resource was not found on the system."
-	}
-	if filesystem.IsErrorCode(e.err, filesystem.ErrCodeDiskSpace) {
-		return http.StatusConflict, "There is not enough disk space available to perform that action."
-	}
-	if filesystem.IsErrorCode(e.err, filesystem.ErrCodeDenylistFile) {
+	// Some external things end up calling fmt.Errorf() on our filesystem errors
+	// which ends up just unleashing chaos on the system. For the sake of this
+	// fallback to using text checks...
+	if filesystem.IsErrorCode(e.err, filesystem.ErrCodeDenylistFile) || strings.Contains(e.err.Error(), "filesystem: file access prohibited") {
 		return http.StatusForbidden, "This file cannot be modified: present in egg denylist."
 	}
-	if filesystem.IsErrorCode(e.err, filesystem.ErrCodeIsDirectory) {
+	if filesystem.IsErrorCode(e.err, filesystem.ErrCodePathResolution) || strings.Contains(e.err.Error(), "resolves to a location outside the server root") {
+		return http.StatusNotFound, "The requested resource was not found on the system."
+	}
+	if filesystem.IsErrorCode(e.err, filesystem.ErrCodeIsDirectory) || strings.Contains(e.err.Error(), "filesystem: is a directory") {
+		return http.StatusBadRequest, "Cannot perform that action: file is a directory."
+	}
+	if filesystem.IsErrorCode(e.err, filesystem.ErrCodeDiskSpace) || strings.Contains(e.err.Error(), "filesystem: not enough disk space") {
 		return http.StatusBadRequest, "Cannot perform that action: file is a directory."
 	}
 	if strings.HasSuffix(e.err.Error(), "file name too long") {

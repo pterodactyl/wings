@@ -92,8 +92,9 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		}
 
 		p := filepath.Join(dir, name)
+		// If it is ignored, just don't do anything with the file and skip over it.
 		if err := fs.IsIgnored(p); err != nil {
-			return err
+			return nil
 		}
 		return errors.WithMessage(fs.Writefile(p, f), "could not extract file from archive")
 	})

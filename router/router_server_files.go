@@ -410,13 +410,6 @@ func postServerDecompressFiles(c *gin.Context) {
 	}
 
 	if err := s.Filesystem().DecompressFile(data.RootPath, data.File); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-				"error": "The requested archive was not found.",
-			})
-			return
-		}
-
 		// If the file is busy for some reason just return a nicer error to the user since there is not
 		// much we specifically can do. They'll need to stop the running server process in order to overwrite
 		// a file like this.
@@ -429,7 +422,7 @@ func postServerDecompressFiles(c *gin.Context) {
 			return
 		}
 
-		NewServerError(err, s).AbortFilesystemError(c)
+		NewServerError(err, s).Abort(c)
 		return
 	}
 
@@ -548,14 +541,14 @@ func postServerUploadFiles(c *gin.Context) {
 	for _, header := range headers {
 		p, err := s.Filesystem().SafePath(filepath.Join(directory, header.Filename))
 		if err != nil {
-			NewServerError(err, s).AbortFilesystemError(c)
+			NewServerError(err, s).Abort(c)
 			return
 		}
 
 		// We run this in a different method so I can use defer without any of
 		// the consequences caused by calling it in a loop.
 		if err := handleFileUpload(p, s, header); err != nil {
-			NewServerError(err, s).AbortFilesystemError(c)
+			NewServerError(err, s).Abort(c)
 			return
 		}
 	}
