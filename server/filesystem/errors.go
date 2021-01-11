@@ -35,7 +35,11 @@ func (e *Error) Error() string {
 	case ErrCodeUnknownArchive:
 		return "filesystem: unknown archive format"
 	case ErrCodeDenylistFile:
-		return "filesystem: file access prohibited: denylist"
+		r := e.resolved
+		if r == "" {
+			r = "<empty>"
+		}
+		return fmt.Sprintf("filesystem: file access prohibited: [%s] is on the denylist", r)
 	case ErrCodePathResolution:
 		r := e.resolved
 		if r == "" {

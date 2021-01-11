@@ -122,20 +122,22 @@ func (e *RequestError) Abort(c *gin.Context) {
 // Looks at the given RequestError and determines if it is a specific filesystem error that
 // we can process and return differently for the user.
 func (e *RequestError) getAsFilesystemError() (int, string) {
-	err := errors.Unwrap(e.err)
-	if err == nil {
-		return 0, ""
-	}
-	if errors.Is(err, os.ErrNotExist) || filesystem.IsErrorCode(err, filesystem.ErrCodePathResolution) {
+	if filesystem.IsErrorCode(e.err, filesystem.ErrCodePathResolution) || errors.Is(e.err, os.ErrNotExist) {
 		return http.StatusNotFound, "The requested resource was not found on the system."
 	}
-	if filesystem.IsErrorCode(err, filesystem.ErrCodeDiskSpace) {
+	if filesystem.IsErrorCode(e.err, filesystem.ErrCodeDiskSpace) {
 		return http.StatusConflict, "There is not enough disk space available to perform that action."
 	}
-	if strings.HasSuffix(err.Error(), "file name too long") {
+	if filesystem.IsErrorCode(e.err, filesystem.ErrCodeDenylistFile) {
+		return http.StatusForbidden, "This file cannot be modified: present in egg denylist."
+	}
+	if filesystem.IsErrorCode(e.err, filesystem.ErrCodeIsDirectory) {
+		return http.StatusBadRequest, "Cannot perform that action: file is a directory."
+	}
+	if strings.HasSuffix(e.err.Error(), "file name too long") {
 		return http.StatusBadRequest, "Cannot perform that action: file name is too long."
 	}
-	if e, ok := err.(*os.SyscallError); ok && e.Syscall == "readdirent" {
+	if e, ok := e.err.(*os.SyscallError); ok && e.Syscall == "readdirent" {
 		return http.StatusNotFound, "The requested directory does not exist."
 	}
 	return 0, ""
