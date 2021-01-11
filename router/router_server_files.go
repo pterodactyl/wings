@@ -94,8 +94,7 @@ func putServerRenameFiles(c *gin.Context) {
 		return
 	}
 
-	g, ctx := errgroup.WithContext(context.Background())
-
+	g, ctx := errgroup.WithContext(c.Request.Context())
 	// Loop over the array of files passed in and perform the move or rename action against each.
 	for _, p := range data.Files {
 		pf := path.Join(data.Root, p.From)
@@ -106,16 +105,20 @@ func putServerRenameFiles(c *gin.Context) {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				if err := s.Filesystem().Rename(pf, pt); err != nil {
+				fs := s.Filesystem()
+				// Ignore renames on a file that is on the denylist (both as the rename from or
+				// the rename to value).
+				if err := fs.IsIgnored(pf, pt); err != nil {
+					return err
+				}
+				if err := fs.Rename(pf, pt); err != nil {
 					// Return nil if the error is an is not exists.
 					// NOTE: os.IsNotExist() does not work if the error is wrapped.
 					if errors.Is(err, os.ErrNotExist) {
 						return nil
 					}
-
 					return err
 				}
-
 				return nil
 			}
 		})
@@ -148,6 +151,10 @@ func postServerCopyFile(c *gin.Context) {
 		return
 	}
 
+	if err := s.Filesystem().IsIgnored(data.Location); err != nil {
+		NewServerError(err, s).Abort(c)
+		return
+	}
 	if err := s.Filesystem().Copy(data.Location); err != nil {
 		NewServerError(err, s).AbortFilesystemError(c)
 		return
@@ -208,6 +215,10 @@ func postServerWriteFile(c *gin.Context) {
 	f := c.Query("file")
 	f = "/" + strings.TrimLeft(f, "/")
 
+	if err := s.Filesystem().IsIgnored(f); err != nil {
+		NewServerError(err, s).Abort(c)
+		return
+	}
 	if err := s.Filesystem().Writefile(f, c.Request.Body); err != nil {
 		if filesystem.IsErrorCode(err, filesystem.ErrCodeIsDirectory) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
@@ -557,6 +568,9 @@ func handleFileUpload(p string, s *server.Server, header *multipart.FileHeader) 
 	}
 	defer file.Close()
 
+	if err := s.Filesystem().IsIgnored(p); err != nil {
+		return err
+	}
 	if err := s.Filesystem().Writefile(p, file); err != nil {
 		return err
 	}

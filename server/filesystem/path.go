@@ -2,12 +2,28 @@ package filesystem
 
 import (
 	"context"
-	"golang.org/x/sync/errgroup"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"golang.org/x/sync/errgroup"
 )
+
+// Checks if the given file or path is in the server's file denylist. If so, an Error
+// is returned, otherwise nil is returned.
+func (fs *Filesystem) IsIgnored(paths ...string) error {
+	for _, p := range paths {
+		sp, err := fs.SafePath(p)
+		if err != nil {
+			return err
+		}
+		if fs.denylist.MatchesPath(sp) {
+			return &Error{code: ErrCodeDenylistFile, path: p, resolved: sp}
+		}
+	}
+	return nil
+}
 
 // Normalizes a directory being passed in to ensure the user is not able to escape
 // from their data directory. After normalization if the directory is still within their home

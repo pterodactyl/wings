@@ -1,11 +1,12 @@
 package filesystem
 
 import (
-	"emperror.dev/errors"
 	"fmt"
-	"github.com/apex/log"
 	"os"
 	"path/filepath"
+
+	"emperror.dev/errors"
+	"github.com/apex/log"
 )
 
 type ErrorCode string
@@ -15,6 +16,7 @@ const (
 	ErrCodeDiskSpace      ErrorCode = "E_NODISK"
 	ErrCodeUnknownArchive ErrorCode = "E_UNKNFMT"
 	ErrCodePathResolution ErrorCode = "E_BADPATH"
+	ErrCodeDenylistFile   ErrorCode = "E_DENYLIST"
 )
 
 type Error struct {
@@ -32,6 +34,8 @@ func (e *Error) Error() string {
 		return "filesystem: not enough disk space"
 	case ErrCodeUnknownArchive:
 		return "filesystem: unknown archive format"
+	case ErrCodeDenylistFile:
+		return "filesystem: file access prohibited: denylist"
 	case ErrCodePathResolution:
 		r := e.resolved
 		if r == "" {

@@ -6,6 +6,16 @@ import (
 	"github.com/pterodactyl/wings/environment"
 )
 
+type EggConfiguration struct {
+	// The internal UUID of the Egg on the Panel.
+	ID string
+
+	// Maintains a list of files that are blacklisted for opening/editing/downloading
+	// or basically any type of access on the server by any user. This is NOT the same
+	// as a per-user denylist, this is defined at the Egg level.
+	FileDenylist []string `json:"file_denylist"`
+}
+
 type Configuration struct {
 	mu sync.RWMutex
 
@@ -34,6 +44,7 @@ type Configuration struct {
 	CrashDetectionEnabled bool                    `default:"true" json:"enabled" yaml:"enabled"`
 	Mounts                []Mount                 `json:"mounts"`
 	Resources             ResourceUsage           `json:"resources"`
+	Egg                   EggConfiguration        `json:"egg,omitempty"`
 
 	Container struct {
 		// Defines the Docker image that will be used for this server

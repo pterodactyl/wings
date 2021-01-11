@@ -18,6 +18,7 @@ import (
 	"github.com/karrick/godirwalk"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/system"
+	ignore "github.com/sabhiram/go-gitignore"
 )
 
 type Filesystem struct {
@@ -26,6 +27,7 @@ type Filesystem struct {
 	lookupInProgress  *system.AtomicBool
 	diskUsed          int64
 	diskCheckInterval time.Duration
+	denylist          *ignore.GitIgnore
 
 	// The maximum amount of disk space (in bytes) that this Filesystem instance can use.
 	diskLimit int64
@@ -37,13 +39,14 @@ type Filesystem struct {
 }
 
 // Creates a new Filesystem instance for a given server.
-func New(root string, size int64) *Filesystem {
+func New(root string, size int64, denylist []string) *Filesystem {
 	return &Filesystem{
 		root:              root,
 		diskLimit:         size,
 		diskCheckInterval: time.Duration(config.Get().System.DiskCheckInterval),
 		lastLookupTime:    &usageLookupTime{},
 		lookupInProgress:  system.NewAtomicBool(false),
+		denylist:          ignore.CompileIgnoreLines(denylist...),
 	}
 }
 
