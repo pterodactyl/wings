@@ -14,6 +14,7 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/spf13/viper"
 )
 
 // Defines basic system configuration settings.
@@ -116,11 +117,13 @@ type Transfers struct {
 	DownloadLimit int `default:"0" yaml:"download_limit"`
 }
 
-// Ensures that all of the system directories exist on the system. These directories are
-// created so that only the owner can read the data, and no other users.
-func (sc *SystemConfiguration) ConfigureDirectories() error {
-	log.WithField("path", sc.RootDirectory).Debug("ensuring root data directory exists")
-	if err := os.MkdirAll(sc.RootDirectory, 0700); err != nil {
+// ConfigureDirectories ensures that all of the system directories exist on the
+// system. These directories are created so that only the owner can read the data,
+// and no other users.
+func ConfigureDirectories() error {
+	root := viper.GetString("system.root_directory")
+	log.WithField("path", root).Debug("ensuring root data directory exists")
+	if err := os.MkdirAll(root, 0700); err != nil {
 		return err
 	}
 
@@ -132,40 +135,42 @@ func (sc *SystemConfiguration) ConfigureDirectories() error {
 	// For the sake of automating away as much of this as possible, see if the data directory is a
 	// symlink, and if so resolve to its final real path, and then update the configuration to use
 	// that.
-	if d, err := filepath.EvalSymlinks(sc.Data); err != nil {
+	data := viper.GetString("system.data")
+	if d, err := filepath.EvalSymlinks(data); err != nil {
 		if !os.IsNotExist(err) {
 			return err
 		}
-	} else if d != sc.Data {
-		sc.Data = d
+	} else if d != data {
+		data = d
+		viper.Set("system.data", d)
 	}
 
-	log.WithField("path", sc.Data).Debug("ensuring server data directory exists")
-	if err := os.MkdirAll(sc.Data, 0700); err != nil {
+	log.WithField("path", data).Debug("ensuring server data directory exists")
+	if err := os.MkdirAll(data, 0700); err != nil {
 		return err
 	}
 
-	log.WithField("path", sc.ArchiveDirectory).Debug("ensuring archive data directory exists")
-	if err := os.MkdirAll(sc.ArchiveDirectory, 0700); err != nil {
+	log.WithField("path", viper.GetString("system.archive_directory")).Debug("ensuring archive data directory exists")
+	if err := os.MkdirAll(viper.GetString("system.archive_directory"), 0700); err != nil {
 		return err
 	}
 
-	log.WithField("path", sc.BackupDirectory).Debug("ensuring backup data directory exists")
-	if err := os.MkdirAll(sc.BackupDirectory, 0700); err != nil {
+	log.WithField("path", viper.GetString("system.backup_directory")).Debug("ensuring backup data directory exists")
+	if err := os.MkdirAll(viper.GetString("system.backup_directory"), 0700); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// Writes a logrotate file for wings to the system logrotate configuration directory if one
-// exists and a logrotate file is not found. This allows us to basically automate away the log
-// rotation for most installs, but also enable users to make modifications on their own.
-func (sc *SystemConfiguration) EnableLogRotation() error {
+// EnableLogRotation writes a logrotate file for wings to the system logrotate
+// configuration directory if one exists and a logrotate file is not found. This
+// allows us to basically automate away the log rotation for most installs, but
+// also enable users to make modifications on their own.
+func EnableLogRotation() error {
 	// Do nothing if not enabled.
-	if sc.EnableLogRotate == false {
+	if !viper.GetBool("system.enable_log_rotate") {
 		log.Info("skipping log rotate configuration, disabled in wings config file")
-
 		return nil
 	}
 
@@ -174,14 +179,11 @@ func (sc *SystemConfiguration) EnableLogRotation() error {
 	} else if (err != nil && os.IsNotExist(err)) || !st.IsDir() {
 		return nil
 	}
-
-	if _, err := os.Stat("/etc/logrotate.d/wings"); err != nil && !os.IsNotExist(err) {
+	if _, err := os.Stat("/etc/logrotate.d/wings"); err == nil || !os.IsNotExist(err) {
 		return err
-	} else if err == nil {
-		return nil
 	}
 
-	log.Info("no log rotation configuration found, system is configured to support it, adding file now")
+	log.Info("no log rotation configuration found: adding file now")
 	// If we've gotten to this point it means the logrotate directory exists on the system
 	// but there is not a file for wings already. In that case, let us write a new file to
 	// it so files can be rotated easily.
@@ -191,8 +193,14 @@ func (sc *SystemConfiguration) EnableLogRotation() error {
 	}
 	defer f.Close()
 
+	type logrotateConfig struct {
+		Directory string
+		UserID    int
+		GroupID   int
+	}
+
 	t, err := template.New("logrotate").Parse(`
-{{.LogDirectory}}/wings.log {
+{{.Directory}}/wings.log {
     size 10M
     compress
     delaycompress
@@ -200,17 +208,21 @@ func (sc *SystemConfiguration) EnableLogRotation() error {
     maxage 7
     missingok
     notifempty
-    create 0640 {{.User.Uid}} {{.User.Gid}}
+    create 0640 {{.UserID}} {{.GroupID}}
     postrotate
         killall -SIGHUP wings
     endscript
 }`)
-
 	if err != nil {
 		return err
 	}
 
-	return errors.WithMessage(t.Execute(f, sc), "failed to write logrotate file to disk")
+	err = t.Execute(f, logrotateConfig{
+		Directory: viper.GetString("system.log_directory"),
+		UserID: viper.GetInt("system.user.uid"),
+		GroupID: viper.GetInt("system.user.gid"),
+	})
+	return errors.Wrap(err, "config: failed to write logrotate to disk")
 }
 
 // Returns the location of the JSON file that tracks server states.
@@ -223,25 +235,28 @@ func (sc *SystemConfiguration) GetInstallLogPath() string {
 	return path.Join(sc.LogDirectory, "install/")
 }
 
-// Configures the timezone data for the configuration if it is currently missing. If
-// a value has been set, this functionality will only run to validate that the timezone
-// being used is valid.
-func (sc *SystemConfiguration) ConfigureTimezone() error {
-	if sc.Timezone == "" {
-		if b, err := ioutil.ReadFile("/etc/timezone"); err != nil {
+// ConfigureTimezone sets the timezone data for the configuration if it is
+// currently missing. If a value has been set, this functionality will only run
+// to validate that the timezone being used is valid.
+func ConfigureTimezone() error {
+	tz := viper.GetString("system.timezone")
+	defer viper.Set("system.timezone", tz)
+	if tz == "" {
+		b, err := ioutil.ReadFile("/etc/timezone")
+		if err != nil {
 			if !os.IsNotExist(err) {
-				return errors.WithMessage(err, "failed to open /etc/timezone for automatic server timezone calibration")
+				return errors.WithMessage(err, "config: failed to open timezone file")
 			}
 
-			ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
+			tz = "UTC"
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
 			// Okay, file isn't found on this OS, we will try using timedatectl to handle this. If this
 			// command fails, exit, but if it returns a value use that. If no value is returned we will
 			// fall through to UTC to get Wings booted at least.
 			out, err := exec.CommandContext(ctx, "timedatectl").Output()
 			if err != nil {
 				log.WithField("error", err).Warn("failed to execute \"timedatectl\" to determine system timezone, falling back to UTC")
-
-				sc.Timezone = "UTC"
 				return nil
 			}
 
@@ -249,20 +264,16 @@ func (sc *SystemConfiguration) ConfigureTimezone() error {
 			matches := r.FindSubmatch(out)
 			if len(matches) != 2 || string(matches[1]) == "" {
 				log.Warn("failed to parse timezone from \"timedatectl\" output, falling back to UTC")
-
-				sc.Timezone = "UTC"
 				return nil
 			}
-
-			sc.Timezone = string(matches[1])
+			tz = string(matches[1])
 		} else {
-			sc.Timezone = string(b)
+			tz = string(b)
 		}
 	}
 
-	sc.Timezone = regexp.MustCompile(`(?i)[^a-z_/]+`).ReplaceAllString(sc.Timezone, "")
+	tz = regexp.MustCompile(`(?i)[^a-z_/]+`).ReplaceAllString(tz, "")
+	_, err := time.LoadLocation(tz)
 
-	_, err := time.LoadLocation(sc.Timezone)
-
-	return errors.WithMessage(err, fmt.Sprintf("the supplied timezone %s is invalid", sc.Timezone))
+	return errors.WithMessage(err, fmt.Sprintf("the supplied timezone %s is invalid", tz))
 }

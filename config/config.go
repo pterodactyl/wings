@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -14,6 +13,8 @@ import (
 	"github.com/cobaugh/osrelease"
 	"github.com/creasty/defaults"
 	"github.com/gbrlsnchs/jwt/v3"
+	"github.com/pterodactyl/wings/system"
+	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 )
 
@@ -223,98 +224,64 @@ func (c *Configuration) GetPath() string {
 	return c.path
 }
 
-// Ensures that the Pterodactyl core user exists on the system. This user will be the
-// owner of all data in the root data directory and is used as the user within containers.
+// EnsurePterodactylUser ensures that the Pterodactyl core user exists on the
+// system. This user will be the owner of all data in the root data directory
+// and is used as the user within containers.
 //
-// If files are not owned by this user there will be issues with permissions on Docker
-// mount points.
-func (c *Configuration) EnsurePterodactylUser() (*user.User, error) {
+// If files are not owned by this user there will be issues with permissions on
+// Docker mount points.
+func EnsurePterodactylUser() error {
 	sysName, err := getSystemName()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Our way of detecting if wings is running inside of Docker.
 	if sysName == "busybox" {
-		uid := os.Getenv("WINGS_UID")
-		if uid == "" {
-			uid = "988"
-		}
-
-		gid := os.Getenv("WINGS_GID")
-		if gid == "" {
-			gid = "988"
-		}
-
-		username := os.Getenv("WINGS_USERNAME")
-		if username == "" {
-			username = "pterodactyl"
-		}
-
-		u := &user.User{
-			Uid:      uid,
-			Gid:      gid,
-			Username: username,
-		}
-		return u, c.setSystemUser(u)
+		viper.Set("system.username", system.FirstNotEmpty(os.Getenv("WINGS_USERNAME"), "pterodactyl"))
+		viper.Set("system.user.uid", system.MustInt(system.FirstNotEmpty(os.Getenv("WINGS_UID"), "988")))
+		viper.Set("system.user.gid", system.MustInt(system.FirstNotEmpty(os.Getenv("WINGS_GID"), "988")))
+		return nil
 	}
 
-	u, err := user.Lookup(c.System.Username)
-
+	username := viper.GetString("system.username")
+	u, err := user.Lookup(username)
 	// If an error is returned but it isn't the unknown user error just abort
 	// the process entirely. If we did find a user, return it immediately.
-	if err == nil {
-		return u, c.setSystemUser(u)
-	} else if _, ok := err.(user.UnknownUserError); !ok {
-		return nil, err
+	if err != nil {
+		if _, ok := err.(user.UnknownUserError); !ok {
+			return err
+		}
+	} else {
+		viper.Set("system.user.uid", system.MustInt(u.Uid))
+		viper.Set("system.user.gid", system.MustInt(u.Gid))
+		return nil
 	}
 
-	command := fmt.Sprintf("useradd --system --no-create-home --shell /usr/sbin/nologin %s", c.System.Username)
-
-	// Alpine Linux is the only OS we currently support that doesn't work with the useradd command, so
-	// in those cases we just modify the command a bit to work as expected.
+	command := fmt.Sprintf("useradd --system --no-create-home --shell /usr/sbin/nologin %s", username)
+	// Alpine Linux is the only OS we currently support that doesn't work with the useradd
+	// command, so in those cases we just modify the command a bit to work as expected.
 	if strings.HasPrefix(sysName, "alpine") {
-		command = fmt.Sprintf("adduser -S -D -H -G %[1]s -s /sbin/nologin %[1]s", c.System.Username)
-
+		command = fmt.Sprintf("adduser -S -D -H -G %[1]s -s /sbin/nologin %[1]s", username)
 		// We have to create the group first on Alpine, so do that here before continuing on
 		// to the user creation process.
-		if _, err := exec.Command("addgroup", "-S", c.System.Username).Output(); err != nil {
-			return nil, err
+		if _, err := exec.Command("addgroup", "-S", username).Output(); err != nil {
+			return err
 		}
 	}
 
 	split := strings.Split(command, " ")
 	if _, err := exec.Command(split[0], split[1:]...).Output(); err != nil {
-		return nil, err
-	}
-
-	if u, err := user.Lookup(c.System.Username); err != nil {
-		return nil, err
-	} else {
-		return u, c.setSystemUser(u)
-	}
-}
-
-// Set the system user into the configuration and then write it to the disk so that
-// it is persisted on boot.
-func (c *Configuration) setSystemUser(u *user.User) error {
-	uid, err := strconv.Atoi(u.Uid)
-	if err != nil {
 		return err
 	}
 
-	gid, err := strconv.Atoi(u.Gid)
+	u, err = user.Lookup(username)
 	if err != nil {
 		return err
 	}
-
-	c.Lock()
-	c.System.Username = u.Username
-	c.System.User.Uid = uid
-	c.System.User.Gid = gid
-	c.Unlock()
-
-	return c.WriteToDisk()
+	viper.Set("system.user.uid", system.MustInt(u.Uid))
+	viper.Set("system.user.gid", system.MustInt(u.Gid))
+	return nil
 }
 
 // Writes the configuration to the disk as a blocking operation by obtaining an exclusive

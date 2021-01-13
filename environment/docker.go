@@ -6,112 +6,95 @@ import (
 	"sync"
 
 	"github.com/apex/log"
-
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
-	"github.com/pterodactyl/wings/config"
+	"github.com/spf13/viper"
 )
 
-var _cmu sync.Mutex
+var _conce sync.Once
 var _client *client.Client
 
-// Return a Docker client to be used throughout the codebase. Once a client has been created it
-// will be returned for all subsequent calls to this function.
+// DockerClient returns a Docker client to be used throughout the codebase. Once
+// a client has been created it will be returned for all subsequent calls to this
+// function.
 func DockerClient() (*client.Client, error) {
-	_cmu.Lock()
-	defer _cmu.Unlock()
-
-	if _client != nil {
-		return _client, nil
-	}
-
-	_client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-
+	var err error
+	_conce.Do(func() {
+		_client, err = client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	})
 	return _client, err
 }
 
-// Configures the required network for the docker environment.
-func ConfigureDocker(c *config.DockerConfiguration) error {
+// ConfigureDocker configures the required network for the docker environment.
+func ConfigureDocker(ctx context.Context) error {
 	// Ensure the required docker network exists on the system.
 	cli, err := DockerClient()
 	if err != nil {
 		return err
 	}
 
-	resource, err := cli.NetworkInspect(context.Background(), c.Network.Name, types.NetworkInspectOptions{})
-	if err != nil && client.IsErrNotFound(err) {
-		log.Info("creating missing pterodactyl0 interface, this could take a few seconds...")
-		return createDockerNetwork(cli, c)
-	} else if err != nil {
-		log.WithField("error", err).Fatal("failed to create required docker network for containers")
+	nw := viper.Sub("docker.network")
+	resource, err := cli.NetworkInspect(ctx, nw.GetString("name"), types.NetworkInspectOptions{})
+	if err != nil {
+		if client.IsErrNotFound(err) {
+			log.Info("creating missing pterodactyl0 interface, this could take a few seconds...")
+			if err := createDockerNetwork(ctx, cli); err != nil {
+				return err
+			}
+		}
+		return err
+	} else {
+		nw.Set("driver", resource.Driver)
 	}
 
-	switch resource.Driver {
+	switch nw.GetString("driver") {
 	case "host":
-		c.Network.Interface = "127.0.0.1"
-		c.Network.ISPN = false
-		return nil
+		nw.Set("interface", "127.0.0.1")
+		nw.Set("ispn", false)
 	case "overlay":
+		fallthrough
 	case "weavemesh":
-		c.Network.Interface = ""
-		c.Network.ISPN = true
-		return nil
+		nw.Set("interface", "")
+		nw.Set("ispn", true)
 	default:
-		c.Network.ISPN = false
+		nw.Set("ispn", false)
 	}
-
 	return nil
 }
 
 // Creates a new network on the machine if one does not exist already.
-func createDockerNetwork(cli *client.Client, c *config.DockerConfiguration) error {
-	_, err := cli.NetworkCreate(context.Background(), c.Network.Name, types.NetworkCreate{
-		Driver:     c.Network.Driver,
+func createDockerNetwork(ctx context.Context, cli *client.Client) error {
+	nw := viper.Sub("docker.network")
+	_, err := cli.NetworkCreate(ctx, nw.GetString("name"), types.NetworkCreate{
+		Driver:     nw.GetString("driver"),
 		EnableIPv6: true,
-		Internal:   c.Network.IsInternal,
+		Internal:   nw.GetBool("is_internal"),
 		IPAM: &network.IPAM{
 			Config: []network.IPAMConfig{
 				{
-					Subnet:  c.Network.Interfaces.V4.Subnet,
-					Gateway: c.Network.Interfaces.V4.Gateway,
+					Subnet:  nw.GetString("interfaces.v4.subnet"),
+					Gateway: nw.GetString("interfaces.v4.gateway"),
 				},
 				{
-					Subnet:  c.Network.Interfaces.V6.Subnet,
-					Gateway: c.Network.Interfaces.V6.Gateway,
+					Subnet:  nw.GetString("interfaces.v6.subnet"),
+					Gateway: nw.GetString("interfaces.v6.gateway"),
 				},
 			},
 		},
 		Options: map[string]string{
 			"encryption": "false",
 			"com.docker.network.bridge.default_bridge":       "false",
-			"com.docker.network.bridge.enable_icc":           strconv.FormatBool(c.Network.EnableICC),
+			"com.docker.network.bridge.enable_icc":           strconv.FormatBool(nw.GetBool("enable_icc")),
 			"com.docker.network.bridge.enable_ip_masquerade": "true",
 			"com.docker.network.bridge.host_binding_ipv4":    "0.0.0.0",
 			"com.docker.network.bridge.name":                 "pterodactyl0",
 			"com.docker.network.driver.mtu":                  "1500",
 		},
 	})
-
-	if err != nil {
-		return err
+	driver := nw.GetString("driver")
+	if driver != "host" && driver != "overlay" && driver != "weavemesh" {
+		nw.Set("interface", nw.GetString("interfaces.v4.gateway"))
 	}
-
-	switch c.Network.Driver {
-	case "host":
-		c.Network.Interface = "127.0.0.1"
-		c.Network.ISPN = false
-		break
-	case "overlay":
-	case "weavemesh":
-		c.Network.Interface = ""
-		c.Network.ISPN = true
-		break
-	default:
-		c.Network.Interface = c.Network.Interfaces.V4.Gateway
-		c.Network.ISPN = false
-		break
-	}
-
-	return nil
+	return err
 }

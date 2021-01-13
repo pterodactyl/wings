@@ -22,6 +22,7 @@
 
 # ignore configuration file
 /config.yml
+/config*.yml
 
 # Ignore Vagrant stuff
 /.vagrant

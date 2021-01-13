@@ -26,12 +26,13 @@ import (
 	"github.com/pterodactyl/wings/sftp"
 	"github.com/pterodactyl/wings/system"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
 
 var (
-	configPath = config.DefaultLocation
+	configPath = ""
 	debug      = false
 )
 
@@ -64,7 +65,9 @@ func Execute() {
 }
 
 func init() {
-	rootCommand.PersistentFlags().StringVar(&configPath, "config", config.DefaultLocation, "set the location for the configuration file")
+	cobra.OnInitialize(initConfig, initLogging)
+
+	rootCommand.PersistentFlags().StringVar(&configPath, "config", "", "set the location for the configuration file")
 	rootCommand.PersistentFlags().BoolVar(&debug, "debug", false, "pass in order to run wings in debug mode")
 
 	// Flags specifically used when running the API.
@@ -119,17 +122,6 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		defer profile.Start(profile.BlockProfile).Stop()
 	}
 
-	// Only attempt configuration file relocation if a custom location has not
-	// been specified in the command startup.
-	if configPath == config.DefaultLocation {
-		if err := RelocateConfiguration(); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				exitWithConfigurationNotice()
-			}
-			panic(err)
-		}
-	}
-
 	c, err := readConfiguration()
 	if err != nil {
 		panic(err)
@@ -140,14 +132,8 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	}
 
 	printLogo()
-	if err := configureLogging(c.System.LogDirectory, c.Debug); err != nil {
-		panic(err)
-	}
-
-	log.WithField("path", c.GetPath()).Info("loading configuration from path")
-	if c.Debug {
-		log.Debug("running in debug mode")
-	}
+	log.WithField("path", viper.ConfigFileUsed()).Info("loading configuration from file")
+	log.Debug("running in debug mode")
 
 	if ok, _ := cmd.Flags().GetBool("ignore-certificate-errors"); ok {
 		log.Warn("running with --ignore-certificate-errors: TLS certificate host chains and name will not be verified")
@@ -158,47 +144,42 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 
 	config.Set(c)
 	config.SetDebugViaFlag(debug)
-
-	if err := c.System.ConfigureTimezone(); err != nil {
+	if err := config.ConfigureTimezone(); err != nil {
 		log.WithField("error", err).Fatal("failed to detect system timezone or use supplied configuration value")
-		return
 	}
-
 	log.WithField("timezone", c.System.Timezone).Info("configured wings with system timezone")
 
-	if err := c.System.ConfigureDirectories(); err != nil {
+	if err := config.ConfigureDirectories(); err != nil {
 		log.WithField("error", err).Fatal("failed to configure system directories for pterodactyl")
 		return
 	}
 
-	if err := c.System.EnableLogRotation(); err != nil {
+	if err := config.EnableLogRotation(); err != nil {
 		log.WithField("error", err).Fatal("failed to configure log rotation on the system")
 		return
 	}
 
 	log.WithField("username", c.System.Username).Info("checking for pterodactyl system user")
-	if su, err := c.EnsurePterodactylUser(); err != nil {
+	if err := config.EnsurePterodactylUser(); err != nil {
 		log.WithField("error", err).Fatal("failed to create pterodactyl system user")
-		return
-	} else {
-		log.WithFields(log.Fields{
-			"username": su.Username,
-			"uid":      su.Uid,
-			"gid":      su.Gid,
-		}).Info("configured system user successfully")
 	}
+	log.WithFields(log.Fields{
+		"username": viper.GetString("system.username"),
+		"uid":      viper.GetInt("system.user.uid"),
+		"gid":      viper.GetInt("system.user.gid"),
+	}).Info("configured system user successfully")
 
 	if err := server.LoadDirectory(); err != nil {
 		log.WithField("error", err).Fatal("failed to load server configurations")
 		return
 	}
 
-	if err := environment.ConfigureDocker(&c.Docker); err != nil {
+	if err := environment.ConfigureDocker(cmd.Context()); err != nil {
 		log.WithField("error", err).Fatal("failed to configure docker environment")
 		return
 	}
 
-	if err := c.WriteToDisk(); err != nil {
+	if err := viper.WriteConfig(); err != nil {
 		log.WithField("error", err).Error("failed to save configuration to disk")
 	}
 
@@ -379,28 +360,44 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	}
 }
 
+func initConfig() {
+	if configPath != "" {
+		viper.SetConfigName("config")
+		viper.SetConfigType("yaml")
+		viper.AddConfigPath("/etc/pterodactyl")
+		viper.AddConfigPath("$HOME/.pterodactyl")
+		viper.AddConfigPath(".")
+	} else {
+		viper.SetConfigFile(configPath)
+	}
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(*viper.ConfigFileNotFoundError); ok {
+			exitWithConfigurationNotice()
+		}
+		log2.Fatalf("cmd/root: failed to read configuration: %s", err)
+	}
+}
+
 // Configures the global logger for Zap so that we can call it from any location
 // in the code without having to pass around a logger instance.
-func configureLogging(logDir string, debug bool) error {
-	if err := os.MkdirAll(path.Join(logDir, "/install"), 0700); err != nil {
-		return err
+func initLogging() {
+	dir := viper.GetString("system.log_directory")
+	if err := os.MkdirAll(path.Join(dir, "/install"), 0700); err != nil {
+		log2.Fatalf("cmd/root: failed to create install directory path: %s", err)
 	}
-
-	p := filepath.Join(logDir, "/wings.log")
+	p := filepath.Join(dir, "/wings.log")
 	w, err := logrotate.NewFile(p)
 	if err != nil {
-		return err
+		log2.Fatalf("cmd/root: failed to create wings log: %s", err)
 	}
 
 	log.SetLevel(log.InfoLevel)
-	if debug {
+	if viper.GetBool("debug") {
 		log.SetLevel(log.DebugLevel)
 	}
 
 	log.SetHandler(multi.New(cli.Default, cli.New(w.File, false)))
 	log.WithField("path", p).Info("writing log files to disk")
-
-	return nil
 }
 
 // Prints the wings logo, nothing special here!
@@ -429,11 +426,8 @@ func exitWithConfigurationNotice() {
 [_red_][white][bold]Error: Configuration File Not Found[reset]
 
 Wings was not able to locate your configuration file, and therefore is not
-able to complete its boot process.
-
-Please ensure you have copied your instance configuration file into
-the default location, or have provided the --config flag to use a
-custom location.
+able to complete its boot process. Please ensure you have copied your instance
+configuration file into the default location below.
 
 Default Location: /etc/pterodactyl/config.yml
 
