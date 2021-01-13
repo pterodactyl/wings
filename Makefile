@@ -4,7 +4,7 @@ build:
 
 debug:
 	go build -race
-	./wings --debug --ignore-certificate-errors --config config.yml
+	sudo ./wings --debug --ignore-certificate-errors --config config.yml
 
 compress:
 	upx --brute build/wings_*
