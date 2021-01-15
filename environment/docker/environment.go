@@ -55,7 +55,7 @@ type Environment struct {
 // reference the container from here on out. This should be unique per-server (we use the UUID
 // by default). The container does not need to exist at this point.
 func New(id string, m *Metadata, c *environment.Configuration) (*Environment, error) {
-	cli, err := environment.DockerClient()
+	cli, err := environment.Docker()
 	if err != nil {
 		return nil, err
 	}

@@ -188,7 +188,7 @@ func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
 }
 
 func getDockerInfo() (types.Version, types.Info, error) {
-	cli, err := environment.DockerClient()
+	cli, err := environment.Docker()
 	if err != nil {
 		return types.Version{}, types.Info{}, err
 	}

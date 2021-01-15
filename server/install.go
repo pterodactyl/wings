@@ -127,7 +127,7 @@ func NewInstallationProcess(s *Server, script *api.InstallationScript) (*Install
 		Server: s,
 	}
 
-	if c, err := environment.DockerClient(); err != nil {
+	if c, err := environment.Docker(); err != nil {
 		return nil, err
 	} else {
 		proc.client = c

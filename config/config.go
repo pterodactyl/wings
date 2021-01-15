@@ -340,8 +340,8 @@ func Get() *Configuration {
 // the global configuration.
 func Update(callback func(c *Configuration)) {
 	mu.Lock()
-	defer mu.Unlock()
 	callback(_config)
+	mu.Unlock()
 }
 
 // GetJwtAlgorithm returns the in-memory JWT algorithm.
