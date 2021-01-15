@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"emperror.dev/errors"
@@ -26,13 +27,12 @@ import (
 	"github.com/pterodactyl/wings/sftp"
 	"github.com/pterodactyl/wings/system"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
 
 var (
-	configPath = ""
+	configPath = config.DefaultLocation
 	debug      = false
 )
 
@@ -40,6 +40,8 @@ var rootCommand = &cobra.Command{
 	Use:   "wings",
 	Short: "Runs the API server allowing programatic control of game servers for Pterodactyl Panel.",
 	PreRun: func(cmd *cobra.Command, args []string) {
+		initConfig()
+		initLogging()
 		if tls, _ := cmd.Flags().GetBool("auto-tls"); tls {
 			if host, _ := cmd.Flags().GetString("tls-hostname"); host == "" {
 				fmt.Println("A TLS hostname must be provided when running wings with automatic TLS, e.g.:\n\n    ./wings --auto-tls --tls-hostname my.example.com")
@@ -65,9 +67,7 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig, initLogging)
-
-	rootCommand.PersistentFlags().StringVar(&configPath, "config", "", "set the location for the configuration file")
+	rootCommand.PersistentFlags().StringVar(&configPath, "config", config.DefaultLocation, "set the location for the configuration file")
 	rootCommand.PersistentFlags().BoolVar(&debug, "debug", false, "pass in order to run wings in debug mode")
 
 	// Flags specifically used when running the API.
@@ -79,27 +79,6 @@ func init() {
 	rootCommand.AddCommand(versionCommand)
 	rootCommand.AddCommand(configureCmd)
 	rootCommand.AddCommand(diagnosticsCmd)
-}
-
-// Get the configuration path based on the arguments provided.
-func readConfiguration() (*config.Configuration, error) {
-	p := configPath
-	if !strings.HasPrefix(p, "/") {
-		d, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-
-		p = path.Clean(path.Join(d, configPath))
-	}
-
-	if s, err := os.Stat(p); err != nil {
-		return nil, err
-	} else if s.IsDir() {
-		return nil, errors.New("cannot use directory as configuration file path")
-	}
-
-	return config.ReadConfiguration(p)
 }
 
 func rootCmdRun(cmd *cobra.Command, _ []string) {
@@ -122,18 +101,9 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		defer profile.Start(profile.BlockProfile).Stop()
 	}
 
-	c, err := readConfiguration()
-	if err != nil {
-		panic(err)
-	}
-
-	if debug {
-		c.Debug = true
-	}
-
 	printLogo()
-	log.WithField("path", viper.ConfigFileUsed()).Info("loading configuration from file")
 	log.Debug("running in debug mode")
+	log.WithField("config_file", configPath).Info("loading configuration from file")
 
 	if ok, _ := cmd.Flags().GetBool("ignore-certificate-errors"); ok {
 		log.Warn("running with --ignore-certificate-errors: TLS certificate host chains and name will not be verified")
@@ -142,45 +112,39 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		}
 	}
 
-	config.Set(c)
-	config.SetDebugViaFlag(debug)
 	if err := config.ConfigureTimezone(); err != nil {
 		log.WithField("error", err).Fatal("failed to detect system timezone or use supplied configuration value")
 	}
-	log.WithField("timezone", c.System.Timezone).Info("configured wings with system timezone")
-
+	log.WithField("timezone", config.Get().System.Timezone).Info("configured wings with system timezone")
 	if err := config.ConfigureDirectories(); err != nil {
 		log.WithField("error", err).Fatal("failed to configure system directories for pterodactyl")
 		return
 	}
-
 	if err := config.EnableLogRotation(); err != nil {
 		log.WithField("error", err).Fatal("failed to configure log rotation on the system")
 		return
 	}
 
-	log.WithField("username", c.System.Username).Info("checking for pterodactyl system user")
+	log.WithField("username", config.Get().System.User).Info("checking for pterodactyl system user")
 	if err := config.EnsurePterodactylUser(); err != nil {
 		log.WithField("error", err).Fatal("failed to create pterodactyl system user")
 	}
 	log.WithFields(log.Fields{
-		"username": viper.GetString("system.username"),
-		"uid":      viper.GetInt("system.user.uid"),
-		"gid":      viper.GetInt("system.user.gid"),
+		"username": config.Get().System.Username,
+		"uid":      config.Get().System.User.Uid,
+		"gid":      config.Get().System.User.Gid,
 	}).Info("configured system user successfully")
 
 	if err := server.LoadDirectory(); err != nil {
 		log.WithField("error", err).Fatal("failed to load server configurations")
-		return
 	}
 
 	if err := environment.ConfigureDocker(cmd.Context()); err != nil {
 		log.WithField("error", err).Fatal("failed to configure docker environment")
-		return
 	}
 
-	if err := viper.WriteConfig(); err != nil {
-		log.WithField("error", err).Error("failed to save configuration to disk")
+	if err := config.WriteToDisk(config.Get()); err != nil {
+		log.WithField("error", err).Fatal("failed to write configuration to disk")
 	}
 
 	// Just for some nice log output.
@@ -197,7 +161,6 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	// on Wings. This allows us to ensure the environment exists, write configurations,
 	// and reboot processes without causing a slow-down due to sequential booting.
 	pool := workerpool.New(4)
-
 	for _, serv := range server.GetServers().All() {
 		s := serv
 
@@ -252,6 +215,13 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 
 	// Wait until all of the servers are ready to go before we fire up the SFTP and HTTP servers.
 	pool.StopWait()
+	defer func() {
+		// Cancel the context on all of the running servers at this point, even though the
+		// program is just shutting down.
+		for _, s := range server.GetServers().All() {
+			s.CtxCancel()
+		}
+	}()
 
 	go func() {
 		// Run the SFTP server.
@@ -261,13 +231,14 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		}
 	}()
 
+	sys := config.Get().System
 	// Ensure the archive directory exists.
-	if err := os.MkdirAll(c.System.ArchiveDirectory, 0755); err != nil {
+	if err := os.MkdirAll(sys.ArchiveDirectory, 0755); err != nil {
 		log.WithField("error", err).Error("failed to create archive directory")
 	}
 
 	// Ensure the backup directory exists.
-	if err := os.MkdirAll(c.System.BackupDirectory, 0755); err != nil {
+	if err := os.MkdirAll(sys.BackupDirectory, 0755); err != nil {
 		log.WithField("error", err).Error("failed to create backup directory")
 	}
 
@@ -277,47 +248,31 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		autotls = false
 	}
 
+	api := config.Get().Api
 	log.WithFields(log.Fields{
-		"use_ssl":      c.Api.Ssl.Enabled,
+		"use_ssl":      api.Ssl.Enabled,
 		"use_auto_tls": autotls,
-		"host_address": c.Api.Host,
-		"host_port":    c.Api.Port,
+		"host_address": api.Host,
+		"host_port":    api.Port,
 	}).Info("configuring internal webserver")
 
-	// Configure the router.
-	r := router.Configure()
-
+	// Create a new HTTP server instance to handle inbound requests from the Panel
+	// and external clients.
 	s := &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", c.Api.Host, c.Api.Port),
-		Handler: r,
-		TLSConfig: &tls.Config{
-			NextProtos: []string{"h2", "http/1.1"},
-			// @see https://blog.cloudflare.com/exposing-go-on-the-internet
-			CipherSuites: []uint16{
-				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-				tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-				tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-			},
-			PreferServerCipherSuites: true,
-			MinVersion:               tls.VersionTLS12,
-			MaxVersion:               tls.VersionTLS13,
-			CurvePreferences:         []tls.CurveID{tls.X25519, tls.CurveP256},
-		},
+		Addr:      api.Host + ":" + strconv.Itoa(api.Port),
+		Handler:   router.Configure(),
+		TLSConfig: config.DefaultTLSConfig,
 	}
 
 	// Check if the server should run with TLS but using autocert.
 	if autotls {
 		m := autocert.Manager{
 			Prompt:     autocert.AcceptTOS,
-			Cache:      autocert.DirCache(path.Join(c.System.RootDirectory, "/.tls-cache")),
+			Cache:      autocert.DirCache(path.Join(sys.RootDirectory, "/.tls-cache")),
 			HostPolicy: autocert.HostWhitelist(tlshostname),
 		}
 
-		log.WithField("hostname", tlshostname).
-			Info("webserver is now listening with auto-TLS enabled; certificates will be automatically generated by Let's Encrypt")
+		log.WithField("hostname", tlshostname).Info("webserver is now listening with auto-TLS enabled; certificates will be automatically generated by Let's Encrypt")
 
 		// Hook autocert into the main http server.
 		s.TLSConfig.GetCertificate = m.GetCertificate
@@ -329,59 +284,53 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 				log.WithError(err).Error("failed to serve autocert http server")
 			}
 		}()
-
 		// Start the main http server with TLS using autocert.
 		if err := s.ListenAndServeTLS("", ""); err != nil {
-			log.WithFields(log.Fields{"auto_tls": true, "tls_hostname": tlshostname, "error": err}).
-				Fatal("failed to configure HTTP server using auto-tls")
+			log.WithFields(log.Fields{"auto_tls": true, "tls_hostname": tlshostname, "error": err}).Fatal("failed to configure HTTP server using auto-tls")
 		}
-
 		return
 	}
 
-	// Check if main http server should run with TLS.
-	if c.Api.Ssl.Enabled {
-		if err := s.ListenAndServeTLS(strings.ToLower(c.Api.Ssl.CertificateFile), strings.ToLower(c.Api.Ssl.KeyFile)); err != nil {
+	// Check if main http server should run with TLS. Otherwise reset the TLS
+	// config on the server and then serve it over normal HTTP.
+	if api.Ssl.Enabled {
+		if err := s.ListenAndServeTLS(strings.ToLower(api.Ssl.CertificateFile), strings.ToLower(api.Ssl.KeyFile)); err != nil {
 			log.WithFields(log.Fields{"auto_tls": false, "error": err}).Fatal("failed to configure HTTPS server")
 		}
 		return
 	}
-
-	// Run the main http server without TLS.
 	s.TLSConfig = nil
 	if err := s.ListenAndServe(); err != nil {
 		log.WithField("error", err).Fatal("failed to configure HTTP server")
 	}
-
-	// Cancel the context on all of the running servers at this point, even though the
-	// program is just shutting down.
-	for _, s := range server.GetServers().All() {
-		s.CtxCancel()
-	}
 }
 
+// Reads the configuration from the disk and then sets up the global singleton
+// with all of the configuration values.
 func initConfig() {
-	if configPath != "" {
-		viper.SetConfigName("config")
-		viper.SetConfigType("yaml")
-		viper.AddConfigPath("/etc/pterodactyl")
-		viper.AddConfigPath("$HOME/.pterodactyl")
-		viper.AddConfigPath(".")
-	} else {
-		viper.SetConfigFile(configPath)
+	if !strings.HasPrefix(configPath, "/") {
+		d, err := os.Getwd()
+		if err != nil {
+			log2.Fatalf("cmd/root: could not determine directory: %s", err)
+		}
+		configPath = path.Clean(path.Join(d, configPath))
 	}
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(*viper.ConfigFileNotFoundError); ok {
+	err := config.FromFile(configPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
 			exitWithConfigurationNotice()
 		}
-		log2.Fatalf("cmd/root: failed to read configuration: %s", err)
+		log2.Fatalf("cmd/root: error while reading configuration file: %s", err)
+	}
+	if debug && !config.Get().Debug {
+		config.SetDebugViaFlag(debug)
 	}
 }
 
 // Configures the global logger for Zap so that we can call it from any location
 // in the code without having to pass around a logger instance.
 func initLogging() {
-	dir := viper.GetString("system.log_directory")
+	dir := config.Get().System.LogDirectory
 	if err := os.MkdirAll(path.Join(dir, "/install"), 0700); err != nil {
 		log2.Fatalf("cmd/root: failed to create install directory path: %s", err)
 	}
@@ -390,12 +339,10 @@ func initLogging() {
 	if err != nil {
 		log2.Fatalf("cmd/root: failed to create wings log: %s", err)
 	}
-
 	log.SetLevel(log.InfoLevel)
-	if viper.GetBool("debug") {
+	if config.Get().Debug {
 		log.SetLevel(log.DebugLevel)
 	}
-
 	log.SetHandler(multi.New(cli.Default, cli.New(w.File, false)))
 	log.WithField("path", p).Info("writing log files to disk")
 }

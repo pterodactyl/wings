@@ -102,7 +102,7 @@ func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
 	}
 
 	printHeader(output, "Wings Configuration")
-	cfg, err := config.ReadConfiguration(config.DefaultLocation)
+	cfg, err := config.FromFile(config.DefaultLocation)
 	if cfg != nil {
 		fmt.Fprintln(output, "    Panel Location:", redact(cfg.PanelLocation))
 		fmt.Fprintln(output, "")

@@ -147,7 +147,7 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 
 	b, err := ioutil.ReadAll(res.Body)
 
-	cfg, err := config.NewFromPath(configPath)
+	cfg, err := config.NewAtPath(configPath)
 	if err != nil {
 		panic(err)
 	}
@@ -156,7 +156,7 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	if err = cfg.WriteToDisk(); err != nil {
+	if err = config.WriteToDisk(cfg); err != nil {
 		panic(err)
 	}
 

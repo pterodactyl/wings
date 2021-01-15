@@ -326,7 +326,7 @@ func (ip *InstallationProcess) BeforeExecute() error {
 
 // Returns the log path for the installation process.
 func (ip *InstallationProcess) GetLogPath() string {
-	return filepath.Join(config.Get().System.GetInstallLogPath(), ip.Server.Id()+".log")
+	return filepath.Join(config.Get().System.LogDirectory, "/install", ip.Server.Id()+".log")
 }
 
 // Cleans up after the execution of the installation process. This grabs the logs from the
