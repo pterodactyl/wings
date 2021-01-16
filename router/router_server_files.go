@@ -15,6 +15,7 @@ import (
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/router/downloader"
+	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
@@ -375,30 +376,29 @@ func postServerCompressFiles(c *gin.Context) {
 	})
 }
 
+// postServerDecompressFiles receives the HTTP request and starts the process
+// of unpacking an archive that exists on the server into the provided RootPath
+// for the server.
 func postServerDecompressFiles(c *gin.Context) {
-	s := GetServer(c.Param("server"))
-
+	s := ExtractServer(c)
 	var data struct {
 		RootPath string `json:"root"`
 		File     string `json:"file"`
 	}
-
 	if err := c.BindJSON(&data); err != nil {
 		return
 	}
 
+	lg := s.Log().WithFields(log.Fields{"root_path": data.RootPath, "file": data.File})
+	lg.Debug("checking if space is available for decompression")
 	hasSpace, err := s.Filesystem().SpaceAvailableForDecompression(data.RootPath, data.File)
 	if err != nil {
-		// Handle an unknown format error.
 		if filesystem.IsErrorCode(err, filesystem.ErrCodeUnknownArchive) {
-			s.Log().WithField("error", err).Warn("failed to decompress file due to unknown format")
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-				"error": "unknown archive format",
-			})
+			s.Log().WithField("path", data.RootPath).WithField("file", data.File).WithField("error", err).Warn("failed to decompress file due to unknown format")
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "The archive provided is in a format Wings does not understand."})
 			return
 		}
-
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 

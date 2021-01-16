@@ -1,7 +1,6 @@
 package router
 
 import (
-	"io"
 	"net/http"
 	"strings"
 
@@ -14,59 +13,10 @@ import (
 
 type Middleware struct{}
 
-// A custom handler function allowing for errors bubbled up by c.Error() to be returned in a
-// standardized format with tracking UUIDs on them for easier log searching.
-func (m *Middleware) ErrorHandler() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Next()
-		err := c.Errors.Last()
-		if err == nil || err.Err == nil {
-			return
-		}
-		tracked := NewTrackedError(err.Err)
-		// If there is a server in the context for this request pull it out so that we can
-		// track the error specifically for that server.
-		if s, ok := c.Get("server"); ok {
-			tracked = NewServerError(err.Err, s.(*server.Server))
-		}
-		// This error occurs if you submit invalid JSON data to an endpoint.
-		if err.Err.Error() == io.EOF.Error() {
-			c.JSON(c.Writer.Status(), gin.H{"error": "A JSON formatted body is required for this endpoint."})
-			return
-		}
-		tracked.Abort(c)
-		return
-	}
-}
-
-// Set the access request control headers on all of the requests.
-func (m *Middleware) SetAccessControlHeaders() gin.HandlerFunc {
-	origins := config.Get().AllowedOrigins
-	location := config.Get().PanelLocation
-	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Accept, Accept-Encoding, Authorization, Cache-Control, Content-Type, Content-Length, Origin, X-Real-IP, X-CSRF-Token")
-
-		o := c.GetHeader("Origin")
-		if o != location {
-			for _, origin := range origins {
-				if origin != "*" && o != origin {
-					continue
-				}
-				c.Header("Access-Control-Allow-Origin", origin)
-				c.Next()
-				return
-			}
-		}
-		c.Header("Access-Control-Allow-Origin", location)
-		c.Next()
-	}
-}
-
-// Authenticates the request token against the given permission string, ensuring that
-// if it is a server permission, the token has control over that server. If it is a global
-// token, this will ensure that the request is using a properly signed global token.
+// RequireAuthorization authenticates the request token against the given
+// permission string, ensuring that if it is a server permission, the token has
+// control over that server. If it is a global token, this will ensure that the
+// request is using a properly signed global token.
 func (m *Middleware) RequireAuthorization() gin.HandlerFunc {
 	token := config.Get().AuthenticationToken
 	return func(c *gin.Context) {
