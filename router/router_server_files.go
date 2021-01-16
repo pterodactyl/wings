@@ -380,7 +380,8 @@ func postServerCompressFiles(c *gin.Context) {
 // of unpacking an archive that exists on the server into the provided RootPath
 // for the server.
 func postServerDecompressFiles(c *gin.Context) {
-	s := ExtractServer(c)
+	s := middleware.ExtractServer(c)
+	lg := middleware.ExtractLogger(c)
 	var data struct {
 		RootPath string `json:"root"`
 		File     string `json:"file"`
@@ -389,12 +390,12 @@ func postServerDecompressFiles(c *gin.Context) {
 		return
 	}
 
-	lg := s.Log().WithFields(log.Fields{"root_path": data.RootPath, "file": data.File})
-	lg.Debug("checking if space is available for decompression")
-	hasSpace, err := s.Filesystem().SpaceAvailableForDecompression(data.RootPath, data.File)
+	lg = lg.WithFields(log.Fields{"root_path": data.RootPath, "file": data.File})
+	lg.Debug("checking if space is available for file decompression")
+	err := s.Filesystem().SpaceAvailableForDecompression(data.RootPath, data.File)
 	if err != nil {
 		if filesystem.IsErrorCode(err, filesystem.ErrCodeUnknownArchive) {
-			s.Log().WithField("path", data.RootPath).WithField("file", data.File).WithField("error", err).Warn("failed to decompress file due to unknown format")
+			lg.WithField("error", err).Warn("failed to decompress file: unknown archive format")
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "The archive provided is in a format Wings does not understand."})
 			return
 		}
@@ -402,30 +403,21 @@ func postServerDecompressFiles(c *gin.Context) {
 		return
 	}
 
-	if !hasSpace {
-		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
-			"error": "This server does not have enough available disk space to decompress this archive.",
-		})
-		return
-	}
-
+	lg.Info("starting file decompression")
 	if err := s.Filesystem().DecompressFile(data.RootPath, data.File); err != nil {
 		// If the file is busy for some reason just return a nicer error to the user since there is not
 		// much we specifically can do. They'll need to stop the running server process in order to overwrite
 		// a file like this.
 		if strings.Contains(err.Error(), "text file busy") {
-			s.Log().WithField("error", err).Warn("failed to decompress file due to busy text file")
-
+			lg.WithField("error", err).Warn("failed to decompress file: text file busy")
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 				"error": "One or more files this archive is attempting to overwrite are currently in use by another process. Please try again.",
 			})
 			return
 		}
-
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
-
 	c.Status(http.StatusNoContent)
 }
 

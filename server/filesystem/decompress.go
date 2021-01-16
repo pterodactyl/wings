@@ -4,28 +4,29 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
-	"emperror.dev/errors"
 	"fmt"
-	"github.com/mholt/archiver/v3"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"sync/atomic"
+
+	"emperror.dev/errors"
+	"github.com/mholt/archiver/v3"
 )
 
-// Look through a given archive and determine if decompressing it would put the server over
-// its allocated disk space limit.
-func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (bool, error) {
+// SpaceAvailableForDecompression looks through a given archive and determines
+// if decompressing it would put the server over its allocated disk space limit.
+func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) error {
 	// Don't waste time trying to determine this if we know the server will have the space for
 	// it since there is no limit.
 	if fs.MaxDisk() <= 0 {
-		return true, nil
+		return nil
 	}
 
 	source, err := fs.SafePath(filepath.Join(dir, file))
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	// Get the cached size in a parallel process so that if it is not cached we are not
@@ -38,32 +39,28 @@ func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) (b
 		if atomic.AddInt64(&size, f.Size())+dirSize > fs.MaxDisk() {
 			return &Error{code: ErrCodeDiskSpace}
 		}
-
 		return nil
 	})
-
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "format ") {
-			return false, &Error{code: ErrCodeUnknownArchive}
+			return &Error{code: ErrCodeUnknownArchive}
 		}
-
-		return false, err
+		return err
 	}
-
-	return true, err
+	return err
 }
 
-// Decompress a file in a given directory by using the archiver tool to infer the file
-// type and go from there. This will walk over all of the files within the given archive
-// and ensure that there is not a zip-slip attack being attempted by validating that the
-// final path is within the server data directory.
+// DecompressFile will decompress a file in a given directory by using the
+// archiver tool to infer the file type and go from there. This will walk over
+// all of the files within the given archive and ensure that there is not a
+// zip-slip attack being attempted by validating that the final path is within
+// the server data directory.
 func (fs *Filesystem) DecompressFile(dir string, file string) error {
 	source, err := fs.SafePath(filepath.Join(dir, file))
 	if err != nil {
 		return err
 	}
-
-	// Make sure the file exists basically.
+	// Ensure that the source archive actually exists on the system.
 	if _, err := os.Stat(source); err != nil {
 		return err
 	}
@@ -79,7 +76,6 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		}
 
 		var name string
-
 		switch s := f.Sys().(type) {
 		case *tar.Header:
 			name = s.Name
@@ -88,7 +84,11 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		case *zip.FileHeader:
 			name = s.Name
 		default:
-			return errors.New(fmt.Sprintf("could not parse underlying data source with type %s", reflect.TypeOf(s).String()))
+			return &Error{
+				code:     ErrCodeUnknownError,
+				resolved: filepath.Join(dir, f.Name()),
+				err:      errors.New(fmt.Sprintf("could not parse underlying data source with type: %s", reflect.TypeOf(s).String())),
+			}
 		}
 
 		p := filepath.Join(dir, name)
@@ -96,15 +96,16 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		if err := fs.IsIgnored(p); err != nil {
 			return nil
 		}
-		return errors.WithMessage(fs.Writefile(p, f), "could not extract file from archive")
+		if err := fs.Writefile(p, f); err != nil {
+			return &Error{code: ErrCodeUnknownError, err: err, resolved: source}
+		}
+		return nil
 	})
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "format ") {
 			return &Error{code: ErrCodeUnknownArchive}
 		}
-
 		return err
 	}
-
 	return nil
 }

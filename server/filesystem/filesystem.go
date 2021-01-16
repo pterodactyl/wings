@@ -123,7 +123,8 @@ func (fs *Filesystem) Readfile(p string, w io.Writer) error {
 	return err
 }
 
-// Writes a file to the system. If the file does not already exist one will be created.
+// Writefile writes a file to the system. If the file does not already exist one
+// will be created.
 func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
@@ -138,7 +139,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 		return err
 	} else if err == nil {
 		if stat.IsDir() {
-			return &Error{code: ErrCodeIsDirectory}
+			return &Error{code: ErrCodeIsDirectory, resolved: cleaned}
 		}
 		currentSize = stat.Size()
 	}
