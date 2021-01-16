@@ -152,8 +152,9 @@ func (re *RequestError) asFilesystemError() (int, string) {
 func AttachRequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := uuid.New().String()
-		c.Header("X-Request-Id", id)
+		c.Set("request_id", id)
 		c.Set("logger", log.WithField("request_id", id))
+		c.Header("X-Request-Id", id)
 		c.Next()
 	}
 }

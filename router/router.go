@@ -18,11 +18,13 @@ func Configure() *gin.Engine {
 	// lifecycle and quickly seeing what was called leading to the logs. However, it isn't feasible to mix
 	// this output in production and still get meaningful logs from it since they'll likely just be a huge
 	// spamfest.
+	router.Use()
 	router.Use(gin.LoggerWithFormatter(func(params gin.LogFormatterParams) string {
 		log.WithFields(log.Fields{
-			"client_ip": params.ClientIP,
-			"status":    params.StatusCode,
-			"latency":   params.Latency,
+			"client_ip":  params.ClientIP,
+			"status":     params.StatusCode,
+			"latency":    params.Latency,
+			"request_id": params.Keys["request_id"],
 		}).Debugf("%s %s", params.MethodColor()+params.Method+params.ResetColor(), params.Path)
 
 		return ""
