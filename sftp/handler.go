@@ -268,7 +268,7 @@ func (h *Handler) Filelist(request *sftp.Request) (sftp.ListerAt, error) {
 			h.logger.WithField("source", request.Filepath).WithField("error", err).Error("error performing stat on file")
 			return nil, sftp.ErrSSHFxFailure
 		}
-		return ListerAt([]os.FileInfo{st.Info}), nil
+		return ListerAt([]os.FileInfo{st.FileInfo}), nil
 	default:
 		return nil, sftp.ErrSSHFxOpUnsupported
 	}

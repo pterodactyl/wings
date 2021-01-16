@@ -1,6 +1,7 @@
 package router
 
 import (
+	"bufio"
 	"context"
 	"mime/multipart"
 	"net/http"
@@ -22,41 +23,32 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Returns the contents of a file on the server.
+// getServerFileContents returns the contents of a file on the server.
 func getServerFileContents(c *gin.Context) {
-	s := ExtractServer(c)
-	f := c.Query("file")
-	p := "/" + strings.TrimLeft(f, "/")
-	st, err := s.Filesystem().Stat(p)
+	s := middleware.ExtractServer(c)
+	p := "/" + strings.TrimLeft(c.Query("file"), "/")
+	f, st, err := s.Filesystem().File(p)
 	if err != nil {
-		WithError(c, err)
-		return
+		middleware.CaptureAndAbort(c, err)
 	}
+	defer f.Close()
 
 	c.Header("X-Mime-Type", st.Mimetype)
-	c.Header("Content-Length", strconv.Itoa(int(st.Info.Size())))
-
+	c.Header("Content-Length", strconv.Itoa(int(st.Size())))
 	// If a download parameter is included in the URL go ahead and attach the necessary headers
 	// so that the file can be downloaded.
 	if c.Query("download") != "" {
-		c.Header("Content-Disposition", "attachment; filename="+st.Info.Name())
+		c.Header("Content-Disposition", "attachment; filename="+st.Name())
 		c.Header("Content-Type", "application/octet-stream")
 	}
-
-	// TODO(dane): should probably come up with a different approach here. If an error is encountered
-	//  by this Readfile call you'll end up causing a (recovered) panic in the program because so many
-	//  headers have already been set. We should probably add a RawReadfile that just returns the file
-	//  to be read and then we can stream from that safely without error.
-	//
-	// Until that becomes a problem though I'm just going to leave this how it is. The panic is recovered
-	// and a normal 500 error is returned to the client to my knowledge. It is also very unlikely to
-	// happen since we're doing so much before this point that would normally throw an error if there
-	// was a problem with the file.
-	if err := s.Filesystem().Readfile(p, c.Writer); err != nil {
-		WithError(c, err)
-		return
+	defer c.Writer.Flush()
+	_, err = bufio.NewReader(f).WriteTo(c.Writer)
+	if err != nil {
+		// Pretty sure this will unleash chaos on the response, but its a risk we can
+		// take since a panic will at least be recovered and this should be incredibly
+		// rare?
+		middleware.CaptureAndAbort(c, err)
 	}
-	c.Writer.Flush()
 }
 
 // Returns the contents of a directory for a server.
@@ -371,7 +363,7 @@ func postServerCompressFiles(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, &filesystem.Stat{
-		Info:     f,
+		FileInfo: f,
 		Mimetype: "application/tar+gzip",
 	})
 }

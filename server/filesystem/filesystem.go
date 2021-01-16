@@ -38,7 +38,7 @@ type Filesystem struct {
 	isTest bool
 }
 
-// Creates a new Filesystem instance for a given server.
+// New creates a new Filesystem instance for a given server.
 func New(root string, size int64, denylist []string) *Filesystem {
 	return &Filesystem{
 		root:              root,
@@ -50,27 +50,27 @@ func New(root string, size int64, denylist []string) *Filesystem {
 	}
 }
 
-// Returns the root path for the Filesystem instance.
+// Path returns the root path for the Filesystem instance.
 func (fs *Filesystem) Path() string {
 	return fs.root
 }
 
-// Returns a reader for a file instance.
-func (fs *Filesystem) File(p string) (*os.File, os.FileInfo, error) {
+// File returns a reader for a file instance as well as the stat information.
+func (fs *Filesystem) File(p string) (*os.File, Stat, error) {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return nil, nil, err
+		return nil, Stat{}, err
 	}
-	st, err := os.Stat(cleaned)
+	st, err := fs.Stat(cleaned)
 	if err != nil {
-		return nil, nil, err
+		return nil, Stat{}, err
 	}
 	if st.IsDir() {
-		return nil, nil, &Error{code: ErrCodeIsDirectory}
+		return nil, Stat{}, &Error{code: ErrCodeIsDirectory}
 	}
 	f, err := os.Open(cleaned)
 	if err != nil {
-		return nil, nil, err
+		return nil, Stat{}, err
 	}
 	return f, st, nil
 }
@@ -437,9 +437,9 @@ func (fo *fileOpener) open(path string, flags int, perm os.FileMode) (*os.File, 
 	}
 }
 
-// Lists the contents of a given directory and returns stat information about each
-// file and folder within it.
-func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
+// ListDirectory lists the contents of a given directory and returns stat
+// information about each file and folder within it.
+func (fs *Filesystem) ListDirectory(p string) ([]Stat, error) {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
 		return nil, err
@@ -455,7 +455,7 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 	// You must initialize the output of this directory as a non-nil value otherwise
 	// when it is marshaled into a JSON object you'll just get 'null' back, which will
 	// break the panel badly.
-	out := make([]*Stat, len(files))
+	out := make([]Stat, len(files))
 
 	// Iterate over all of the files and directories returned and perform an async process
 	// to get the mime-type for them all.
@@ -482,15 +482,10 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 				}
 			}
 
-			st := &Stat{
-				Info:     f,
-				Mimetype: d,
-			}
-
+			st := Stat{FileInfo: f, Mimetype: d}
 			if m != nil {
 				st.Mimetype = m.String()
 			}
-
 			out[idx] = st
 		}(i, file)
 	}
@@ -500,17 +495,16 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 	// Sort the output alphabetically to begin with since we've run the output
 	// through an asynchronous process and the order is gonna be very random.
 	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Info.Name() == out[j].Info.Name() || out[i].Info.Name() > out[j].Info.Name() {
+		if out[i].Name() == out[j].Name() || out[i].Name() > out[j].Name() {
 			return true
 		}
-
 		return false
 	})
 
 	// Then, sort it so that directories are listed first in the output. Everything
 	// will continue to be alphabetized at this point.
 	sort.SliceStable(out, func(i, j int) bool {
-		return out[i].Info.IsDir()
+		return out[i].IsDir()
 	})
 
 	return out, nil
