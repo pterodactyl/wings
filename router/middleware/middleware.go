@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"crypto/subtle"
 	"io"
 	"net/http"
 	"os"
@@ -150,7 +151,9 @@ func (re *RequestError) asFilesystemError() (int, string) {
 // so that you can easily cross-reference the errors.
 func AttachRequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("X-Request-Id", uuid.New().String())
+		id := uuid.New().String()
+		c.Header("X-Request-Id", id)
+		c.Set("logger", log.WithField("request_id", id))
 		c.Next()
 	}
 }
@@ -227,4 +230,85 @@ func SetAccessControlHeaders() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// ServerExists will ensure that the requested server exists in this setup.
+// Returns a 404 if we cannot locate it. If the server is found it is set into
+// the request context, and the logger for the context is also updated to include
+// the server ID in the fields list.
+func ServerExists() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		s := server.GetServers().Find(func(s *server.Server) bool {
+			return c.Param("server") == s.Id()
+		})
+		if s == nil {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "The requested resource does not exist on this instance."})
+			return
+		}
+		c.Set("logger", ExtractLogger(c).WithField("server_id", s.Id()))
+		c.Set("server", s)
+		c.Next()
+	}
+}
+
+// RequireAuthorization authenticates the request token against the given
+// permission string, ensuring that if it is a server permission, the token has
+// control over that server. If it is a global token, this will ensure that the
+// request is using a properly signed global token.
+func RequireAuthorization() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// We don't put this value outside this function since the node's authentication
+		// token can be changed on the fly and the config.Get() call returns a copy, so
+		// if it is rotated this value will never properly get updated.
+		token := config.Get().AuthenticationToken
+		auth := strings.SplitN(c.GetHeader("Authorization"), " ", 2)
+		if len(auth) != 2 || auth[0] != "Bearer" {
+			c.Header("WWW-Authenticate", "Bearer")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "The required authorization heads were not present in the request."})
+			return
+		}
+
+		// All requests to Wings must be authorized with the authentication token present in
+		// the Wings configuration file. Remeber, all requests to Wings come from the Panel
+		// backend, or using a signed JWT for temporary authentication.
+		if subtle.ConstantTimeCompare([]byte(auth[1]), []byte(token)) != 1 {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "You are not authorized to access this endpoint."})
+			return
+		}
+		c.Next()
+	}
+}
+
+// RemoteDownloadEnabled checks if remote downloads are enabled for this instance
+// and if not aborts the request.
+func RemoteDownloadEnabled() gin.HandlerFunc {
+	disabled := config.Get().Api.DisableRemoteDownload
+	return func(c *gin.Context) {
+		if disabled {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "This functionality is not currently enabled on this instance."})
+			return
+		}
+		c.Next()
+	}
+}
+
+// ExtractLogger pulls the logger out of the request context and returns it. By
+// default this will include the request ID, but may also include the server ID
+// if that middleware has been used in the chain by the time it is called.
+func ExtractLogger(c *gin.Context) *log.Entry {
+	v, ok := c.Get("logger")
+	if !ok {
+		panic("middleware/middleware: cannot extract logger: not present in request context")
+	}
+	return v.(*log.Entry)
+}
+
+// ExtractServer will return the server from the gin.Context or panic if it is
+// not present.
+func ExtractServer(c *gin.Context) *server.Server {
+	v, ok := c.Get("server")
+	if !ok {
+		panic("middleware/middleware: cannot extract server: not present in request context")
+	}
+	return v.(*server.Server)
 }

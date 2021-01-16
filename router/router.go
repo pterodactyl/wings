@@ -10,7 +10,6 @@ import (
 func Configure() *gin.Engine {
 	gin.SetMode("release")
 
-	m := Middleware{}
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(middleware.AttachRequestID(), middleware.CaptureErrors(), middleware.SetAccessControlHeaders())
@@ -41,16 +40,16 @@ func Configure() *gin.Engine {
 	// This route is special it sits above all of the other requests because we are
 	// using a JWT to authorize access to it, therefore it needs to be publicly
 	// accessible.
-	router.GET("/api/servers/:server/ws", m.ServerExists(), getServerWebsocket)
+	router.GET("/api/servers/:server/ws", middleware.ServerExists(), getServerWebsocket)
 
 	// This request is called by another daemon when a server is going to be transferred out.
 	// This request does not need the AuthorizationMiddleware as the panel should never call it
 	// and requests are authenticated through a JWT the panel issues to the other daemon.
-	router.GET("/api/servers/:server/archive", m.ServerExists(), getServerArchive)
+	router.GET("/api/servers/:server/archive", middleware.ServerExists(), getServerArchive)
 
 	// All of the routes beyond this mount will use an authorization middleware
 	// and will not be accessible without the correct Authorization header provided.
-	protected := router.Use(m.RequireAuthorization())
+	protected := router.Use(middleware.RequireAuthorization())
 	protected.POST("/api/update", postUpdateConfiguration)
 	protected.GET("/api/system", getSystemInformation)
 	protected.GET("/api/servers", getAllServers)
@@ -60,7 +59,7 @@ func Configure() *gin.Engine {
 	// These are server specific routes, and require that the request be authorized, and
 	// that the server exist on the Daemon.
 	server := router.Group("/api/servers/:server")
-	server.Use(m.RequireAuthorization(), m.ServerExists())
+	server.Use(middleware.RequireAuthorization(), middleware.ServerExists())
 	{
 		server.GET("", getServer)
 		server.PATCH("", patchServer)
@@ -90,9 +89,9 @@ func Configure() *gin.Engine {
 			files.POST("/decompress", postServerDecompressFiles)
 			files.POST("/chmod", postServerChmodFile)
 
-			files.GET("/pull", m.CheckRemoteDownloadEnabled(), getServerPullingFiles)
-			files.POST("/pull", m.CheckRemoteDownloadEnabled(), postServerPullRemoteFile)
-			files.DELETE("/pull/:download", m.CheckRemoteDownloadEnabled(), deleteServerPullRemoteFile)
+			files.GET("/pull", middleware.RemoteDownloadEnabled(), getServerPullingFiles)
+			files.POST("/pull", middleware.RemoteDownloadEnabled(), postServerPullRemoteFile)
+			files.DELETE("/pull/:download", middleware.RemoteDownloadEnabled(), deleteServerPullRemoteFile)
 		}
 
 		backup := server.Group("/backup")
