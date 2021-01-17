@@ -3,13 +3,15 @@ package backup
 import (
 	"crypto/sha1"
 	"encoding/hex"
-	"github.com/apex/log"
-	"github.com/pterodactyl/wings/api"
-	"github.com/pterodactyl/wings/config"
 	"io"
 	"os"
 	"path"
 	"sync"
+
+	"emperror.dev/errors"
+	"github.com/apex/log"
+	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/config"
 )
 
 type AdapterType string
@@ -18,6 +20,38 @@ const (
 	LocalBackupAdapter AdapterType = "wings"
 	S3BackupAdapter    AdapterType = "s3"
 )
+
+type Request struct {
+	Adapter AdapterType `json:"adapter"`
+	Uuid    string      `json:"uuid"`
+	Ignore  string      `json:"ignore"`
+}
+
+// AsBackup returns a new backup adapter based on the request value.
+func (r *Request) AsBackup() (BackupInterface, error) {
+	var adapter BackupInterface
+	switch r.Adapter {
+	case LocalBackupAdapter:
+		adapter = &LocalBackup{
+			Backup{
+				Uuid:    r.Uuid,
+				Ignore:  r.Ignore,
+				adapter: LocalBackupAdapter,
+			},
+		}
+	case S3BackupAdapter:
+		adapter = &S3Backup{
+			Backup: Backup{
+				Uuid:    r.Uuid,
+				Ignore:  r.Ignore,
+				adapter: S3BackupAdapter,
+			},
+		}
+	default:
+		return nil, errors.New("server/backup: unsupported adapter type: " + string(r.Adapter))
+	}
+	return adapter, nil
+}
 
 type ArchiveDetails struct {
 	Checksum     string `json:"checksum"`

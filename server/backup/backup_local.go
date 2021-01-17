@@ -2,8 +2,11 @@ package backup
 
 import (
 	"errors"
-	"github.com/pterodactyl/wings/server/filesystem"
 	"os"
+
+	"github.com/mholt/archiver/v3"
+	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/server/filesystem"
 )
 
 type LocalBackup struct {
@@ -12,8 +15,8 @@ type LocalBackup struct {
 
 var _ BackupInterface = (*LocalBackup)(nil)
 
-// Locates the backup for a server and returns the local path. This will obviously only
-// work if the backup was created as a local backup.
+// LocateLocal finds the backup for a server and returns the local path. This
+// will obviously only work if the backup was created as a local backup.
 func LocateLocal(uuid string) (*LocalBackup, os.FileInfo, error) {
 	b := &LocalBackup{
 		Backup{
@@ -34,18 +37,18 @@ func LocateLocal(uuid string) (*LocalBackup, os.FileInfo, error) {
 	return b, st, nil
 }
 
-// Removes a backup from the system.
+// Remove removes a backup from the system.
 func (b *LocalBackup) Remove() error {
 	return os.Remove(b.Path())
 }
 
-// Attaches additional context to the log output for this backup.
+// WithLogContext attaches additional context to the log output for this backup.
 func (b *LocalBackup) WithLogContext(c map[string]interface{}) {
 	b.logContext = c
 }
 
-// Generates a backup of the selected files and pushes it to the defined location
-// for this instance.
+// Generate generates a backup of the selected files and pushes it to the
+// defined location for this instance.
 func (b *LocalBackup) Generate(basePath, ignore string) (*ArchiveDetails, error) {
 	a := &filesystem.Archive{
 		BasePath: basePath,
@@ -59,4 +62,18 @@ func (b *LocalBackup) Generate(basePath, ignore string) (*ArchiveDetails, error)
 	b.log().Info("created backup successfully")
 
 	return b.Details(), nil
+}
+
+// Restore restores a backup to the provided server's root data directory.
+func (b *LocalBackup) Restore(s *server.Server) error {
+	return archiver.Walk(b.Path(), func(f archiver.File) error {
+		if f.IsDir() {
+			return nil
+		}
+		name, err := filesystem.ExtractArchiveSourceName(f, "/")
+		if err != nil {
+			return err
+		}
+		return s.Filesystem().Writefile(name, f)
+	})
 }

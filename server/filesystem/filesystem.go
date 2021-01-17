@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"emperror.dev/errors"
@@ -124,7 +125,8 @@ func (fs *Filesystem) Readfile(p string, w io.Writer) error {
 }
 
 // Writefile writes a file to the system. If the file does not already exist one
-// will be created.
+// will be created. This will also properly recalculate the disk space used by
+// the server when writing new files or modifying existing ones.
 func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
@@ -365,8 +367,21 @@ func (fs *Filesystem) Copy(p string) error {
 	return fs.Writefile(path.Join(relative, n), source)
 }
 
-// Deletes a file or folder from the system. Prevents the user from accidentally
-// (or maliciously) removing their root server data directory.
+// TruncateRootDirectory removes _all_ files and directories from a server's
+// data directory and resets the used disk space to zero.
+func (fs *Filesystem) TruncateRootDirectory() error {
+	if err := os.RemoveAll(fs.Path()); err != nil {
+		return err
+	}
+	if err := os.Mkdir(fs.Path(), 0755); err != nil {
+		return err
+	}
+	atomic.StoreInt64(&fs.diskUsed, 0)
+	return nil
+}
+
+// Delete removes a file or folder from the system. Prevents the user from
+// accidentally (or maliciously) removing their root server data directory.
 func (fs *Filesystem) Delete(p string) error {
 	wg := sync.WaitGroup{}
 	// This is one of the few (only?) places in the codebase where we're explicitly not using

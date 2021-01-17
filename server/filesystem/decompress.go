@@ -74,23 +74,10 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		if f.IsDir() {
 			return nil
 		}
-
-		var name string
-		switch s := f.Sys().(type) {
-		case *tar.Header:
-			name = s.Name
-		case *gzip.Header:
-			name = s.Name
-		case *zip.FileHeader:
-			name = s.Name
-		default:
-			return &Error{
-				code:     ErrCodeUnknownError,
-				resolved: filepath.Join(dir, f.Name()),
-				err:      errors.New(fmt.Sprintf("could not parse underlying data source with type: %s", reflect.TypeOf(s).String())),
-			}
+		name, err := ExtractArchiveSourceName(f, dir)
+		if err != nil {
+			return err
 		}
-
 		p := filepath.Join(dir, name)
 		// If it is ignored, just don't do anything with the file and skip over it.
 		if err := fs.IsIgnored(p); err != nil {
@@ -108,4 +95,24 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		return err
 	}
 	return nil
+}
+
+// ExtractArchiveSourceName looks for the provided archiver.File's name if it is
+// a type that is supported, otherwise it returns an error to the caller.
+func ExtractArchiveSourceName(f archiver.File, dir string) (name string, err error) {
+	switch s := f.Sys().(type) {
+	case *tar.Header:
+		name = s.Name
+	case *gzip.Header:
+		name = s.Name
+	case *zip.FileHeader:
+		name = s.Name
+	default:
+		err = &Error{
+			code:     ErrCodeUnknownError,
+			resolved: filepath.Join(dir, f.Name()),
+			err:      errors.New(fmt.Sprintf("could not parse underlying data source with type: %s", reflect.TypeOf(s).String())),
+		}
+	}
+	return name, err
 }
