@@ -30,10 +30,6 @@ func Configure() *gin.Engine {
 		return ""
 	}))
 
-	router.OPTIONS("/api/system", func(c *gin.Context) {
-		c.Status(200)
-	})
-
 	// These routes use signed URLs to validate access to the resource being requested.
 	router.GET("/download/backup", getDownloadBackup)
 	router.GET("/download/file", getDownloadFile)
