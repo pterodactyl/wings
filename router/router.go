@@ -95,6 +95,7 @@ func Configure() *gin.Engine {
 		backup := server.Group("/backup")
 		{
 			backup.POST("", postServerBackup)
+			backup.POST("/:backup/restore", postServerRestoreBackup)
 			backup.DELETE("/:backup", deleteServerBackup)
 		}
 	}

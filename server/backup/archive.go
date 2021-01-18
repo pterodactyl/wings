@@ -1,7 +1,13 @@
-package filesystem
+package backup
 
 import (
 	"archive/tar"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/juju/ratelimit"
@@ -9,11 +15,6 @@ import (
 	"github.com/klauspost/pgzip"
 	"github.com/pterodactyl/wings/config"
 	"github.com/sabhiram/go-gitignore"
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
-	"sync"
 )
 
 const memory = 4 * 1024
@@ -39,7 +40,8 @@ type Archive struct {
 	Files []string
 }
 
-// Creates an archive at dst with all of the files defined in the included files struct.
+// Create creates an archive at dst with all of the files defined in the
+// included files struct.
 func (a *Archive) Create(dst string) error {
 	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {

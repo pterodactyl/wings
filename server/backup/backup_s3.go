@@ -2,12 +2,12 @@ package backup
 
 import (
 	"fmt"
-	"github.com/pterodactyl/wings/api"
-	"github.com/pterodactyl/wings/server/filesystem"
 	"io"
 	"net/http"
 	"os"
 	"strconv"
+
+	"github.com/pterodactyl/wings/api"
 )
 
 type S3Backup struct {
@@ -16,22 +16,32 @@ type S3Backup struct {
 
 var _ BackupInterface = (*S3Backup)(nil)
 
-// Removes a backup from the system.
+func NewS3(uuid string, ignore string) *S3Backup {
+	return &S3Backup{
+		Backup{
+			Uuid:    uuid,
+			Ignore:  ignore,
+			adapter: S3BackupAdapter,
+		},
+	}
+}
+
+// Remove removes a backup from the system.
 func (s *S3Backup) Remove() error {
 	return os.Remove(s.Path())
 }
 
-// Attaches additional context to the log output for this backup.
+// WithLogContext attaches additional context to the log output for this backup.
 func (s *S3Backup) WithLogContext(c map[string]interface{}) {
 	s.logContext = c
 }
 
-// Generates a new backup on the disk, moves it into the S3 bucket via the provided
-// presigned URL, and then deletes the backup from the disk.
+// Generate creates a new backup on the disk, moves it into the S3 bucket via
+// the provided presigned URL, and then deletes the backup from the disk.
 func (s *S3Backup) Generate(basePath, ignore string) (*ArchiveDetails, error) {
 	defer s.Remove()
 
-	a := &filesystem.Archive{
+	a := &Archive{
 		BasePath: basePath,
 		Ignore:   ignore,
 	}
