@@ -3,15 +3,14 @@ package router
 import (
 	"net/http"
 	"os"
+	"strings"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
-	"github.com/mholt/archiver/v3"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/backup"
-	"github.com/pterodactyl/wings/system"
 )
 
 // postServerBackup performs a backup against a given server instance using the
@@ -62,6 +61,8 @@ func postServerBackup(c *gin.Context) {
 //
 // This endpoint will block until the backup is fully restored allowing for a
 // spinner to be displayed in the Panel UI effectively.
+//
+// TODO: stop the server if it is running; internally mark it as suspended
 func postServerRestoreBackup(c *gin.Context) {
 	s := middleware.ExtractServer(c)
 	logger := middleware.ExtractLogger(c)
@@ -98,29 +99,47 @@ func postServerRestoreBackup(c *gin.Context) {
 			middleware.CaptureAndAbort(c, err)
 			return
 		}
-		// Restore restores a backup to the provided server's root data directory.
-		err = archiver.Walk(b.Path(), func(f archiver.File) error {
-			if f.IsDir() {
-				return nil
+		go func(logger *log.Entry) {
+			logger.Info("restoring server from local backup...")
+			if err := s.RestoreBackup(b, nil); err != nil {
+				logger.WithField("error", err).Error("failed to restore local backup to server")
 			}
-			name, err := system.ExtractArchiveSourceName(f, "/")
-			if err != nil {
-				return err
-			}
-			return s.Filesystem().Writefile(name, f)
-		})
-		if err != nil {
-			middleware.CaptureAndAbort(c, err)
-			return
-		}
-		c.Status(http.StatusNoContent)
+		}(logger)
+		c.Status(http.StatusAccepted)
 		return
 	}
 
 	// Since this is not a local backup we need to stream the archive and then
 	// parse over the contents as we go in order to restore it to the server.
+	client := http.Client{}
+	logger.Info("downloading backup from remote location...")
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, data.DownloadUrl, nil)
+	if err != nil {
+		middleware.CaptureAndAbort(c, err)
+		return
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		middleware.CaptureAndAbort(c, err)
+		return
+	}
+	defer res.Body.Close()
 
-	c.Status(http.StatusNoContent)
+	// Don't allow content types that we know are going to give us problems.
+	if res.Header.Get("Content-Type") == "" || !strings.Contains("application/x-gzip application/gzip", res.Header.Get("Content-Type")) {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "The provided backup link is not a supported content type. \"" + res.Header.Get("Content-Type") + "\" is not application/x-gzip.",
+		})
+		return
+	}
+	go func(uuid string, logger *log.Entry) {
+		logger.Info("restoring server from remote S3 backup...")
+		if err := s.RestoreBackup(backup.NewS3(uuid, ""), nil); err != nil {
+			logger.WithField("error", err).Error("failed to restore remote S3 backup to server")
+		}
+	}(c.Param("backup"), logger)
+
+	c.Status(http.StatusAccepted)
 }
 
 // deleteServerBackup deletes a local backup of a server. If the backup is not

@@ -2,7 +2,11 @@ package backup
 
 import (
 	"errors"
+	"io"
 	"os"
+
+	"github.com/mholt/archiver/v3"
+	"github.com/pterodactyl/wings/system"
 )
 
 type LocalBackup struct {
@@ -70,3 +74,17 @@ func (b *LocalBackup) Generate(basePath, ignore string) (*ArchiveDetails, error)
 	return b.Details(), nil
 }
 
+// Restore will walk over the archive and call the callback function for each
+// file encountered.
+func (b *LocalBackup) Restore(_ io.Reader, callback RestoreCallback) error {
+	return archiver.Walk(b.Path(), func(f archiver.File) error {
+		if f.IsDir() {
+			return nil
+		}
+		name, err := system.ExtractArchiveSourceName(f, "/")
+		if err != nil {
+			return err
+		}
+		return callback(name, f)
+	})
+}

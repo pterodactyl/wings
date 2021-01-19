@@ -115,12 +115,10 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		return err
 	}
 
-	// Walk over all of the files spinning up an additional go-routine for each file we've encountered
-	// and then extract that file from the archive and write it to the disk. If any part of this process
-	// encounters an error the entire process will be stopped.
+	// Walk all of the files in the archiver file and write them to the disk. If any
+	// directory is encountered it will be skipped since we handle creating any missing
+	// directories automatically when writing files.
 	err = archiver.Walk(source, func(f archiver.File) error {
-		// Don't waste time with directories, we don't need to create them if they have no contents, and
-		// we will ensure the directory exists when opening the file for writing anyways.
 		if f.IsDir() {
 			return nil
 		}

@@ -1,13 +1,17 @@
 package backup
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strconv"
 
+	"github.com/juju/ratelimit"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/config"
 )
 
 type S3Backup struct {
@@ -147,5 +151,42 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 
 	s.log().WithField("parts", len(urls.Parts)).Info("backup has been successfully uploaded")
 
+	return nil
+}
+
+// Restore will read from the provided reader assuming that it is a gzipped
+// tar reader. When a file is encountered in the archive the callback function
+// will be triggered. If the callback returns an error the entire process is
+// stopped, otherwise this function will run until all files have been written.
+//
+// This restoration uses a workerpool to use up to the number of CPUs available
+// on the machine when writing files to the disk.
+func (s *S3Backup) Restore(r io.Reader, callback RestoreCallback) error {
+	reader := r
+	// Steal the logic we use for making backups which will be applied when restoring
+	// this specific backup. This allows us to prevent overloading the disk unintentionally.
+	if writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024); writeLimit > 0 {
+		reader = ratelimit.Reader(r, ratelimit.NewBucketWithRate(float64(writeLimit), writeLimit))
+	}
+	gr, err := gzip.NewReader(reader)
+	if err != nil {
+		return err
+	}
+	defer gr.Close()
+	tr := tar.NewReader(gr)
+	for {
+		header, err := tr.Next()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+		if header.Typeflag == tar.TypeReg {
+			if err := callback(header.Name, tr); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
