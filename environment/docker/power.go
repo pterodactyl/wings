@@ -164,9 +164,10 @@ func (e *Environment) Stop() error {
 	return nil
 }
 
-// Attempts to gracefully stop a server using the defined stop command. If the server
-// does not stop after seconds have passed, an error will be returned, or the instance
-// will be terminated forcefully depending on the value of the second argument.
+// WaitForStop attempts to gracefully stop a server using the defined stop
+// command. If the server does not stop after seconds have passed, an error will
+// be returned, or the instance will be terminated forcefully depending on the
+// value of the second argument.
 func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 	if err := e.Stop(); err != nil {
 		return err
