@@ -131,7 +131,7 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	// server being suspended.
 	err = s.Environment.WaitForStop(120, false)
 	if err != nil {
-		return err
+		return errors.WithStackIf(err)
 	}
 	// Send an API call to the Panel as soon as this function is done running so that
 	// the Panel is informed of the restoration status of this backup.
@@ -147,5 +147,5 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 		return s.Filesystem().Writefile(file, r)
 	})
 
-	return err
+	return errors.WithStackIf(err)
 }
