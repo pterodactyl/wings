@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"strings"
@@ -113,7 +114,10 @@ func postServerRestoreBackup(c *gin.Context) {
 	// parse over the contents as we go in order to restore it to the server.
 	client := http.Client{}
 	logger.Info("downloading backup from remote location...")
-	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, data.DownloadUrl, nil)
+	// TODO: this will hang if there is an issue. We can't use c.Request.Context() (or really any)
+	//  since it will be canceled when the request is closed which happens quickly since we push
+	//  this into the background.
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, data.DownloadUrl, nil)
 	if err != nil {
 		middleware.CaptureAndAbort(c, err)
 		return
@@ -123,19 +127,19 @@ func postServerRestoreBackup(c *gin.Context) {
 		middleware.CaptureAndAbort(c, err)
 		return
 	}
-	defer res.Body.Close()
-
 	// Don't allow content types that we know are going to give us problems.
 	if res.Header.Get("Content-Type") == "" || !strings.Contains("application/x-gzip application/gzip", res.Header.Get("Content-Type")) {
+		res.Body.Close()
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error": "The provided backup link is not a supported content type. \"" + res.Header.Get("Content-Type") + "\" is not application/x-gzip.",
 		})
 		return
 	}
+
 	go func(uuid string, logger *log.Entry) {
 		logger.Info("restoring server from remote S3 backup...")
-		if err := s.RestoreBackup(backup.NewS3(uuid, ""), nil); err != nil {
-			logger.WithField("error", err).Error("failed to restore remote S3 backup to server")
+		if err := s.RestoreBackup(backup.NewS3(uuid, ""), res.Body); err != nil {
+			logger.WithField("error", errors.WithStack(err)).Error("failed to restore remote S3 backup to server")
 		}
 	}(c.Param("backup"), logger)
 

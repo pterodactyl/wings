@@ -136,8 +136,8 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	// Send an API call to the Panel as soon as this function is done running so that
 	// the Panel is informed of the restoration status of this backup.
 	defer func() {
-		if err := api.New().SendRestorationStatus(b.Identifier(), err == nil); err != nil {
-			s.Log().WithField("error", err).WithField("backup", b.Identifier()).Error("failed to notify Panel of backup restoration status")
+		if rerr := api.New().SendRestorationStatus(b.Identifier(), err == nil); rerr != nil {
+			s.Log().WithField("error", rerr).WithField("backup", b.Identifier()).Error("failed to notify Panel of backup restoration status")
 		}
 	}()
 
