@@ -30,6 +30,7 @@ func getServerFileContents(c *gin.Context) {
 	f, st, err := s.Filesystem().File(p)
 	if err != nil {
 		middleware.CaptureAndAbort(c, err)
+		return
 	}
 	defer f.Close()
 
@@ -48,6 +49,7 @@ func getServerFileContents(c *gin.Context) {
 		// take since a panic will at least be recovered and this should be incredibly
 		// rare?
 		middleware.CaptureAndAbort(c, err)
+		return
 	}
 }
 
