@@ -42,8 +42,9 @@ func ConfigureDocker(ctx context.Context) error {
 			if err := createDockerNetwork(ctx, cli); err != nil {
 				return err
 			}
+		} else {
+			return err
 		}
-		return err
 	}
 
 	config.Update(func(c *config.Configuration) {
