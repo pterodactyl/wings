@@ -22,7 +22,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/loggers/cli"
-	"github.com/pterodactyl/wings/panelapi"
+	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/router"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/sftp"
@@ -190,11 +190,11 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		}).Info("configured system user successfully")
 	}
 
-	panelClient := panelapi.CreateClient(
+	panelClient := remote.CreateClient(
 		config.Get().PanelLocation,
 		config.Get().AuthenticationTokenId,
 		config.Get().AuthenticationToken,
-		panelapi.WithTimeout(time.Second*time.Duration(config.Get().RemoteQuery.Timeout)),
+		remote.WithTimeout(time.Second*time.Duration(config.Get().RemoteQuery.Timeout)),
 	)
 	_ = panelClient
 

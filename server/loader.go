@@ -16,7 +16,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/environment/docker"
-	"github.com/pterodactyl/wings/panelapi"
+	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server/filesystem"
 )
 
@@ -30,7 +30,7 @@ func (m *manager) Initialize(serversPerPage int) error {
 	log.Info("fetching list of servers from API")
 	assignedServers, err := m.panelClient.GetServers(context.TODO(), serversPerPage)
 	if err != nil {
-		if !panelapi.IsRequestError(err) {
+		if !remote.IsRequestError(err) {
 			return err
 		}
 

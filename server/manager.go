@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/pterodactyl/wings/panelapi"
+	"github.com/pterodactyl/wings/remote"
 )
 
 type Manager interface {
@@ -16,11 +16,11 @@ type Manager interface {
 type manager struct {
 	servers Collection
 
-	panelClient panelapi.Client
+	panelClient remote.Client
 }
 
 // NewManager creates a new server manager.
-func NewManager(panelClient panelapi.Client) Manager {
+func NewManager(panelClient remote.Client) Manager {
 	return &manager{panelClient: panelClient}
 }
 
