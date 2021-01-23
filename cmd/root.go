@@ -164,6 +164,12 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	for _, serv := range server.GetServers().All() {
 		s := serv
 
+		// For each server we encounter make sure the root data directory exists.
+		if err := s.EnsureDataDirectoryExists(); err != nil {
+			s.Log().Error("could not create root data directory for server: not loading server...")
+			continue
+		}
+
 		pool.Submit(func() {
 			s.Log().Info("configuring server environment and restoring to previous state")
 
