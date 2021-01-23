@@ -22,6 +22,7 @@ services:
       - "/var/lib/pterodactyl/:/var/lib/pterodactyl/"
       - "/var/log/pterodactyl/:/var/log/pterodactyl/"
       - "/tmp/pterodactyl/:/tmp/pterodactyl/"
+      # This shares your hosts root certificates with the container, required if you want to use SSL to connect to your panel
       - "/etc/ssl/certs:/etc/ssl/certs"
       # you may need /srv/daemon-data if you are upgrading from an old daemon
       #- "/srv/daemon-data/:/srv/daemon-data/"
