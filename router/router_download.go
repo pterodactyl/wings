@@ -8,20 +8,23 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server/backup"
 )
 
 // Handle a download request for a server backup.
 func getDownloadBackup(c *gin.Context) {
+	manager := middleware.ExtractManager(c)
+
 	token := tokens.BackupPayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
 		NewTrackedError(err).Abort(c)
 		return
 	}
 
-	s := GetServer(token.ServerUuid)
-	if s == nil || !token.IsUniqueRequest() {
+	s, ok := manager.Get(token.ServerUuid)
+	if !ok || !token.IsUniqueRequest() {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"error": "The requested resource was not found on this server.",
 		})
@@ -57,14 +60,15 @@ func getDownloadBackup(c *gin.Context) {
 
 // Handles downloading a specific file for a server.
 func getDownloadFile(c *gin.Context) {
+	manager := middleware.ExtractManager(c)
 	token := tokens.FilePayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
 		NewTrackedError(err).Abort(c)
 		return
 	}
 
-	s := GetServer(token.ServerUuid)
-	if s == nil || !token.IsUniqueRequest() {
+	s, ok := manager.Get(token.ServerUuid)
+	if !ok || !token.IsUniqueRequest() {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"error": "The requested resource was not found on this server.",
 		})

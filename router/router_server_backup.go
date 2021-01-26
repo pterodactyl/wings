@@ -13,7 +13,7 @@ import (
 
 // Backs up a server.
 func postServerBackup(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	data := &backup.Request{}
 	// BindJSON sends 400 if the request fails, all we need to do is return
@@ -57,7 +57,7 @@ func postServerBackup(c *gin.Context) {
 // a 404 error. The service calling this endpoint can make its own decisions as to how it wants
 // to handle that response.
 func deleteServerBackup(c *gin.Context) {
-	s := GetServer(c.Param("server"))
+	s := ExtractServer(c)
 
 	b, _, err := backup.LocateLocal(c.Param("backup"))
 	if err != nil {

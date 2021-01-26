@@ -24,14 +24,16 @@ import (
 
 //goland:noinspection GoNameStartsWithPackageName
 type SFTPServer struct {
+	manager  *server.Manager
 	BasePath string
 	ReadOnly bool
 	Listen   string
 }
 
-func New() *SFTPServer {
+func New(m *server.Manager) *SFTPServer {
 	cfg := config.Get().System
 	return &SFTPServer{
+		manager:  m,
 		BasePath: cfg.Data,
 		ReadOnly: cfg.Sftp.ReadOnly,
 		Listen:   cfg.Sftp.Address + ":" + strconv.Itoa(cfg.Sftp.Port),
@@ -81,7 +83,7 @@ func (c *SFTPServer) Run() error {
 
 // Handles an inbound connection to the instance and determines if we should serve the
 // request or not.
-func (c SFTPServer) AcceptInbound(conn net.Conn, config *ssh.ServerConfig) {
+func (c *SFTPServer) AcceptInbound(conn net.Conn, config *ssh.ServerConfig) {
 	// Before beginning a handshake must be performed on the incoming net.Conn
 	sconn, chans, reqs, err := ssh.NewServerConn(conn, config)
 	if err != nil {
@@ -119,7 +121,7 @@ func (c SFTPServer) AcceptInbound(conn net.Conn, config *ssh.ServerConfig) {
 		// This will also attempt to match a specific server out of the global server
 		// store and return nil if there is no match.
 		uuid := sconn.Permissions.Extensions["uuid"]
-		srv := server.GetServers().Find(func(s *server.Server) bool {
+		srv := c.manager.Find(func(s *server.Server) bool {
 			if uuid == "" {
 				return false
 			}
