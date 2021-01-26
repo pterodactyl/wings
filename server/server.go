@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -20,16 +21,14 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-// High level definition for a server instance being controlled by Wings.
+// Server is the high level definition for a server instance being controlled
+// by Wings.
 type Server struct {
 	// Internal mutex used to block actions that need to occur sequentially, such as
 	// writing the configuration to the disk.
 	sync.RWMutex
 	ctx       context.Context
 	ctxCancel *context.CancelFunc
-
-	// manager holds a reference to the manager responsible for the server
-	manager *manager
 
 	emitterLock  sync.Mutex
 	powerLock    *semaphore.Weighted
@@ -248,4 +247,109 @@ func (s *Server) EnsureDataDirectoryExists() error {
 		}
 	}
 	return nil
+}
+
+// Sets the state of the server internally. This function handles crash detection as
+// well as reporting to event listeners for the server.
+func (s *Server) OnStateChange() {
+	prevState := s.resources.State.Load()
+
+	st := s.Environment.State()
+	// Update the currently tracked state for the server.
+	s.resources.State.Store(st)
+
+	// Emit the event to any listeners that are currently registered.
+	if prevState != s.Environment.State() {
+		s.Log().WithField("status", st).Debug("saw server status change event")
+		s.Events().Publish(StatusEvent, st)
+	}
+
+	// Reset the resource usage to 0 when the process fully stops so that all of the UI
+	// views in the Panel correctly display 0.
+	if st == environment.ProcessOfflineState {
+		s.resources.Reset()
+		s.emitProcUsage()
+	}
+
+	// If server was in an online state, and is now in an offline state we should handle
+	// that as a crash event. In that scenario, check the last crash time, and the crash
+	// counter.
+	//
+	// In the event that we have passed the thresholds, don't do anything, otherwise
+	// automatically attempt to start the process back up for the user. This is done in a
+	// separate thread as to not block any actions currently taking place in the flow
+	// that called this function.
+	if (prevState == environment.ProcessStartingState || prevState == environment.ProcessRunningState) && s.Environment.State() == environment.ProcessOfflineState {
+		s.Log().Info("detected server as entering a crashed state; running crash handler")
+
+		go func(server *Server) {
+			if err := server.handleServerCrash(); err != nil {
+				if IsTooFrequentCrashError(err) {
+					server.Log().Info("did not restart server after crash; occurred too soon after the last")
+				} else {
+					s.PublishConsoleOutputFromDaemon("Server crash was detected but an error occurred while handling it.")
+					server.Log().WithField("error", err).Error("failed to handle server crash")
+				}
+			}
+		}(s)
+	}
+}
+
+// Determines if the server state is running or not. This is different than the
+// environment state, it is simply the tracked state from this daemon instance, and
+// not the response from Docker.
+func (s *Server) IsRunning() bool {
+	st := s.Environment.State()
+
+	return st == environment.ProcessRunningState || st == environment.ProcessStartingState
+}
+
+// FromConfiguration initializes a server using a data byte array. This will be
+// marshaled into the given struct using a YAML marshaler. This will also
+// configure the given environment for a server.
+func FromConfiguration(data api.ServerConfigurationResponse) (*Server, error) {
+	s, err := New()
+	if err != nil {
+		return nil, errors.WithMessage(err, "loader: failed to instantiate empty server struct")
+	}
+	if err := s.UpdateDataStructure(data.Settings); err != nil {
+		return nil, err
+	}
+
+	s.Archiver = Archiver{Server: s}
+	s.fs = filesystem.New(filepath.Join(config.Get().System.Data, s.Id()), s.DiskSpace(), s.Config().Egg.FileDenylist)
+
+	// Right now we only support a Docker based environment, so I'm going to hard code
+	// this logic in. When we're ready to support other environment we'll need to make
+	// some modifications here obviously.
+	settings := environment.Settings{
+		Mounts:      s.Mounts(),
+		Allocations: s.cfg.Allocations,
+		Limits:      s.cfg.Build,
+	}
+
+	envCfg := environment.NewConfiguration(settings, s.GetEnvironmentVariables())
+	meta := docker.Metadata{
+		Image: s.Config().Container.Image,
+	}
+
+	if env, err := docker.New(s.Id(), &meta, envCfg); err != nil {
+		return nil, err
+	} else {
+		s.Environment = env
+		s.StartEventListeners()
+		s.Throttler().StartTimer(s.Context())
+	}
+
+	// Forces the configuration to be synced with the panel.
+	if err := s.SyncWithConfiguration(data); err != nil {
+		return nil, err
+	}
+
+	// If the server's data directory exists, force disk usage calculation.
+	if _, err := os.Stat(s.Filesystem().Path()); err == nil {
+		s.Filesystem().HasSpaceAvailable(true)
+	}
+
+	return s, nil
 }

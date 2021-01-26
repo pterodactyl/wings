@@ -55,7 +55,7 @@ type RawServerData struct {
 // be loaded. If so, those requests are spun-up in additional routines and the final resulting
 // slice of all servers will be returned.
 func (r *Request) GetServers() ([]RawServerData, error) {
-	resp, err := r.Get("/servers", Q{"per_page": strconv.Itoa(int(config.Get().RemoteQuery.BootServersPerPage))})
+	resp, err := r.Get("/servers", Q{"per_page": strconv.Itoa(config.Get().RemoteQuery.BootServersPerPage)})
 	if err != nil {
 		return nil, err
 	}

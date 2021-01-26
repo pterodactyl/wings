@@ -487,7 +487,7 @@ func postServerChmodFile(c *gin.Context) {
 }
 
 func postServerUploadFiles(c *gin.Context) {
-	serverManager := ExtractServerManager(c)
+	manager := middleware.ExtractManager(c)
 
 	token := tokens.UploadPayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
@@ -495,8 +495,8 @@ func postServerUploadFiles(c *gin.Context) {
 		return
 	}
 
-	s := serverManager.Get(token.ServerUuid)
-	if s == nil || !token.IsUniqueRequest() {
+	s, ok := manager.Get(token.ServerUuid)
+	if !ok || !token.IsUniqueRequest() {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"error": "The requested resource was not found on this server.",
 		})

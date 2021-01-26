@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
+	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/system"
 )
 
@@ -27,8 +28,7 @@ func getSystemInformation(c *gin.Context) {
 // Returns all of the servers that are registered and configured correctly on
 // this wings instance.
 func getAllServers(c *gin.Context) {
-	serverManager := ExtractServerManager(c)
-	c.JSON(http.StatusOK, serverManager.GetAll())
+	c.JSON(http.StatusOK, middleware.ExtractManager(c).All())
 }
 
 // Creates a new server on the wings daemon and begins the installation process
@@ -52,8 +52,8 @@ func postCreateServer(c *gin.Context) {
 
 	// Plop that server instance onto the request so that it can be referenced in
 	// requests from here-on out.
-	serverManager := ExtractServerManager(c)
-	serverManager.Add(install.Server())
+	manager := middleware.ExtractManager(c)
+	manager.Add(install.Server())
 
 	// Begin the installation process in the background to not block the request
 	// cycle. If there are any errors they will be logged and communicated back

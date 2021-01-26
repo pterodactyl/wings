@@ -11,6 +11,7 @@ import (
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/router/downloader"
+	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 )
@@ -190,8 +191,7 @@ func postServerReinstall(c *gin.Context) {
 
 // Deletes a server from the wings daemon and dissociate it's objects.
 func deleteServer(c *gin.Context) {
-	s := ExtractServer(c)
-	sm := ExtractServerManager(c)
+	s := middleware.ExtractServer(c)
 
 	// Immediately suspend the server to prevent a user from attempting
 	// to start it while this process is running.
@@ -235,7 +235,9 @@ func deleteServer(c *gin.Context) {
 		}
 	}(s.Filesystem().Path())
 
-	sm.Remove(s)
+	middleware.ExtractManager(c).Remove(func(server *server.Server) bool {
+		return server.Id() == s.Id()
+	})
 
 	// Deallocate the reference to this server.
 	s = nil

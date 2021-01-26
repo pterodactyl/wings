@@ -25,6 +25,7 @@ import (
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
+	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/system"
@@ -323,19 +324,20 @@ func postTransfer(c *gin.Context) {
 			i.Server().Events().Publish(server.TransferLogsEvent, output)
 		}
 
-		serverManager := ExtractServerManager(c)
-
+		manager := middleware.ExtractManager(c)
 		// Mark the server as transferring to prevent problems later on during the process and
 		// then push the server into the global server collection for this instance.
 		i.Server().SetTransferring(true)
-		serverManager.Add(i.Server())
+		manager.Add(i.Server())
 		defer func(s *server.Server) {
 			// In the event that this transfer call fails, remove the server from the global
 			// server tracking so that we don't have a dangling instance.
 			if err := data.sendTransferStatus(!hasError); hasError || err != nil {
 				sendTransferLog("Server transfer failed, check Wings logs for additional information.")
 				s.Events().Publish(server.TransferStatusEvent, "failure")
-				serverManager.Remove(s)
+				manager.Remove(func(match *server.Server) bool {
+					return match.Id() == s.Id()
+				})
 
 				// If the transfer status was successful but the request failed, act like the transfer failed.
 				if !hasError && err != nil {
