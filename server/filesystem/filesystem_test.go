@@ -3,8 +3,6 @@ package filesystem
 import (
 	"bytes"
 	"errors"
-	. "github.com/franela/goblin"
-	"github.com/pterodactyl/wings/config"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -12,6 +10,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"unicode/utf8"
+
+	. "github.com/franela/goblin"
+	"github.com/pterodactyl/wings/config"
 )
 
 func NewFs() (*Filesystem, *rootFs) {
@@ -33,7 +34,7 @@ func NewFs() (*Filesystem, *rootFs) {
 
 	rfs.reset()
 
-	fs := New(filepath.Join(tmpDir, "/server"), 0)
+	fs := New(filepath.Join(tmpDir, "/server"), 0, []string{})
 	fs.isTest = true
 
 	return fs, &rfs

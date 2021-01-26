@@ -90,7 +90,7 @@ func FromConfiguration(data api.ServerConfigurationResponse) (*Server, error) {
 	}
 
 	s.Archiver = Archiver{Server: s}
-	s.fs = filesystem.New(filepath.Join(config.Get().System.Data, s.Id()), s.DiskSpace())
+	s.fs = filesystem.New(filepath.Join(config.Get().System.Data, s.Id()), s.DiskSpace(), s.Config().Egg.FileDenylist)
 
 	// Right now we only support a Docker based environment, so I'm going to hard code
 	// this logic in. When we're ready to support other environment we'll need to make

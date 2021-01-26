@@ -1,6 +1,7 @@
 package router
 
 import (
+	"bufio"
 	"context"
 	"mime/multipart"
 	"net/http"
@@ -15,47 +16,41 @@ import (
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/pterodactyl/wings/router/downloader"
+	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"golang.org/x/sync/errgroup"
 )
 
-// Returns the contents of a file on the server.
+// getServerFileContents returns the contents of a file on the server.
 func getServerFileContents(c *gin.Context) {
-	s := ExtractServer(c)
-	f := c.Query("file")
-	p := "/" + strings.TrimLeft(f, "/")
-	st, err := s.Filesystem().Stat(p)
+	s := middleware.ExtractServer(c)
+	p := "/" + strings.TrimLeft(c.Query("file"), "/")
+	f, st, err := s.Filesystem().File(p)
 	if err != nil {
-		WithError(c, err)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
+	defer f.Close()
 
 	c.Header("X-Mime-Type", st.Mimetype)
-	c.Header("Content-Length", strconv.Itoa(int(st.Info.Size())))
-
+	c.Header("Content-Length", strconv.Itoa(int(st.Size())))
 	// If a download parameter is included in the URL go ahead and attach the necessary headers
 	// so that the file can be downloaded.
 	if c.Query("download") != "" {
-		c.Header("Content-Disposition", "attachment; filename="+st.Info.Name())
+		c.Header("Content-Disposition", "attachment; filename="+st.Name())
 		c.Header("Content-Type", "application/octet-stream")
 	}
-
-	// TODO(dane): should probably come up with a different approach here. If an error is encountered
-	//  by this Readfile call you'll end up causing a (recovered) panic in the program because so many
-	//  headers have already been set. We should probably add a RawReadfile that just returns the file
-	//  to be read and then we can stream from that safely without error.
-	//
-	// Until that becomes a problem though I'm just going to leave this how it is. The panic is recovered
-	// and a normal 500 error is returned to the client to my knowledge. It is also very unlikely to
-	// happen since we're doing so much before this point that would normally throw an error if there
-	// was a problem with the file.
-	if err := s.Filesystem().Readfile(p, c.Writer); err != nil {
-		WithError(c, err)
+	defer c.Writer.Flush()
+	_, err = bufio.NewReader(f).WriteTo(c.Writer)
+	if err != nil {
+		// Pretty sure this will unleash chaos on the response, but its a risk we can
+		// take since a panic will at least be recovered and this should be incredibly
+		// rare?
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
-	c.Writer.Flush()
 }
 
 // Returns the contents of a directory for a server.
@@ -94,8 +89,7 @@ func putServerRenameFiles(c *gin.Context) {
 		return
 	}
 
-	g, ctx := errgroup.WithContext(context.Background())
-
+	g, ctx := errgroup.WithContext(c.Request.Context())
 	// Loop over the array of files passed in and perform the move or rename action against each.
 	for _, p := range data.Files {
 		pf := path.Join(data.Root, p.From)
@@ -106,16 +100,20 @@ func putServerRenameFiles(c *gin.Context) {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				if err := s.Filesystem().Rename(pf, pt); err != nil {
+				fs := s.Filesystem()
+				// Ignore renames on a file that is on the denylist (both as the rename from or
+				// the rename to value).
+				if err := fs.IsIgnored(pf, pt); err != nil {
+					return err
+				}
+				if err := fs.Rename(pf, pt); err != nil {
 					// Return nil if the error is an is not exists.
 					// NOTE: os.IsNotExist() does not work if the error is wrapped.
 					if errors.Is(err, os.ErrNotExist) {
 						return nil
 					}
-
 					return err
 				}
-
 				return nil
 			}
 		})
@@ -148,6 +146,10 @@ func postServerCopyFile(c *gin.Context) {
 		return
 	}
 
+	if err := s.Filesystem().IsIgnored(data.Location); err != nil {
+		NewServerError(err, s).Abort(c)
+		return
+	}
 	if err := s.Filesystem().Copy(data.Location); err != nil {
 		NewServerError(err, s).AbortFilesystemError(c)
 		return
@@ -208,6 +210,10 @@ func postServerWriteFile(c *gin.Context) {
 	f := c.Query("file")
 	f = "/" + strings.TrimLeft(f, "/")
 
+	if err := s.Filesystem().IsIgnored(f); err != nil {
+		NewServerError(err, s).Abort(c)
+		return
+	}
 	if err := s.Filesystem().Writefile(f, c.Request.Body); err != nil {
 		if filesystem.IsErrorCode(err, filesystem.ErrCodeIsDirectory) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
@@ -359,69 +365,53 @@ func postServerCompressFiles(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, &filesystem.Stat{
-		Info:     f,
+		FileInfo: f,
 		Mimetype: "application/tar+gzip",
 	})
 }
 
+// postServerDecompressFiles receives the HTTP request and starts the process
+// of unpacking an archive that exists on the server into the provided RootPath
+// for the server.
 func postServerDecompressFiles(c *gin.Context) {
-	s := ExtractServer(c)
-
+	s := middleware.ExtractServer(c)
+	lg := middleware.ExtractLogger(c)
 	var data struct {
 		RootPath string `json:"root"`
 		File     string `json:"file"`
 	}
-
 	if err := c.BindJSON(&data); err != nil {
 		return
 	}
 
-	hasSpace, err := s.Filesystem().SpaceAvailableForDecompression(data.RootPath, data.File)
+	lg = lg.WithFields(log.Fields{"root_path": data.RootPath, "file": data.File})
+	lg.Debug("checking if space is available for file decompression")
+	err := s.Filesystem().SpaceAvailableForDecompression(data.RootPath, data.File)
 	if err != nil {
-		// Handle an unknown format error.
 		if filesystem.IsErrorCode(err, filesystem.ErrCodeUnknownArchive) {
-			s.Log().WithField("error", err).Warn("failed to decompress file due to unknown format")
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-				"error": "unknown archive format",
-			})
+			lg.WithField("error", err).Warn("failed to decompress file: unknown archive format")
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "The archive provided is in a format Wings does not understand."})
 			return
 		}
-
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
-	if !hasSpace {
-		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
-			"error": "This server does not have enough available disk space to decompress this archive.",
-		})
-		return
-	}
-
+	lg.Info("starting file decompression")
 	if err := s.Filesystem().DecompressFile(data.RootPath, data.File); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
-				"error": "The requested archive was not found.",
-			})
-			return
-		}
-
 		// If the file is busy for some reason just return a nicer error to the user since there is not
 		// much we specifically can do. They'll need to stop the running server process in order to overwrite
 		// a file like this.
 		if strings.Contains(err.Error(), "text file busy") {
-			s.Log().WithField("error", err).Warn("failed to decompress file due to busy text file")
-
+			lg.WithField("error", err).Warn("failed to decompress file: text file busy")
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 				"error": "One or more files this archive is attempting to overwrite are currently in use by another process. Please try again.",
 			})
 			return
 		}
-
-		NewServerError(err, s).AbortFilesystemError(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
-
 	c.Status(http.StatusNoContent)
 }
 
@@ -539,14 +529,14 @@ func postServerUploadFiles(c *gin.Context) {
 	for _, header := range headers {
 		p, err := s.Filesystem().SafePath(filepath.Join(directory, header.Filename))
 		if err != nil {
-			NewServerError(err, s).AbortFilesystemError(c)
+			NewServerError(err, s).Abort(c)
 			return
 		}
 
 		// We run this in a different method so I can use defer without any of
 		// the consequences caused by calling it in a loop.
 		if err := handleFileUpload(p, s, header); err != nil {
-			NewServerError(err, s).AbortFilesystemError(c)
+			NewServerError(err, s).Abort(c)
 			return
 		}
 	}
@@ -559,6 +549,9 @@ func handleFileUpload(p string, s *server.Server, header *multipart.FileHeader) 
 	}
 	defer file.Close()
 
+	if err := s.Filesystem().IsIgnored(p); err != nil {
+		return err
+	}
 	if err := s.Filesystem().Writefile(p, file); err != nil {
 		return err
 	}

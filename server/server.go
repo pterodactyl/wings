@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -223,4 +224,28 @@ func (s *Server) ProcessConfiguration() *api.ProcessConfiguration {
 	defer s.RUnlock()
 
 	return s.procConfig
+}
+
+// Filesystem returns an instance of the filesystem for this server.
+func (s *Server) Filesystem() *filesystem.Filesystem {
+	return s.fs
+}
+
+// EnsureDataDirectoryExists ensures that the data directory for the server
+// instance exists.
+func (s *Server) EnsureDataDirectoryExists() error {
+	if _, err := os.Lstat(s.fs.Path()); err != nil {
+		if os.IsNotExist(err) {
+			s.Log().Debug("server: creating root directory and setting permissions")
+			if err := os.MkdirAll(s.fs.Path(), 0700); err != nil {
+				return errors.WithStack(err)
+			}
+			if err := s.fs.Chown("/"); err != nil {
+				s.Log().WithField("error", err).Warn("server: failed to chown server data directory")
+			}
+		} else {
+			return errors.WrapIf(err, "server: failed to stat server root directory")
+		}
+	}
+	return nil
 }

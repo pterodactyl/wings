@@ -127,7 +127,7 @@ func NewInstallationProcess(s *Server, script *api.InstallationScript) (*Install
 		Server: s,
 	}
 
-	if c, err := environment.DockerClient(); err != nil {
+	if c, err := environment.Docker(); err != nil {
 		return nil, err
 	} else {
 		proc.client = c
@@ -326,7 +326,7 @@ func (ip *InstallationProcess) BeforeExecute() error {
 
 // Returns the log path for the installation process.
 func (ip *InstallationProcess) GetLogPath() string {
-	return filepath.Join(config.Get().System.GetInstallLogPath(), ip.Server.Id()+".log")
+	return filepath.Join(config.Get().System.LogDirectory, "/install", ip.Server.Id()+".log")
 }
 
 // Cleans up after the execution of the installation process. This grabs the logs from the
@@ -445,6 +445,14 @@ func (ip *InstallationProcess) Execute() (string, error) {
 		},
 		Privileged:  true,
 		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
+	}
+
+	// Ensure the root directory for the server exists properly before attempting
+	// to trigger the reinstall of the server. It is possible the directory would
+	// not exist when this runs if Wings boots with a missing directory and a user
+	// triggers a reinstall before trying to start the server.
+	if err := ip.Server.EnsureDataDirectoryExists(); err != nil {
+		return "", err
 	}
 
 	ip.Server.Log().WithField("install_script", ip.tempDir()+"/install.sh").Info("creating install container for server process")

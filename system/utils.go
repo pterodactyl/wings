@@ -7,13 +7,34 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"emperror.dev/errors"
 )
 
 var cr = []byte(" \r")
 var crr = []byte("\r\n")
+
+// FirstNotEmpty returns the first string passed in that is not an empty value.
+func FirstNotEmpty(v ...string) string {
+	for _, val := range v {
+		if val != "" {
+			return val
+		}
+	}
+	return ""
+}
+
+func MustInt(v string) int {
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		panic(errors.Wrap(err, "system/utils: could not parse int"))
+	}
+	return i
+}
 
 func ScanReader(r io.Reader, callback func(line string)) error {
 	br := bufio.NewReader(r)

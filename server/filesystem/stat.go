@@ -2,14 +2,15 @@ package filesystem
 
 import (
 	"encoding/json"
-	"github.com/gabriel-vasile/mimetype"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/gabriel-vasile/mimetype"
 )
 
 type Stat struct {
-	Info     os.FileInfo
+	os.FileInfo
 	Mimetype string
 }
 
@@ -26,50 +27,48 @@ func (s *Stat) MarshalJSON() ([]byte, error) {
 		Symlink   bool   `json:"symlink"`
 		Mime      string `json:"mime"`
 	}{
-		Name:     s.Info.Name(),
+		Name:     s.Name(),
 		Created:  s.CTime().Format(time.RFC3339),
-		Modified: s.Info.ModTime().Format(time.RFC3339),
-		Mode:     s.Info.Mode().String(),
+		Modified: s.ModTime().Format(time.RFC3339),
+		Mode:     s.Mode().String(),
 		// Using `&os.ModePerm` on the file's mode will cause the mode to only have the permission values, and nothing else.
-		ModeBits:  strconv.FormatUint(uint64(s.Info.Mode()&os.ModePerm), 8),
-		Size:      s.Info.Size(),
-		Directory: s.Info.IsDir(),
-		File:      !s.Info.IsDir(),
-		Symlink:   s.Info.Mode().Perm()&os.ModeSymlink != 0,
+		ModeBits:  strconv.FormatUint(uint64(s.Mode()&os.ModePerm), 8),
+		Size:      s.Size(),
+		Directory: s.IsDir(),
+		File:      !s.IsDir(),
+		Symlink:   s.Mode().Perm()&os.ModeSymlink != 0,
 		Mime:      s.Mimetype,
 	})
 }
 
-// Stats a file or folder and returns the base stat object from go along with the
-// MIME data that can be used for editing files.
-func (fs *Filesystem) Stat(p string) (*Stat, error) {
+// Stat stats a file or folder and returns the base stat object from go along
+// with the MIME data that can be used for editing files.
+func (fs *Filesystem) Stat(p string) (Stat, error) {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return nil, err
+		return Stat{}, err
 	}
-
 	return fs.unsafeStat(cleaned)
 }
 
-func (fs *Filesystem) unsafeStat(p string) (*Stat, error) {
+func (fs *Filesystem) unsafeStat(p string) (Stat, error) {
 	s, err := os.Stat(p)
 	if err != nil {
-		return nil, err
+		return Stat{}, err
 	}
 
 	var m *mimetype.MIME
 	if !s.IsDir() {
 		m, err = mimetype.DetectFile(p)
 		if err != nil {
-			return nil, err
+			return Stat{}, err
 		}
 	}
 
-	st := &Stat{
-		Info:     s,
+	st := Stat{
+		FileInfo: s,
 		Mimetype: "inode/directory",
 	}
-
 	if m != nil {
 		st.Mimetype = m.String()
 	}

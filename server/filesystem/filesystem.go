@@ -2,11 +2,6 @@ package filesystem
 
 import (
 	"bufio"
-	"emperror.dev/errors"
-	"github.com/gabriel-vasile/mimetype"
-	"github.com/karrick/godirwalk"
-	"github.com/pterodactyl/wings/config"
-	"github.com/pterodactyl/wings/system"
 	"io"
 	"io/ioutil"
 	"os"
@@ -17,6 +12,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"emperror.dev/errors"
+	"github.com/gabriel-vasile/mimetype"
+	"github.com/karrick/godirwalk"
+	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/system"
+	ignore "github.com/sabhiram/go-gitignore"
 )
 
 type Filesystem struct {
@@ -25,6 +27,7 @@ type Filesystem struct {
 	lookupInProgress  *system.AtomicBool
 	diskUsed          int64
 	diskCheckInterval time.Duration
+	denylist          *ignore.GitIgnore
 
 	// The maximum amount of disk space (in bytes) that this Filesystem instance can use.
 	diskLimit int64
@@ -35,40 +38,76 @@ type Filesystem struct {
 	isTest bool
 }
 
-// Creates a new Filesystem instance for a given server.
-func New(root string, size int64) *Filesystem {
+// New creates a new Filesystem instance for a given server.
+func New(root string, size int64, denylist []string) *Filesystem {
 	return &Filesystem{
 		root:              root,
 		diskLimit:         size,
 		diskCheckInterval: time.Duration(config.Get().System.DiskCheckInterval),
 		lastLookupTime:    &usageLookupTime{},
 		lookupInProgress:  system.NewAtomicBool(false),
+		denylist:          ignore.CompileIgnoreLines(denylist...),
 	}
 }
 
-// Returns the root path for the Filesystem instance.
+// Path returns the root path for the Filesystem instance.
 func (fs *Filesystem) Path() string {
 	return fs.root
 }
 
-// Returns a reader for a file instance.
-func (fs *Filesystem) File(p string) (*os.File, os.FileInfo, error) {
+// File returns a reader for a file instance as well as the stat information.
+func (fs *Filesystem) File(p string) (*os.File, Stat, error) {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return nil, nil, err
+		return nil, Stat{}, err
 	}
-	st, err := os.Stat(cleaned)
+	st, err := fs.Stat(cleaned)
 	if err != nil {
-		return nil, nil, err
+		return nil, Stat{}, err
 	}
 	if st.IsDir() {
-		return nil, nil, &Error{code: ErrCodeIsDirectory}
+		return nil, Stat{}, &Error{code: ErrCodeIsDirectory}
 	}
 	f, err := os.Open(cleaned)
 	if err != nil {
-		return nil, nil, err
+		return nil, Stat{}, err
 	}
 	return f, st, nil
+}
+
+// Acts by creating the given file and path on the disk if it is not present already. If
+// it is present, the file is opened using the defaults which will truncate the contents.
+// The opened file is then returned to the caller.
+func (fs *Filesystem) Touch(p string, flag int) (*os.File, error) {
+	cleaned, err := fs.SafePath(p)
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(cleaned, flag, 0644)
+	if err == nil {
+		return f, nil
+	}
+	// If the error is not because it doesn't exist then we just need to bail at this point.
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	// Create the path leading up to the file we're trying to create, setting the final perms
+	// on it as we go.
+	if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
+		return nil, err
+	}
+	if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
+		return nil, err
+	}
+	o := &fileOpener{}
+	// Try to open the file now that we have created the pathing necessary for it, and then
+	// Chown that file so that the permissions don't mess with things.
+	f, err = o.open(cleaned, flag, 0644)
+	if err != nil {
+		return nil, err
+	}
+	_ = fs.Chown(cleaned)
+	return f, nil
 }
 
 // Reads a file on the system and returns it as a byte representation in a file
@@ -84,7 +123,8 @@ func (fs *Filesystem) Readfile(p string, w io.Writer) error {
 	return err
 }
 
-// Writes a file to the system. If the file does not already exist one will be created.
+// Writefile writes a file to the system. If the file does not already exist one
+// will be created.
 func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
@@ -99,7 +139,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 		return err
 	} else if err == nil {
 		if stat.IsDir() {
-			return &Error{code: ErrCodeIsDirectory}
+			return &Error{code: ErrCodeIsDirectory, resolved: cleaned}
 		}
 		currentSize = stat.Size()
 	}
@@ -112,22 +152,9 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 		return err
 	}
 
-	// If we were unable to stat the location because it did not exist, go ahead and create
-	// it now. We do this after checking the disk space so that we do not just create empty
-	// directories at random.
-	if err != nil {
-		if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
-			return err
-		}
-		if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
-			return err
-		}
-	}
-
-	o := &fileOpener{}
-	// This will either create the file if it does not already exist, or open and
-	// truncate the existing file.
-	file, err := o.open(cleaned, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	// Touch the file and return the handle to it at this point. This will create the file
+	// and any necessary directories as needed.
+	file, err := fs.Touch(cleaned, os.O_RDWR|os.O_CREATE|os.O_TRUNC)
 	if err != nil {
 		return err
 	}
@@ -150,7 +177,6 @@ func (fs *Filesystem) CreateDirectory(name string, p string) error {
 	if err != nil {
 		return err
 	}
-
 	return os.MkdirAll(cleaned, 0755)
 }
 
@@ -411,9 +437,9 @@ func (fo *fileOpener) open(path string, flags int, perm os.FileMode) (*os.File, 
 	}
 }
 
-// Lists the contents of a given directory and returns stat information about each
-// file and folder within it.
-func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
+// ListDirectory lists the contents of a given directory and returns stat
+// information about each file and folder within it.
+func (fs *Filesystem) ListDirectory(p string) ([]Stat, error) {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
 		return nil, err
@@ -429,7 +455,7 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 	// You must initialize the output of this directory as a non-nil value otherwise
 	// when it is marshaled into a JSON object you'll just get 'null' back, which will
 	// break the panel badly.
-	out := make([]*Stat, len(files))
+	out := make([]Stat, len(files))
 
 	// Iterate over all of the files and directories returned and perform an async process
 	// to get the mime-type for them all.
@@ -456,15 +482,10 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 				}
 			}
 
-			st := &Stat{
-				Info:     f,
-				Mimetype: d,
-			}
-
+			st := Stat{FileInfo: f, Mimetype: d}
 			if m != nil {
 				st.Mimetype = m.String()
 			}
-
 			out[idx] = st
 		}(i, file)
 	}
@@ -474,17 +495,16 @@ func (fs *Filesystem) ListDirectory(p string) ([]*Stat, error) {
 	// Sort the output alphabetically to begin with since we've run the output
 	// through an asynchronous process and the order is gonna be very random.
 	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Info.Name() == out[j].Info.Name() || out[i].Info.Name() > out[j].Info.Name() {
+		if out[i].Name() == out[j].Name() || out[i].Name() > out[j].Name() {
 			return true
 		}
-
 		return false
 	})
 
 	// Then, sort it so that directories are listed first in the output. Everything
 	// will continue to be alphabetized at this point.
 	sort.SliceStable(out, func(i, j int) bool {
-		return out[i].Info.IsDir()
+		return out[i].IsDir()
 	})
 
 	return out, nil

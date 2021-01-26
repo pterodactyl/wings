@@ -46,7 +46,7 @@ func (a *Archiver) Stat() (*filesystem.Stat, error) {
 	}
 
 	return &filesystem.Stat{
-		Info:     s,
+		FileInfo: s,
 		Mimetype: "application/tar+gzip",
 	}, nil
 }

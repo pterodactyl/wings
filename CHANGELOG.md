@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.2.3
+### Fixed
+* **[Security]** Fixes a remaining security vulnerability in the code handling remote file downloads for servers relating to redirect validation.
+
+### Added
+* Adds a configuration key at `api.disable_remote_download` that can be set to `true` to completely download the remote download system.
+
 ## v1.2.2
 ### Fixed
 * Reverts changes to logic handling blocking until a server process is done running when polling stats. This change exposed a bug in the underlying Docker system causing servers to enter a state in which Wings was unable to terminate the process and Docker commands would hang if executed against the container.
