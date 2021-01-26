@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	log2 "log"
 	"net/http"
@@ -10,8 +11,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
-	"emperror.dev/errors"
 	"github.com/NYTimes/logrotate"
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/multi"
@@ -22,6 +23,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/loggers/cli"
+	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/router"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/sftp"
@@ -135,7 +137,15 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		"gid":      config.Get().System.User.Gid,
 	}).Info("configured system user successfully")
 
-	if err := server.LoadDirectory(); err != nil {
+	pclient := remote.CreateClient(
+		config.Get().PanelLocation,
+		config.Get().AuthenticationTokenId,
+		config.Get().AuthenticationToken,
+		remote.WithTimeout(time.Second*time.Duration(config.Get().RemoteQuery.Timeout)),
+	)
+
+	manager, err := server.NewManager(cmd.Context(), pclient)
+	if err != nil {
 		log.WithField("error", err).Fatal("failed to load server configurations")
 	}
 
@@ -148,20 +158,38 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	}
 
 	// Just for some nice log output.
-	for _, s := range server.GetServers().All() {
-		log.WithField("server", s.Id()).Info("loaded configuration for server")
+	for _, s := range manager.All() {
+		log.WithField("server", s.Id()).Info("finished loading configuration for server")
 	}
 
-	states, err := server.CachedServerStates()
+	states, err := manager.ReadStates()
 	if err != nil {
 		log.WithField("error", err).Error("failed to retrieve locally cached server states from disk, assuming all servers in offline state")
 	}
+
+	ticker := time.NewTicker(time.Minute)
+	// Every minute, write the current server states to the disk to allow for a more
+	// seamless hard-reboot process in which wings will re-sync server states based
+	// on it's last tracked state.
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				if err := manager.PersistStates(); err != nil {
+					log.WithField("error", err).Warn("failed to persist server states to disk")
+				}
+			case <-cmd.Context().Done():
+				ticker.Stop()
+				return
+			}
+		}
+	}()
 
 	// Create a new workerpool that limits us to 4 servers being bootstrapped at a time
 	// on Wings. This allows us to ensure the environment exists, write configurations,
 	// and reboot processes without causing a slow-down due to sequential booting.
 	pool := workerpool.New(4)
-	for _, serv := range server.GetServers().All() {
+	for _, serv := range manager.All() {
 		s := serv
 
 		// For each server we encounter make sure the root data directory exists.
@@ -172,7 +200,6 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 
 		pool.Submit(func() {
 			s.Log().Info("configuring server environment and restoring to previous state")
-
 			var st string
 			if state, exists := states[s.Id()]; exists {
 				st = state
@@ -224,14 +251,14 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	defer func() {
 		// Cancel the context on all of the running servers at this point, even though the
 		// program is just shutting down.
-		for _, s := range server.GetServers().All() {
+		for _, s := range manager.All() {
 			s.CtxCancel()
 		}
 	}()
 
 	go func() {
 		// Run the SFTP server.
-		if err := sftp.New().Run(); err != nil {
+		if err := sftp.New(manager).Run(); err != nil {
 			log.WithError(err).Fatal("failed to initialize the sftp server")
 			return
 		}
@@ -266,7 +293,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	// and external clients.
 	s := &http.Server{
 		Addr:      api.Host + ":" + strconv.Itoa(api.Port),
-		Handler:   router.Configure(),
+		Handler:   router.Configure(manager),
 		TLSConfig: config.DefaultTLSConfig,
 	}
 

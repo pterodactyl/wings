@@ -159,6 +159,15 @@ func AttachRequestID() gin.HandlerFunc {
 	}
 }
 
+// AttachServerManager attaches the server manager to the request context which
+// allows routes to access the underlying server collection.
+func AttachServerManager(m *server.Manager) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("manager", m)
+		c.Next()
+	}
+}
+
 // CaptureAndAbort aborts the request and attaches the provided error to the gin
 // context so it can be reported properly. If the error is missing a stacktrace
 // at the time it is called the stack will be attached.
@@ -239,9 +248,13 @@ func SetAccessControlHeaders() gin.HandlerFunc {
 // the server ID in the fields list.
 func ServerExists() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		s := server.GetServers().Find(func(s *server.Server) bool {
-			return c.Param("server") == s.Id()
-		})
+		var s *server.Server
+		if c.Param("server") != "" {
+			manager := ExtractManager(c)
+			s = manager.Find(func(s *server.Server) bool {
+				return c.Param("server") == s.Id()
+			})
+		}
 		if s == nil {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "The requested resource does not exist on this instance."})
 			return
@@ -312,4 +325,12 @@ func ExtractServer(c *gin.Context) *server.Server {
 		panic("middleware/middleware: cannot extract server: not present in request context")
 	}
 	return v.(*server.Server)
+}
+
+// ExtractManager returns the server manager instance set on the request context.
+func ExtractManager(c *gin.Context) *server.Manager {
+	if v, ok := c.Get("manager"); ok {
+		return v.(*server.Manager)
+	}
+	panic("middleware/middleware: cannot extract server manager: not present in context")
 }

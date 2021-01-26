@@ -99,7 +99,7 @@ type RemoteQueryConfiguration struct {
 	// are taking longer than 30 seconds to complete it is likely a performance issue that
 	// should be resolved on the Panel, and not something that should be resolved by upping this
 	// number.
-	Timeout uint `default:"30" yaml:"timeout"`
+	Timeout int `default:"30" yaml:"timeout"`
 
 	// The number of servers to load in a single request to the Panel API when booting the
 	// Wings instance. A single request is initially made to the Panel to get this number
@@ -110,7 +110,7 @@ type RemoteQueryConfiguration struct {
 	// memory limits on your Panel instance. In the grand scheme of things 4 requests for
 	// 50 servers is likely just as quick as two for 100 or one for 400, and will certainly
 	// be less likely to cause performance issues on the Panel.
-	BootServersPerPage uint `default:"50" yaml:"boot_servers_per_page"`
+	BootServersPerPage int `default:"50" yaml:"boot_servers_per_page"`
 }
 
 // SystemConfiguration defines basic system configuration settings.
