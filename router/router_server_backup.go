@@ -1,7 +1,6 @@
 package router
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"strings"
@@ -117,7 +116,10 @@ func postServerRestoreBackup(c *gin.Context) {
 	// TODO: this will hang if there is an issue. We can't use c.Request.Context() (or really any)
 	//  since it will be canceled when the request is closed which happens quickly since we push
 	//  this into the background.
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, data.DownloadUrl, nil)
+	//
+	// For now I'm just using the server context so at least the request is canceled if
+	// the server gets deleted.
+	req, err := http.NewRequestWithContext(s.Context(), http.MethodGet, data.DownloadUrl, nil)
 	if err != nil {
 		middleware.CaptureAndAbort(c, err)
 		return
