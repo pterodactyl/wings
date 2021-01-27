@@ -568,6 +568,10 @@ func (sc *SystemConfiguration) GetStatesPath() string {
 //
 // This function IS NOT thread-safe.
 func ConfigureTimezone() error {
+	tz := os.Getenv("TZ")
+	if _config.System.Timezone == "" && tz != "" {
+		_config.System.Timezone = tz
+	}
 	if _config.System.Timezone == "" {
 		b, err := ioutil.ReadFile("/etc/timezone")
 		if err != nil {
