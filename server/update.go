@@ -55,11 +55,7 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 	// so it won't override the value we've passed through in the API call. However, we can
 	// safely assume that we're passing through valid data structures here. I foresee this
 	// backfiring at some point, but until then...
-	//
-	// We'll go ahead and do this with swap as well.
-	c.Build.CpuLimit = src.Build.CpuLimit
-	c.Build.Swap = src.Build.Swap
-	c.Build.DiskSpace = src.Build.DiskSpace
+	c.Build = src.Build
 
 	// Mergo can't quite handle this boolean value correctly, so for now we'll just
 	// handle this edge case manually since none of the other data passed through in this
