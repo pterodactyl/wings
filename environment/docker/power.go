@@ -11,6 +11,7 @@ import (
 	"github.com/pterodactyl/wings/environment"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -115,23 +116,40 @@ func (e *Environment) Start() error {
 	return e.Attach()
 }
 
-// Stops the container that the server is running in. This will allow up to 30 seconds to pass
-// before the container is forcefully terminated if we are trying to stop it without using a command
-// sent into the instance.
+// Stop stops the container that the server is running in. This will allow up to
+// 30 seconds to pass before the container is forcefully terminated if we are
+// trying to stop it without using a command sent into the instance.
 //
-// You most likely want to be using WaitForStop() rather than this function, since this will return
-// as soon as the command is sent, rather than waiting for the process to be completed stopped.
+// You most likely want to be using WaitForStop() rather than this function,
+// since this will return as soon as the command is sent, rather than waiting
+// for the process to be completed stopped.
+//
+// TODO: pass context through from the server instance.
 func (e *Environment) Stop() error {
 	e.mu.RLock()
 	s := e.meta.Stop
 	e.mu.RUnlock()
 
+	// A native "stop" as the Type field value will just skip over all of this
+	// logic and end up only executing the container stop command (which may or
+	// may not work as expected).
 	if s.Type == "" || s.Type == api.ProcessStopSignal {
 		if s.Type == "" {
 			log.WithField("container_id", e.Id).Warn("no stop configuration detected for environment, using termination procedure")
 		}
 
-		return e.Terminate(os.Kill)
+		signal := os.Kill
+		// Handle a few common cases, otherwise just fall through and just pass along
+		// the os.Kill signal to the process.
+		switch strings.ToUpper(s.Value) {
+		case "SIGABRT":
+			signal = syscall.SIGABRT
+		case "SIGINT":
+			signal = syscall.SIGINT
+		case "SIGTERM":
+			signal = syscall.SIGTERM
+		}
+		return e.Terminate(signal)
 	}
 
 	// If the process is already offline don't switch it back to stopping. Just leave it how
@@ -147,26 +165,24 @@ func (e *Environment) Stop() error {
 	}
 
 	t := time.Second * 30
-
 	if err := e.client.ContainerStop(context.Background(), e.Id, &t); err != nil {
 		// If the container does not exist just mark the process as stopped and return without
 		// an error.
 		if client.IsErrNotFound(err) {
 			e.SetStream(nil)
 			e.SetState(environment.ProcessOfflineState)
-
 			return nil
 		}
-
 		return err
 	}
 
 	return nil
 }
 
-// Attempts to gracefully stop a server using the defined stop command. If the server
-// does not stop after seconds have passed, an error will be returned, or the instance
-// will be terminated forcefully depending on the value of the second argument.
+// WaitForStop attempts to gracefully stop a server using the defined stop
+// command. If the server does not stop after seconds have passed, an error will
+// be returned, or the instance will be terminated forcefully depending on the
+// value of the second argument.
 func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 	if err := e.Stop(); err != nil {
 		return err
@@ -211,7 +227,7 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 	return nil
 }
 
-// Forcefully terminates the container using the signal passed through.
+// Terminate forcefully terminates the container using the signal provided.
 func (e *Environment) Terminate(signal os.Signal) error {
 	c, err := e.client.ContainerInspect(context.Background(), e.Id)
 	if err != nil {
