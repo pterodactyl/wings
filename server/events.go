@@ -7,16 +7,17 @@ import (
 // Defines all of the possible output events for a server.
 // noinspection GoNameStartsWithPackageName
 const (
-	DaemonMessageEvent    = "daemon message"
-	InstallOutputEvent    = "install output"
-	InstallStartedEvent   = "install started"
-	InstallCompletedEvent = "install completed"
-	ConsoleOutputEvent    = "console output"
-	StatusEvent           = "status"
-	StatsEvent            = "stats"
-	BackupCompletedEvent  = "backup completed"
-	TransferLogsEvent     = "transfer logs"
-	TransferStatusEvent   = "transfer status"
+	DaemonMessageEvent          = "daemon message"
+	InstallOutputEvent          = "install output"
+	InstallStartedEvent         = "install started"
+	InstallCompletedEvent       = "install completed"
+	ConsoleOutputEvent          = "console output"
+	StatusEvent                 = "status"
+	StatsEvent                  = "stats"
+	BackupRestoreCompletedEvent = "backup restore completed"
+	BackupCompletedEvent        = "backup completed"
+	TransferLogsEvent           = "transfer logs"
+	TransferStatusEvent         = "transfer status"
 )
 
 // Returns the server's emitter instance.

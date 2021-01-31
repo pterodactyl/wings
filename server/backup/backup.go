@@ -3,13 +3,14 @@ package backup
 import (
 	"crypto/sha1"
 	"encoding/hex"
-	"github.com/apex/log"
-	"github.com/pterodactyl/wings/api"
-	"github.com/pterodactyl/wings/config"
 	"io"
 	"os"
 	"path"
 	"sync"
+
+	"github.com/apex/log"
+	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/config"
 )
 
 type AdapterType string
@@ -19,13 +20,17 @@ const (
 	S3BackupAdapter    AdapterType = "s3"
 )
 
+// RestoreCallback is a generic restoration callback that exists for both local
+// and remote backups allowing the files to be restored.
+type RestoreCallback func(file string, r io.Reader) error
+
 type ArchiveDetails struct {
 	Checksum     string `json:"checksum"`
 	ChecksumType string `json:"checksum_type"`
 	Size         int64  `json:"size"`
 }
 
-// Returns a request object.
+// ToRequest returns a request object.
 func (ad *ArchiveDetails) ToRequest(successful bool) api.BackupRequest {
 	return api.BackupRequest{
 		Checksum:     ad.Checksum,
@@ -50,35 +55,33 @@ type Backup struct {
 
 // noinspection GoNameStartsWithPackageName
 type BackupInterface interface {
-	// Returns the UUID of this backup as tracked by the panel instance.
+	// Identifier returns the UUID of this backup as tracked by the panel
+	// instance.
 	Identifier() string
-
-	// Attaches additional context to the log output for this backup.
+	// WithLogContext attaches additional context to the log output for this
+	// backup.
 	WithLogContext(map[string]interface{})
-
-	// Generates a backup in whatever the configured source for the specific
-	// implementation is.
+	// Generate creates a backup in whatever the configured source for the
+	// specific implementation is.
 	Generate(string, string) (*ArchiveDetails, error)
-
-	// Returns the ignored files for this backup instance.
+	// Ignored returns the ignored files for this backup instance.
 	Ignored() string
-
-	// Returns a SHA1 checksum for the generated backup.
+	// Checksum returns a SHA1 checksum for the generated backup.
 	Checksum() ([]byte, error)
-
-	// Returns the size of the generated backup.
+	// Size returns the size of the generated backup.
 	Size() (int64, error)
-
-	// Returns the path to the backup on the machine. This is not always the final
-	// storage location of the backup, simply the location we're using to store
-	// it until it is moved to the final spot.
+	// Path returns the path to the backup on the machine. This is not always
+	// the final storage location of the backup, simply the location we're using
+	// to store it until it is moved to the final spot.
 	Path() string
-
-	// Returns details about the archive.
+	// Details returns details about the archive.
 	Details() *ArchiveDetails
-
-	// Removes a backup file.
+	// Remove removes a backup file.
 	Remove() error
+	// Restore is called when a backup is ready to be restored to the disk from
+	// the given source. Not every backup implementation will support this nor
+	// will every implementation require a reader be provided.
+	Restore(reader io.Reader, callback RestoreCallback) error
 }
 
 func (b *Backup) Identifier() string {

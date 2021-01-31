@@ -36,14 +36,25 @@ type BackupRequest struct {
 	Successful   bool   `json:"successful"`
 }
 
-// Notifies the panel that a specific backup has been completed and is now
-// available for a user to view and download.
+// SendBackupStatus notifies the panel that a specific backup has been completed
+// and is now available for a user to view and download.
 func (r *Request) SendBackupStatus(backup string, data BackupRequest) error {
 	resp, err := r.Post(fmt.Sprintf("/backups/%s", backup), data)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+	return resp.Error()
+}
 
+// SendRestorationStatus triggers a request to the Panel to notify it that a
+// restoration has been completed and the server should be marked as being
+// activated again.
+func (r *Request) SendRestorationStatus(backup string, successful bool) error {
+	resp, err := r.Post(fmt.Sprintf("/backups/%s/restore", backup), D{"successful": successful})
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
 	return resp.Error()
 }

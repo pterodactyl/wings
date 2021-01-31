@@ -1,12 +1,15 @@
 package server
 
 import (
+	"io"
 	"io/ioutil"
 	"os"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/docker/docker/client"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/server/backup"
 )
 
@@ -50,9 +53,9 @@ func (s *Server) getServerwideIgnoredFiles() (string, error) {
 	return string(b), nil
 }
 
-// Performs a server backup and then emits the event over the server websocket. We
-// let the actual backup system handle notifying the panel of the status, but that
-// won't emit a websocket event.
+// Backup performs a server backup and then emits the event over the server
+// websocket. We let the actual backup system handle notifying the panel of the
+// status, but that won't emit a websocket event.
 func (s *Server) Backup(b backup.BackupInterface) error {
 	ignored := b.Ignored()
 	if b.Ignored() == "" {
@@ -107,4 +110,50 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 	})
 
 	return nil
+}
+
+// RestoreBackup calls the Restore function on the provided backup. Once this
+// restoration is completed an event is emitted to the websocket to notify the
+// Panel that is has been completed.
+//
+// In addition to the websocket event an API call is triggered to notify the
+// Panel of the new state.
+func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (err error) {
+	s.Config().SetSuspended(true)
+	// Local backups will not pass a reader through to this function, so check first
+	// to make sure it is a valid reader before trying to close it.
+	defer func() {
+		s.Config().SetSuspended(false)
+		if reader != nil {
+			reader.Close()
+		}
+	}()
+	// Send an API call to the Panel as soon as this function is done running so that
+	// the Panel is informed of the restoration status of this backup.
+	defer func() {
+		if rerr := api.New().SendRestorationStatus(b.Identifier(), err == nil); rerr != nil {
+			s.Log().WithField("error", rerr).WithField("backup", b.Identifier()).Error("failed to notify Panel of backup restoration status")
+		}
+	}()
+
+	// Don't try to restore the server until we have completely stopped the running
+	// instance, otherwise you'll likely hit all types of write errors due to the
+	// server being suspended.
+	if s.Environment.State() != environment.ProcessOfflineState {
+		if err = s.Environment.WaitForStop(120, false); err != nil {
+			if !client.IsErrNotFound(err) {
+				return errors.WrapIf(err, "server/backup: restore: failed to wait for container stop")
+			}
+		}
+	}
+
+	// Attempt to restore the backup to the server by running through each entry
+	// in the file one at a time and writing them to the disk.
+	s.Log().Debug("starting file writing process for backup restoration")
+	err = b.Restore(reader, func(file string, r io.Reader) error {
+		s.Events().Publish(DaemonMessageEvent, "(restoring): "+file)
+		return s.Filesystem().Writefile(file, r)
+	})
+
+	return errors.WithStackIf(err)
 }
