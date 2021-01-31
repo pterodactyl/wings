@@ -151,6 +151,7 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	// in the file one at a time and writing them to the disk.
 	s.Log().Debug("starting file writing process for backup restoration")
 	err = b.Restore(reader, func(file string, r io.Reader) error {
+		s.Events().Publish(DaemonMessageEvent, "(restoring): "+file)
 		return s.Filesystem().Writefile(file, r)
 	})
 
