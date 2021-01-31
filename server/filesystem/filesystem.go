@@ -90,12 +90,12 @@ func (fs *Filesystem) Touch(p string, flag int) (*os.File, error) {
 	}
 	// If the error is not because it doesn't exist then we just need to bail at this point.
 	if !errors.Is(err, os.ErrNotExist) {
-		return nil, err
+		return nil, errors.Wrap(err, "server/filesystem: touch: failed to open file handle")
 	}
 	// Create the path leading up to the file we're trying to create, setting the final perms
 	// on it as we go.
 	if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "server/filesystem: touch: failed to create directory tree")
 	}
 	if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
 		return nil, err
@@ -105,7 +105,7 @@ func (fs *Filesystem) Touch(p string, flag int) (*os.File, error) {
 	// Chown that file so that the permissions don't mess with things.
 	f, err = o.open(cleaned, flag, 0644)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "server/filesystem: touch: failed to open file with wait")
 	}
 	_ = fs.Chown(cleaned)
 	return f, nil
@@ -138,7 +138,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	// to it and an empty file. We'll then write to it later on after this completes.
 	stat, err := os.Stat(cleaned)
 	if err != nil && !os.IsNotExist(err) {
-		return err
+		return errors.Wrap(err, "server/filesystem: writefile: failed to stat file")
 	} else if err == nil {
 		if stat.IsDir() {
 			return &Error{code: ErrCodeIsDirectory, resolved: cleaned}
@@ -235,7 +235,7 @@ func (fs *Filesystem) Chown(path string) error {
 
 	// Start by just chowning the initial path that we received.
 	if err := os.Chown(cleaned, uid, gid); err != nil {
-		return err
+		return errors.Wrap(err, "server/filesystem: chown: failed to chown path")
 	}
 
 	// If this is not a directory we can now return from the function, there is nothing
@@ -246,7 +246,7 @@ func (fs *Filesystem) Chown(path string) error {
 
 	// If this was a directory, begin walking over its contents recursively and ensure that all
 	// of the subfiles and directories get their permissions updated as well.
-	return godirwalk.Walk(cleaned, &godirwalk.Options{
+	err = godirwalk.Walk(cleaned, &godirwalk.Options{
 		Unsorted: true,
 		Callback: func(p string, e *godirwalk.Dirent) error {
 			// Do not attempt to chmod a symlink. Go's os.Chown function will affect the symlink
@@ -263,6 +263,8 @@ func (fs *Filesystem) Chown(path string) error {
 			return os.Chown(p, uid, gid)
 		},
 	})
+
+	return errors.Wrap(err, "server/filesystem: chown: failed to chown during walk function")
 }
 
 func (fs *Filesystem) Chmod(path string, mode os.FileMode) error {

@@ -138,12 +138,14 @@ func postServerRestoreBackup(c *gin.Context) {
 		return
 	}
 
-	go func(uuid string, logger *log.Entry) {
-		logger.Info("restoring server from remote S3 backup...")
+	go func(s *server.Server, uuid string, logger *log.Entry) {
+		logger.Info("starting restoration process for server backup using S3 driver")
 		if err := s.RestoreBackup(backup.NewS3(uuid, ""), res.Body); err != nil {
 			logger.WithField("error", errors.WithStack(err)).Error("failed to restore remote S3 backup to server")
 		}
-	}(c.Param("backup"), logger)
+		s.Events().Publish(server.BackupRestoreCompletedEvent, "")
+		logger.Info("completed server restoration from S3 backup")
+	}(s, c.Param("backup"), logger)
 
 	c.Status(http.StatusAccepted)
 }

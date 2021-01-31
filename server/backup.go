@@ -7,7 +7,9 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/docker/docker/client"
 	"github.com/pterodactyl/wings/api"
+	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/server/backup"
 )
 
@@ -126,13 +128,6 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 			reader.Close()
 		}
 	}()
-	// Don't try to restore the server until we have completely stopped the running
-	// instance, otherwise you'll likely hit all types of write errors due to the
-	// server being suspended.
-	err = s.Environment.WaitForStop(120, false)
-	if err != nil {
-		return errors.WithStackIf(err)
-	}
 	// Send an API call to the Panel as soon as this function is done running so that
 	// the Panel is informed of the restoration status of this backup.
 	defer func() {
@@ -141,8 +136,20 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 		}
 	}()
 
+	// Don't try to restore the server until we have completely stopped the running
+	// instance, otherwise you'll likely hit all types of write errors due to the
+	// server being suspended.
+	if s.Environment.State() != environment.ProcessOfflineState {
+		if err = s.Environment.WaitForStop(120, false); err != nil {
+			if !client.IsErrNotFound(err) {
+				return errors.WrapIf(err, "server/backup: restore: failed to wait for container stop")
+			}
+		}
+	}
+
 	// Attempt to restore the backup to the server by running through each entry
 	// in the file one at a time and writing them to the disk.
+	s.Log().Debug("starting file writing process for backup restoration")
 	err = b.Restore(reader, func(file string, r io.Reader) error {
 		return s.Filesystem().Writefile(file, r)
 	})

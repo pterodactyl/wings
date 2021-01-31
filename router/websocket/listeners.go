@@ -45,6 +45,7 @@ var e = []string{
 	server.InstallCompletedEvent,
 	server.DaemonMessageEvent,
 	server.BackupCompletedEvent,
+	server.BackupRestoreCompletedEvent,
 	server.TransferLogsEvent,
 	server.TransferStatusEvent,
 }

@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/karrick/godirwalk"
 	"sync"
@@ -189,7 +190,7 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 		},
 	})
 
-	return size, err
+	return size, errors.WrapIf(err, "server/filesystem: directorysize: failed to walk directory")
 }
 
 // Helper function to determine if a server has space available for a file of a given size.
