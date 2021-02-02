@@ -83,7 +83,9 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 		// Determines if we should wait for the lock or not. If a value greater than 0 is passed
 		// into this function we will wait that long for a lock to be acquired.
 		if len(waitSeconds) > 0 && waitSeconds[0] != 0 {
-			ctx, _ := context.WithTimeout(context.Background(), time.Second*time.Duration(waitSeconds[0]))
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(waitSeconds[0]))
+			defer cancel()
+
 			// Attempt to acquire a lock on the power action lock for up to 30 seconds. If more
 			// time than that passes an error will be propagated back up the chain and this
 			// request will be aborted.
