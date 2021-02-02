@@ -8,7 +8,6 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
-	"github.com/pterodactyl/wings/api"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -147,27 +146,26 @@ func (c *client) ValidateSftpCredentials(ctx context.Context, request SftpAuthRe
 
 // getServersPaged returns a subset of servers from the Panel API using the
 // pagination query parameters.
-func (c *client) getServersPaged(ctx context.Context, page, limit int) ([]RawServerData, api.Pagination, error) {
+func (c *client) getServersPaged(ctx context.Context, page, limit int) ([]RawServerData, Pagination, error) {
+	var r struct {
+		Data []RawServerData `json:"data"`
+		Meta Pagination      `json:"meta"`
+	}
+
 	res, err := c.get(ctx, "/servers", q{
 		"page":     strconv.Itoa(page),
 		"per_page": strconv.Itoa(limit),
 	})
 	if err != nil {
-		return nil, api.Pagination{}, err
+		return nil, r.Meta, err
 	}
 	defer res.Body.Close()
 
 	if res.HasError() {
-		return nil, api.Pagination{}, res.Error()
-	}
-
-	var r struct {
-		Data []RawServerData `json:"data"`
-		Meta api.Pagination      `json:"meta"`
+		return nil, r.Meta, res.Error()
 	}
 	if err := res.BindJSON(&r); err != nil {
-		return nil, api.Pagination{}, err
+		return nil, r.Meta, err
 	}
-
 	return r.Data, r.Meta, nil
 }

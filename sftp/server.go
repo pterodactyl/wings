@@ -18,7 +18,6 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/pkg/sftp"
-	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server"
@@ -190,7 +189,7 @@ func (c *SFTPServer) passwordCallback(conn ssh.ConnMetadata, pass []byte) (*ssh.
 
 	resp, err := c.manager.Client().ValidateSftpCredentials(context.Background(), request)
 	if err != nil {
-		if api.IsInvalidCredentialsError(err) {
+		if _, ok := err.(*remote.SftpInvalidCredentialsError); ok {
 			logger.Warn("failed to validate user credentials (invalid username or password)")
 		} else {
 			logger.WithField("error", err).Error("encountered an error while trying to validate user credentials")

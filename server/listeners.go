@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/apex/log"
-	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
