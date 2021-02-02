@@ -9,6 +9,27 @@ import (
 	"github.com/pterodactyl/wings/parser"
 )
 
+// A generic type allowing for easy binding use when making requests to API
+// endpoints that only expect a singular argument or something that would not
+// benefit from being a typed struct.
+//
+// Inspired by gin.H, same concept.
+type d map[string]interface{}
+
+// Same concept as d, but a map of strings, used for querying GET requests.
+type q map[string]string
+
+type ClientOption func(c *client)
+
+type Pagination struct {
+	CurrentPage uint `json:"current_page"`
+	From        uint `json:"from"`
+	LastPage    uint `json:"last_page"`
+	PerPage     uint `json:"per_page"`
+	To          uint `json:"to"`
+	Total       uint `json:"total"`
+}
+
 // ServerConfigurationResponse holds the server configuration data returned from
 // the Panel. When a server process is started, Wings communicates with the
 // Panel to fetch the latest build information as well as get all of the details

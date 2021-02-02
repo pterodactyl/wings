@@ -9,34 +9,65 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strings"
+	"time"
 
+	"github.com/apex/log"
 	"github.com/pterodactyl/wings/system"
 )
 
-// A generic type allowing for easy binding use when making requests to API
-// endpoints that only expect a singular argument or something that would not
-// benefit from being a typed struct.
-//
-// Inspired by gin.H, same concept.
-type d map[string]interface{}
-
-// Same concept as d, but a map of strings, used for querying GET requests.
-type q map[string]string
-
-// Response is a custom response type that allows for commonly used error
-// handling and response parsing from the Panel API. This just embeds the normal
-// HTTP response from Go and we attach a few helper functions to it.
-type Response struct {
-	*http.Response
+type Client interface {
+	GetBackupRemoteUploadURLs(ctx context.Context, backup string, size int64) (BackupRemoteUploadResponse, error)
+	GetInstallationScript(ctx context.Context, uuid string) (InstallationScript, error)
+	GetServerConfiguration(ctx context.Context, uuid string) (ServerConfigurationResponse, error)
+	GetServers(context context.Context, perPage int) ([]RawServerData, error)
+	SetArchiveStatus(ctx context.Context, uuid string, successful bool) error
+	SetBackupStatus(ctx context.Context, backup string, data BackupRequest) error
+	SendRestorationStatus(ctx context.Context, backup string, successful bool) error
+	SetInstallationStatus(ctx context.Context, uuid string, successful bool) error
+	SetTransferStatus(ctx context.Context, uuid string, successful bool) error
+	ValidateSftpCredentials(ctx context.Context, request SftpAuthRequest) (SftpAuthResponse, error)
 }
 
-type Pagination struct {
-	CurrentPage uint `json:"current_page"`
-	From        uint `json:"from"`
-	LastPage    uint `json:"last_page"`
-	PerPage     uint `json:"per_page"`
-	To          uint `json:"to"`
-	Total       uint `json:"total"`
+type client struct {
+	httpClient *http.Client
+	baseUrl    string
+	tokenId    string
+	token      string
+	retries    int
+}
+
+// New returns a new HTTP request client that is used for making authenticated
+// requests to the Panel that this instance is running under.
+func New(base string, opts ...ClientOption) Client {
+	c := client{
+		baseUrl: strings.TrimSuffix(base, "/") + "/api/remote",
+		httpClient: &http.Client{
+			Timeout: time.Second * 15,
+		},
+		retries: 3,
+	}
+	for _, opt := range opts {
+		opt(&c)
+	}
+	return &c
+}
+
+// WithCredentials sets the credentials to use when making request to the remote
+// API endpoint.
+func WithCredentials(id, token string) ClientOption {
+	return func(c *client) {
+		c.tokenId = id
+		c.token = token
+	}
+}
+
+// WithHttpClient sets the underlying HTTP client instance to use when making
+// requests to the Panel API.
+func WithHttpClient(httpClient *http.Client) ClientOption {
+	return func(c *client) {
+		c.httpClient = httpClient
+	}
 }
 
 // requestOnce creates a http request and executes it once. Prefer request()
@@ -103,6 +134,13 @@ func (c *client) post(ctx context.Context, path string, data interface{}) (*Resp
 	return c.request(ctx, http.MethodPost, path, bytes.NewBuffer(b))
 }
 
+// Response is a custom response type that allows for commonly used error
+// handling and response parsing from the Panel API. This just embeds the normal
+// HTTP response from Go and we attach a few helper functions to it.
+type Response struct {
+	*http.Response
+}
+
 // HasError determines if the API call encountered an error. If no request has
 // been made the response will be false. This function will evaluate to true if
 // the response code is anything 300 or higher.
@@ -164,4 +202,27 @@ func (r *Response) Error() error {
 	e.response = r.Response
 
 	return e
+}
+
+// Logs the request into the debug log with all of the important request bits.
+// The authorization key will be cleaned up before being output.
+func debugLogRequest(req *http.Request) {
+	if l, ok := log.Log.(*log.Logger); ok && l.Level != log.DebugLevel {
+		return
+	}
+	headers := make(map[string][]string)
+	for k, v := range req.Header {
+		if k != "Authorization" || len(v) == 0 || len(v[0]) == 0 {
+			headers[k] = v
+			continue
+		}
+
+		headers[k] = []string{"(redacted)"}
+	}
+
+	log.WithFields(log.Fields{
+		"method":   req.Method,
+		"endpoint": req.URL.String(),
+		"headers":  headers,
+	}).Debug("making request to external HTTP endpoint")
 }

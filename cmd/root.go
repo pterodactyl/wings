@@ -137,11 +137,12 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		"gid":      config.Get().System.User.Gid,
 	}).Info("configured system user successfully")
 
-	pclient := remote.CreateClient(
+	pclient := remote.New(
 		config.Get().PanelLocation,
-		config.Get().AuthenticationTokenId,
-		config.Get().AuthenticationToken,
-		remote.WithTimeout(time.Second*time.Duration(config.Get().RemoteQuery.Timeout)),
+		remote.WithCredentials(config.Get().AuthenticationTokenId, config.Get().AuthenticationToken),
+		remote.WithHttpClient(&http.Client{
+			Timeout: time.Second * time.Duration(config.Get().RemoteQuery.Timeout),
+		}),
 	)
 
 	manager, err := server.NewManager(cmd.Context(), pclient)

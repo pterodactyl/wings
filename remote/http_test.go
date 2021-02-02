@@ -3,10 +3,24 @@ package remote
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func createTestClient(h http.HandlerFunc) (*client, *httptest.Server) {
+	s := httptest.NewServer(h)
+	c := &client{
+		httpClient: s.Client(),
+		baseUrl:    s.URL,
+
+		retries: 1,
+		tokenId: "testid",
+		token:   "testtoken",
+	}
+	return c, s
+}
 
 func TestRequest(t *testing.T) {
 	c, _ := createTestClient(func(rw http.ResponseWriter, r *http.Request) {
