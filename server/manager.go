@@ -46,12 +46,6 @@ func NewEmptyManager(client remote.Client) *Manager {
 	return &Manager{client: client}
 }
 
-// Client returns the HTTP client interface that allows interaction with the
-// Panel API.
-func (m *Manager) Client() remote.Client {
-	return m.client
-}
-
 // Put replaces all of the current values in the collection with the value that
 // is passed through.
 func (m *Manager) Put(s []*Server) {
