@@ -11,6 +11,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
+	"github.com/pterodactyl/wings/remote"
 )
 
 var dockerEvents = []string{
@@ -186,7 +187,7 @@ func (s *Server) onConsoleOutput(data string) {
 	if s.IsRunning() {
 		stop := processConfiguration.Stop
 
-		if stop.Type == api.ProcessStopCommand && data == stop.Value {
+		if stop.Type == remote.ProcessStopCommand && data == stop.Value {
 			s.Environment.SetState(environment.ProcessOfflineState)
 		}
 	}

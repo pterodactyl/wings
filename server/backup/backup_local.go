@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/mholt/archiver/v3"
+	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/system"
 )
 
@@ -15,9 +16,10 @@ type LocalBackup struct {
 
 var _ BackupInterface = (*LocalBackup)(nil)
 
-func NewLocal(uuid string, ignore string) *LocalBackup {
+func NewLocal(client remote.Client, uuid string, ignore string) *LocalBackup {
 	return &LocalBackup{
 		Backup{
+			client: client,
 			Uuid:    uuid,
 			Ignore:  ignore,
 			adapter: LocalBackupAdapter,
@@ -27,14 +29,8 @@ func NewLocal(uuid string, ignore string) *LocalBackup {
 
 // LocateLocal finds the backup for a server and returns the local path. This
 // will obviously only work if the backup was created as a local backup.
-func LocateLocal(uuid string) (*LocalBackup, os.FileInfo, error) {
-	b := &LocalBackup{
-		Backup{
-			Uuid:   uuid,
-			Ignore: "",
-		},
-	}
-
+func LocateLocal(client remote.Client, uuid string) (*LocalBackup, os.FileInfo, error) {
+	b := NewLocal(client, uuid, "")
 	st, err := os.Stat(b.Path())
 	if err != nil {
 		return nil, nil, err

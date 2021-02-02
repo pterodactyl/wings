@@ -5,17 +5,16 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/pterodactyl/wings/api"
 )
 
 type Client interface {
-	GetBackupRemoteUploadURLs(ctx context.Context, backup string, size int64) (api.BackupRemoteUploadResponse, error)
+	GetBackupRemoteUploadURLs(ctx context.Context, backup string, size int64) (BackupRemoteUploadResponse, error)
 	GetInstallationScript(ctx context.Context, uuid string) (InstallationScript, error)
 	GetServerConfiguration(ctx context.Context, uuid string) (ServerConfigurationResponse, error)
 	GetServers(context context.Context, perPage int) ([]RawServerData, error)
 	SetArchiveStatus(ctx context.Context, uuid string, successful bool) error
-	SetBackupStatus(ctx context.Context, backup string, data api.BackupRequest) error
+	SetBackupStatus(ctx context.Context, backup string, data BackupRequest) error
+	SendRestorationStatus(ctx context.Context, backup string, successful bool) error
 	SetInstallationStatus(ctx context.Context, uuid string, successful bool) error
 	SetTransferStatus(ctx context.Context, uuid string, successful bool) error
 	ValidateSftpCredentials(ctx context.Context, request SftpAuthRequest) (SftpAuthResponse, error)

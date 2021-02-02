@@ -9,8 +9,8 @@ import (
 	"sync"
 
 	"github.com/apex/log"
-	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/remote"
 )
 
 type AdapterType string
@@ -31,8 +31,8 @@ type ArchiveDetails struct {
 }
 
 // ToRequest returns a request object.
-func (ad *ArchiveDetails) ToRequest(successful bool) api.BackupRequest {
-	return api.BackupRequest{
+func (ad *ArchiveDetails) ToRequest(successful bool) remote.BackupRequest {
+	return remote.BackupRequest{
 		Checksum:     ad.Checksum,
 		ChecksumType: ad.ChecksumType,
 		Size:         ad.Size,
@@ -49,12 +49,15 @@ type Backup struct {
 	// compatible with a standard .gitignore structure.
 	Ignore string `json:"ignore"`
 
+	client     remote.Client
 	adapter    AdapterType
 	logContext map[string]interface{}
 }
 
 // noinspection GoNameStartsWithPackageName
 type BackupInterface interface {
+	// SetClient sets the API request client on the backup interface.
+	SetClient(c remote.Client)
 	// Identifier returns the UUID of this backup as tracked by the panel
 	// instance.
 	Identifier() string
@@ -82,6 +85,10 @@ type BackupInterface interface {
 	// the given source. Not every backup implementation will support this nor
 	// will every implementation require a reader be provided.
 	Restore(reader io.Reader, callback RestoreCallback) error
+}
+
+func (b *Backup) SetClient(c remote.Client) {
+	b.client = c
 }
 
 func (b *Backup) Identifier() string {

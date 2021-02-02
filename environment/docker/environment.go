@@ -10,15 +10,15 @@ import (
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
+	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/system"
 )
 
 type Metadata struct {
 	Image string
-	Stop  api.ProcessStopConfiguration
+	Stop  remote.ProcessStopConfiguration
 }
 
 // Ensure that the Docker environment is always implementing all of the methods
@@ -177,7 +177,7 @@ func (e *Environment) Config() *environment.Configuration {
 }
 
 // Sets the stop configuration for the environment.
-func (e *Environment) SetStopConfiguration(c api.ProcessStopConfiguration) {
+func (e *Environment) SetStopConfiguration(c remote.ProcessStopConfiguration) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 

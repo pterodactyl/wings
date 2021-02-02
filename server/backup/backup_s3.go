@@ -3,6 +3,7 @@ package backup
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,8 +11,8 @@ import (
 	"strconv"
 
 	"github.com/juju/ratelimit"
-	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/remote"
 )
 
 type S3Backup struct {
@@ -20,9 +21,10 @@ type S3Backup struct {
 
 var _ BackupInterface = (*S3Backup)(nil)
 
-func NewS3(uuid string, ignore string) *S3Backup {
+func NewS3(client remote.Client, uuid string, ignore string) *S3Backup {
 	return &S3Backup{
 		Backup{
+			client:  client,
 			Uuid:    uuid,
 			Ignore:  ignore,
 			adapter: S3BackupAdapter,
@@ -91,7 +93,7 @@ func (s *S3Backup) generateRemoteRequest(rc io.ReadCloser) error {
 	s.log().WithField("size", size).Debug("got size of backup")
 
 	s.log().Debug("attempting to get S3 upload urls from Panel...")
-	urls, err := api.New().GetBackupRemoteUploadURLs(s.Backup.Uuid, size)
+	urls, err := s.client.GetBackupRemoteUploadURLs(context.Background(), s.Backup.Uuid, size)
 	if err != nil {
 		return err
 	}

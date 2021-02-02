@@ -10,7 +10,6 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/creasty/defaults"
-	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/environment/docker"
@@ -54,7 +53,7 @@ type Server struct {
 	// Defines the process configuration for the server instance. This is dynamically
 	// fetched from the Pterodactyl Server instance each time the server process is
 	// started, and then cached here.
-	procConfig *api.ProcessConfiguration
+	procConfig *remote.ProcessConfiguration
 
 	// Tracks the installation process for this server and prevents a server from running
 	// two installer processes at the same time. This also allows us to cancel a running
@@ -152,11 +151,11 @@ func (s *Server) Log() *log.Entry {
 func (s *Server) Sync() error {
 	cfg, err := s.client.GetServerConfiguration(s.Context(), s.Id())
 	if err != nil {
-		if !api.IsRequestError(err) {
+		if !remote.IsRequestError(err) {
 			return err
 		}
 
-		if err.(*api.RequestError).Status == "404" {
+		if err.(*remote.RequestError).Status == "404" {
 			return &serverDoesNotExist{}
 		}
 
@@ -220,7 +219,7 @@ func (s *Server) IsSuspended() bool {
 	return s.Config().Suspended
 }
 
-func (s *Server) ProcessConfiguration() *api.ProcessConfiguration {
+func (s *Server) ProcessConfiguration() *remote.ProcessConfiguration {
 	s.RLock()
 	defer s.RUnlock()
 

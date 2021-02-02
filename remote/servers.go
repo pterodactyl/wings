@@ -2,11 +2,12 @@ package remote
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"sync"
 
+	"emperror.dev/errors"
+	"github.com/apex/log"
 	"github.com/pterodactyl/wings/api"
 	"golang.org/x/sync/errgroup"
 )
@@ -16,37 +17,6 @@ const (
 	ProcessStopSignal     = "signal"
 	ProcessStopNativeStop = "stop"
 )
-
-// ServerConfigurationResponse holds the server configuration data returned from
-// the Panel. When a server process is started, Wings communicates with the
-// Panel to fetch the latest build information as well as get all of the details
-// needed to parse the given Egg.
-//
-// This means we do not need to hit Wings each time part of the server is
-// updated, and the Panel serves as the source of truth at all times. This also
-// means if a configuration is accidentally wiped on Wings we can self-recover
-// without too much hassle, so long as Wings is aware of what servers should
-// exist on it.
-type ServerConfigurationResponse struct {
-	Settings             json.RawMessage           `json:"settings"`
-	ProcessConfiguration *api.ProcessConfiguration `json:"process_configuration"`
-}
-
-// InstallationScript defines installation script information for a server
-// process. This is used when a server is installed for the first time, and when
-// a server is marked for re-installation.
-type InstallationScript struct {
-	ContainerImage string `json:"container_image"`
-	Entrypoint     string `json:"entrypoint"`
-	Script         string `json:"script"`
-}
-
-// RawServerData is a raw response from the API for a server.
-type RawServerData struct {
-	Uuid                 string          `json:"uuid"`
-	Settings             json.RawMessage `json:"settings"`
-	ProcessConfiguration json.RawMessage `json:"process_configuration"`
-}
 
 // GetServers returns all of the servers that are present on the Panel making
 // parallel API calls to the endpoint if more than one page of servers is
@@ -142,6 +112,37 @@ func (c *client) SetTransferStatus(ctx context.Context, uuid string, successful 
 	}
 	defer resp.Body.Close()
 	return resp.Error()
+}
+
+// ValidateSftpCredentials makes a request to determine if the username and
+// password combination provided is associated with a valid server on the instance
+// using the Panel's authentication control mechanisms. This will get itself
+// throttled if too many requests are made, allowing us to completely offload
+// all of the authorization security logic to the Panel.
+func (c *client) ValidateSftpCredentials(ctx context.Context, request SftpAuthRequest) (SftpAuthResponse, error) {
+	var auth SftpAuthResponse
+	res, err := c.post(ctx, "/sftp/auth", request)
+	if err != nil {
+		return auth, err
+	}
+
+	e := res.Error()
+	if e != nil {
+		if res.StatusCode >= 400 && res.StatusCode < 500 {
+			log.WithFields(log.Fields{
+				"subsystem": "sftp",
+				"username":  request.User,
+				"ip":        request.IP,
+			}).Warn(e.Error())
+
+			return auth, &SftpInvalidCredentialsError{}
+		}
+
+		return auth, errors.New(e.Error())
+	}
+
+	err = res.BindJSON(&auth)
+	return auth, err
 }
 
 // getServersPaged returns a subset of servers from the Panel API using the
