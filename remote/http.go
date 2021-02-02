@@ -13,16 +13,16 @@ import (
 	"github.com/pterodactyl/wings/system"
 )
 
-// A custom response type that allows for commonly used error handling and response
-// parsing from the Panel API. This just embeds the normal HTTP response from Go and
-// we attach a few helper functions to it.
+// Response is a custom response type that allows for commonly used error
+// handling and response parsing from the Panel API. This just embeds the normal
+// HTTP response from Go and we attach a few helper functions to it.
 type Response struct {
 	*http.Response
 }
 
-// A generic type allowing for easy binding use when making requests to API endpoints
-// that only expect a singular argument or something that would not benefit from being
-// a typed struct.
+// A generic type allowing for easy binding use when making requests to API
+// endpoints that only expect a singular argument or something that would not
+// benefit from being a typed struct.
 //
 // Inspired by gin.H, same concept.
 type d map[string]interface{}
@@ -30,9 +30,9 @@ type d map[string]interface{}
 // Same concept as d, but a map of strings, used for querying GET requests.
 type q map[string]string
 
-// requestOnce creates a http request and executes it once.
-// Prefer request() over this method when possible.
-// It appends the path to the endpoint of the client and adds the authentication token to the request.
+// requestOnce creates a http request and executes it once. Prefer request()
+// over this method when possible. It appends the path to the endpoint of the
+// client and adds the authentication token to the request.
 func (c *client) requestOnce(ctx context.Context, method, path string, body io.Reader, opts ...func(r *http.Request)) (*Response, error) {
 	req, err := http.NewRequest(method, c.baseUrl+path, body)
 	if err != nil {
@@ -94,9 +94,9 @@ func (c *client) post(ctx context.Context, path string, data interface{}) (*Resp
 	return c.request(ctx, http.MethodPost, path, bytes.NewBuffer(b))
 }
 
-// Determines if the API call encountered an error. If no request has been made
-// the response will be false. This function will evaluate to true if the response
-// code is anything 300 or higher.
+// HasError determines if the API call encountered an error. If no request has
+// been made the response will be false. This function will evaluate to true if
+// the response code is anything 300 or higher.
 func (r *Response) HasError() bool {
 	if r.Response == nil {
 		return false
@@ -123,8 +123,9 @@ func (r *Response) Read() ([]byte, error) {
 	return b, nil
 }
 
-// Binds a given interface with the data returned in the response. This is a shortcut
-// for calling Read and then manually calling json.Unmarshal on the raw bytes.
+// BindJSON binds a given interface with the data returned in the response. This
+// is a shortcut for calling Read and then manually calling json.Unmarshal on
+// the raw bytes.
 func (r *Response) BindJSON(v interface{}) error {
 	b, err := r.Read()
 	if err != nil {
@@ -134,8 +135,8 @@ func (r *Response) BindJSON(v interface{}) error {
 	return json.Unmarshal(b, &v)
 }
 
-// Returns the first error message from the API call as a string.
-// The error message will be formatted similar to the below example:
+// Returns the first error message from the API call as a string. The error
+// message will be formatted similar to the below example:
 //
 // HttpNotFoundException: The requested resource does not exist. (HTTP/404)
 func (r *Response) Error() error {

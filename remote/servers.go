@@ -17,64 +17,42 @@ const (
 	ProcessStopNativeStop = "stop"
 )
 
-// Holds the server configuration data returned from the Panel. When a server process
-// is started, Wings communicates with the Panel to fetch the latest build information
-// as well as get all of the details needed to parse the given Egg.
+// ServerConfigurationResponse holds the server configuration data returned from
+// the Panel. When a server process is started, Wings communicates with the
+// Panel to fetch the latest build information as well as get all of the details
+// needed to parse the given Egg.
 //
-// This means we do not need to hit Wings each time part of the server is updated, and
-// the Panel serves as the source of truth at all times. This also means if a configuration
-// is accidentally wiped on Wings we can self-recover without too much hassle, so long
-// as Wings is aware of what servers should exist on it.
+// This means we do not need to hit Wings each time part of the server is
+// updated, and the Panel serves as the source of truth at all times. This also
+// means if a configuration is accidentally wiped on Wings we can self-recover
+// without too much hassle, so long as Wings is aware of what servers should
+// exist on it.
 type ServerConfigurationResponse struct {
 	Settings             json.RawMessage           `json:"settings"`
 	ProcessConfiguration *api.ProcessConfiguration `json:"process_configuration"`
 }
 
-// Defines installation script information for a server process. This is used when
-// a server is installed for the first time, and when a server is marked for re-installation.
+// InstallationScript defines installation script information for a server
+// process. This is used when a server is installed for the first time, and when
+// a server is marked for re-installation.
 type InstallationScript struct {
 	ContainerImage string `json:"container_image"`
 	Entrypoint     string `json:"entrypoint"`
 	Script         string `json:"script"`
 }
 
-type allServerResponse struct {
-	Data []api.RawServerData `json:"data"`
-	Meta api.Pagination      `json:"meta"`
-}
-
+// RawServerData is a raw response from the API for a server.
 type RawServerData struct {
 	Uuid                 string          `json:"uuid"`
 	Settings             json.RawMessage `json:"settings"`
 	ProcessConfiguration json.RawMessage `json:"process_configuration"`
 }
 
-func (c *client) GetServersPaged(ctx context.Context, page, limit int) ([]api.RawServerData, api.Pagination, error) {
-	res, err := c.get(ctx, "/servers", q{
-		"page":     strconv.Itoa(page),
-		"per_page": strconv.Itoa(limit),
-	})
-	if err != nil {
-		return nil, api.Pagination{}, err
-	}
-	defer res.Body.Close()
-
-	if res.HasError() {
-		return nil, api.Pagination{}, res.Error()
-	}
-
-	var r allServerResponse
-	if err := res.BindJSON(&r); err != nil {
-		return nil, api.Pagination{}, err
-	}
-
-	return r.Data, r.Meta, nil
-}
-
 // GetServers returns all of the servers that are present on the Panel making
-// parallel API calls to the endpoint if more than one page of servers is returned.
+// parallel API calls to the endpoint if more than one page of servers is
+// returned.
 func (c *client) GetServers(ctx context.Context, limit int) ([]api.RawServerData, error) {
-	servers, meta, err := c.GetServersPaged(ctx, 0, limit)
+	servers, meta, err := c.getServersPaged(ctx, 0, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +63,7 @@ func (c *client) GetServers(ctx context.Context, limit int) ([]api.RawServerData
 		for page := meta.CurrentPage + 1; page <= meta.LastPage; page++ {
 			page := page
 			g.Go(func() error {
-				ps, _, err := c.GetServersPaged(ctx, int(page), limit)
+				ps, _, err := c.getServersPaged(ctx, int(page), limit)
 				if err != nil {
 					return err
 				}
@@ -164,4 +142,31 @@ func (c *client) SetTransferStatus(ctx context.Context, uuid string, successful 
 	}
 	defer resp.Body.Close()
 	return resp.Error()
+}
+
+// getServersPaged returns a subset of servers from the Panel API using the
+// pagination query parameters.
+func (c *client) getServersPaged(ctx context.Context, page, limit int) ([]api.RawServerData, api.Pagination, error) {
+	res, err := c.get(ctx, "/servers", q{
+		"page":     strconv.Itoa(page),
+		"per_page": strconv.Itoa(limit),
+	})
+	if err != nil {
+		return nil, api.Pagination{}, err
+	}
+	defer res.Body.Close()
+
+	if res.HasError() {
+		return nil, api.Pagination{}, res.Error()
+	}
+
+	var r struct {
+		Data []api.RawServerData `json:"data"`
+		Meta api.Pagination      `json:"meta"`
+	}
+	if err := res.BindJSON(&r); err != nil {
+		return nil, api.Pagination{}, err
+	}
+
+	return r.Data, r.Meta, nil
 }
