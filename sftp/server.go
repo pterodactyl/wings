@@ -1,6 +1,7 @@
 package sftp
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -10,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -18,9 +20,15 @@ import (
 	"github.com/pkg/sftp"
 	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server"
 	"golang.org/x/crypto/ssh"
 )
+
+// Usernames all follow the same format, so don't even bother hitting the API if the username is not
+// at least in the expected format. This is very basic protection against random bots finding the SFTP
+// server and sending a flood of usernames.
+var validUsernameRegexp = regexp.MustCompile(`^(?i)(.+)\.([a-z0-9]{8})$`)
 
 //goland:noinspection GoNameStartsWithPackageName
 type SFTPServer struct {
@@ -164,7 +172,7 @@ func (c *SFTPServer) generatePrivateKey() error {
 
 // A function capable of validating user credentials with the Panel API.
 func (c *SFTPServer) passwordCallback(conn ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
-	request := api.SftpAuthRequest{
+	request := remote.SftpAuthRequest{
 		User:          conn.User(),
 		Pass:          string(pass),
 		IP:            conn.RemoteAddr().String(),
@@ -175,7 +183,12 @@ func (c *SFTPServer) passwordCallback(conn ssh.ConnMetadata, pass []byte) (*ssh.
 	logger := log.WithFields(log.Fields{"subsystem": "sftp", "username": conn.User(), "ip": conn.RemoteAddr().String()})
 	logger.Debug("validating credentials for SFTP connection")
 
-	resp, err := api.New().ValidateSftpCredentials(request)
+	if !validUsernameRegexp.MatchString(request.User) {
+		logger.Warn("failed to validate user credentials (invalid format)")
+		return nil, &remote.SftpInvalidCredentialsError{}
+	}
+
+	resp, err := c.manager.Client().ValidateSftpCredentials(context.Background(), request)
 	if err != nil {
 		if api.IsInvalidCredentialsError(err) {
 			logger.Warn("failed to validate user credentials (invalid username or password)")

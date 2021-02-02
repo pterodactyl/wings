@@ -32,15 +32,9 @@ func (re *RequestError) Error() string {
 	return fmt.Sprintf("Error response from Panel: %s: %s (HTTP/%d)", re.Code, re.Detail, c)
 }
 
-type sftpInvalidCredentialsError struct {
+type SftpInvalidCredentialsError struct {
 }
 
-func (ice sftpInvalidCredentialsError) Error() string {
+func (ice SftpInvalidCredentialsError) Error() string {
 	return "the credentials provided were invalid"
-}
-
-func IsInvalidCredentialsError(err error) bool {
-	_, ok := err.(*sftpInvalidCredentialsError)
-
-	return ok
 }

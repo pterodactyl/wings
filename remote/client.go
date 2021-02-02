@@ -18,7 +18,7 @@ type Client interface {
 	SetBackupStatus(ctx context.Context, backup string, data api.BackupRequest) error
 	SetInstallationStatus(ctx context.Context, uuid string, successful bool) error
 	SetTransferStatus(ctx context.Context, uuid string, successful bool) error
-	ValidateSftpCredentials(ctx context.Context, request api.SftpAuthRequest) (api.SftpAuthResponse, error)
+	ValidateSftpCredentials(ctx context.Context, request SftpAuthRequest) (SftpAuthResponse, error)
 }
 
 type client struct {

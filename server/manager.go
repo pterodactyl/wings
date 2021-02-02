@@ -46,54 +46,10 @@ func NewEmptyManager(client remote.Client) *Manager {
 	return &Manager{client: client}
 }
 
-// initializeFromRemoteSource iterates over a given directory and loads all of
-// the servers listed before returning them to the calling function.
-func (m *Manager) init(ctx context.Context) error {
-	log.Info("fetching list of servers from API")
-	servers, err := m.client.GetServers(ctx, config.Get().RemoteQuery.BootServersPerPage)
-	if err != nil {
-		if !remote.IsRequestError(err) {
-			return errors.WithStackIf(err)
-		}
-		return errors.New(err.Error())
-	}
-
-	start := time.Now()
-	log.WithField("total_configs", len(servers)).Info("processing servers returned by the API")
-
-	pool := workerpool.New(runtime.NumCPU())
-	log.Debugf("using %d workerpools to instantiate server instances", runtime.NumCPU())
-	for _, data := range servers {
-		data := data
-		pool.Submit(func() {
-			// Parse the json.RawMessage into an expected struct value. We do this here so that a single broken
-			// server does not cause the entire boot process to hang, and allows us to show more useful error
-			// messaging in the output.
-			d := remote.ServerConfigurationResponse{
-				Settings: data.Settings,
-			}
-			log.WithField("server", data.Uuid).Info("creating new server object from API response")
-			if err := json.Unmarshal(data.ProcessConfiguration, &d.ProcessConfiguration); err != nil {
-				log.WithField("server", data.Uuid).WithField("error", err).Error("failed to parse server configuration from API response, skipping...")
-				return
-			}
-			s, err := m.InitServer(d)
-			if err != nil {
-				log.WithField("server", data.Uuid).WithField("error", err).Error("failed to load server, skipping...")
-				return
-			}
-			m.Add(s)
-		})
-	}
-
-	// Wait until we've processed all of the configuration files in the directory
-	// before continuing.
-	pool.StopWait()
-
-	diff := time.Now().Sub(start)
-	log.WithField("duration", fmt.Sprintf("%s", diff)).Info("finished processing server configurations")
-
-	return nil
+// Client returns the HTTP client interface that allows interaction with the
+// Panel API.
+func (m *Manager) Client() remote.Client {
+	return m.client
 }
 
 // Put replaces all of the current values in the collection with the value that
@@ -255,4 +211,54 @@ func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, 
 	}
 
 	return s, nil
+}
+
+// initializeFromRemoteSource iterates over a given directory and loads all of
+// the servers listed before returning them to the calling function.
+func (m *Manager) init(ctx context.Context) error {
+	log.Info("fetching list of servers from API")
+	servers, err := m.client.GetServers(ctx, config.Get().RemoteQuery.BootServersPerPage)
+	if err != nil {
+		if !remote.IsRequestError(err) {
+			return errors.WithStackIf(err)
+		}
+		return errors.New(err.Error())
+	}
+
+	start := time.Now()
+	log.WithField("total_configs", len(servers)).Info("processing servers returned by the API")
+
+	pool := workerpool.New(runtime.NumCPU())
+	log.Debugf("using %d workerpools to instantiate server instances", runtime.NumCPU())
+	for _, data := range servers {
+		data := data
+		pool.Submit(func() {
+			// Parse the json.RawMessage into an expected struct value. We do this here so that a single broken
+			// server does not cause the entire boot process to hang, and allows us to show more useful error
+			// messaging in the output.
+			d := remote.ServerConfigurationResponse{
+				Settings: data.Settings,
+			}
+			log.WithField("server", data.Uuid).Info("creating new server object from API response")
+			if err := json.Unmarshal(data.ProcessConfiguration, &d.ProcessConfiguration); err != nil {
+				log.WithField("server", data.Uuid).WithField("error", err).Error("failed to parse server configuration from API response, skipping...")
+				return
+			}
+			s, err := m.InitServer(d)
+			if err != nil {
+				log.WithField("server", data.Uuid).WithField("error", err).Error("failed to load server, skipping...")
+				return
+			}
+			m.Add(s)
+		})
+	}
+
+	// Wait until we've processed all of the configuration files in the directory
+	// before continuing.
+	pool.StopWait()
+
+	diff := time.Now().Sub(start)
+	log.WithField("duration", fmt.Sprintf("%s", diff)).Info("finished processing server configurations")
+
+	return nil
 }
