@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/environment/docker"
 	"github.com/pterodactyl/wings/events"
+	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"github.com/pterodactyl/wings/system"
 	"golang.org/x/sync/semaphore"
@@ -36,7 +36,8 @@ type Server struct {
 
 	// Maintains the configuration for the server. This is the data that gets returned by the Panel
 	// such as build settings and container images.
-	cfg Configuration
+	cfg    Configuration
+	client remote.Client
 
 	// The crash handler for this server instance.
 	crasher CrashHandler
@@ -72,11 +73,12 @@ type Server struct {
 
 // Returns a new server instance with a context and all of the default values set on
 // the instance.
-func New() (*Server, error) {
+func New(client remote.Client) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := Server{
 		ctx:          ctx,
 		ctxCancel:    &cancel,
+		client:       client,
 		installing:   system.NewAtomicBool(false),
 		transferring: system.NewAtomicBool(false),
 	}
@@ -148,7 +150,7 @@ func (s *Server) Log() *log.Entry {
 // This also means mass actions can be performed against servers on the Panel and they
 // will automatically sync with Wings when the server is started.
 func (s *Server) Sync() error {
-	cfg, err := api.New().GetServerConfiguration(s.Id())
+	cfg, err := s.client.GetServerConfiguration(s.Context(), s.Id())
 	if err != nil {
 		if !api.IsRequestError(err) {
 			return err
@@ -164,7 +166,7 @@ func (s *Server) Sync() error {
 	return s.SyncWithConfiguration(cfg)
 }
 
-func (s *Server) SyncWithConfiguration(cfg api.ServerConfigurationResponse) error {
+func (s *Server) SyncWithConfiguration(cfg remote.ServerConfigurationResponse) error {
 	// Update the data structure and persist it to the disk.
 	if err := s.UpdateDataStructure(cfg.Settings); err != nil {
 		return err
@@ -295,61 +297,11 @@ func (s *Server) OnStateChange() {
 	}
 }
 
-// Determines if the server state is running or not. This is different than the
-// environment state, it is simply the tracked state from this daemon instance, and
-// not the response from Docker.
+// IsRunning determines if the server state is running or not. This is different
+// than the environment state, it is simply the tracked state from this daemon
+// instance, and not the response from Docker.
 func (s *Server) IsRunning() bool {
 	st := s.Environment.State()
 
 	return st == environment.ProcessRunningState || st == environment.ProcessStartingState
-}
-
-// FromConfiguration initializes a server using a data byte array. This will be
-// marshaled into the given struct using a YAML marshaler. This will also
-// configure the given environment for a server.
-func FromConfiguration(data api.ServerConfigurationResponse) (*Server, error) {
-	s, err := New()
-	if err != nil {
-		return nil, errors.WithMessage(err, "loader: failed to instantiate empty server struct")
-	}
-	if err := s.UpdateDataStructure(data.Settings); err != nil {
-		return nil, err
-	}
-
-	s.Archiver = Archiver{Server: s}
-	s.fs = filesystem.New(filepath.Join(config.Get().System.Data, s.Id()), s.DiskSpace(), s.Config().Egg.FileDenylist)
-
-	// Right now we only support a Docker based environment, so I'm going to hard code
-	// this logic in. When we're ready to support other environment we'll need to make
-	// some modifications here obviously.
-	settings := environment.Settings{
-		Mounts:      s.Mounts(),
-		Allocations: s.cfg.Allocations,
-		Limits:      s.cfg.Build,
-	}
-
-	envCfg := environment.NewConfiguration(settings, s.GetEnvironmentVariables())
-	meta := docker.Metadata{
-		Image: s.Config().Container.Image,
-	}
-
-	if env, err := docker.New(s.Id(), &meta, envCfg); err != nil {
-		return nil, err
-	} else {
-		s.Environment = env
-		s.StartEventListeners()
-		s.Throttler().StartTimer(s.Context())
-	}
-
-	// Forces the configuration to be synced with the panel.
-	if err := s.SyncWithConfiguration(data); err != nil {
-		return nil, err
-	}
-
-	// If the server's data directory exists, force disk usage calculation.
-	if _, err := os.Stat(s.Filesystem().Path()); err == nil {
-		s.Filesystem().HasSpaceAvailable(true)
-	}
-
-	return s, nil
 }

@@ -13,13 +13,6 @@ import (
 	"github.com/pterodactyl/wings/system"
 )
 
-// Response is a custom response type that allows for commonly used error
-// handling and response parsing from the Panel API. This just embeds the normal
-// HTTP response from Go and we attach a few helper functions to it.
-type Response struct {
-	*http.Response
-}
-
 // A generic type allowing for easy binding use when making requests to API
 // endpoints that only expect a singular argument or something that would not
 // benefit from being a typed struct.
@@ -29,6 +22,22 @@ type d map[string]interface{}
 
 // Same concept as d, but a map of strings, used for querying GET requests.
 type q map[string]string
+
+// Response is a custom response type that allows for commonly used error
+// handling and response parsing from the Panel API. This just embeds the normal
+// HTTP response from Go and we attach a few helper functions to it.
+type Response struct {
+	*http.Response
+}
+
+type Pagination struct {
+	CurrentPage uint `json:"current_page"`
+	From        uint `json:"from"`
+	LastPage    uint `json:"last_page"`
+	PerPage     uint `json:"per_page"`
+	To          uint `json:"to"`
+	Total       uint `json:"total"`
+}
 
 // requestOnce creates a http request and executes it once. Prefer request()
 // over this method when possible. It appends the path to the endpoint of the

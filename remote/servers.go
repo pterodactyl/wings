@@ -51,7 +51,7 @@ type RawServerData struct {
 // GetServers returns all of the servers that are present on the Panel making
 // parallel API calls to the endpoint if more than one page of servers is
 // returned.
-func (c *client) GetServers(ctx context.Context, limit int) ([]api.RawServerData, error) {
+func (c *client) GetServers(ctx context.Context, limit int) ([]RawServerData, error) {
 	servers, meta, err := c.getServersPaged(ctx, 0, limit)
 	if err != nil {
 		return nil, err
@@ -81,34 +81,34 @@ func (c *client) GetServers(ctx context.Context, limit int) ([]api.RawServerData
 	return servers, nil
 }
 
-func (c *client) GetServerConfiguration(ctx context.Context, uuid string) (api.ServerConfigurationResponse, error) {
+func (c *client) GetServerConfiguration(ctx context.Context, uuid string) (ServerConfigurationResponse, error) {
+	var config ServerConfigurationResponse
 	res, err := c.get(ctx, fmt.Sprintf("/servers/%s", uuid), nil)
 	if err != nil {
-		return api.ServerConfigurationResponse{}, err
+		return config, err
 	}
 	defer res.Body.Close()
 
 	if res.HasError() {
-		return api.ServerConfigurationResponse{}, err
+		return config, err
 	}
 
-	config := api.ServerConfigurationResponse{}
 	err = res.BindJSON(&config)
 	return config, err
 }
 
-func (c *client) GetInstallationScript(ctx context.Context, uuid string) (api.InstallationScript, error) {
+func (c *client) GetInstallationScript(ctx context.Context, uuid string) (InstallationScript, error) {
 	res, err := c.get(ctx, fmt.Sprintf("/servers/%s/install", uuid), nil)
 	if err != nil {
-		return api.InstallationScript{}, err
+		return InstallationScript{}, err
 	}
 	defer res.Body.Close()
 
 	if res.HasError() {
-		return api.InstallationScript{}, err
+		return InstallationScript{}, err
 	}
 
-	config := api.InstallationScript{}
+	var config InstallationScript
 	err = res.BindJSON(&config)
 	return config, err
 }
@@ -146,7 +146,7 @@ func (c *client) SetTransferStatus(ctx context.Context, uuid string, successful 
 
 // getServersPaged returns a subset of servers from the Panel API using the
 // pagination query parameters.
-func (c *client) getServersPaged(ctx context.Context, page, limit int) ([]api.RawServerData, api.Pagination, error) {
+func (c *client) getServersPaged(ctx context.Context, page, limit int) ([]RawServerData, api.Pagination, error) {
 	res, err := c.get(ctx, "/servers", q{
 		"page":     strconv.Itoa(page),
 		"per_page": strconv.Itoa(limit),
@@ -161,7 +161,7 @@ func (c *client) getServersPaged(ctx context.Context, page, limit int) ([]api.Ra
 	}
 
 	var r struct {
-		Data []api.RawServerData `json:"data"`
+		Data []RawServerData `json:"data"`
 		Meta api.Pagination      `json:"meta"`
 	}
 	if err := res.BindJSON(&r); err != nil {
