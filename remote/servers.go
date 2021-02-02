@@ -71,31 +71,31 @@ func (c *client) GetServersPaged(ctx context.Context, page, limit int) ([]api.Ra
 	return r.Data, r.Meta, nil
 }
 
-func (c *client) GetServers(ctx context.Context, perPage int) ([]api.RawServerData, error) {
-	servers, pageMeta, err := c.GetServersPaged(ctx, 0, perPage)
+// GetServers returns all of the servers that are present on the Panel making
+// parallel API calls to the endpoint if more than one page of servers is returned.
+func (c *client) GetServers(ctx context.Context, limit int) ([]api.RawServerData, error) {
+	servers, meta, err := c.GetServersPaged(ctx, 0, limit)
 	if err != nil {
 		return nil, err
 	}
 
-	// if the amount of servers exceeds the page limit, get the remaining pages in parallel
-	if pageMeta.LastPage > 1 {
-		eg, _ := errgroup.WithContext(ctx)
-		serversMu := sync.Mutex{}
-
-		for page := pageMeta.CurrentPage + 1; page <= pageMeta.LastPage; page++ {
-			eg.Go(func() error {
-				ps, _, err := c.GetServersPaged(ctx, perPage, int(page))
+	var mu sync.Mutex
+	if meta.LastPage > 1 {
+		g, ctx := errgroup.WithContext(ctx)
+		for page := meta.CurrentPage + 1; page <= meta.LastPage; page++ {
+			page := page
+			g.Go(func() error {
+				ps, _, err := c.GetServersPaged(ctx, int(page), limit)
 				if err != nil {
 					return err
 				}
-				serversMu.Lock()
+				mu.Lock()
 				servers = append(servers, ps...)
-				serversMu.Unlock()
+				mu.Unlock()
 				return nil
 			})
 		}
-
-		if err := eg.Wait(); err != nil {
+		if err := g.Wait(); err != nil {
 			return nil, err
 		}
 	}

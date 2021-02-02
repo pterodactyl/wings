@@ -28,11 +28,11 @@ type Manager struct {
 // the servers that are currently present on the filesystem and set them into
 // the manager.
 func NewManager(ctx context.Context, client remote.Client) (*Manager, error) {
-	c := NewEmptyManager()
-	if err := c.initializeFromRemoteSource(ctx, client); err != nil {
+	m := NewEmptyManager()
+	if err := m.init(ctx, client); err != nil {
 		return nil, err
 	}
-	return c, nil
+	return m, nil
 }
 
 // NewEmptyManager returns a new empty manager collection without actually
@@ -44,7 +44,7 @@ func NewEmptyManager() *Manager {
 
 // initializeFromRemoteSource iterates over a given directory and loads all of
 // the servers listed before returning them to the calling function.
-func (m *Manager) initializeFromRemoteSource(ctx context.Context, client remote.Client) error {
+func (m *Manager) init(ctx context.Context, client remote.Client) error {
 	log.Info("fetching list of servers from API")
 	servers, err := client.GetServers(ctx, config.Get().RemoteQuery.BootServersPerPage)
 	if err != nil {
