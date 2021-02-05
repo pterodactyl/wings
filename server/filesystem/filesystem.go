@@ -240,7 +240,7 @@ func (fs *Filesystem) Chown(path string) error {
 
 	// If this is not a directory we can now return from the function, there is nothing
 	// left that we need to do.
-	if st, _ := os.Stat(cleaned); !st.IsDir() {
+	if st, err := os.Stat(cleaned); err != nil || !st.IsDir() {
 		return nil
 	}
 
