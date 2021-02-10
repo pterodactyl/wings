@@ -48,7 +48,7 @@ func (s *Server) Install(sync bool) error {
 		s.Log().Info("server configured to skip running installation scripts for this egg, not executing process")
 	}
 
-	s.Log().Debug("notifying panel of server install state")
+	s.Log().WithField("was_successful", err == nil).Debug("notifying panel of server install state")
 	if serr := s.SyncInstallState(err == nil); serr != nil {
 		l := s.Log().WithField("was_successful", err == nil)
 
@@ -186,15 +186,15 @@ func (ip *InstallationProcess) Run() error {
 		return err
 	}
 
-	cid, err := ip.Execute()
+	cID, err := ip.Execute()
 	if err != nil {
-		ip.RemoveContainer()
+		_ = ip.RemoveContainer()
 		return err
 	}
 
 	// If this step fails, log a warning but don't exit out of the process. This is completely
 	// internal to the daemon's functionality, and does not affect the status of the server itself.
-	if err := ip.AfterExecute(cid); err != nil {
+	if err := ip.AfterExecute(cID); err != nil {
 		ip.Server.Log().WithField("error", err).Warn("failed to complete after-execute step of installation process")
 	}
 

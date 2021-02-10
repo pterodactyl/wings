@@ -92,13 +92,16 @@ func (fs *Filesystem) Touch(p string, flag int) (*os.File, error) {
 	if !errors.Is(err, os.ErrNotExist) {
 		return nil, errors.Wrap(err, "server/filesystem: touch: failed to open file handle")
 	}
-	// Create the path leading up to the file we're trying to create, setting the final perms
-	// on it as we go.
-	if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
-		return nil, errors.Wrap(err, "server/filesystem: touch: failed to create directory tree")
-	}
-	if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
-		return nil, err
+	// Only create and chown the directory if it doesn't exist.
+	if _, err := os.Stat(filepath.Dir(cleaned)); errors.Is(err, os.ErrNotExist) {
+		// Create the path leading up to the file we're trying to create, setting the final perms
+		// on it as we go.
+		if err := os.MkdirAll(filepath.Dir(cleaned), 0755); err != nil {
+			return nil, errors.Wrap(err, "server/filesystem: touch: failed to create directory tree")
+		}
+		if err := fs.Chown(filepath.Dir(cleaned)); err != nil {
+			return nil, err
+		}
 	}
 	o := &fileOpener{}
 	// Try to open the file now that we have created the pathing necessary for it, and then
@@ -154,8 +157,8 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 		return err
 	}
 
-	// Touch the file and return the handle to it at this point. This will create the file
-	// and any necessary directories as needed.
+	// Touch the file and return the handle to it at this point. This will create the file,
+	// any necessary directories, and set the proper owner of the file.
 	file, err := fs.Touch(cleaned, os.O_RDWR|os.O_CREATE|os.O_TRUNC)
 	if err != nil {
 		return err
@@ -168,8 +171,6 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	// Adjust the disk usage to account for the old size and the new size of the file.
 	fs.addDisk(sz - currentSize)
 
-	// Finally, chown the file to ensure the permissions don't end up out-of-whack
-	// if we had just created it.
 	return fs.Chown(cleaned)
 }
 
@@ -249,7 +250,7 @@ func (fs *Filesystem) Chown(path string) error {
 	err = godirwalk.Walk(cleaned, &godirwalk.Options{
 		Unsorted: true,
 		Callback: func(p string, e *godirwalk.Dirent) error {
-			// Do not attempt to chmod a symlink. Go's os.Chown function will affect the symlink
+			// Do not attempt to chown a symlink. Go's os.Chown function will affect the symlink
 			// so if it points to a location outside the data directory the user would be able to
 			// (un)intentionally modify that files permissions.
 			if e.IsSymlink() {
