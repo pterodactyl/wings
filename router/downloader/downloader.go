@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -89,7 +90,7 @@ type Download struct {
 	cancelFunc *context.CancelFunc
 }
 
-// Starts a new tracked download which allows for cancelation later on by calling
+// Starts a new tracked download which allows for cancellation later on by calling
 // the Downloader.Cancel function.
 func New(s *server.Server, r DownloadRequest) *Download {
 	dl := Download{
@@ -228,6 +229,13 @@ func (dl *Download) isExternalNetwork(ctx context.Context) error {
 	}
 
 	host := dl.req.URL.Host
+
+	// This cluster-fuck of math and integer shit converts an integer IP into a proper IPv4.
+	// For example: 16843009 would become 1.1.1.1
+	if i, err := strconv.ParseInt(host, 10, 64); err == nil {
+		host = strconv.FormatInt((i>>24)&0xFF, 10) + "." + strconv.FormatInt((i>>16)&0xFF, 10) + "." + strconv.FormatInt((i>>8)&0xFF, 10) + "." + strconv.FormatInt(i&0xFF, 10)
+	}
+
 	if !ipMatchRegex.MatchString(host) {
 		if dl.req.URL.Scheme == "https" {
 			host = host + ":443"
@@ -240,7 +248,7 @@ func (dl *Download) isExternalNetwork(ctx context.Context) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	c.Close()
+	_ = c.Close()
 
 	ip := net.ParseIP(ipMatchRegex.ReplaceAllString(c.RemoteAddr().String(), ""))
 	if ip == nil {
