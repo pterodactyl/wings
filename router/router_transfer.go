@@ -102,7 +102,7 @@ func getServerArchive(c *gin.Context) {
 	c.Header("X-Checksum", checksum)
 	c.Header("X-Mime-Type", st.Mimetype)
 	c.Header("Content-Length", strconv.Itoa(int(st.Size())))
-	c.Header("Content-Disposition", "attachment; filename="+s.Archiver.Name())
+	c.Header("Content-Disposition", "attachment; filename="+strconv.Quote(s.Archiver.Name()))
 	c.Header("Content-Type", "application/octet-stream")
 
 	bufio.NewReader(file).WriteTo(c.Writer)
