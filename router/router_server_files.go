@@ -39,7 +39,7 @@ func getServerFileContents(c *gin.Context) {
 	// If a download parameter is included in the URL go ahead and attach the necessary headers
 	// so that the file can be downloaded.
 	if c.Query("download") != "" {
-		c.Header("Content-Disposition", "attachment; filename="+st.Name())
+		c.Header("Content-Disposition", "attachment; filename="+strconv.Quote(st.Name()))
 		c.Header("Content-Type", "application/octet-stream")
 	}
 	defer c.Writer.Flush()
