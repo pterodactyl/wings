@@ -50,6 +50,22 @@ func (c *client) GetServers(ctx context.Context, limit int) ([]RawServerData, er
 	return servers, nil
 }
 
+// ResetServersState updates the state of all servers on the node that are
+// currently marked as "installing" or "restoring from backup" to be marked as
+// a normal successful install state.
+//
+// This handles Wings exiting during either of these processes which will leave
+// things in a bad state within the Panel. This API call is executed once Wings
+// has fully booted all of the servers.
+func (c *client) ResetServersState(ctx context.Context) error {
+	res, err := c.post(ctx, "/servers/reset", nil)
+	if err != nil {
+		return errors.WrapIf(err, "remote/servers: failed to reset server state on Panel")
+	}
+	res.Body.Close()
+	return nil
+}
+
 func (c *client) GetServerConfiguration(ctx context.Context, uuid string) (ServerConfigurationResponse, error) {
 	var config ServerConfigurationResponse
 	res, err := c.get(ctx, fmt.Sprintf("/servers/%s", uuid), nil)

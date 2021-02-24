@@ -265,6 +265,15 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		}
 	}()
 
+	go func() {
+		log.Info("updating server states on Panel: marking installing/restoring servers as normal")
+		// Update all of the servers on the Panel to be in a valid state if they're
+		// currently marked as installing/restoring now that Wings is restarted.
+		if err := pclient.ResetServersState(cmd.Context()); err != nil {
+			log.WithField("error", err).Error("failed to reset server states on Panel: some instances may be stuck in an installing/restoring state unexpectedly")
+		}
+	}()
+
 	sys := config.Get().System
 	// Ensure the archive directory exists.
 	if err := os.MkdirAll(sys.ArchiveDirectory, 0755); err != nil {
