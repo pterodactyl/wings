@@ -2,6 +2,7 @@ package router
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -22,9 +23,9 @@ import (
 	"github.com/juju/ratelimit"
 	"github.com/mholt/archiver/v3"
 	"github.com/mitchellh/colorstring"
-	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
+	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
@@ -109,10 +110,10 @@ func getServerArchive(c *gin.Context) {
 }
 
 func postServerArchive(c *gin.Context) {
-	s := ExtractServer(c)
+	s := middleware.ExtractServer(c)
+	manager := middleware.ExtractManager(c)
 
 	go func(s *server.Server) {
-		r := api.New()
 		l := log.WithField("server", s.Id())
 
 		// This function automatically adds the Source Node prefix and Timestamp to the log
@@ -133,12 +134,11 @@ func postServerArchive(c *gin.Context) {
 
 			// Mark the server as not being transferred so it can actually be used.
 			s.SetTransferring(false)
-
 			s.Events().Publish(server.TransferStatusEvent, "failure")
 
 			sendTransferLog("Attempting to notify panel of archive failure..")
-			if err := r.SendArchiveStatus(s.Id(), false); err != nil {
-				if !api.IsRequestError(err) {
+			if err := manager.Client().SetArchiveStatus(s.Context(), s.Id(), false); err != nil {
+				if !remote.IsRequestError(err) {
 					sendTransferLog("Failed to notify panel of archive failure: " + err.Error())
 					l.WithField("error", err).Error("failed to notify panel of failed archive status")
 					return
@@ -174,8 +174,8 @@ func postServerArchive(c *gin.Context) {
 		sendTransferLog("Successfully created archive, attempting to notify panel..")
 		l.Info("successfully created server transfer archive, notifying panel..")
 
-		if err := r.SendArchiveStatus(s.Id(), true); err != nil {
-			if !api.IsRequestError(err) {
+		if err := manager.Client().SetArchiveStatus(s.Context(), s.Id(), true); err != nil {
+			if !remote.IsRequestError(err) {
 				sendTransferLog("Failed to notify panel of archive success: " + err.Error())
 				l.WithField("error", err).Error("failed to notify panel of successful archive status")
 				return
@@ -275,10 +275,10 @@ func (str serverTransferRequest) verifyChecksum(matches string) (bool, string, e
 }
 
 // Sends a notification to the Panel letting it know what the status of this transfer is.
-func (str serverTransferRequest) sendTransferStatus(successful bool) error {
+func (str serverTransferRequest) sendTransferStatus(client remote.Client, successful bool) error {
 	lg := str.log().WithField("transfer_successful", successful)
 	lg.Info("notifying Panel of server transfer state")
-	if err := api.New().SendTransferStatus(str.ServerID, successful); err != nil {
+	if err := client.SetTransferStatus(context.Background(), str.ServerID, successful); err != nil {
 		lg.WithField("error", err).Error("error notifying panel of transfer state")
 		return err
 	}
@@ -294,6 +294,7 @@ func postTransfer(c *gin.Context) {
 		return
 	}
 
+	manager := middleware.ExtractManager(c)
 	u, err := uuid.Parse(data.ServerID)
 	if err != nil {
 		WithError(c, err)
@@ -310,9 +311,9 @@ func postTransfer(c *gin.Context) {
 
 		// Create a new server installer. This will only configure the environment and not
 		// run the installer scripts.
-		i, err := installer.New(data.Server)
+		i, err := installer.New(context.Background(), manager, data.Server)
 		if err != nil {
-			_ = data.sendTransferStatus(false)
+			_ = data.sendTransferStatus(manager.Client(), false)
 			data.log().WithField("error", err).Error("failed to validate received server data")
 			return
 		}
@@ -324,7 +325,6 @@ func postTransfer(c *gin.Context) {
 			i.Server().Events().Publish(server.TransferLogsEvent, output)
 		}
 
-		manager := middleware.ExtractManager(c)
 		// Mark the server as transferring to prevent problems later on during the process and
 		// then push the server into the global server collection for this instance.
 		i.Server().SetTransferring(true)
@@ -332,7 +332,7 @@ func postTransfer(c *gin.Context) {
 		defer func(s *server.Server) {
 			// In the event that this transfer call fails, remove the server from the global
 			// server tracking so that we don't have a dangling instance.
-			if err := data.sendTransferStatus(!hasError); hasError || err != nil {
+			if err := data.sendTransferStatus(manager.Client(), !hasError); hasError || err != nil {
 				sendTransferLog("Server transfer failed, check Wings logs for additional information.")
 				s.Events().Publish(server.TransferStatusEvent, "failure")
 				manager.Remove(func(match *server.Server) bool {

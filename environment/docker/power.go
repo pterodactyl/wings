@@ -7,8 +7,9 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
-	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/remote"
+
 	"os"
 	"strings"
 	"syscall"
@@ -133,7 +134,7 @@ func (e *Environment) Stop() error {
 	// A native "stop" as the Type field value will just skip over all of this
 	// logic and end up only executing the container stop command (which may or
 	// may not work as expected).
-	if s.Type == "" || s.Type == api.ProcessStopSignal {
+	if s.Type == "" || s.Type == remote.ProcessStopSignal {
 		if s.Type == "" {
 			log.WithField("container_id", e.Id).Warn("no stop configuration detected for environment, using termination procedure")
 		}
@@ -160,7 +161,7 @@ func (e *Environment) Stop() error {
 
 	// Only attempt to send the stop command to the instance if we are actually attached to
 	// the instance. If we are not for some reason, just send the container stop event.
-	if e.IsAttached() && s.Type == api.ProcessStopCommand {
+	if e.IsAttached() && s.Type == remote.ProcessStopCommand {
 		return e.SendCommand(s.Value)
 	}
 

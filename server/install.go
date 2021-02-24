@@ -17,9 +17,9 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
-	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/system"
 )
 
@@ -88,9 +88,9 @@ func (s *Server) Reinstall() error {
 
 // Internal installation function used to simplify reporting back to the Panel.
 func (s *Server) internalInstall() error {
-	script, err := api.New().GetInstallationScript(s.Id())
+	script, err := s.client.GetInstallationScript(s.Context(), s.Id())
 	if err != nil {
-		if !api.IsRequestError(err) {
+		if !remote.IsRequestError(err) {
 			return err
 		}
 
@@ -113,7 +113,7 @@ func (s *Server) internalInstall() error {
 
 type InstallationProcess struct {
 	Server *Server
-	Script *api.InstallationScript
+	Script *remote.InstallationScript
 
 	client  *client.Client
 	context context.Context
@@ -121,7 +121,7 @@ type InstallationProcess struct {
 
 // Generates a new installation process struct that will be used to create containers,
 // and otherwise perform installation commands for a server.
-func NewInstallationProcess(s *Server, script *api.InstallationScript) (*InstallationProcess, error) {
+func NewInstallationProcess(s *Server, script *remote.InstallationScript) (*InstallationProcess, error) {
 	proc := &InstallationProcess{
 		Script: script,
 		Server: s,
@@ -532,9 +532,9 @@ func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) erro
 // value of "true" means everything was successful, "false" means something went
 // wrong and the server must be deleted and re-created.
 func (s *Server) SyncInstallState(successful bool) error {
-	err := api.New().SendInstallationStatus(s.Id(), successful)
+	err := s.client.SetInstallationStatus(s.Context(), s.Id(), successful)
 	if err != nil {
-		if !api.IsRequestError(err) {
+		if !remote.IsRequestError(err) {
 			return err
 		}
 

@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -14,13 +15,16 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gammazero/workerpool"
-	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/environment/docker"
 	"github.com/pterodactyl/wings/remote"
+	"github.com/pterodactyl/wings/server/filesystem"
 )
 
 type Manager struct {
 	mu      sync.RWMutex
+	client  remote.Client
 	servers []*Server
 }
 
@@ -28,8 +32,8 @@ type Manager struct {
 // the servers that are currently present on the filesystem and set them into
 // the manager.
 func NewManager(ctx context.Context, client remote.Client) (*Manager, error) {
-	m := NewEmptyManager()
-	if err := m.init(ctx, client); err != nil {
+	m := NewEmptyManager(client)
+	if err := m.init(ctx); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -38,58 +42,14 @@ func NewManager(ctx context.Context, client remote.Client) (*Manager, error) {
 // NewEmptyManager returns a new empty manager collection without actually
 // loading any of the servers from the disk. This allows the caller to set their
 // own servers into the collection as needed.
-func NewEmptyManager() *Manager {
-	return &Manager{}
+func NewEmptyManager(client remote.Client) *Manager {
+	return &Manager{client: client}
 }
 
-// initializeFromRemoteSource iterates over a given directory and loads all of
-// the servers listed before returning them to the calling function.
-func (m *Manager) init(ctx context.Context, client remote.Client) error {
-	log.Info("fetching list of servers from API")
-	servers, err := client.GetServers(ctx, config.Get().RemoteQuery.BootServersPerPage)
-	if err != nil {
-		if !remote.IsRequestError(err) {
-			return errors.WithStackIf(err)
-		}
-		return errors.New(err.Error())
-	}
-
-	start := time.Now()
-	log.WithField("total_configs", len(servers)).Info("processing servers returned by the API")
-
-	pool := workerpool.New(runtime.NumCPU())
-	log.Debugf("using %d workerpools to instantiate server instances", runtime.NumCPU())
-	for _, data := range servers {
-		data := data
-		pool.Submit(func() {
-			// Parse the json.RawMessage into an expected struct value. We do this here so that a single broken
-			// server does not cause the entire boot process to hang, and allows us to show more useful error
-			// messaging in the output.
-			d := api.ServerConfigurationResponse{
-				Settings: data.Settings,
-			}
-			log.WithField("server", data.Uuid).Info("creating new server object from API response")
-			if err := json.Unmarshal(data.ProcessConfiguration, &d.ProcessConfiguration); err != nil {
-				log.WithField("server", data.Uuid).WithField("error", err).Error("failed to parse server configuration from API response, skipping...")
-				return
-			}
-			s, err := FromConfiguration(d)
-			if err != nil {
-				log.WithField("server", data.Uuid).WithField("error", err).Error("failed to load server, skipping...")
-				return
-			}
-			m.Add(s)
-		})
-	}
-
-	// Wait until we've processed all of the configuration files in the directory
-	// before continuing.
-	pool.StopWait()
-
-	diff := time.Now().Sub(start)
-	log.WithField("duration", fmt.Sprintf("%s", diff)).Info("finished processing server configurations")
-
-	return nil
+// Client returns the HTTP client interface that allows interaction with the
+// Panel API.
+func (m *Manager) Client() remote.Client {
+	return m.client
 }
 
 // Put replaces all of the current values in the collection with the value that
@@ -201,4 +161,104 @@ func (m *Manager) ReadStates() (map[string]string, error) {
 		}
 	}
 	return out, nil
+}
+
+// InitServer initializes a server using a data byte array. This will be
+// marshaled into the given struct using a YAML marshaler. This will also
+// configure the given environment for a server.
+func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, error) {
+	s, err := New(m.client)
+	if err != nil {
+		return nil, errors.WithMessage(err, "loader: failed to instantiate empty server struct")
+	}
+	if err := s.UpdateDataStructure(data.Settings); err != nil {
+		return nil, err
+	}
+
+	s.Archiver = Archiver{Server: s}
+	s.fs = filesystem.New(filepath.Join(config.Get().System.Data, s.Id()), s.DiskSpace(), s.Config().Egg.FileDenylist)
+
+	// Right now we only support a Docker based environment, so I'm going to hard code
+	// this logic in. When we're ready to support other environment we'll need to make
+	// some modifications here obviously.
+	settings := environment.Settings{
+		Mounts:      s.Mounts(),
+		Allocations: s.cfg.Allocations,
+		Limits:      s.cfg.Build,
+	}
+
+	envCfg := environment.NewConfiguration(settings, s.GetEnvironmentVariables())
+	meta := docker.Metadata{
+		Image: s.Config().Container.Image,
+	}
+
+	if env, err := docker.New(s.Id(), &meta, envCfg); err != nil {
+		return nil, err
+	} else {
+		s.Environment = env
+		s.StartEventListeners()
+		s.Throttler().StartTimer(s.Context())
+	}
+
+	// Forces the configuration to be synced with the panel.
+	if err := s.SyncWithConfiguration(data); err != nil {
+		return nil, err
+	}
+
+	// If the server's data directory exists, force disk usage calculation.
+	if _, err := os.Stat(s.Filesystem().Path()); err == nil {
+		s.Filesystem().HasSpaceAvailable(true)
+	}
+
+	return s, nil
+}
+
+// initializeFromRemoteSource iterates over a given directory and loads all of
+// the servers listed before returning them to the calling function.
+func (m *Manager) init(ctx context.Context) error {
+	log.Info("fetching list of servers from API")
+	servers, err := m.client.GetServers(ctx, config.Get().RemoteQuery.BootServersPerPage)
+	if err != nil {
+		if !remote.IsRequestError(err) {
+			return errors.WithStackIf(err)
+		}
+		return errors.New(err.Error())
+	}
+
+	start := time.Now()
+	log.WithField("total_configs", len(servers)).Info("processing servers returned by the API")
+
+	pool := workerpool.New(runtime.NumCPU())
+	log.Debugf("using %d workerpools to instantiate server instances", runtime.NumCPU())
+	for _, data := range servers {
+		data := data
+		pool.Submit(func() {
+			// Parse the json.RawMessage into an expected struct value. We do this here so that a single broken
+			// server does not cause the entire boot process to hang, and allows us to show more useful error
+			// messaging in the output.
+			d := remote.ServerConfigurationResponse{
+				Settings: data.Settings,
+			}
+			log.WithField("server", data.Uuid).Info("creating new server object from API response")
+			if err := json.Unmarshal(data.ProcessConfiguration, &d.ProcessConfiguration); err != nil {
+				log.WithField("server", data.Uuid).WithField("error", err).Error("failed to parse server configuration from API response, skipping...")
+				return
+			}
+			s, err := m.InitServer(d)
+			if err != nil {
+				log.WithField("server", data.Uuid).WithField("error", err).Error("failed to load server, skipping...")
+				return
+			}
+			m.Add(s)
+		})
+	}
+
+	// Wait until we've processed all of the configuration files in the directory
+	// before continuing.
+	pool.StopWait()
+
+	diff := time.Now().Sub(start)
+	log.WithField("duration", fmt.Sprintf("%s", diff)).Info("finished processing server configurations")
+
+	return nil
 }

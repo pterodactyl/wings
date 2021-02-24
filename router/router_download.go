@@ -15,6 +15,7 @@ import (
 
 // Handle a download request for a server backup.
 func getDownloadBackup(c *gin.Context) {
+	client := middleware.ExtractApiClient(c)
 	manager := middleware.ExtractManager(c)
 
 	token := tokens.BackupPayload{}
@@ -31,7 +32,7 @@ func getDownloadBackup(c *gin.Context) {
 		return
 	}
 
-	b, st, err := backup.LocateLocal(token.BackupUuid)
+	b, st, err := backup.LocateLocal(client, token.BackupUuid)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{

@@ -34,10 +34,11 @@ func getAllServers(c *gin.Context) {
 // Creates a new server on the wings daemon and begins the installation process
 // for it.
 func postCreateServer(c *gin.Context) {
+	manager := middleware.ExtractManager(c)
 	buf := bytes.Buffer{}
 	buf.ReadFrom(c.Request.Body)
 
-	install, err := installer.New(buf.Bytes())
+	install, err := installer.New(c.Request.Context(), manager, buf.Bytes())
 	if err != nil {
 		if installer.IsValidationError(err) {
 			c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
@@ -52,7 +53,6 @@ func postCreateServer(c *gin.Context) {
 
 	// Plop that server instance onto the request so that it can be referenced in
 	// requests from here-on out.
-	manager := middleware.ExtractManager(c)
 	manager.Add(install.Server())
 
 	// Begin the installation process in the background to not block the request

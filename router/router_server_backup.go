@@ -17,6 +17,7 @@ import (
 // provided backup adapter.
 func postServerBackup(c *gin.Context) {
 	s := middleware.ExtractServer(c)
+	client := middleware.ExtractApiClient(c)
 	logger := middleware.ExtractLogger(c)
 	var data struct {
 		Adapter backup.AdapterType `json:"adapter"`
@@ -30,9 +31,9 @@ func postServerBackup(c *gin.Context) {
 	var adapter backup.BackupInterface
 	switch data.Adapter {
 	case backup.LocalBackupAdapter:
-		adapter = backup.NewLocal(data.Uuid, data.Ignore)
+		adapter = backup.NewLocal(client, data.Uuid, data.Ignore)
 	case backup.S3BackupAdapter:
-		adapter = backup.NewS3(data.Uuid, data.Ignore)
+		adapter = backup.NewS3(client, data.Uuid, data.Ignore)
 	default:
 		middleware.CaptureAndAbort(c, errors.New("router/backups: provided adapter is not valid: "+string(data.Adapter)))
 		return
@@ -65,6 +66,7 @@ func postServerBackup(c *gin.Context) {
 // TODO: stop the server if it is running; internally mark it as suspended
 func postServerRestoreBackup(c *gin.Context) {
 	s := middleware.ExtractServer(c)
+	client := middleware.ExtractApiClient(c)
 	logger := middleware.ExtractLogger(c)
 
 	var data struct {
@@ -94,7 +96,7 @@ func postServerRestoreBackup(c *gin.Context) {
 	// Now that we've cleaned up the data directory if necessary, grab the backup file
 	// and attempt to restore it into the server directory.
 	if data.Adapter == backup.LocalBackupAdapter {
-		b, _, err := backup.LocateLocal(c.Param("backup"))
+		b, _, err := backup.LocateLocal(client, c.Param("backup"))
 		if err != nil {
 			middleware.CaptureAndAbort(c, err)
 			return
@@ -114,7 +116,7 @@ func postServerRestoreBackup(c *gin.Context) {
 
 	// Since this is not a local backup we need to stream the archive and then
 	// parse over the contents as we go in order to restore it to the server.
-	client := http.Client{}
+	httpClient := http.Client{}
 	logger.Info("downloading backup from remote location...")
 	// TODO: this will hang if there is an issue. We can't use c.Request.Context() (or really any)
 	//  since it will be canceled when the request is closed which happens quickly since we push
@@ -127,7 +129,7 @@ func postServerRestoreBackup(c *gin.Context) {
 		middleware.CaptureAndAbort(c, err)
 		return
 	}
-	res, err := client.Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		middleware.CaptureAndAbort(c, err)
 		return
@@ -143,7 +145,7 @@ func postServerRestoreBackup(c *gin.Context) {
 
 	go func(s *server.Server, uuid string, logger *log.Entry) {
 		logger.Info("starting restoration process for server backup using S3 driver")
-		if err := s.RestoreBackup(backup.NewS3(uuid, ""), res.Body); err != nil {
+		if err := s.RestoreBackup(backup.NewS3(client, uuid, ""), res.Body); err != nil {
 			logger.WithField("error", errors.WithStack(err)).Error("failed to restore remote S3 backup to server")
 		}
 		s.Events().Publish(server.DaemonMessageEvent, "Completed server restoration from S3 backup.")
@@ -159,7 +161,7 @@ func postServerRestoreBackup(c *gin.Context) {
 // endpoint can make its own decisions as to how it wants to handle that
 // response.
 func deleteServerBackup(c *gin.Context) {
-	b, _, err := backup.LocateLocal(c.Param("backup"))
+	b, _, err := backup.LocateLocal(middleware.ExtractApiClient(c), c.Param("backup"))
 	if err != nil {
 		// Just return from the function at this point if the backup was not located.
 		if errors.Is(err, os.ErrNotExist) {

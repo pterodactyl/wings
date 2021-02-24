@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
 )
@@ -164,6 +165,15 @@ func AttachRequestID() gin.HandlerFunc {
 func AttachServerManager(m *server.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set("manager", m)
+		c.Next()
+	}
+}
+
+// AttachApiClient attaches the application API client which allows routes to
+// access server resources from the Panel easily.
+func AttachApiClient(client remote.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("api_client", client)
 		c.Next()
 	}
 }
@@ -325,6 +335,14 @@ func ExtractServer(c *gin.Context) *server.Server {
 		panic("middleware/middleware: cannot extract server: not present in request context")
 	}
 	return v.(*server.Server)
+}
+
+// ExtractApiClient returns the API client defined for the routes.
+func ExtractApiClient(c *gin.Context) remote.Client {
+	if v, ok := c.Get("api_client"); ok {
+		return v.(remote.Client)
+	}
+	panic("middleware/middlware: cannot extract api clinet: not present in context")
 }
 
 // ExtractManager returns the server manager instance set on the request context.

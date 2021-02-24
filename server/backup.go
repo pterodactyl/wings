@@ -8,16 +8,16 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/docker/docker/client"
-	"github.com/pterodactyl/wings/api"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server/backup"
 )
 
 // Notifies the panel of a backup's state and returns an error if one is encountered
 // while performing this action.
 func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, successful bool) error {
-	if err := api.New().SendBackupStatus(uuid, ad.ToRequest(successful)); err != nil {
-		if !api.IsRequestError(err) {
+	if err := s.client.SetBackupStatus(s.Context(), uuid, ad.ToRequest(successful)); err != nil {
+		if !remote.IsRequestError(err) {
 			s.Log().WithFields(log.Fields{
 				"backup": uuid,
 				"error":  err,
@@ -131,7 +131,7 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	// Send an API call to the Panel as soon as this function is done running so that
 	// the Panel is informed of the restoration status of this backup.
 	defer func() {
-		if rerr := api.New().SendRestorationStatus(b.Identifier(), err == nil); rerr != nil {
+		if rerr := s.client.SendRestorationStatus(s.Context(), b.Identifier(), err == nil); rerr != nil {
 			s.Log().WithField("error", rerr).WithField("backup", b.Identifier()).Error("failed to notify Panel of backup restoration status")
 		}
 	}()

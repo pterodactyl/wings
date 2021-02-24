@@ -3,18 +3,19 @@ package router
 import (
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/server"
 )
 
 // Configure configures the routing infrastructure for this daemon instance.
-func Configure(m *server.Manager) *gin.Engine {
+func Configure(m *server.Manager, client remote.Client) *gin.Engine {
 	gin.SetMode("release")
 
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(middleware.AttachRequestID(), middleware.CaptureErrors(), middleware.SetAccessControlHeaders())
-	router.Use(middleware.AttachServerManager(m))
+	router.Use(middleware.AttachServerManager(m), middleware.AttachApiClient(client))
 	// @todo log this into a different file so you can setup IP blocking for abusive requests and such.
 	// This should still dump requests in debug mode since it does help with understanding the request
 	// lifecycle and quickly seeing what was called leading to the logs. However, it isn't feasible to mix
