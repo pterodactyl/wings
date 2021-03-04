@@ -35,7 +35,7 @@ type client struct {
 	baseUrl    string
 	tokenId    string
 	token      string
-	retries    int
+	attempts   int
 }
 
 // New returns a new HTTP request client that is used for making authenticated
@@ -46,7 +46,7 @@ func New(base string, opts ...ClientOption) Client {
 		httpClient: &http.Client{
 			Timeout: time.Second * 15,
 		},
-		retries: 3,
+		attempts: 1,
 	}
 	for _, opt := range opts {
 		opt(&c)
@@ -96,10 +96,10 @@ func (c *client) requestOnce(ctx context.Context, method, path string, body io.R
 	return &Response{res}, err
 }
 
-// request executes a http request and retries when errors occur.
+// request executes a http request and attempts when errors occur.
 // It appends the path to the endpoint of the client and adds the authentication token to the request.
 func (c *client) request(ctx context.Context, method, path string, body io.Reader, opts ...func(r *http.Request)) (res *Response, err error) {
-	for i := 0; i < c.retries; i++ {
+	for i := 0; i < c.attempts; i++ {
 		res, err = c.requestOnce(ctx, method, path, body, opts...)
 		if err == nil &&
 			res.StatusCode < http.StatusInternalServerError &&

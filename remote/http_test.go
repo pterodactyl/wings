@@ -15,9 +15,9 @@ func createTestClient(h http.HandlerFunc) (*client, *httptest.Server) {
 		httpClient: s.Client(),
 		baseUrl:    s.URL,
 
-		retries: 1,
-		tokenId: "testid",
-		token:   "testtoken",
+		attempts: 1,
+		tokenId:  "testid",
+		token:    "testtoken",
 	}
 	return c, s
 }
@@ -37,7 +37,7 @@ func TestRequest(t *testing.T) {
 }
 
 func TestRequestRetry(t *testing.T) {
-	// Test if the client retries failed requests
+	// Test if the client attempts failed requests
 	i := 0
 	c, _ := createTestClient(func(rw http.ResponseWriter, r *http.Request) {
 		if i < 1 {
@@ -47,7 +47,7 @@ func TestRequestRetry(t *testing.T) {
 		}
 		i++
 	})
-	c.retries = 2
+	c.attempts = 2
 	r, err := c.request(context.Background(), "", "", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, r)
@@ -60,7 +60,7 @@ func TestRequestRetry(t *testing.T) {
 		rw.WriteHeader(http.StatusInternalServerError)
 		i++
 	})
-	c.retries = 2
+	c.attempts = 2
 	r, err = c.request(context.Background(), "get", "", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, r)
