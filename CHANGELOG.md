@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.3.0
+### Fixed
+* Fixes improper error handling when attempting to create a new Docker network.
+* Fixes edge-case crash that would occur when a user triggers an install for a server that does not currently have a data directory present on the system.
+* Fixes missing return on error when attempting to get the contents of a file from Wings.
+* Fixes certain stop signals not being properly handled and parsed by Wings.
+* Fixes server build settings not always being updated properly if set to their zero-value.
+* Fixes context leak when waiting on a server instance to be stopped.
+* Fix potential application panic when chowning a file if there is an error getting file details.
+* Fixes `Filesystem.Chown` unintentionally touching all of the files within a given directory tree which could cause some games to trigger a full refresh thinking files had been changed.
+* Fixes `Content-Disposition` header not being properly escaped causing some browsers to not report the correct filename on downloads.
+
+### Added
+* Adds support for restoring server backups (including remote backups) with the ability to reset the current file state for a server.
+* Adds underlying support for allowing Eggs to mark specific files (or patterns) as being inaccessible to users within the file manager.
+
+### Changed
+* Refactored SFTP subsystem to be less of a standalone package and more integrated with the underlying server logic in Wings. This significantly simplified the logic and makes it much easier to reason about.
+* Refactored much of the underlying API logic to be more extensible down the road, support automatic retries, and be more testable.
+* Refactored much of the underlying HTTP middleware logic to be packaged differently and easier to reason about in the codebase.
+* System defined `TZ` variable will be used if present rather than attempting to parse the timezone using `datetimectl`.
+* Improves error handling and reporting for server installation process to improve debugging in the future if things break.
+
 ## v1.2.3
 ### Fixed
 * **[Security]** Fixes a remaining security vulnerability in the code handling remote file downloads for servers relating to redirect validation.
