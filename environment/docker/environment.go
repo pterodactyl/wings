@@ -54,9 +54,10 @@ type Environment struct {
 	st *system.AtomicString
 }
 
-// Creates a new base Docker environment. The ID passed through will be the ID that is used to
-// reference the container from here on out. This should be unique per-server (we use the UUID
-// by default). The container does not need to exist at this point.
+// New creates a new base Docker environment. The ID passed through will be the
+// ID that is used to reference the container from here on out. This should be
+// unique per-server (we use the UUID by default). The container does not need
+// to exist at this point.
 func New(id string, m *Metadata, c *environment.Configuration) (*Environment, error) {
 	cli, err := environment.Docker()
 	if err != nil {

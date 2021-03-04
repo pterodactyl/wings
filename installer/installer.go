@@ -45,21 +45,21 @@ func New(ctx context.Context, manager *server.Manager, data []byte) (*Installer,
 
 	// Unmarshal the environment variables from the request into the server struct.
 	if b, _, _, err := jsonparser.Get(data, "environment"); err != nil {
-		return nil, err
+		return nil, errors.WithStackIf(err)
 	} else {
 		cfg.EnvVars = make(environment.Variables)
 		if err := json.Unmarshal(b, &cfg.EnvVars); err != nil {
-			return nil, err
+			return nil, errors.WrapIf(err, "installer: could not unmarshal environment variables for server")
 		}
 	}
 
 	// Unmarshal the allocation mappings from the request into the server struct.
 	if b, _, _, err := jsonparser.Get(data, "allocations", "mappings"); err != nil {
-		return nil, err
+		return nil, errors.WithStackIf(err)
 	} else {
 		cfg.Allocations.Mappings = make(map[string][]int)
 		if err := json.Unmarshal(b, &cfg.Allocations.Mappings); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "installer: could not unmarshal allocation mappings")
 		}
 	}
 
@@ -68,16 +68,18 @@ func New(ctx context.Context, manager *server.Manager, data []byte) (*Installer,
 	c, err := manager.Client().GetServerConfiguration(ctx, cfg.Uuid)
 	if err != nil {
 		if !remote.IsRequestError(err) {
-			return nil, err
+			return nil, errors.WithStackIf(err)
 		}
-		return nil, errors.New(err.Error())
+		return nil, errors.WrapIf(err, "installer: could not get server configuration from remote API")
 	}
 
 	// Create a new server instance using the configuration we wrote to the disk
 	// so that everything gets instantiated correctly on the struct.
 	s, err := manager.InitServer(c)
-
-	return &Installer{server: s}, err
+	if err != nil {
+		return nil, errors.WrapIf(err, "installer: could not init server instance")
+	}
+	return &Installer{server: s}, nil
 }
 
 // Uuid returns the UUID associated with this installer instance.

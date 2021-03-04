@@ -2,6 +2,7 @@ package router
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -38,6 +39,8 @@ func postCreateServer(c *gin.Context) {
 	buf := bytes.Buffer{}
 	buf.ReadFrom(c.Request.Body)
 
+	fmt.Println(buf.String())
+
 	install, err := installer.New(c.Request.Context(), manager, buf.Bytes())
 	if err != nil {
 		if installer.IsValidationError(err) {
@@ -47,7 +50,7 @@ func postCreateServer(c *gin.Context) {
 			return
 		}
 
-		NewTrackedError(err).Abort(c)
+		// middleware.CaptureAndAbort(c, err)
 		return
 	}
 

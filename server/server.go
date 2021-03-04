@@ -70,8 +70,8 @@ type Server struct {
 	wsBagLocker sync.Mutex
 }
 
-// Returns a new server instance with a context and all of the default values set on
-// the instance.
+// New returns a new server instance with a context and all of the default
+// values set on the struct.
 func New(client remote.Client) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := Server{
@@ -82,16 +82,16 @@ func New(client remote.Client) (*Server, error) {
 		transferring: system.NewAtomicBool(false),
 	}
 	if err := defaults.Set(&s); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "server: could not set default values for struct")
 	}
 	if err := defaults.Set(&s.cfg); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "server: could not set defaults for server configuration")
 	}
 	s.resources.State = system.NewAtomicString(environment.ProcessOfflineState)
 	return &s, nil
 }
 
-// Returns the UUID for the server instance.
+// Id returns the UUID for the server instance.
 func (s *Server) Id() string {
 	return s.Config().GetUuid()
 }

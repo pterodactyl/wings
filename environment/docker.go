@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"sync"
 
+	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/network"
@@ -23,7 +24,7 @@ func Docker() (*client.Client, error) {
 	_conce.Do(func() {
 		_client, err = client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	})
-	return _client, err
+	return _client, errors.Wrap(err, "environment/docker: could not create client")
 }
 
 // ConfigureDocker configures the required network for the docker environment.

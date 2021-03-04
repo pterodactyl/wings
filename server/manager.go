@@ -169,7 +169,7 @@ func (m *Manager) ReadStates() (map[string]string, error) {
 func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, error) {
 	s, err := New(m.client)
 	if err != nil {
-		return nil, errors.WithMessage(err, "loader: failed to instantiate empty server struct")
+		return nil, err
 	}
 	if err := s.UpdateDataStructure(data.Settings); err != nil {
 		return nil, err
@@ -222,7 +222,7 @@ func (m *Manager) init(ctx context.Context) error {
 		if !remote.IsRequestError(err) {
 			return errors.WithStackIf(err)
 		}
-		return errors.New(err.Error())
+		return errors.WrapIf(err, "manager: failed to retrieve server configurations")
 	}
 
 	start := time.Now()
