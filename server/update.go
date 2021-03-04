@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"emperror.dev/errors"
 	"github.com/buger/jsonparser"
@@ -19,7 +18,6 @@ import (
 // that is the case.
 func (s *Server) UpdateDataStructure(data []byte) error {
 	src := new(Configuration)
-	fmt.Println("got data", string(data))
 	if err := json.Unmarshal(data, src); err != nil {
 		return errors.Wrap(err, "server/update: could not unmarshal source data into Configuration struct")
 	}
