@@ -75,7 +75,7 @@ func (c *client) GetServerConfiguration(ctx context.Context, uuid string) (Serve
 	defer res.Body.Close()
 
 	if res.HasError() {
-		return config, err
+		return config, res.Error()
 	}
 
 	err = res.BindJSON(&config)
@@ -90,7 +90,7 @@ func (c *client) GetInstallationScript(ctx context.Context, uuid string) (Instal
 	defer res.Body.Close()
 
 	if res.HasError() {
-		return InstallationScript{}, err
+		return InstallationScript{}, res.Error()
 	}
 
 	var config InstallationScript
@@ -140,6 +140,7 @@ func (c *client) ValidateSftpCredentials(ctx context.Context, request SftpAuthRe
 	if err != nil {
 		return auth, err
 	}
+	defer res.Body.Close()
 
 	e := res.Error()
 	if e != nil {
@@ -184,7 +185,6 @@ func (c *client) SetBackupStatus(ctx context.Context, backup string, data Backup
 	defer resp.Body.Close()
 	return resp.Error()
 }
-
 
 // SendRestorationStatus triggers a request to the Panel to notify it that a
 // restoration has been completed and the server should be marked as being

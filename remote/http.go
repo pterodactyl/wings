@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/pterodactyl/wings/system"
 )
@@ -98,21 +98,19 @@ func (c *client) requestOnce(ctx context.Context, method, path string, body io.R
 
 // request executes a http request and retries when errors occur.
 // It appends the path to the endpoint of the client and adds the authentication token to the request.
-func (c *client) request(ctx context.Context, method, path string, body io.Reader, opts ...func(r *http.Request)) (*Response, error) {
-	var doErr error
-	var res *Response
-
+func (c *client) request(ctx context.Context, method, path string, body io.Reader, opts ...func(r *http.Request)) (res *Response, err error) {
 	for i := 0; i < c.retries; i++ {
-		res, doErr = c.requestOnce(ctx, method, path, body, opts...)
-
-		if doErr == nil &&
+		res, err = c.requestOnce(ctx, method, path, body, opts...)
+		if err == nil &&
 			res.StatusCode < http.StatusInternalServerError &&
 			res.StatusCode != http.StatusTooManyRequests {
 			break
 		}
 	}
-
-	return res, doErr
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return
 }
 
 // get executes a http get request.
@@ -159,7 +157,7 @@ func (r *Response) HasError() bool {
 func (r *Response) Read() ([]byte, error) {
 	var b []byte
 	if r.Response == nil {
-		return nil, errors.New("no response exists on interface")
+		return nil, errors.New("http: attempting to read missing response")
 	}
 
 	if r.Response.Body != nil {
@@ -180,7 +178,10 @@ func (r *Response) BindJSON(v interface{}) error {
 		return err
 	}
 
-	return json.Unmarshal(b, &v)
+	if err := json.Unmarshal(b, &v); err != nil {
+		return errors.Wrap(err, "http: could not unmarshal response")
+	}
+	return nil
 }
 
 // Returns the first error message from the API call as a string. The error
