@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"io"
 	"net/http"
 	"os"
@@ -47,7 +48,7 @@ func (s *S3Backup) WithLogContext(c map[string]interface{}) {
 func (s *S3Backup) Generate(basePath, ignore string) (*ArchiveDetails, error) {
 	defer s.Remove()
 
-	a := &Archive{
+	a := &filesystem.Archive{
 		BasePath: basePath,
 		Ignore:   ignore,
 	}

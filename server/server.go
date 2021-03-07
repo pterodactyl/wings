@@ -42,7 +42,6 @@ type Server struct {
 	crasher CrashHandler
 
 	resources   ResourceUsage
-	Archiver    Archiver                       `json:"-"`
 	Environment environment.ProcessEnvironment `json:"-"`
 
 	fs *filesystem.Filesystem

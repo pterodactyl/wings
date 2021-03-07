@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/mholt/archiver/v3"
-	"github.com/pterodactyl/wings/server/backup"
 	"github.com/pterodactyl/wings/system"
 )
 
@@ -39,7 +38,7 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 		return nil, err
 	}
 
-	a := &backup.Archive{BasePath: cleanedRootDir, Files: cleaned}
+	a := &Archive{BasePath: cleanedRootDir, Files: cleaned}
 	d := path.Join(
 		cleanedRootDir,
 		fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")),
@@ -144,4 +143,3 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 	}
 	return nil
 }
-
