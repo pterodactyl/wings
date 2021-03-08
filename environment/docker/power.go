@@ -2,6 +2,11 @@ package docker
 
 import (
 	"context"
+	"os"
+	"strings"
+	"syscall"
+	"time"
+
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
@@ -9,11 +14,6 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/remote"
-
-	"os"
-	"strings"
-	"syscall"
-	"time"
 )
 
 // Run before the container starts and get the process configuration from the Panel.
@@ -174,7 +174,7 @@ func (e *Environment) Stop() error {
 			e.SetState(environment.ProcessOfflineState)
 			return nil
 		}
-		return err
+		return errors.Wrap(err, "environment/docker: cannot stop container")
 	}
 
 	return nil
@@ -208,7 +208,9 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 			return ctxErr
 		}
 	case err := <-errChan:
-		if err != nil {
+		// If the error stems from the container not existing there is no point in wasting
+		// CPU time to then try and terminate it.
+		if err != nil && !client.IsErrNotFound(err) {
 			if terminate {
 				l := log.WithField("container_id", e.Id)
 				if errors.Is(err, context.DeadlineExceeded) {
@@ -219,8 +221,7 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 
 				return e.Terminate(os.Kill)
 			}
-
-			return err
+			return errors.WrapIf(err, "environment/docker: error waiting on container to enter \"not-running\" state")
 		}
 	case <-ok:
 	}
@@ -232,7 +233,12 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 func (e *Environment) Terminate(signal os.Signal) error {
 	c, err := e.client.ContainerInspect(context.Background(), e.Id)
 	if err != nil {
-		return err
+		// Treat missing containers as an okay error state, means it is obviously
+		// already terminated at this point.
+		if client.IsErrNotFound(err) {
+			return nil
+		}
+		return errors.WithStack(err)
 	}
 
 	if !c.State.Running {
@@ -249,13 +255,10 @@ func (e *Environment) Terminate(signal os.Signal) error {
 
 	// We set it to stopping than offline to prevent crash detection from being triggered.
 	e.SetState(environment.ProcessStoppingState)
-
 	sig := strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed")
-
 	if err := e.client.ContainerKill(context.Background(), e.Id, sig); err != nil && !client.IsErrNotFound(err) {
-		return err
+		return errors.WithStack(err)
 	}
-
 	e.SetState(environment.ProcessOfflineState)
 
 	return nil
