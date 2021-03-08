@@ -175,7 +175,6 @@ func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, 
 		return nil, err
 	}
 
-	s.Archiver = Archiver{Server: s}
 	s.fs = filesystem.New(filepath.Join(config.Get().System.Data, s.Id()), s.DiskSpace(), s.Config().Egg.FileDenylist)
 
 	// Right now we only support a Docker based environment, so I'm going to hard code

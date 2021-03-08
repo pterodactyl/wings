@@ -2,6 +2,7 @@ package backup
 
 import (
 	"errors"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"io"
 	"os"
 
@@ -19,7 +20,7 @@ var _ BackupInterface = (*LocalBackup)(nil)
 func NewLocal(client remote.Client, uuid string, ignore string) *LocalBackup {
 	return &LocalBackup{
 		Backup{
-			client: client,
+			client:  client,
 			Uuid:    uuid,
 			Ignore:  ignore,
 			adapter: LocalBackupAdapter,
@@ -56,7 +57,7 @@ func (b *LocalBackup) WithLogContext(c map[string]interface{}) {
 // Generate generates a backup of the selected files and pushes it to the
 // defined location for this instance.
 func (b *LocalBackup) Generate(basePath, ignore string) (*ArchiveDetails, error) {
-	a := &Archive{
+	a := &filesystem.Archive{
 		BasePath: basePath,
 		Ignore:   ignore,
 	}

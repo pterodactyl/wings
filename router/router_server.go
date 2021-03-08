@@ -204,12 +204,6 @@ func deleteServer(c *gin.Context) {
 	s.Events().Destroy()
 	s.Websockets().CancelAll()
 
-	// Delete the server's archive if it exists. We intentionally don't return
-	// here, if the archive fails to delete, the server can still be removed.
-	if err := s.Archiver.DeleteIfExists(); err != nil {
-		s.Log().WithField("error", err).Warn("failed to delete server archive during deletion process")
-	}
-
 	// Remove any pending remote file downloads for the server.
 	for _, dl := range downloader.ByServer(s.Id()) {
 		dl.Cancel()

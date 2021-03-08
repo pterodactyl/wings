@@ -29,6 +29,7 @@ import (
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"github.com/pterodactyl/wings/system"
 )
 
@@ -49,6 +50,10 @@ type serverTransferRequest struct {
 	URL      string          `binding:"required" json:"url"`
 	Token    string          `binding:"required" json:"token"`
 	Server   json.RawMessage `json:"server"`
+}
+
+func getArchivePath(sID string) string {
+	return filepath.Join(config.Get().System.ArchiveDirectory, sID+".tar.gz")
 }
 
 // Returns the archive for a server so that it can be transferred to a new node.
@@ -77,36 +82,51 @@ func getServerArchive(c *gin.Context) {
 		return
 	}
 
-	st, err := s.Archiver.Stat()
+	archivePath := getArchivePath(s.Id())
+
+	// Stat the archive file.
+	st, err := os.Lstat(archivePath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			WithError(c, err)
+			_ = WithError(c, err)
 			return
 		}
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
 
-	checksum, err := s.Archiver.Checksum()
+	// Compute sha1 checksum.
+	h := sha256.New()
+	f, err := os.Open(archivePath)
 	if err != nil {
-		NewServerError(err, s).SetMessage("failed to calculate checksum").Abort(c)
 		return
 	}
+	if _, err := io.Copy(h, bufio.NewReader(f)); err != nil {
+		_ = f.Close()
+		_ = WithError(c, err)
+		return
+	}
+	if err := f.Close(); err != nil {
+		_ = WithError(c, err)
+		return
+	}
+	checksum := hex.EncodeToString(h.Sum(nil))
 
-	file, err := os.Open(s.Archiver.Path())
+	// Stream the file to the client.
+	f, err = os.Open(archivePath)
 	if err != nil {
-		WithError(c, err)
+		_ = WithError(c, err)
 		return
 	}
-	defer file.Close()
+	defer f.Close()
 
 	c.Header("X-Checksum", checksum)
-	c.Header("X-Mime-Type", st.Mimetype)
+	c.Header("X-Mime-Type", "application/tar+gzip")
 	c.Header("Content-Length", strconv.Itoa(int(st.Size())))
-	c.Header("Content-Disposition", "attachment; filename="+strconv.Quote(s.Archiver.Name()))
+	c.Header("Content-Disposition", "attachment; filename="+strconv.Quote(s.Id()+".tar.gz"))
 	c.Header("Content-Type", "application/octet-stream")
 
-	bufio.NewReader(file).WriteTo(c.Writer)
+	_, _ = bufio.NewReader(f).WriteTo(c.Writer)
 }
 
 func postServerArchive(c *gin.Context) {
@@ -164,8 +184,13 @@ func postServerArchive(c *gin.Context) {
 			return
 		}
 
+		// Create an archive of the entire server's data directory.
+		a := &filesystem.Archive{
+			BasePath: s.Filesystem().Path(),
+		}
+
 		// Attempt to get an archive of the server.
-		if err := s.Archiver.Archive(); err != nil {
+		if err := a.Create(getArchivePath(s.Id())); err != nil {
 			sendTransferLog("An error occurred while archiving the server: " + err.Error())
 			l.WithField("error", err).Error("failed to get transfer archive for server")
 			return
@@ -227,7 +252,7 @@ func (str serverTransferRequest) downloadArchive() (*http.Response, error) {
 
 // Returns the path to the local archive on the system.
 func (str serverTransferRequest) path() string {
-	return filepath.Join(config.Get().System.ArchiveDirectory, str.ServerID+".tar.gz")
+	return getArchivePath(str.ServerID)
 }
 
 // Creates the archive location on this machine by first checking that the required file
@@ -260,17 +285,16 @@ func (str serverTransferRequest) removeArchivePath() {
 // expected value from the transfer request. The string value returned is the computed
 // checksum on the system.
 func (str serverTransferRequest) verifyChecksum(matches string) (bool, string, error) {
-	file, err := os.Open(str.path())
+	f, err := os.Open(str.path())
 	if err != nil {
 		return false, "", err
 	}
-	defer file.Close()
-	hash := sha256.New()
-	buf := make([]byte, 1024*4)
-	if _, err := io.CopyBuffer(hash, file, buf); err != nil {
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, bufio.NewReader(f)); err != nil {
 		return false, "", err
 	}
-	checksum := hex.EncodeToString(hash.Sum(nil))
+	checksum := hex.EncodeToString(h.Sum(nil))
 	return checksum == matches, checksum, nil
 }
 
@@ -362,7 +386,7 @@ func postTransfer(c *gin.Context) {
 			return
 		}
 		defer res.Body.Close()
-		if res.StatusCode != 200 {
+		if res.StatusCode != http.StatusOK {
 			data.log().WithField("error", err).WithField("status", res.StatusCode).Error("unexpected error response from transfer endpoint")
 			return
 		}
