@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.3.0
+## v1.3.1
 ### Fixed
 * Fixes an error being returned to the client when attempting to restart a server when the container no longer exists on the machine.
 
