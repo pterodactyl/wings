@@ -2,6 +2,13 @@
 
 ## v1.3.0
 ### Fixed
+* Fixes an error being returned to the client when attempting to restart a server when the container no longer exists on the machine.
+
+### Changed
+* Updated server transfer logic to use newer file archiving tools to avoid frequent errors when transferring symlinked files.
+
+## v1.3.0
+### Fixed
 * Fixes improper error handling when attempting to create a new Docker network.
 * Fixes edge-case crash that would occur when a user triggers an install for a server that does not currently have a data directory present on the system.
 * Fixes missing return on error when attempting to get the contents of a file from Wings.
