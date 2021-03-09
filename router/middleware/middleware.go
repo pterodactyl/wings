@@ -3,9 +3,11 @@ package middleware
 import (
 	"context"
 	"crypto/subtle"
+	"github.com/pterodactyl/wings/metrics"
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"emperror.dev/errors"
@@ -351,4 +353,20 @@ func ExtractManager(c *gin.Context) *server.Manager {
 		return v.(*server.Manager)
 	}
 	panic("middleware/middleware: cannot extract server manager: not present in context")
+}
+
+func Metrics() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+		rawQuery := c.Request.URL.RawQuery
+
+		c.Next()
+
+		// Skip over the server websocket endpoint.
+		if strings.HasSuffix(c.FullPath(), "/ws") {
+			return
+		}
+
+		metrics.HTTPRequestsTotal.WithLabelValues(c.Request.Method, c.FullPath(), path, rawQuery, strconv.Itoa(c.Writer.Status())).Inc()
+	}
 }

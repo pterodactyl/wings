@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"github.com/docker/docker/api/types"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/metrics"
 	"io"
 	"math"
 )
@@ -59,6 +60,11 @@ func (e *Environment) pollResources(ctx context.Context) error {
 				st.Network.RxBytes += nw.RxBytes
 				st.Network.TxBytes += nw.TxBytes
 			}
+
+			metrics.ServerCPU.WithLabelValues(e.Id).Set(st.CpuAbsolute)
+			metrics.ServerMemory.WithLabelValues(e.Id).Set(float64(st.Memory))
+			metrics.ServerNetworkRx.WithLabelValues(e.Id).Set(float64(st.Network.RxBytes))
+			metrics.ServerNetworkTx.WithLabelValues(e.Id).Set(float64(st.Network.TxBytes))
 
 			if b, err := json.Marshal(st); err != nil {
 				e.log().WithField("error", err).Warn("error while marshaling stats object for environment")

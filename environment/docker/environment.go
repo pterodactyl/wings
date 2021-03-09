@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"github.com/pterodactyl/wings/metrics"
 	"io"
 	"sync"
 
@@ -212,5 +213,15 @@ func (e *Environment) SetState(state string) {
 		// If the state changed make sure we update the internal tracking to note that.
 		e.st.Store(state)
 		e.Events().Publish(environment.StateChangeEvent, state)
+
+		if state == environment.ProcessRunningState || state == environment.ProcessOfflineState {
+			val := 0
+			if state == environment.ProcessRunningState {
+				val = 1
+			} else {
+				metrics.ResetServer(e.Id)
+			}
+			metrics.ServerStatus.WithLabelValues(e.Id).Set(float64(val))
+		}
 	}
 }

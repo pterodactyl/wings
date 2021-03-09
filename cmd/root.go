@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/pterodactyl/wings/metrics"
 	log2 "log"
 	"net/http"
 	"os"
@@ -137,6 +138,9 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		"gid":      config.Get().System.User.Gid,
 	}).Info("configured system user successfully")
 
+	done := make(chan bool)
+	go metrics.Initialize(done)
+
 	pclient := remote.New(
 		config.Get().PanelLocation,
 		remote.WithCredentials(config.Get().AuthenticationTokenId, config.Get().AuthenticationToken),
@@ -197,6 +201,12 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		if err := s.EnsureDataDirectoryExists(); err != nil {
 			s.Log().Error("could not create root data directory for server: not loading server...")
 			continue
+		}
+
+		if states[s.Id()] == environment.ProcessRunningState {
+			metrics.ServerStatus.WithLabelValues(s.Id()).Set(1)
+		} else {
+			metrics.ServerStatus.WithLabelValues(s.Id()).Set(0)
 		}
 
 		pool.Submit(func() {
@@ -346,6 +356,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	if err := s.ListenAndServe(); err != nil {
 		log.WithField("error", err).Fatal("failed to configure HTTP server")
 	}
+	<-done
 }
 
 // Reads the configuration from the disk and then sets up the global singleton

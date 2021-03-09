@@ -91,6 +91,12 @@ type ApiConfiguration struct {
 	UploadLimit int `default:"100" json:"upload_limit" yaml:"upload_limit"`
 }
 
+// MetricsConfiguration .
+type MetricsConfiguration struct {
+	// Bind .
+	Bind string `default:":9000" yaml:"bind"`
+}
+
 // RemoteQueryConfiguration defines the configuration settings for remote requests
 // from Wings to the Panel.
 type RemoteQueryConfiguration struct {
@@ -260,9 +266,10 @@ type Configuration struct {
 	// validate against it.
 	AuthenticationToken string `json:"token" yaml:"token"`
 
-	Api    ApiConfiguration    `json:"api" yaml:"api"`
-	System SystemConfiguration `json:"system" yaml:"system"`
-	Docker DockerConfiguration `json:"docker" yaml:"docker"`
+	Api     ApiConfiguration     `json:"api" yaml:"api"`
+	System  SystemConfiguration  `json:"system" yaml:"system"`
+	Docker  DockerConfiguration  `json:"docker" yaml:"docker"`
+	Metrics MetricsConfiguration `json:"metrics" yaml:"metrics"`
 
 	// Defines internal throttling configurations for server processes to prevent
 	// someone from running an endless loop that spams data to logs.

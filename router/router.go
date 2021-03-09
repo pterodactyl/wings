@@ -14,6 +14,7 @@ func Configure(m *server.Manager, client remote.Client) *gin.Engine {
 
 	router := gin.New()
 	router.Use(gin.Recovery())
+	router.Use(middleware.Metrics())
 	router.Use(middleware.AttachRequestID(), middleware.CaptureErrors(), middleware.SetAccessControlHeaders())
 	router.Use(middleware.AttachServerManager(m), middleware.AttachApiClient(client))
 	// @todo log this into a different file so you can setup IP blocking for abusive requests and such.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/pterodactyl/wings/metrics"
 	"io"
 	"io/ioutil"
 	"os"
@@ -72,6 +73,9 @@ func (m *Manager) Add(s *Server) {
 	m.mu.Lock()
 	m.servers = append(m.servers, s)
 	m.mu.Unlock()
+
+	// Add the server to the metrics with a offline status.
+	metrics.ServerStatus.WithLabelValues(s.Id()).Set(0)
 }
 
 // Get returns a single server instance and a boolean value indicating if it was
@@ -117,6 +121,9 @@ func (m *Manager) Remove(filter func(match *Server) bool) {
 	for _, v := range m.servers {
 		if !filter(v) {
 			r = append(r, v)
+		} else {
+			// Delete the server from the metric.
+			metrics.DeleteServer(v.Id())
 		}
 	}
 	m.servers = r
