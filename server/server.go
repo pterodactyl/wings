@@ -60,6 +60,7 @@ type Server struct {
 	// installer process is still running.
 	installing   *system.AtomicBool
 	transferring *system.AtomicBool
+	restoring    *system.AtomicBool
 
 	// The console throttler instance used to control outputs.
 	throttler *ConsoleThrottler
@@ -79,6 +80,7 @@ func New(client remote.Client) (*Server, error) {
 		client:       client,
 		installing:   system.NewAtomicBool(false),
 		transferring: system.NewAtomicBool(false),
+		restoring:    system.NewAtomicBool(false),
 	}
 	if err := defaults.Set(&s); err != nil {
 		return nil, errors.Wrap(err, "server: could not set default values for struct")

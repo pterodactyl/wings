@@ -63,7 +63,7 @@ func postServerBackup(c *gin.Context) {
 // This endpoint will block until the backup is fully restored allowing for a
 // spinner to be displayed in the Panel UI effectively.
 //
-// TODO: stop the server if it is running; internally mark it as suspended
+// TODO: stop the server if it is running
 func postServerRestoreBackup(c *gin.Context) {
 	s := middleware.ExtractServer(c)
 	client := middleware.ExtractApiClient(c)
@@ -84,9 +84,19 @@ func postServerRestoreBackup(c *gin.Context) {
 		return
 	}
 
+	s.SetRestoring(true)
+	hasError := true
+	defer func() {
+		if !hasError {
+			return
+		}
+
+		s.SetRestoring(false)
+	}()
+
 	logger.Info("processing server backup restore request")
 	if data.TruncateDirectory {
-		logger.Info(`recieved "truncate_directory" flag in request: deleting server files`)
+		logger.Info("received \"truncate_directory\" flag in request: deleting server files")
 		if err := s.Filesystem().TruncateRootDirectory(); err != nil {
 			middleware.CaptureAndAbort(c, err)
 			return
@@ -109,7 +119,9 @@ func postServerRestoreBackup(c *gin.Context) {
 			s.Events().Publish(server.DaemonMessageEvent, "Completed server restoration from local backup.")
 			s.Events().Publish(server.BackupRestoreCompletedEvent, "")
 			logger.Info("completed server restoration from local backup")
+			s.SetRestoring(false)
 		}(s, b, logger)
+		hasError = false
 		c.Status(http.StatusAccepted)
 		return
 	}
@@ -136,7 +148,7 @@ func postServerRestoreBackup(c *gin.Context) {
 	}
 	// Don't allow content types that we know are going to give us problems.
 	if res.Header.Get("Content-Type") == "" || !strings.Contains("application/x-gzip application/gzip", res.Header.Get("Content-Type")) {
-		res.Body.Close()
+		_ = res.Body.Close()
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error": "The provided backup link is not a supported content type. \"" + res.Header.Get("Content-Type") + "\" is not application/x-gzip.",
 		})
@@ -151,8 +163,10 @@ func postServerRestoreBackup(c *gin.Context) {
 		s.Events().Publish(server.DaemonMessageEvent, "Completed server restoration from S3 backup.")
 		s.Events().Publish(server.BackupRestoreCompletedEvent, "")
 		logger.Info("completed server restoration from S3 backup")
+		s.SetRestoring(false)
 	}(s, c.Param("backup"), logger)
 
+	hasError = false
 	c.Status(http.StatusAccepted)
 }
 

@@ -70,6 +70,10 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 		return ErrServerIsTransferring
 	}
 
+	if s.IsRestoring() {
+		return ErrServerIsRestoring
+	}
+
 	if s.powerLock == nil {
 		s.powerLock = semaphore.NewWeighted(1)
 	}

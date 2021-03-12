@@ -151,6 +151,14 @@ func (s *Server) SetTransferring(state bool) {
 	s.transferring.Store(state)
 }
 
+func (s *Server) IsRestoring() bool {
+	return s.restoring.Load()
+}
+
+func (s *Server) SetRestoring(state bool) {
+	s.restoring.Store(state)
+}
+
 // Removes the installer container for the server.
 func (ip *InstallationProcess) RemoveContainer() error {
 	err := ip.client.ContainerRemove(ip.context, ip.Server.Id()+"_installer", types.ContainerRemoveOptions{

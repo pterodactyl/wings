@@ -9,6 +9,7 @@ var (
 	ErrSuspended            = errors.New("server is currently in a suspended state")
 	ErrServerIsInstalling   = errors.New("server is currently installing")
 	ErrServerIsTransferring = errors.New("server is currently being transferred")
+	ErrServerIsRestoring    = errors.New("server is currently being restored")
 )
 
 type crashTooFrequent struct {
