@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.2
+### Fixed
+* Correctly sets the internal state of the server as restoring when a restore is being performed to avoid any accidental booting.
+
 ## v1.3.1
 ### Fixed
 * Fixes an error being returned to the client when attempting to restart a server when the container no longer exists on the machine.
