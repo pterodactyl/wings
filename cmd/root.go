@@ -58,7 +58,7 @@ var versionCommand = &cobra.Command{
 	Use:   "version",
 	Short: "Prints the current executable version and exits.",
 	Run: func(cmd *cobra.Command, _ []string) {
-		fmt.Printf("wings v%s\nCopyright © 2018 - 2021 Dane Everitt & Contributors\n", system.Version)
+		fmt.Printf("wings v%s\nCopyright © 2018 - %d Dane Everitt & Contributors\n", system.Version, time.Now().Year())
 	},
 }
 
@@ -400,7 +400,7 @@ __ [blue][bold]Pterodactyl[reset] _____/___/_______ _______ ______
         \___/\___/___/___/___/___    /______/
                             /_______/ [bold]%s[reset]
 
-Copyright © 2018 - 2021 Dane Everitt & Contributors
+Copyright © 2018 - %d Dane Everitt & Contributors
 
 Website:  https://pterodactyl.io
  Source:  https://github.com/pterodactyl/wings
@@ -408,7 +408,7 @@ License:  https://github.com/pterodactyl/wings/blob/develop/LICENSE
 
 This software is made available under the terms of the MIT license.
 The above copyright notice and this permission notice shall be included
-in all copies or substantial portions of the Software.%s`), system.Version, "\n\n")
+in all copies or substantial portions of the Software.%s`), system.Version, time.Now().Year(), "\n\n")
 }
 
 func exitWithConfigurationNotice() {
