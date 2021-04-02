@@ -28,7 +28,15 @@ func getSystemInformation(c *gin.Context) {
 // Returns all of the servers that are registered and configured correctly on
 // this wings instance.
 func getAllServers(c *gin.Context) {
-	c.JSON(http.StatusOK, middleware.ExtractManager(c).All())
+	servers := middleware.ExtractManager(c).All()
+	var procData []serverProcData
+	for _, v := range servers {
+		procData = append(procData, serverProcData{
+			ResourceUsage: v.Proc(),
+			Suspended: v.IsSuspended(),
+		})
+	}
+	c.JSON(http.StatusOK, procData)
 }
 
 // Creates a new server on the wings daemon and begins the installation process
