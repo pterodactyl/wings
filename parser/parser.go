@@ -30,6 +30,24 @@ const (
 	Xml        = "xml"
 )
 
+type ReplaceValue struct {
+	value     []byte
+	valueType jsonparser.ValueType
+}
+
+func (cv *ReplaceValue) Value() []byte {
+	return cv.value
+}
+
+func (cv *ReplaceValue) Type() jsonparser.ValueType {
+	return cv.valueType
+}
+
+func (cv *ReplaceValue) String() string {
+	str, _ := jsonparser.ParseString(cv.value)
+	return str
+}
+
 type ConfigurationParser string
 
 func (cp ConfigurationParser) String() string {
