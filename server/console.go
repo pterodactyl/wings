@@ -13,6 +13,11 @@ import (
 	"github.com/pterodactyl/wings/system"
 )
 
+// appName is a local cache variable to avoid having to make expensive copies of
+// the configuration every time we need to send output along to the websocket for
+// a server.
+var appName string
+
 var ErrTooMuchConsoleData = errors.New("console is outputting too much data")
 
 type ConsoleThrottler struct {
@@ -122,11 +127,14 @@ func (s *Server) Throttler() *ConsoleThrottler {
 	return s.throttler
 }
 
-// Sends output to the server console formatted to appear correctly as being sent
-// from Wings.
+// PublishConsoleOutputFromDaemon sends output to the server console formatted
+// to appear correctly as being sent from Wings.
 func (s *Server) PublishConsoleOutputFromDaemon(data string) {
+	if appName == "" {
+		appName = config.Get().AppName
+	}
 	s.Events().Publish(
 		ConsoleOutputEvent,
-		colorstring.Color(fmt.Sprintf("[yellow][bold][Pterodactyl Daemon]:[default] %s", data)),
+		colorstring.Color(fmt.Sprintf("[yellow][bold][%s Daemon]:[default] %s", appName, data)),
 	)
 }
