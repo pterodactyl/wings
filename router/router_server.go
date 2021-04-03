@@ -24,10 +24,9 @@ type serverProcData struct {
 // Returns a single server from the collection of servers.
 func getServer(c *gin.Context) {
 	s := ExtractServer(c)
-
-	c.JSON(http.StatusOK, serverProcData{
-		ResourceUsage: s.Proc(),
-		Suspended:     s.IsSuspended(),
+	c.JSON(http.StatusOK, ServerJsonResponse{
+		Configuration: s.Config(),
+		Resources:     s.Proc(),
 	})
 }
 
