@@ -8,7 +8,7 @@ import (
 
 type EggConfiguration struct {
 	// The internal UUID of the Egg on the Panel.
-	ID string
+	ID string `json:"id"`
 
 	// Maintains a list of files that are blacklisted for opening/editing/downloading
 	// or basically any type of access on the server by any user. This is NOT the same
@@ -43,7 +43,6 @@ type Configuration struct {
 	Build                 environment.Limits      `json:"build"`
 	CrashDetectionEnabled bool                    `default:"true" json:"enabled" yaml:"enabled"`
 	Mounts                []Mount                 `json:"mounts"`
-	Resources             ResourceUsage           `json:"resources"`
 	Egg                   EggConfiguration        `json:"egg,omitempty"`
 
 	Container struct {

@@ -10,6 +10,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/router/middleware"
+	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/system"
 )
 
@@ -28,15 +29,20 @@ func getSystemInformation(c *gin.Context) {
 // Returns all of the servers that are registered and configured correctly on
 // this wings instance.
 func getAllServers(c *gin.Context) {
-	servers := middleware.ExtractManager(c).All()
-	var procData []serverProcData
-	for _, v := range servers {
-		procData = append(procData, serverProcData{
-			ResourceUsage: v.Proc(),
-			Suspended: v.IsSuspended(),
-		})
+	type serverItem struct {
+		*server.Configuration
+		Resources server.ResourceUsage `json:"resources"`
 	}
-	c.JSON(http.StatusOK, procData)
+
+	servers := middleware.ExtractManager(c).All()
+	out := make([]serverItem, len(servers), len(servers))
+	for i, v := range servers {
+		out[i] = serverItem{
+			Configuration: v.Config(),
+			Resources:     v.Proc(),
+		}
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // Creates a new server on the wings daemon and begins the installation process
