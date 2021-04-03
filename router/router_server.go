@@ -16,11 +16,6 @@ import (
 	"github.com/pterodactyl/wings/server"
 )
 
-type serverProcData struct {
-	server.ResourceUsage
-	Suspended bool `json:"suspended"`
-}
-
 // Returns a single server from the collection of servers.
 func getServer(c *gin.Context) {
 	s := ExtractServer(c)

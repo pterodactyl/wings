@@ -143,12 +143,12 @@ func (s *Server) Log() *log.Entry {
 	return log.WithField("server", s.Id())
 }
 
-// Syncs the state of the server on the Panel with Wings. This ensures that we're always
-// using the state of the server from the Panel and allows us to not require successful
-// API calls to Wings to do things.
+// Sync syncs the state of the server on the Panel with Wings. This ensures that
+// we're always using the state of the server from the Panel and allows us to
+// not require successful API calls to Wings to do things.
 //
-// This also means mass actions can be performed against servers on the Panel and they
-// will automatically sync with Wings when the server is started.
+// This also means mass actions can be performed against servers on the Panel
+// and they will automatically sync with Wings when the server is started.
 func (s *Server) Sync() error {
 	cfg, err := s.client.GetServerConfiguration(s.Context(), s.Id())
 	if err != nil {

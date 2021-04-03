@@ -35,16 +35,37 @@ type ReplaceValue struct {
 	valueType jsonparser.ValueType
 }
 
+// Value returns the underlying value of the replacement. Be aware that this
+// can include escaped UTF-8 sequences that will need to be handled by the caller
+// in order to avoid accidentally injecting invalid sequences into the running
+// process.
+//
+// For example the expected value may be "§Foo" but you'll be working directly
+// with "\u00a7FOo" for this value. This will cause user pain if not solved since
+// that is clearly not the value they were expecting to be using.
 func (cv *ReplaceValue) Value() []byte {
 	return cv.value
 }
 
+// Type returns the underlying data type for the Value field.
 func (cv *ReplaceValue) Type() jsonparser.ValueType {
 	return cv.valueType
 }
 
+// String returns the value as a string representation. This will automatically
+// handle casting the UTF-8 sequence into the expected value, switching something
+// like "\u00a7Foo" into "§Foo".
 func (cv *ReplaceValue) String() string {
-	str, _ := jsonparser.ParseString(cv.value)
+	if cv.Type() != jsonparser.String {
+		if cv.Type() == jsonparser.Null {
+			return "<nil>"
+		}
+		return "<invalid>"
+	}
+	str, err := jsonparser.ParseString(cv.value)
+	if err != nil {
+		panic(errors.Wrap(err, "parser: could not parse value"))
+	}
 	return str
 }
 
@@ -95,15 +116,16 @@ func (f *ConfigurationFile) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Defines a single find/replace instance for a given server configuration file.
+// ConfigurationFileReplacement defines a single find/replace instance for a
+// given server configuration file.
 type ConfigurationFileReplacement struct {
 	Match       string       `json:"match"`
 	IfValue     string       `json:"if_value"`
 	ReplaceWith ReplaceValue `json:"replace_with"`
 }
 
-// Handles unmarshaling the JSON representation into a struct that provides more useful
-// data to this functionality.
+// UnmarshalJSON handles unmarshaling the JSON representation into a struct that
+// provides more useful data to this functionality.
 func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 	m, err := jsonparser.GetString(data, "match")
 	if err != nil {
@@ -494,6 +516,25 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 
 		s.WriteString(key)
 		s.WriteByte('=')
+		// There is no winning with this logic. This fixes a bug where users with hand
+		// rolled UTF-8 escape sequences would have all sorts of pain in their configurations
+		// because we were writing the UTF-8 literal characters which their games could
+		// not actually handle.
+		//
+		// However, by adding this fix to only store the escaped UTF-8 sequence we unwittingly
+		// introduced a "regression" that causes _other_ games to have issues because they
+		// can only handle the unescaped representations. I cannot think of a simple approach
+		// to this problem that doesn't just lead to more complicated cases and problems.
+		//
+		// So, if your game cannot handle parsing UTF-8 sequences that are escaped into
+		// the string, well, sucks. There are fewer of those games than there are games
+		// that have issues parsing the raw UTF-8 sequence into a string? Also how does one
+		// really know what the user intended at this point? We'd need to know if the value
+		// was escaped or not to begin with before setting it, which I suppose can work but
+		// jesus that is going to be some annoyingly complicated logic?
+		//
+		// @see https://github.com/pterodactyl/panel/issues/2308 (original)
+		// @see https://github.com/pterodactyl/panel/issues/3009 ("bug" introduced as result)
 		s.WriteString(strings.Trim(strconv.QuoteToASCII(value), `"`))
 		s.WriteString("\n")
 	}
