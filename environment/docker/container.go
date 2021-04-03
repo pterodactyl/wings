@@ -149,12 +149,12 @@ func (e *Environment) Create() error {
 	if _, err := e.client.ContainerInspect(context.Background(), e.Id); err == nil {
 		return nil
 	} else if !client.IsErrNotFound(err) {
-		return err
+		return errors.Wrap(err, "environment/docker: failed to inspect container")
 	}
 
 	// Try to pull the requested image before creating the container.
 	if err := e.ensureImageExists(e.meta.Image); err != nil {
-		return err
+		return errors.WithStackIf(err)
 	}
 
 	a := e.Configuration.Allocations()
@@ -230,7 +230,7 @@ func (e *Environment) Create() error {
 	}
 
 	if _, err := e.client.ContainerCreate(context.Background(), conf, hostConf, nil, nil, e.Id); err != nil {
-		return err
+		return errors.Wrap(err, "environment/docker: failed to create container")
 	}
 
 	return nil
@@ -420,7 +420,7 @@ func (e *Environment) ensureImageExists(image string) error {
 		if ierr != nil {
 			// Well damn, something has gone really wrong here, just go ahead and abort there
 			// isn't much anything we can do to try and self-recover from this.
-			return ierr
+			return errors.Wrap(ierr, "environment/docker: failed to list images")
 		}
 
 		for _, img := range images {
@@ -441,7 +441,7 @@ func (e *Environment) ensureImageExists(image string) error {
 			}
 		}
 
-		return err
+		return errors.Wrapf(err, "environment/docker: failed to pull \"%s\" image for server", image)
 	}
 	defer out.Close()
 

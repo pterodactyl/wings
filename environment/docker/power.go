@@ -27,7 +27,7 @@ func (e *Environment) OnBeforeStart() error {
 	// Always destroy and re-create the server container to ensure that synced data from the Panel is used.
 	if err := e.client.ContainerRemove(context.Background(), e.Id, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
 		if !client.IsErrNotFound(err) {
-			return errors.WithMessage(err, "failed to remove server docker container during pre-boot")
+			return errors.WrapIf(err, "environment/docker: failed to remove container during pre-boot")
 		}
 	}
 
@@ -71,7 +71,7 @@ func (e *Environment) Start() error {
 		//
 		// @see https://github.com/pterodactyl/panel/issues/2000
 		if !client.IsErrNotFound(err) {
-			return err
+			return errors.WrapIf(err, "environment/docker: failed to inspect container")
 		}
 	} else {
 		// If the server is running update our internal state and continue on with the attach.
@@ -86,7 +86,7 @@ func (e *Environment) Start() error {
 		// to truncate them.
 		if _, err := os.Stat(c.LogPath); err == nil {
 			if err := os.Truncate(c.LogPath, 0); err != nil {
-				return err
+				return errors.Wrap(err, "environment/docker: failed to truncate instance logs")
 			}
 		}
 	}
@@ -101,14 +101,14 @@ func (e *Environment) Start() error {
 	// exists on the system, and rebuild the container if that is required for server booting to
 	// occur.
 	if err := e.OnBeforeStart(); err != nil {
-		return err
+		return errors.WithStackIf(err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	if err := e.client.ContainerStart(ctx, e.Id, types.ContainerStartOptions{}); err != nil {
-		return err
+		return errors.WrapIf(err, "environment/docker: failed to start container")
 	}
 
 	// No errors, good to continue through.
