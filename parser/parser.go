@@ -450,48 +450,66 @@ func (f *ConfigurationFile) parseTextFile(path string) error {
 	return nil
 }
 
-// Parses a properties file and updates the values within it to match those that
-// are passed. Writes the file once completed.
+// parsePropertiesFile parses a properties file and updates the values within it
+// to match those that are passed. Once completed the new file is written to the
+// disk. This will cause comments not present at the head of the file to be
+// removed unfortunately.
+//
+// Any UTF-8 value will be written back to the disk as their escaped value rather
+// than the raw value There is no winning with this logic. This fixes a bug where
+// users with hand rolled UTF-8 escape sequences would have all sorts of pain in
+// their configurations because we were writing the UTF-8 literal characters which
+// their games could not actually handle.
+//
+// However, by adding this fix to only store the escaped UTF-8 sequence we
+// unwittingly introduced a "regression" that causes _other_ games to have issues
+// because they can only handle the unescaped representations. I cannot think of
+// a simple approach to this problem that doesn't just lead to more complicated
+// cases and problems.
+//
+// So, if your game cannot handle parsing UTF-8 sequences that are escaped into
+// the string, well, sucks. There are fewer of those games than there are games
+// that have issues parsing the raw UTF-8 sequence into a string? Also how does
+// one really know what the user intended at this point? We'd need to know if
+// the value was escaped or not to begin with before setting it, which I suppose
+// can work but jesus that is going to be some annoyingly complicated logic?
+//
+// @see https://github.com/pterodactyl/panel/issues/2308 (original)
+// @see https://github.com/pterodactyl/panel/issues/3009 ("bug" introduced as result)
 func (f *ConfigurationFile) parsePropertiesFile(path string) error {
-	// Open the file.
-	f2, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-
 	var s strings.Builder
-
-	// Get any header comments from the file.
-	scanner := bufio.NewScanner(f2)
-	for scanner.Scan() {
-		text := scanner.Text()
-		if len(text) > 0 && text[0] != '#' {
-			break
+	// Open the file and attempt to load any comments that currenty exist at the start
+	// of the file. This is kind of a hack, but should work for a majority of users for
+	// the time being.
+	if fd, err := os.Open(path); err != nil {
+		return errors.Wrap(err, "parser: could not open file for reading")
+	} else {
+		scanner := bufio.NewScanner(fd)
+		// Scan until we hit a line that is not a comment that actually has content
+		// on it. Keep appending the comments until that time.
+		for scanner.Scan() {
+			text := scanner.Text()
+			if len(text) > 0 && text[0] != '#' {
+				break
+			}
+			s.WriteString(text + "\n")
 		}
-
-		s.WriteString(text)
-		s.WriteString("\n")
+		_ = fd.Close()
+		if err := scanner.Err(); err != nil {
+			return errors.WithStackIf(err)
+		}
 	}
 
-	// Close the file.
-	_ = f2.Close()
-
-	// Handle any scanner errors.
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-
-	// Decode the properties file.
 	p, err := properties.LoadFile(path, properties.UTF8)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "parser: could not load properties file for configuration update")
 	}
 
 	// Replace any values that need to be replaced.
 	for _, replace := range f.Replace {
 		data, err := f.LookupConfigurationValue(replace)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "parser: failed to lookup configuration value")
 		}
 
 		v, ok := p.Get(replace.Match)
@@ -503,7 +521,7 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 		}
 
 		if _, _, err := p.Set(replace.Match, data); err != nil {
-			return err
+			return errors.Wrap(err, "parser: failed to set replacement value")
 		}
 	}
 
@@ -513,30 +531,11 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 		if !ok {
 			continue
 		}
-
-		s.WriteString(key)
-		s.WriteByte('=')
-		// There is no winning with this logic. This fixes a bug where users with hand
-		// rolled UTF-8 escape sequences would have all sorts of pain in their configurations
-		// because we were writing the UTF-8 literal characters which their games could
-		// not actually handle.
+		// This escape is intentional!
 		//
-		// However, by adding this fix to only store the escaped UTF-8 sequence we unwittingly
-		// introduced a "regression" that causes _other_ games to have issues because they
-		// can only handle the unescaped representations. I cannot think of a simple approach
-		// to this problem that doesn't just lead to more complicated cases and problems.
-		//
-		// So, if your game cannot handle parsing UTF-8 sequences that are escaped into
-		// the string, well, sucks. There are fewer of those games than there are games
-		// that have issues parsing the raw UTF-8 sequence into a string? Also how does one
-		// really know what the user intended at this point? We'd need to know if the value
-		// was escaped or not to begin with before setting it, which I suppose can work but
-		// jesus that is going to be some annoyingly complicated logic?
-		//
-		// @see https://github.com/pterodactyl/panel/issues/2308 (original)
-		// @see https://github.com/pterodactyl/panel/issues/3009 ("bug" introduced as result)
-		s.WriteString(strings.Trim(strconv.QuoteToASCII(value), `"`))
-		s.WriteString("\n")
+		// See the docblock for this function for more details, do not change this
+		// or you'll cause a flood of new issue reports no one wants to deal with.
+		s.WriteString(key + "=" + strings.Trim(strconv.QuoteToASCII(value), "\"") + "\n")
 	}
 
 	// Open the file for writing.
@@ -548,7 +547,7 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 
 	// Write the data to the file.
 	if _, err := w.Write([]byte(s.String())); err != nil {
-		return err
+		return errors.Wrap(err, "parser: failed to write properties file to disk")
 	}
 
 	return nil
