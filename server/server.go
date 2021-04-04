@@ -305,3 +305,24 @@ func (s *Server) IsRunning() bool {
 
 	return st == environment.ProcessRunningState || st == environment.ProcessStartingState
 }
+
+// APIResponse is a type returned when requesting details about a single server
+// instance on Wings. This includes the information needed by the Panel in order
+// to show resource utilization and the current state on this system.
+type APIResponse struct {
+	State         string        `json:"state"`
+	IsSuspended   bool          `json:"is_suspended"`
+	Utilization   ResourceUsage `json:"utilization"`
+	Configuration Configuration `json:"configuration"`
+}
+
+// ToAPIResponse returns the server struct as an API object that can be consumed
+// by callers.
+func (s *Server) ToAPIResponse() APIResponse {
+	return APIResponse{
+		State:         s.Environment.State(),
+		IsSuspended:   s.IsSuspended(),
+		Utilization:   s.Proc(),
+		Configuration: *s.Config(),
+	}
+}

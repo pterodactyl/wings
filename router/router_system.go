@@ -14,13 +14,6 @@ import (
 	"github.com/pterodactyl/wings/system"
 )
 
-// ServerJsonResponse is a type returned when requesting details about a single
-// server instance on Wings.
-type ServerJsonResponse struct {
-	*server.Configuration
-	Resources server.ResourceUsage `json:"resources"`
-}
-
 // Returns information about the system that wings is running on.
 func getSystemInformation(c *gin.Context) {
 	i, err := system.GetSystemInformation()
@@ -37,12 +30,9 @@ func getSystemInformation(c *gin.Context) {
 // this wings instance.
 func getAllServers(c *gin.Context) {
 	servers := middleware.ExtractManager(c).All()
-	out := make([]ServerJsonResponse, len(servers), len(servers))
+	out := make([]server.APIResponse, len(servers), len(servers))
 	for i, v := range servers {
-		out[i] = ServerJsonResponse{
-			Configuration: v.Config(),
-			Resources:     v.Proc(),
-		}
+		out[i] = v.ToAPIResponse()
 	}
 	c.JSON(http.StatusOK, out)
 }
