@@ -3,6 +3,7 @@ package router
 import (
 	"bufio"
 	"context"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -43,8 +44,16 @@ func getServerFileContents(c *gin.Context) {
 		c.Header("Content-Type", "application/octet-stream")
 	}
 	defer c.Writer.Flush()
-	_, err = bufio.NewReader(f).WriteTo(c.Writer)
-	if err != nil {
+	// If you don't do a limited reader here you will trigger a panic on write when
+	// a different server process writes content to the file after you've already
+	// determined the file size. This could lead to some weird content output but
+	// it would technically be accurate based on the content at the time of the request.
+	//
+	// "http: wrote more than the declared Content-Length"
+	//
+	// @see https://github.com/pterodactyl/panel/issues/3131
+	r := io.LimitReader(f, st.Size())
+	if _, err = bufio.NewReader(r).WriteTo(c.Writer); err != nil {
 		// Pretty sure this will unleash chaos on the response, but its a risk we can
 		// take since a panic will at least be recovered and this should be incredibly
 		// rare?
