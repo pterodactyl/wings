@@ -25,10 +25,11 @@ func New(ctx context.Context, manager *server.Manager, data []byte) (*Installer,
 	}
 
 	cfg := &server.Configuration{
-		Uuid:           getString(data, "uuid"),
-		Suspended:      false,
-		Invocation:     getString(data, "invocation"),
-		SkipEggScripts: getBoolean(data, "skip_egg_scripts"),
+		Uuid:              getString(data, "uuid"),
+		Suspended:         false,
+		Invocation:        getString(data, "invocation"),
+		SkipEggScripts:    getBoolean(data, "skip_egg_scripts"),
+		StartOnCompletion: getBoolean(data, "start_on_completion"),
 		Build: environment.Limits{
 			MemoryLimit: getInt(data, "build", "memory"),
 			Swap:        getInt(data, "build", "swap"),
