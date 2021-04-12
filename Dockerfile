@@ -2,7 +2,7 @@
 FROM golang:1.15-alpine3.12 AS builder
 
 ARG VERSION
-RUN apk add --update --no-cache git=2.26.2-r0 make=4.3-r0 upx=3.96-r0
+RUN apk add --update --no-cache git make upx
 WORKDIR /app/
 COPY go.mod go.sum /app/
 RUN go mod download
