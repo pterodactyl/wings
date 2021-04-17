@@ -121,11 +121,7 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		if f.IsDir() {
 			return nil
 		}
-		name, err := system.ExtractArchiveSourceName(f, dir)
-		if err != nil {
-			return WrapError(err, filepath.Join(dir, f.Name()))
-		}
-		p := filepath.Join(dir, name)
+		p := filepath.Join(dir, f.Name())
 		// If it is ignored, just don't do anything with the file and skip over it.
 		if err := fs.IsIgnored(p); err != nil {
 			return nil

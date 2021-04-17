@@ -383,8 +383,6 @@ func postServerCompressFiles(c *gin.Context) {
 // of unpacking an archive that exists on the server into the provided RootPath
 // for the server.
 func postServerDecompressFiles(c *gin.Context) {
-	s := middleware.ExtractServer(c)
-	lg := middleware.ExtractLogger(c)
 	var data struct {
 		RootPath string `json:"root"`
 		File     string `json:"file"`
@@ -393,7 +391,8 @@ func postServerDecompressFiles(c *gin.Context) {
 		return
 	}
 
-	lg = lg.WithFields(log.Fields{"root_path": data.RootPath, "file": data.File})
+	s := middleware.ExtractServer(c)
+	lg := middleware.ExtractLogger(c).WithFields(log.Fields{"root_path": data.RootPath, "file": data.File})
 	lg.Debug("checking if space is available for file decompression")
 	err := s.Filesystem().SpaceAvailableForDecompression(data.RootPath, data.File)
 	if err != nil {
@@ -412,7 +411,7 @@ func postServerDecompressFiles(c *gin.Context) {
 		// much we specifically can do. They'll need to stop the running server process in order to overwrite
 		// a file like this.
 		if strings.Contains(err.Error(), "text file busy") {
-			lg.WithField("error", err).Warn("failed to decompress file: text file busy")
+			lg.WithField("error", errors.WithStackIf(err)).Warn("failed to decompress file: text file busy")
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 				"error": "One or more files this archive is attempting to overwrite are currently in use by another process. Please try again.",
 			})
