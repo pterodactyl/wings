@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"emperror.dev/errors"
 	"github.com/mholt/archiver/v3"
-	"github.com/pterodactyl/wings/system"
 )
 
 // CompressFiles compresses all of the files matching the given paths in the
@@ -86,13 +86,13 @@ func (fs *Filesystem) SpaceAvailableForDecompression(dir string, file string) er
 	// Walk over the archive and figure out just how large the final output would be from unarchiving it.
 	err = archiver.Walk(source, func(f archiver.File) error {
 		if atomic.AddInt64(&size, f.Size())+dirSize > fs.MaxDisk() {
-			return &Error{code: ErrCodeDiskSpace}
+			return newFilesystemError(ErrCodeDiskSpace, nil)
 		}
 		return nil
 	})
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "format ") {
-			return &Error{code: ErrCodeUnknownArchive}
+		if IsUnknownArchiveFormatError(err) {
+			return newFilesystemError(ErrCodeUnknownArchive, err)
 		}
 		return err
 	}
@@ -111,7 +111,7 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 	}
 	// Ensure that the source archive actually exists on the system.
 	if _, err := os.Stat(source); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// Walk all of the files in the archiver file and write them to the disk. If any
@@ -127,13 +127,13 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 			return nil
 		}
 		if err := fs.Writefile(p, f); err != nil {
-			return &Error{code: ErrCodeUnknownError, err: err, resolved: source}
+			return wrapError(err, source)
 		}
 		return nil
 	})
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "format ") {
-			return &Error{code: ErrCodeUnknownArchive}
+		if IsUnknownArchiveFormatError(err) {
+			return newFilesystemError(ErrCodeUnknownArchive, err)
 		}
 		return err
 	}

@@ -2,11 +2,12 @@ package filesystem
 
 import (
 	"bytes"
-	"emperror.dev/errors"
-	. "github.com/franela/goblin"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"emperror.dev/errors"
+	. "github.com/franela/goblin"
 )
 
 func TestFilesystem_Path(t *testing.T) {

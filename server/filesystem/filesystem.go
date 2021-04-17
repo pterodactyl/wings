@@ -67,7 +67,7 @@ func (fs *Filesystem) File(p string) (*os.File, Stat, error) {
 		return nil, Stat{}, err
 	}
 	if st.IsDir() {
-		return nil, Stat{}, &Error{code: ErrCodeIsDirectory}
+		return nil, Stat{}, newFilesystemError(ErrCodeIsDirectory, nil)
 	}
 	f, err := os.Open(cleaned)
 	if err != nil {
@@ -144,7 +144,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 		return errors.Wrap(err, "server/filesystem: writefile: failed to stat file")
 	} else if err == nil {
 		if stat.IsDir() {
-			return &Error{code: ErrCodeIsDirectory, resolved: cleaned}
+			return errors.WithStack(&Error{code: ErrCodeIsDirectory, resolved: cleaned})
 		}
 		currentSize = stat.Size()
 	}

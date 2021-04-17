@@ -1,13 +1,14 @@
 package filesystem
 
 import (
-	"emperror.dev/errors"
-	"github.com/apex/log"
-	"github.com/karrick/godirwalk"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"emperror.dev/errors"
+	"github.com/apex/log"
+	"github.com/karrick/godirwalk"
 )
 
 type SpaceCheckingOpts struct {
@@ -48,7 +49,7 @@ func (fs *Filesystem) SetDiskLimit(i int64) {
 // no space, rather than a boolean value.
 func (fs *Filesystem) HasSpaceErr(allowStaleValue bool) error {
 	if !fs.HasSpaceAvailable(allowStaleValue) {
-		return &Error{code: ErrCodeDiskSpace}
+		return newFilesystemError(ErrCodeDiskSpace, nil)
 	}
 	return nil
 }
@@ -200,16 +201,13 @@ func (fs *Filesystem) HasSpaceFor(size int64) error {
 	if fs.MaxDisk() == 0 {
 		return nil
 	}
-
 	s, err := fs.DiskUsage(true)
 	if err != nil {
 		return err
 	}
-
 	if (s + size) > fs.MaxDisk() {
-		return &Error{code: ErrCodeDiskSpace}
+		return newFilesystemError(ErrCodeDiskSpace, nil)
 	}
-
 	return nil
 }
 

@@ -2,13 +2,13 @@ package backup
 
 import (
 	"errors"
-	"github.com/pterodactyl/wings/server/filesystem"
 	"io"
 	"os"
 
+	"github.com/pterodactyl/wings/server/filesystem"
+
 	"github.com/mholt/archiver/v3"
 	"github.com/pterodactyl/wings/remote"
-	"github.com/pterodactyl/wings/system"
 )
 
 type LocalBackup struct {
@@ -78,10 +78,6 @@ func (b *LocalBackup) Restore(_ io.Reader, callback RestoreCallback) error {
 		if f.IsDir() {
 			return nil
 		}
-		name, err := system.ExtractArchiveSourceName(f, "/")
-		if err != nil {
-			return err
-		}
-		return callback(name, f)
+		return callback(f.Name(), f)
 	})
 }

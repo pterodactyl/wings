@@ -20,7 +20,7 @@ func (fs *Filesystem) IsIgnored(paths ...string) error {
 			return err
 		}
 		if fs.denylist.MatchesPath(sp) {
-			return &Error{code: ErrCodeDenylistFile, path: p, resolved: sp}
+			return errors.WithStack(&Error{code: ErrCodeDenylistFile, path: p, resolved: sp})
 		}
 	}
 	return nil

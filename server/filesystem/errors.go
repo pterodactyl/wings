@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -32,6 +33,14 @@ type Error struct {
 	// error. For everything else you should be setting and reading the resolved path
 	// value which will be far more useful.
 	path string
+}
+
+// newFilesystemError returns a new error instance with a stack trace associated.
+func newFilesystemError(code ErrorCode, err error) error {
+	if err != nil {
+		return errors.WithStackDepth(&Error{code: code, err: err}, 1)
+	}
+	return errors.WithStackDepth(&Error{code: code}, 1)
 }
 
 // Code returns the ErrorCode for this specific error instance.
@@ -63,13 +72,13 @@ func (e *Error) Error() string {
 	case ErrCodeUnknownError:
 		fallthrough
 	default:
-		return fmt.Sprintf("filesystem: an error occurred: %s", e.Cause())
+		return fmt.Sprintf("filesystem: an error occurred: %s", e.Unwrap())
 	}
 }
 
-// Cause returns the underlying cause of this filesystem error. In some causes
+// Unwrap returns the underlying cause of this filesystem error. In some causes
 // there may not be a cause present, in which case nil will be returned.
-func (e *Error) Cause() error {
+func (e *Error) Unwrap() error {
 	return e.err
 }
 
@@ -113,20 +122,26 @@ func IsErrorCode(err error, code ErrorCode) bool {
 	return false
 }
 
-// NewBadPathResolution returns a new BadPathResolution error.
-func NewBadPathResolution(path string, resolved string) *Error {
-	return &Error{code: ErrCodePathResolution, path: path, resolved: resolved}
+// IsUnknownArchiveFormatError checks if the error is due to the archive being
+// in an unexpected file format.
+func IsUnknownArchiveFormatError(err error) bool {
+	if err != nil && strings.HasPrefix(err.Error(), "format ") {
+		return true
+	}
+	return false
 }
 
-// WrapError wraps the provided error as a Filesystem error and attaches the
+// NewBadPathResolution returns a new BadPathResolution error.
+func NewBadPathResolution(path string, resolved string) error {
+	return errors.WithStackDepth(&Error{code: ErrCodePathResolution, path: path, resolved: resolved}, 1)
+}
+
+// wrapError wraps the provided error as a Filesystem error and attaches the
 // provided resolved source to it. If the error is already a Filesystem error
 // no action is taken.
-func WrapError(err error, resolved string) *Error {
-	if err == nil {
-		return nil
+func wrapError(err error, resolved string) error {
+	if err == nil || IsFilesystemError(err) {
+		return err
 	}
-	if IsFilesystemError(err) {
-		return err.(*Error)
-	}
-	return &Error{code: ErrCodeUnknownError, err: err, resolved: resolved}
+	return errors.WithStackDepth(&Error{code: ErrCodeUnknownError, err: err, resolved: resolved}, 1)
 }
