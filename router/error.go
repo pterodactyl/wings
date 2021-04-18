@@ -134,7 +134,7 @@ func (e *RequestError) getAsFilesystemError() (int, string) {
 		return http.StatusBadRequest, "Cannot perform that action: file is a directory."
 	}
 	if filesystem.IsErrorCode(e.err, filesystem.ErrCodeDiskSpace) || strings.Contains(e.err.Error(), "filesystem: not enough disk space") {
-		return http.StatusBadRequest, "Cannot perform that action: file is a directory."
+		return http.StatusBadRequest, "Cannot perform that action: not enough disk space available."
 	}
 	if strings.HasSuffix(e.err.Error(), "file name too long") {
 		return http.StatusBadRequest, "Cannot perform that action: file name is too long."
