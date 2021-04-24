@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.4.0
+### Fixed
+* **[Breaking]** Fixes `/api/servers` and `/api/servers/:server` not properly returning all of the relevant server information and resource usage.
+* Fixes Wings improperly reading `WINGS_UID` and not `WINGS_GID` when running in containerized environments.
+* Fixes a panic encountered when returning the contents of a file that is actively being written to by another process.
+* Corrected the handling of files that are being decompressed to properly support `.rar` files.
+* Fixes the error message returned when a server has run out of disk space to properly indicate such, rather than indicating that the file is a directory.
+
+### Changed
+* Improved the error handling and output when an error is encountered while pulling an image for a server.
+* Improved robustness of code handling value replacement in configuration files to not potentially panic if a non-string value is encountered as the replacement type.
+* Improves error handling throughout the server filesystem.
+
+### Added
+* Adds the ability to set the internal name of the application in response output from the console using the `app_name` key in the `config.yml` file.
+
 ## v1.3.2
 ### Fixed
 * Correctly sets the internal state of the server as restoring when a restore is being performed to avoid any accidental booting.
