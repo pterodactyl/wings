@@ -78,6 +78,6 @@ func (b *LocalBackup) Restore(_ io.Reader, callback RestoreCallback) error {
 		if f.IsDir() {
 			return nil
 		}
-		return callback(f.Name(), f)
+		return callback(filesystem.ExtractNameFromArchive(f), f)
 	})
 }

@@ -1,6 +1,9 @@
 package filesystem
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"compress/gzip"
 	"fmt"
 	"os"
 	"path"
@@ -121,7 +124,7 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		if f.IsDir() {
 			return nil
 		}
-		p := filepath.Join(dir, f.Name())
+		p := filepath.Join(dir, ExtractNameFromArchive(f))
 		// If it is ignored, just don't do anything with the file and skip over it.
 		if err := fs.IsIgnored(p); err != nil {
 			return nil
@@ -138,4 +141,36 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		return err
 	}
 	return nil
+}
+
+// ExtractNameFromArchive looks at an archive file to try and determine the name
+// for a given element in an archive. Because of... who knows why, each file type
+// uses different methods to determine the file name.
+//
+// If there is a archiver.File#Sys() value present we will try to use the name
+// present in there, otherwise falling back to archiver.File#Name() if all else
+// fails. Without this logic present, some archive types such as zip/tars/etc.
+// will write all of the files to the base directory, rather than the nested
+// directory that is expected.
+//
+// For files like ".rar" types, there is no f.Sys() value present, and the value
+// of archiver.File#Name() will be what you need.
+func ExtractNameFromArchive(f archiver.File) string {
+	sys := f.Sys()
+	// Some archive types won't have a value returned when you call f.Sys() on them,
+	// such as ".rar" archives for example. In those cases the only thing you can do
+	// is hope that "f.Name()" is actually correct for them.
+	if sys == nil {
+		return f.Name()
+	}
+	switch s := sys.(type) {
+	case *tar.Header:
+		return s.Name
+	case *gzip.Header:
+		return s.Name
+	case *zip.FileHeader:
+		return s.Name
+	default:
+		return f.Name()
+	}
 }
