@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.1
+### Fixed
+* Fixes a bug that would cause the file unarchiving process to put all files in the base directory rather than the directory in which the files should be located.
+
 ## v1.4.0
 ### Fixed
 * **[Breaking]** Fixes `/api/servers` and `/api/servers/:server` not properly returning all of the relevant server information and resource usage.
