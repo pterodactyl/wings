@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.4.2
+### Fixed
+* Fixes the `~` character not being properly trimmed from container image names when creating a new server.
+
+### Changed
+* Implemented exponential backoff for S3 uploads when working with backups. This should resolve many issues with external S3 compatiable systems that sometimes return 5xx level errors that should be re-attempted automatically.
+* Implements exponential backoff behavior for all API calls to the Panel that do not immediately return a 401, 403, or 429 error response. This should address fragiligty in some API calls and address random call failures due to connection drops or random DNS resolution errors.
+
 ## v1.4.1
 ### Fixed
 * Fixes a bug that would cause the file unarchiving process to put all files in the base directory rather than the directory in which the files should be located.
