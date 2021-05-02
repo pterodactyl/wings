@@ -178,7 +178,7 @@ func (e *Environment) Create() error {
 		OpenStdin:    true,
 		Tty:          true,
 		ExposedPorts: a.Exposed(),
-		Image:        e.meta.Image,
+		Image:        strings.TrimPrefix(e.meta.Image, "~"),
 		Env:          e.Configuration.EnvironmentVariables(),
 		Labels: map[string]string{
 			"Service":       "Pterodactyl",
