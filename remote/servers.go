@@ -58,7 +58,7 @@ func (c *client) GetServers(ctx context.Context, limit int) ([]RawServerData, er
 // things in a bad state within the Panel. This API call is executed once Wings
 // has fully booted all of the servers.
 func (c *client) ResetServersState(ctx context.Context) error {
-	res, err := c.post(ctx, "/servers/reset", nil)
+	res, err := c.Post(ctx, "/servers/reset", nil)
 	if err != nil {
 		return errors.WrapIf(err, "remote/servers: failed to reset server state on Panel")
 	}
@@ -68,7 +68,7 @@ func (c *client) ResetServersState(ctx context.Context) error {
 
 func (c *client) GetServerConfiguration(ctx context.Context, uuid string) (ServerConfigurationResponse, error) {
 	var config ServerConfigurationResponse
-	res, err := c.get(ctx, fmt.Sprintf("/servers/%s", uuid), nil)
+	res, err := c.Get(ctx, fmt.Sprintf("/servers/%s", uuid), nil)
 	if err != nil {
 		return config, err
 	}
@@ -83,7 +83,7 @@ func (c *client) GetServerConfiguration(ctx context.Context, uuid string) (Serve
 }
 
 func (c *client) GetInstallationScript(ctx context.Context, uuid string) (InstallationScript, error) {
-	res, err := c.get(ctx, fmt.Sprintf("/servers/%s/install", uuid), nil)
+	res, err := c.Get(ctx, fmt.Sprintf("/servers/%s/install", uuid), nil)
 	if err != nil {
 		return InstallationScript{}, err
 	}
@@ -99,7 +99,7 @@ func (c *client) GetInstallationScript(ctx context.Context, uuid string) (Instal
 }
 
 func (c *client) SetInstallationStatus(ctx context.Context, uuid string, successful bool) error {
-	resp, err := c.post(ctx, fmt.Sprintf("/servers/%s/install", uuid), d{"successful": successful})
+	resp, err := c.Post(ctx, fmt.Sprintf("/servers/%s/install", uuid), d{"successful": successful})
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (c *client) SetInstallationStatus(ctx context.Context, uuid string, success
 }
 
 func (c *client) SetArchiveStatus(ctx context.Context, uuid string, successful bool) error {
-	resp, err := c.post(ctx, fmt.Sprintf("/servers/%s/archive", uuid), d{"successful": successful})
+	resp, err := c.Post(ctx, fmt.Sprintf("/servers/%s/archive", uuid), d{"successful": successful})
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (c *client) SetTransferStatus(ctx context.Context, uuid string, successful 
 	if successful {
 		state = "success"
 	}
-	resp, err := c.get(ctx, fmt.Sprintf("/servers/%s/transfer/%s", uuid, state), nil)
+	resp, err := c.Get(ctx, fmt.Sprintf("/servers/%s/transfer/%s", uuid, state), nil)
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func (c *client) SetTransferStatus(ctx context.Context, uuid string, successful 
 // all of the authorization security logic to the Panel.
 func (c *client) ValidateSftpCredentials(ctx context.Context, request SftpAuthRequest) (SftpAuthResponse, error) {
 	var auth SftpAuthResponse
-	res, err := c.post(ctx, "/sftp/auth", request)
+	res, err := c.Post(ctx, "/sftp/auth", request)
 	if err != nil {
 		return auth, err
 	}
@@ -163,7 +163,7 @@ func (c *client) ValidateSftpCredentials(ctx context.Context, request SftpAuthRe
 
 func (c *client) GetBackupRemoteUploadURLs(ctx context.Context, backup string, size int64) (BackupRemoteUploadResponse, error) {
 	var data BackupRemoteUploadResponse
-	res, err := c.get(ctx, fmt.Sprintf("/backups/%s", backup), q{"size": strconv.FormatInt(size, 10)})
+	res, err := c.Get(ctx, fmt.Sprintf("/backups/%s", backup), q{"size": strconv.FormatInt(size, 10)})
 	if err != nil {
 		return data, err
 	}
@@ -178,7 +178,7 @@ func (c *client) GetBackupRemoteUploadURLs(ctx context.Context, backup string, s
 }
 
 func (c *client) SetBackupStatus(ctx context.Context, backup string, data BackupRequest) error {
-	resp, err := c.post(ctx, fmt.Sprintf("/backups/%s", backup), data)
+	resp, err := c.Post(ctx, fmt.Sprintf("/backups/%s", backup), data)
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (c *client) SetBackupStatus(ctx context.Context, backup string, data Backup
 // restoration has been completed and the server should be marked as being
 // activated again.
 func (c *client) SendRestorationStatus(ctx context.Context, backup string, successful bool) error {
-	resp, err := c.post(ctx, fmt.Sprintf("/backups/%s/restore", backup), d{"successful": successful})
+	resp, err := c.Post(ctx, fmt.Sprintf("/backups/%s/restore", backup), d{"successful": successful})
 	if err != nil {
 		return err
 	}
@@ -206,7 +206,7 @@ func (c *client) getServersPaged(ctx context.Context, page, limit int) ([]RawSer
 		Meta Pagination      `json:"meta"`
 	}
 
-	res, err := c.get(ctx, "/servers", q{
+	res, err := c.Get(ctx, "/servers", q{
 		"page":     strconv.Itoa(page),
 		"per_page": strconv.Itoa(limit),
 	})

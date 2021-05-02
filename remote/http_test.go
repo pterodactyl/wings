@@ -14,8 +14,7 @@ func createTestClient(h http.HandlerFunc) (*client, *httptest.Server) {
 	c := &client{
 		httpClient: s.Client(),
 		baseUrl:    s.URL,
-
-		attempts: 1,
+		maxAttempts: 1,
 		tokenId:  "testid",
 		token:    "testtoken",
 	}
@@ -47,7 +46,7 @@ func TestRequestRetry(t *testing.T) {
 		}
 		i++
 	})
-	c.attempts = 2
+	c.maxAttempts = 2
 	r, err := c.request(context.Background(), "", "", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, r)
@@ -60,12 +59,12 @@ func TestRequestRetry(t *testing.T) {
 		rw.WriteHeader(http.StatusInternalServerError)
 		i++
 	})
-	c.attempts = 2
+	c.maxAttempts = 2
 	r, err = c.request(context.Background(), "get", "", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, r)
 	assert.Equal(t, http.StatusInternalServerError, r.StatusCode)
-	assert.Equal(t, 2, i)
+	assert.Equal(t, 3, i)
 }
 
 func TestGet(t *testing.T) {
@@ -74,7 +73,7 @@ func TestGet(t *testing.T) {
 		assert.Len(t, r.URL.Query(), 1)
 		assert.Equal(t, "world", r.URL.Query().Get("hello"))
 	})
-	r, err := c.get(context.Background(), "/test", q{"hello": "world"})
+	r, err := c.Get(context.Background(), "/test", q{"hello": "world"})
 	assert.NoError(t, err)
 	assert.NotNil(t, r)
 }
@@ -87,7 +86,7 @@ func TestPost(t *testing.T) {
 		assert.Equal(t, http.MethodPost, r.Method)
 
 	})
-	r, err := c.post(context.Background(), "/test", test)
+	r, err := c.Post(context.Background(), "/test", test)
 	assert.NoError(t, err)
 	assert.NotNil(t, r)
 }

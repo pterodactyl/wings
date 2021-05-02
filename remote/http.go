@@ -8,11 +8,13 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/pterodactyl/wings/system"
 )
 
@@ -31,11 +33,11 @@ type Client interface {
 }
 
 type client struct {
-	httpClient *http.Client
-	baseUrl    string
-	tokenId    string
-	token      string
-	attempts   int
+	httpClient  *http.Client
+	baseUrl     string
+	tokenId     string
+	token       string
+	maxAttempts int
 }
 
 // New returns a new HTTP request client that is used for making authenticated
@@ -46,7 +48,7 @@ func New(base string, opts ...ClientOption) Client {
 		httpClient: &http.Client{
 			Timeout: time.Second * 15,
 		},
-		attempts: 1,
+		maxAttempts: 0,
 	}
 	for _, opt := range opts {
 		opt(&c)
@@ -69,6 +71,26 @@ func WithHttpClient(httpClient *http.Client) ClientOption {
 	return func(c *client) {
 		c.httpClient = httpClient
 	}
+}
+
+// Get executes a HTTP GET request.
+func (c *client) Get(ctx context.Context, path string, query q) (*Response, error) {
+	return c.request(ctx, http.MethodGet, path, nil, func(r *http.Request) {
+		q := r.URL.Query()
+		for k, v := range query {
+			q.Set(k, v)
+		}
+		r.URL.RawQuery = q.Encode()
+	})
+}
+
+// Post executes a HTTP POST request.
+func (c *client) Post(ctx context.Context, path string, data interface{}) (*Response, error) {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	return c.request(ctx, http.MethodPost, path, bytes.NewBuffer(b))
 }
 
 // requestOnce creates a http request and executes it once. Prefer request()
@@ -96,41 +118,82 @@ func (c *client) requestOnce(ctx context.Context, method, path string, body io.R
 	return &Response{res}, err
 }
 
-// request executes a http request and attempts when errors occur.
-// It appends the path to the endpoint of the client and adds the authentication token to the request.
-func (c *client) request(ctx context.Context, method, path string, body io.Reader, opts ...func(r *http.Request)) (res *Response, err error) {
-	for i := 0; i < c.attempts; i++ {
-		res, err = c.requestOnce(ctx, method, path, body, opts...)
-		if err == nil &&
-			res.StatusCode < http.StatusInternalServerError &&
-			res.StatusCode != http.StatusTooManyRequests {
-			break
+// request executes a HTTP request against the Panel API. If there is an error
+// encountered with the request it will be retried using an exponential backoff.
+// If the error returned from the Panel is due to API throttling or because there
+// are invalid authentication credentials provided the request will _not_ be
+// retried by the backoff.
+//
+// This function automatically appends the path to the current client endpoint
+// and adds the required authentication headers to the request that is being
+// created. Errors returned will be of the RequestError type if there was some
+// type of response from the API that can be parsed.
+func (c *client) request(ctx context.Context, method, path string, body io.Reader, opts ...func(r *http.Request)) (*Response, error) {
+	var res *Response
+	err := backoff.Retry(func() error {
+		r, err := c.requestOnce(ctx, method, path, body, opts...)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return backoff.Permanent(err)
+			}
+			return errors.WrapIf(err, "http: request creation failed")
 		}
-	}
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return
-}
-
-// get executes a http get request.
-func (c *client) get(ctx context.Context, path string, query q) (*Response, error) {
-	return c.request(ctx, http.MethodGet, path, nil, func(r *http.Request) {
-		q := r.URL.Query()
-		for k, v := range query {
-			q.Set(k, v)
+		res = r
+		if r.HasError() {
+			// Don't keep spamming the endpoint if we've already made too many requests or
+			// if we're not even authenticated correctly. Retrying generally won't fix either
+			// of these issues.
+			if r.StatusCode == http.StatusTooManyRequests || r.StatusCode == http.StatusUnauthorized {
+				return backoff.Permanent(r.Error())
+			}
+			return r.Error()
 		}
-		r.URL.RawQuery = q.Encode()
-	})
-}
-
-// post executes a http post request.
-func (c *client) post(ctx context.Context, path string, data interface{}) (*Response, error) {
-	b, err := json.Marshal(data)
+		return nil
+	}, c.backoff(ctx))
 	if err != nil {
+		var rerr *RequestError
+		if errors.As(err, &rerr) {
+			return res, nil
+		}
+		if v, ok := err.(*backoff.PermanentError); ok {
+			return nil, v.Unwrap()
+		}
 		return nil, err
 	}
-	return c.request(ctx, http.MethodPost, path, bytes.NewBuffer(b))
+	return res, nil
+}
+
+// backoff returns an exponential backoff function for use with remote API
+// requests. This will allow an API call to be executed approximately 10 times
+// before it is finally reported back as an error.
+//
+// This allows for issues with DNS resolution, or rare race conditions due to
+// slower SQL queries on the Panel to potentially self-resolve without just
+// immediately failing the first request. The example below shows the amount of
+// time that has ellapsed between each call to the handler when an error is
+// returned. You can tweak these values as needed to get the effect you desire.
+//
+// If maxAttempts is a value greater than 0 the backoff will be capped at a total
+// number of executions, or the MaxElapsedTime, whichever comes first.
+//
+// call(): 0s
+// call(): 552.330144ms
+// call(): 1.63271196s
+// call(): 2.94284202s
+// call(): 4.525234711s
+// call(): 6.865723375s
+// call(): 11.37194223s
+// call(): 14.593421816s
+// call(): 20.202045293s
+// call(): 27.36567952s <-- Stops here as MaxElapsedTime is 30 seconds
+func (c *client) backoff(ctx context.Context) backoff.BackOffContext {
+	b := backoff.NewExponentialBackOff()
+	b.MaxInterval = time.Second * 12
+	b.MaxElapsedTime = time.Second * 30
+	if c.maxAttempts > 0 {
+		return backoff.WithContext(backoff.WithMaxRetries(b, uint64(c.maxAttempts)), ctx)
+	}
+	return backoff.WithContext(b, ctx)
 }
 
 // Response is a custom response type that allows for commonly used error
@@ -185,7 +248,9 @@ func (r *Response) BindJSON(v interface{}) error {
 }
 
 // Returns the first error message from the API call as a string. The error
-// message will be formatted similar to the below example:
+// message will be formatted similar to the below example. If there is no error
+// that can be parsed out of the API you'll still get a RequestError returned
+// but the RequestError.Code will be "_MissingResponseCode".
 //
 // HttpNotFoundException: The requested resource does not exist. (HTTP/404)
 func (r *Response) Error() error {
@@ -196,7 +261,11 @@ func (r *Response) Error() error {
 	var errs RequestErrors
 	_ = r.BindJSON(&errs)
 
-	e := &RequestError{}
+	e := &RequestError{
+		Code:   "_MissingResponseCode",
+		Status: strconv.Itoa(r.StatusCode),
+		Detail: "No error response returned from API endpoint.",
+	}
 	if len(errs.Errors) > 0 {
 		e = &errs.Errors[0]
 	}
