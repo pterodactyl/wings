@@ -61,9 +61,12 @@ func TestRequestRetry(t *testing.T) {
 	})
 	c.maxAttempts = 2
 	r, err = c.request(context.Background(), "get", "", nil)
-	assert.NoError(t, err)
-	assert.NotNil(t, r)
-	assert.Equal(t, http.StatusInternalServerError, r.StatusCode)
+	assert.Error(t, err)
+	assert.Nil(t, r)
+
+	v := AsRequestError(err)
+	assert.NotNil(t, v)
+	assert.Equal(t, http.StatusInternalServerError, v.StatusCode())
 	assert.Equal(t, 3, i)
 }
 
