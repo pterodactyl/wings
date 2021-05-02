@@ -60,9 +60,9 @@ func (c *client) GetServers(ctx context.Context, limit int) ([]RawServerData, er
 func (c *client) ResetServersState(ctx context.Context) error {
 	res, err := c.Post(ctx, "/servers/reset", nil)
 	if err != nil {
-		return errors.WrapIf(err, "remote/servers: failed to reset server state on Panel")
+		return errors.WrapIf(err, "remote: failed to reset server state on Panel")
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 	return nil
 }
 
@@ -73,10 +73,6 @@ func (c *client) GetServerConfiguration(ctx context.Context, uuid string) (Serve
 		return config, err
 	}
 	defer res.Body.Close()
-
-	if res.HasError() {
-		return config, res.Error()
-	}
 
 	err = res.BindJSON(&config)
 	return config, err
@@ -89,10 +85,6 @@ func (c *client) GetInstallationScript(ctx context.Context, uuid string) (Instal
 	}
 	defer res.Body.Close()
 
-	if res.HasError() {
-		return InstallationScript{}, res.Error()
-	}
-
 	var config InstallationScript
 	err = res.BindJSON(&config)
 	return config, err
@@ -103,8 +95,8 @@ func (c *client) SetInstallationStatus(ctx context.Context, uuid string, success
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	return resp.Error()
+	_ = resp.Body.Close()
+	return nil
 }
 
 func (c *client) SetArchiveStatus(ctx context.Context, uuid string, successful bool) error {
@@ -112,8 +104,8 @@ func (c *client) SetArchiveStatus(ctx context.Context, uuid string, successful b
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	return resp.Error()
+	_ = resp.Body.Close()
+	return nil
 }
 
 func (c *client) SetTransferStatus(ctx context.Context, uuid string, successful bool) error {
@@ -125,8 +117,8 @@ func (c *client) SetTransferStatus(ctx context.Context, uuid string, successful 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	return resp.Error()
+	_ = resp.Body.Close()
+	return nil
 }
 
 // ValidateSftpCredentials makes a request to determine if the username and
@@ -138,27 +130,18 @@ func (c *client) ValidateSftpCredentials(ctx context.Context, request SftpAuthRe
 	var auth SftpAuthResponse
 	res, err := c.Post(ctx, "/sftp/auth", request)
 	if err != nil {
+		if err := AsRequestError(err); err != nil && (err.StatusCode() >= 400 && err.StatusCode() < 500) {
+			log.WithFields(log.Fields{"subsystem": "sftp", "username": request.User, "ip": request.IP}).Warn(err.Error())
+			return auth, &SftpInvalidCredentialsError{}
+		}
 		return auth, err
 	}
 	defer res.Body.Close()
 
-	e := res.Error()
-	if e != nil {
-		if res.StatusCode >= 400 && res.StatusCode < 500 {
-			log.WithFields(log.Fields{
-				"subsystem": "sftp",
-				"username":  request.User,
-				"ip":        request.IP,
-			}).Warn(e.Error())
-
-			return auth, &SftpInvalidCredentialsError{}
-		}
-
-		return auth, errors.New(e.Error())
+	if err := res.BindJSON(&auth); err != nil {
+		return auth, err
 	}
-
-	err = res.BindJSON(&auth)
-	return auth, err
+	return auth, nil
 }
 
 func (c *client) GetBackupRemoteUploadURLs(ctx context.Context, backup string, size int64) (BackupRemoteUploadResponse, error) {
@@ -168,13 +151,10 @@ func (c *client) GetBackupRemoteUploadURLs(ctx context.Context, backup string, s
 		return data, err
 	}
 	defer res.Body.Close()
-
-	if res.HasError() {
-		return data, res.Error()
+	if err := res.BindJSON(&data); err != nil {
+		return data, err
 	}
-
-	err = res.BindJSON(&data)
-	return data, err
+	return data, nil
 }
 
 func (c *client) SetBackupStatus(ctx context.Context, backup string, data BackupRequest) error {
@@ -182,8 +162,8 @@ func (c *client) SetBackupStatus(ctx context.Context, backup string, data Backup
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	return resp.Error()
+	_ = resp.Body.Close()
+	return nil
 }
 
 // SendRestorationStatus triggers a request to the Panel to notify it that a
@@ -194,8 +174,8 @@ func (c *client) SendRestorationStatus(ctx context.Context, backup string, succe
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	return resp.Error()
+	_ = resp.Body.Close()
+	return nil
 }
 
 // getServersPaged returns a subset of servers from the Panel API using the
@@ -214,10 +194,6 @@ func (c *client) getServersPaged(ctx context.Context, page, limit int) ([]RawSer
 		return nil, r.Meta, err
 	}
 	defer res.Body.Close()
-
-	if res.HasError() {
-		return nil, r.Meta, res.Error()
-	}
 	if err := res.BindJSON(&r); err != nil {
 		return nil, r.Meta, err
 	}

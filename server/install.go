@@ -90,13 +90,8 @@ func (s *Server) Reinstall() error {
 func (s *Server) internalInstall() error {
 	script, err := s.client.GetInstallationScript(s.Context(), s.Id())
 	if err != nil {
-		if !remote.IsRequestError(err) {
-			return err
-		}
-
-		return errors.New(err.Error())
+		return err
 	}
-
 	p, err := NewInstallationProcess(s, &script)
 	if err != nil {
 		return err
@@ -535,19 +530,10 @@ func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) erro
 	return nil
 }
 
-// Makes a HTTP request to the Panel instance notifying it that the server has
-// completed the installation process, and what the state of the server is. A boolean
-// value of "true" means everything was successful, "false" means something went
-// wrong and the server must be deleted and re-created.
+// SyncInstallState makes a HTTP request to the Panel instance notifying it that
+// the server has completed the installation process, and what the state of the
+// server is. A boolean value of "true" means everything was successful, "false"
+// means something went wrong and the server must be deleted and re-created.
 func (s *Server) SyncInstallState(successful bool) error {
-	err := s.client.SetInstallationStatus(s.Context(), s.Id(), successful)
-	if err != nil {
-		if !remote.IsRequestError(err) {
-			return err
-		}
-
-		return errors.New(err.Error())
-	}
-
-	return nil
+	return s.client.SetInstallationStatus(s.Context(), s.Id(), successful)
 }

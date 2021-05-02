@@ -97,7 +97,7 @@ func (c *client) Post(ctx context.Context, path string, data interface{}) (*Resp
 // over this method when possible. It appends the path to the endpoint of the
 // client and adds the authentication token to the request.
 func (c *client) requestOnce(ctx context.Context, method, path string, body io.Reader, opts ...func(r *http.Request)) (*Response, error) {
-	req, err := http.NewRequest(method, c.baseUrl+path, body)
+	req, err := http.NewRequestWithContext(ctx, method, c.baseUrl+path, body)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,7 @@ func (c *client) requestOnce(ctx context.Context, method, path string, body io.R
 
 	debugLogRequest(req)
 
-	res, err := c.httpClient.Do(req.WithContext(ctx))
+	res, err := c.httpClient.Do(req)
 	return &Response{res}, err
 }
 
@@ -140,10 +140,14 @@ func (c *client) request(ctx context.Context, method, path string, body io.Reade
 		}
 		res = r
 		if r.HasError() {
+			// Close the request body after returning the error to free up resources.
+			defer r.Body.Close()
 			// Don't keep spamming the endpoint if we've already made too many requests or
 			// if we're not even authenticated correctly. Retrying generally won't fix either
 			// of these issues.
-			if r.StatusCode == http.StatusTooManyRequests || r.StatusCode == http.StatusUnauthorized {
+			if r.StatusCode == http.StatusForbidden ||
+				r.StatusCode == http.StatusTooManyRequests ||
+				r.StatusCode == http.StatusUnauthorized {
 				return backoff.Permanent(r.Error())
 			}
 			return r.Error()
@@ -151,10 +155,6 @@ func (c *client) request(ctx context.Context, method, path string, body io.Reade
 		return nil
 	}, c.backoff(ctx))
 	if err != nil {
-		var rerr *RequestError
-		if errors.As(err, &rerr) {
-			return res, nil
-		}
 		if v, ok := err.(*backoff.PermanentError); ok {
 			return nil, v.Unwrap()
 		}
@@ -220,15 +220,12 @@ func (r *Response) HasError() bool {
 func (r *Response) Read() ([]byte, error) {
 	var b []byte
 	if r.Response == nil {
-		return nil, errors.New("http: attempting to read missing response")
+		return nil, errors.New("remote: attempting to read missing response")
 	}
-
 	if r.Response.Body != nil {
 		b, _ = ioutil.ReadAll(r.Response.Body)
 	}
-
 	r.Response.Body = ioutil.NopCloser(bytes.NewBuffer(b))
-
 	return b, nil
 }
 
@@ -240,9 +237,8 @@ func (r *Response) BindJSON(v interface{}) error {
 	if err != nil {
 		return err
 	}
-
 	if err := json.Unmarshal(b, &v); err != nil {
-		return errors.Wrap(err, "http: could not unmarshal response")
+		return errors.Wrap(err, "remote: could not unmarshal response")
 	}
 	return nil
 }
@@ -272,7 +268,7 @@ func (r *Response) Error() error {
 
 	e.response = r.Response
 
-	return e
+	return errors.WithStackDepth(e, 1)
 }
 
 // Logs the request into the debug log with all of the important request bits.

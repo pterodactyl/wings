@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -152,17 +153,11 @@ func (s *Server) Log() *log.Entry {
 func (s *Server) Sync() error {
 	cfg, err := s.client.GetServerConfiguration(s.Context(), s.Id())
 	if err != nil {
-		if !remote.IsRequestError(err) {
-			return err
-		}
-
-		if err.(*remote.RequestError).Status == "404" {
+		if err := remote.AsRequestError(err); err != nil && err.StatusCode() == http.StatusNotFound {
 			return &serverDoesNotExist{}
 		}
-
-		return errors.New(err.Error())
+		return errors.WithStackIf(err)
 	}
-
 	return s.SyncWithConfiguration(cfg)
 }
 
