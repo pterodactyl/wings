@@ -14,6 +14,7 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20200907205600-7a23bdc65eef
 	github.com/beevik/etree v1.1.0
 	github.com/buger/jsonparser v1.1.0
+	github.com/cenkalti/backoff/v4 v4.1.0
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/containerd/containerd v1.4.3 // indirect
 	github.com/containerd/fifo v0.0.0-20201026212402-0724c46b320c // indirect

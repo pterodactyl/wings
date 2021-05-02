@@ -1,10 +1,11 @@
 package backup
 
 import (
-	"errors"
+	"context"
 	"io"
 	"os"
 
+	"emperror.dev/errors"
 	"github.com/pterodactyl/wings/server/filesystem"
 
 	"github.com/mholt/archiver/v3"
@@ -56,28 +57,40 @@ func (b *LocalBackup) WithLogContext(c map[string]interface{}) {
 
 // Generate generates a backup of the selected files and pushes it to the
 // defined location for this instance.
-func (b *LocalBackup) Generate(basePath, ignore string) (*ArchiveDetails, error) {
+func (b *LocalBackup) Generate(ctx context.Context, basePath, ignore string) (*ArchiveDetails, error) {
 	a := &filesystem.Archive{
 		BasePath: basePath,
 		Ignore:   ignore,
 	}
 
-	b.log().Info("creating backup for server...")
+	b.log().WithField("path", b.Path()).Info("creating backup for server")
 	if err := a.Create(b.Path()); err != nil {
 		return nil, err
 	}
 	b.log().Info("created backup successfully")
 
-	return b.Details(), nil
+	ad, err := b.Details(ctx)
+	if err != nil {
+		return nil, errors.WrapIf(err, "backup: failed to get archive details for local backup")
+	}
+	return ad, nil
 }
 
 // Restore will walk over the archive and call the callback function for each
 // file encountered.
-func (b *LocalBackup) Restore(_ io.Reader, callback RestoreCallback) error {
+func (b *LocalBackup) Restore(ctx context.Context, _ io.Reader, callback RestoreCallback) error {
 	return archiver.Walk(b.Path(), func(f archiver.File) error {
-		if f.IsDir() {
-			return nil
+		select {
+		case <-ctx.Done():
+			// Stop walking if the context is canceled.
+			return archiver.ErrStopWalk
+		default:
+			{
+				if f.IsDir() {
+					return nil
+				}
+				return callback(filesystem.ExtractNameFromArchive(f), f)
+			}
 		}
-		return callback(filesystem.ExtractNameFromArchive(f), f)
 	})
 }

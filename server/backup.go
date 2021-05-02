@@ -66,7 +66,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 		}
 	}
 
-	ad, err := b.Generate(s.Filesystem().Path(), ignored)
+	ad, err := b.Generate(s.Context(), s.Filesystem().Path(), ignored)
 	if err != nil {
 		if err := s.notifyPanelOfBackup(b.Identifier(), &backup.ArchiveDetails{}, false); err != nil {
 			s.Log().WithFields(log.Fields{
@@ -150,7 +150,7 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	// Attempt to restore the backup to the server by running through each entry
 	// in the file one at a time and writing them to the disk.
 	s.Log().Debug("starting file writing process for backup restoration")
-	err = b.Restore(reader, func(file string, r io.Reader) error {
+	err = b.Restore(s.Context(), reader, func(file string, r io.Reader) error {
 		s.Events().Publish(DaemonMessageEvent, "(restoring): "+file)
 		return s.Filesystem().Writefile(file, r)
 	})
