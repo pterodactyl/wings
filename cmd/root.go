@@ -47,8 +47,16 @@ var (
 var rootCommand = &cobra.Command{
 	Use:   "wings",
 	Short: "Runs the API server allowing programmatic control of game servers for Pterodactyl Panel.",
-	PreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		initConfig()
+		if ok, _ := cmd.Flags().GetBool("ignore-certificate-errors"); ok {
+			log.Warn("running with --ignore-certificate-errors: TLS certificate host chains and name will not be verified")
+			http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
+				InsecureSkipVerify: true,
+			}
+		}
+	},
+	PreRun: func(cmd *cobra.Command, args []string) {
 		initLogging()
 		if tls, _ := cmd.Flags().GetBool("auto-tls"); tls {
 			if host, _ := cmd.Flags().GetString("tls-hostname"); host == "" {
@@ -77,6 +85,7 @@ func Execute() {
 func init() {
 	rootCommand.PersistentFlags().StringVar(&configPath, "config", config.DefaultLocation, "set the location for the configuration file")
 	rootCommand.PersistentFlags().BoolVar(&debug, "debug", false, "pass in order to run wings in debug mode")
+	rootCommand.PersistentFlags().Bool("ignore-certificate-errors", false, "ignore certificate verification errors when executing API calls")
 
 	// Flags specifically used when running the API.
 	rootCommand.Flags().Bool("pprof", false, "if the pprof profiler should be enabled. The profiler will bind to localhost:6060 by default")
@@ -84,24 +93,17 @@ func init() {
 	rootCommand.Flags().Int("pprof-port", 6060, "If provided with --pprof, the port it will run on")
 	rootCommand.Flags().Bool("auto-tls", false, "pass in order to have wings generate and manage its own SSL certificates using Let's Encrypt")
 	rootCommand.Flags().String("tls-hostname", "", "required with --auto-tls, the FQDN for the generated SSL certificate")
-	rootCommand.Flags().Bool("ignore-certificate-errors", false, "ignore certificate verification errors when executing API calls")
 
 	rootCommand.AddCommand(versionCommand)
 	rootCommand.AddCommand(configureCmd)
 	rootCommand.AddCommand(newDiagnosticsCommand())
+	rootCommand.AddCommand(newMigrateVHDCommand())
 }
 
 func rootCmdRun(cmd *cobra.Command, _ []string) {
 	printLogo()
 	log.Debug("running in debug mode")
 	log.WithField("config_file", configPath).Info("loading configuration from file")
-
-	if ok, _ := cmd.Flags().GetBool("ignore-certificate-errors"); ok {
-		log.Warn("running with --ignore-certificate-errors: TLS certificate host chains and name will not be verified")
-		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: true,
-		}
-	}
 
 	if err := config.ConfigureTimezone(); err != nil {
 		log.WithField("error", err).Fatal("failed to detect system timezone or use supplied configuration value")

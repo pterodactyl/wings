@@ -17,6 +17,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/goccy/go-json"
 
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/system"
 )
 
@@ -57,6 +58,18 @@ func New(base string, opts ...ClientOption) Client {
 		opt(&c)
 	}
 	return &c
+}
+
+// NewFromConfig returns a new Client using the configuration passed through
+// by the caller.
+func NewFromConfig(cfg *config.Configuration, opts ...ClientOption) Client {
+	passOpts := []ClientOption{
+		WithCredentials(cfg.AuthenticationTokenId, cfg.AuthenticationToken),
+		WithHttpClient(&http.Client{
+			Timeout: time.Second * time.Duration(cfg.RemoteQuery.Timeout),
+		}),
+	}
+	return New(cfg.PanelLocation, append(passOpts, opts...)...)
 }
 
 // WithCredentials sets the credentials to use when making request to the remote
