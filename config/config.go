@@ -115,6 +115,14 @@ type RemoteQueryConfiguration struct {
 
 // SystemConfiguration defines basic system configuration settings.
 type SystemConfiguration struct {
+	// UseVirtualDisks sets Wings to use virtual hard-disks when storing server
+	// files. This allows for more enforced disk space limits, at a slight performance
+	// cost.
+	//
+	// Generally this only needs to be enabled on systems with a large untrusted
+	// user presence, it is not necessary for self-hosting instances.
+	UseVirtualDisks bool `json:"use_virtual_disks" yaml:"use_virtual_disks"`
+
 	// The root directory where all of the pterodactyl data is stored at.
 	RootDirectory string `default:"/var/lib/pterodactyl" yaml:"root_directory"`
 
