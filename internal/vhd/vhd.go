@@ -144,7 +144,7 @@ func (d *Disk) MakeFilesystem(ctx context.Context) error {
 		}
 		return ErrFilesystemExists
 	}
-	if !strings.Contains(err.Error(), "can't find in /etc/fstab") {
+	if !strings.Contains(err.Error(), "can't find in /etc/fstab") && !strings.Contains(err.Error(), "exit status 32") {
 		return errors.WrapIf(err, "vhd: unexpected error from mount command")
 	}
 	// As long as we got an error back that was because we couldn't find thedisk
