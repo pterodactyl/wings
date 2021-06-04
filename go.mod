@@ -63,6 +63,7 @@ require (
 	github.com/prometheus/client_golang v1.9.0 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20201211210132-54b8a0bf510f
 	github.com/sirupsen/logrus v1.7.0 // indirect
+	github.com/spf13/afero v1.6.0
 	github.com/spf13/cobra v1.1.1
 	github.com/stretchr/testify v1.6.1
 	github.com/ugorji/go v1.2.2 // indirect
