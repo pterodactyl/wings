@@ -8,45 +8,108 @@ import (
 	"strings"
 
 	"emperror.dev/errors"
+	"github.com/spf13/afero"
 )
 
 var (
+	ErrPathNotDirectory  = errors.Sentinel("vhd: filesystem path is not a directory")
 	ErrFilesystemMounted = errors.Sentinel("vhd: filesystem is already mounted")
 	ErrFilesystemExists  = errors.Sentinel("vhd: filesystem already exists on disk")
 )
 
-type Disk struct {
-	size int64
+// hasExitCode allows this code to test the response error to see if there is
+// an exit code available from the command call that can be used to determine if
+// something went wrong.
+type hasExitCode interface {
+	ExitCode() int
+}
 
-	diskPath string
-	mountAt  string
+// Commander defines an interface that must be met for executing commands on the
+// underlying OS. By default the vhd package will use Go's exec.Cmd type for
+// execution. This interface allows stubbing out on tests, or potentially custom
+// setups down the line.
+type Commander interface {
+	Run() error
+	Output() ([]byte, error)
+	String() string
+}
+
+// CommanderProvider is a function that provides a struct meeting the Commander
+// interface requirements.
+type CommanderProvider func(ctx context.Context, name string, args ...string) Commander
+
+// CfgOption is a configuration option callback for the Disk.
+type CfgOption func(d *Disk) *Disk
+
+// Disk represents the underlying virtual disk for the instance.
+type Disk struct {
+	size      int64
+	diskPath  string
+	mountAt   string
+	fs        afero.Fs
+	commander CommanderProvider
 }
 
 // New returns a new Disk instance. The "size" parameter should be provided in
-// megabytes of space allowed for the disk.
-func New(size int64, diskPath string, mountAt string) *Disk {
+// megabytes of space allowed for the disk. An additional slice of option
+// callbacks can be provided to programatically swap out the underlying filesystem
+// implementation or the underlying command exection engine.
+func New(size int64, diskPath string, mountAt string, opts ...func(*Disk)) *Disk {
 	if diskPath == "" || mountAt == "" {
 		panic("vhd: cannot specify an empty disk or mount path")
 	}
-	return &Disk{size, diskPath, mountAt}
+	d := Disk{
+		size:     size,
+		diskPath: diskPath,
+		mountAt:  mountAt,
+		fs:       afero.NewOsFs(),
+		commander: func(ctx context.Context, name string, args ...string) Commander {
+			return exec.CommandContext(ctx, name, args...)
+		},
+	}
+	for _, opt := range opts {
+		opt(&d)
+	}
+	return &d
+}
+
+// WithFs allows for a different underlying filesystem to be provided to the
+// virtual disk manager.
+func WithFs(fs afero.Fs) func(*Disk) {
+	return func(d *Disk) {
+		d.fs = fs
+	}
+}
+
+// WithCommander allows a different Commander provider to be provided.
+func WithCommander(c CommanderProvider) func(*Disk) {
+	return func(d *Disk) {
+		d.commander = c
+	}
 }
 
 // Exists reports if the disk exists on the system yet or not. This only verifies
-// the presence of the disk image, not the validity of it.
+// the presence of the disk image, not the validity of it. An error is returned
+// if the provided disk path exists but is not a directory.
 func (d *Disk) Exists() (bool, error) {
-	_, err := os.Lstat(d.diskPath)
-	if err == nil || os.IsNotExist(err) {
-		return err == nil, nil
+	st, err := d.fs.Stat(d.diskPath)
+	if err != nil && os.IsNotExist(err) {
+		return false, nil
+	} else if err != nil {
+		return false, errors.WithStack(err)
 	}
-	return false, errors.WithStack(err)
+	if st.IsDir() {
+		return true, nil
+	}
+	return false, errors.WithStack(ErrPathNotDirectory)
 }
 
 // IsMounted checks to see if the given disk is currently mounted.
 func (d *Disk) IsMounted(ctx context.Context) (bool, error) {
 	find := d.mountAt + " ext4"
-	cmd := exec.CommandContext(ctx, "grep", "-qs", find, "/proc/mounts")
+	cmd := d.commander(ctx, "grep", "-qs", find, "/proc/mounts")
 	if err := cmd.Run(); err != nil {
-		if v, ok := err.(*exec.ExitError); ok {
+		if v, ok := err.(hasExitCode); ok {
 			if v.ExitCode() == 1 {
 				return false, nil
 			}
@@ -64,19 +127,21 @@ func (d *Disk) IsMounted(ctx context.Context) (bool, error) {
 // returned to the caller. If the disk is already mounted an ErrFilesystemMounted
 // error is returned to the caller.
 func (d *Disk) Mount(ctx context.Context) error {
-	if _, err := os.Lstat(d.mountAt); err != nil && !os.IsNotExist(err) {
+	if st, err := d.fs.Stat(d.mountAt); err != nil && !os.IsNotExist(err) {
 		return errors.Wrap(err, "vhd: failed to stat mount path")
 	} else if os.IsNotExist(err) {
-		if err := os.MkdirAll(d.mountAt, 0600); err != nil {
+		if err := d.fs.MkdirAll(d.mountAt, 0600); err != nil {
 			return errors.Wrap(err, "vhd: failed to create mount path")
 		}
+	} else if !st.IsDir() {
+		return errors.WithStack(ErrPathNotDirectory)
 	}
 	if isMounted, err := d.IsMounted(ctx); err != nil {
 		return errors.WithStackIf(err)
 	} else if isMounted {
 		return ErrFilesystemMounted
 	}
-	cmd := exec.CommandContext(ctx, "mount", "-t", "auto", "-o", "loop", d.diskPath, d.mountAt)
+	cmd := d.commander(ctx, "mount", "-t", "auto", "-o", "loop", d.diskPath, d.mountAt)
 	if _, err := cmd.Output(); err != nil {
 		msg := "vhd: failed to mount disk"
 		if v, ok := err.(*exec.ExitError); ok {
@@ -91,9 +156,9 @@ func (d *Disk) Mount(ctx context.Context) error {
 // currently mounted this function is a no-op and no error is returned. Any
 // other error encountered while unmounting will return an error to the caller.
 func (d *Disk) Unmount(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "umount", d.mountAt)
+	cmd := d.commander(ctx, "umount", d.mountAt)
 	if err := cmd.Run(); err != nil {
-		if v, ok := err.(*exec.ExitError); !ok || v.ExitCode() != 32 {
+		if v, ok := err.(hasExitCode); !ok || v.ExitCode() != 32 {
 			return errors.Wrap(err, "vhd: failed to execute unmount command for disk")
 		}
 	}
@@ -116,8 +181,7 @@ func (d *Disk) Allocate(ctx context.Context) error {
 	} else if err != nil {
 		return errors.Wrap(err, "vhd: failed to check for existence of root disk")
 	}
-	cmd := exec.CommandContext(ctx, "fallocate", "-l", fmt.Sprintf("%dM", d.size), d.diskPath)
-	fmt.Println(cmd.String())
+	cmd := d.commander(ctx, "fallocate", "-l", fmt.Sprintf("%dM", d.size), d.diskPath)
 	if _, err := cmd.Output(); err != nil {
 		msg := "vhd: failed to execute fallocate command"
 		if v, ok := err.(*exec.ExitError); ok {
@@ -154,7 +218,7 @@ func (d *Disk) MakeFilesystem(ctx context.Context) error {
 	// Because this is a destructive command and non-tty based exection of it implies
 	// "-F" (force), we need to only run it when we can guarantee it doesn't already
 	// exist. No vague "maybe that error is expected" allowed here.
-	cmd := exec.CommandContext(ctx, "mkfs", "-t", "ext4", d.diskPath)
+	cmd := d.commander(ctx, "mkfs", "-t", "ext4", d.diskPath)
 	if err := cmd.Run(); err != nil {
 		return errors.Wrap(err, "vhd: failed to make filesystem for disk")
 	}
