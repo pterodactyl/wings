@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.3
+This build was created to address `CVE-2021-33196` in `Go` which requires a new binary
+be built on the latest `go1.15` version.
+
 ## v1.4.2
 ### Fixed
 * Fixes the `~` character not being properly trimmed from container image names when creating a new server.
