@@ -2,5 +2,5 @@ package system
 
 var (
 	// The current version of this software.
-	Version = "0.0.1"
+	Version = "1.4.3"
 )
