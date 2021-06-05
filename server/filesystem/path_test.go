@@ -103,7 +103,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 	g := Goblin(t)
 	fs, rfs := NewFs()
 
-	if err := rfs.CreateServerFile("/../malicious.txt", "external content"); err != nil {
+	if err := rfs.CreateServerFileFromString("/../malicious.txt", "external content"); err != nil {
 		panic(err)
 	}
 
@@ -181,7 +181,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 		})
 
 		g.It("cannot rename a file to a location outside the directory root", func() {
-			rfs.CreateServerFile("my_file.txt", "internal content")
+			rfs.CreateServerFileFromString("my_file.txt", "internal content")
 
 			err := fs.Rename("my_file.txt", "external_dir/my_file.txt")
 			g.Assert(err).IsNotNil()

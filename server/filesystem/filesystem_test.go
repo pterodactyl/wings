@@ -44,15 +44,19 @@ type rootFs struct {
 	root string
 }
 
-func (rfs *rootFs) CreateServerFile(p string, c string) error {
+func (rfs *rootFs) CreateServerFile(p string, c []byte) error {
 	f, err := os.Create(filepath.Join(rfs.root, "/server", p))
 
 	if err == nil {
-		f.Write([]byte(c))
+		f.Write(c)
 		f.Close()
 	}
 
 	return err
+}
+
+func (rfs *rootFs) CreateServerFileFromString(p string, c string) error {
+	return rfs.CreateServerFile(p, []byte(c))
 }
 
 func (rfs *rootFs) StatServerFile(p string) (os.FileInfo, error) {
@@ -79,7 +83,7 @@ func TestFilesystem_Readfile(t *testing.T) {
 		buf := &bytes.Buffer{}
 
 		g.It("opens a file if it exists on the system", func() {
-			err := rfs.CreateServerFile("test.txt", "testing")
+			err := rfs.CreateServerFileFromString("test.txt", "testing")
 			g.Assert(err).IsNil()
 
 			err = fs.Readfile("test.txt", buf)
@@ -103,7 +107,7 @@ func TestFilesystem_Readfile(t *testing.T) {
 		})
 
 		g.It("cannot open a file outside the root directory", func() {
-			err := rfs.CreateServerFile("/../test.txt", "testing")
+			err := rfs.CreateServerFileFromString("/../test.txt", "testing")
 			g.Assert(err).IsNil()
 
 			err = fs.Readfile("/../test.txt", buf)
@@ -281,13 +285,13 @@ func TestFilesystem_Rename(t *testing.T) {
 
 	g.Describe("Rename", func() {
 		g.BeforeEach(func() {
-			if err := rfs.CreateServerFile("source.txt", "text content"); err != nil {
+			if err := rfs.CreateServerFileFromString("source.txt", "text content"); err != nil {
 				panic(err)
 			}
 		})
 
 		g.It("returns an error if the target already exists", func() {
-			err := rfs.CreateServerFile("target.txt", "taget content")
+			err := rfs.CreateServerFileFromString("target.txt", "taget content")
 			g.Assert(err).IsNil()
 
 			err = fs.Rename("source.txt", "target.txt")
@@ -314,7 +318,7 @@ func TestFilesystem_Rename(t *testing.T) {
 		})
 
 		g.It("does not allow renaming from a location outside the root", func() {
-			err := rfs.CreateServerFile("/../ext-source.txt", "taget content")
+			err := rfs.CreateServerFileFromString("/../ext-source.txt", "taget content")
 
 			err = fs.Rename("/../ext-source.txt", "target.txt")
 			g.Assert(err).IsNotNil()
@@ -378,7 +382,7 @@ func TestFilesystem_Copy(t *testing.T) {
 
 	g.Describe("Copy", func() {
 		g.BeforeEach(func() {
-			if err := rfs.CreateServerFile("source.txt", "text content"); err != nil {
+			if err := rfs.CreateServerFileFromString("source.txt", "text content"); err != nil {
 				panic(err)
 			}
 
@@ -392,7 +396,7 @@ func TestFilesystem_Copy(t *testing.T) {
 		})
 
 		g.It("should return an error if the source is outside the root", func() {
-			err := rfs.CreateServerFile("/../ext-source.txt", "text content")
+			err := rfs.CreateServerFileFromString("/../ext-source.txt", "text content")
 
 			err = fs.Copy("../ext-source.txt")
 			g.Assert(err).IsNotNil()
@@ -403,7 +407,7 @@ func TestFilesystem_Copy(t *testing.T) {
 			err := os.MkdirAll(filepath.Join(rfs.root, "/nested/in/dir"), 0755)
 			g.Assert(err).IsNil()
 
-			err = rfs.CreateServerFile("/../nested/in/dir/ext-source.txt", "external content")
+			err = rfs.CreateServerFileFromString("/../nested/in/dir/ext-source.txt", "external content")
 			g.Assert(err).IsNil()
 
 			err = fs.Copy("../nested/in/dir/ext-source.txt")
@@ -464,7 +468,7 @@ func TestFilesystem_Copy(t *testing.T) {
 			err := os.MkdirAll(filepath.Join(rfs.root, "/server/nested/in/dir"), 0755)
 			g.Assert(err).IsNil()
 
-			err = rfs.CreateServerFile("nested/in/dir/source.txt", "test content")
+			err = rfs.CreateServerFileFromString("nested/in/dir/source.txt", "test content")
 			g.Assert(err).IsNil()
 
 			err = fs.Copy("nested/in/dir/source.txt")
@@ -492,7 +496,7 @@ func TestFilesystem_Delete(t *testing.T) {
 
 	g.Describe("Delete", func() {
 		g.BeforeEach(func() {
-			if err := rfs.CreateServerFile("source.txt", "test content"); err != nil {
+			if err := rfs.CreateServerFileFromString("source.txt", "test content"); err != nil {
 				panic(err)
 			}
 
@@ -500,7 +504,7 @@ func TestFilesystem_Delete(t *testing.T) {
 		})
 
 		g.It("does not delete files outside the root directory", func() {
-			err := rfs.CreateServerFile("/../ext-source.txt", "external content")
+			err := rfs.CreateServerFileFromString("/../ext-source.txt", "external content")
 
 			err = fs.Delete("../ext-source.txt")
 			g.Assert(err).IsNotNil()
@@ -544,7 +548,7 @@ func TestFilesystem_Delete(t *testing.T) {
 			g.Assert(err).IsNil()
 
 			for _, s := range sources {
-				err = rfs.CreateServerFile(s, "test content")
+				err = rfs.CreateServerFileFromString(s, "test content")
 				g.Assert(err).IsNil()
 			}
 
