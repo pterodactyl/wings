@@ -486,6 +486,7 @@ func (e *Environment) convertMounts() []mount.Mount {
 
 func (e *Environment) resources() container.Resources {
 	l := e.Configuration.Limits()
+	pids := l.ProcessLimit()
 
 	return container.Resources{
 		Memory:            l.BoundedMemoryLimit(),
@@ -497,5 +498,6 @@ func (e *Environment) resources() container.Resources {
 		BlkioWeight:       l.IoWeight,
 		OomKillDisable:    &l.OOMDisabled,
 		CpusetCpus:        l.Threads,
+		PidsLimit:         &pids,
 	}
 }

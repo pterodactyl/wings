@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/apex/log"
+	"github.com/pterodactyl/wings/config"
 )
 
 type Mount struct {
@@ -28,8 +29,8 @@ type Mount struct {
 	ReadOnly bool `json:"read_only"`
 }
 
-// The build settings for a given server that impact docker container creation and
-// resource limits for a server instance.
+// Limits is the build settings for a given server that impact docker container
+// creation and resource limits for a server instance.
 type Limits struct {
 	// The total amount of memory in megabytes that this server is allowed to
 	// use on the host system.
@@ -56,9 +57,9 @@ type Limits struct {
 	OOMDisabled bool `json:"oom_disabled"`
 }
 
-// Converts the CPU limit for a server build into a number that can be better understood
-// by the Docker environment. If there is no limit set, return -1 which will indicate to
-// Docker that it has unlimited CPU quota.
+// ConvertedCpuLimit converts the CPU limit for a server build into a number
+// that can be better understood by the Docker environment. If there is no limit
+// set, return -1 which will indicate to Docker that it has unlimited CPU quota.
 func (r *Limits) ConvertedCpuLimit() int64 {
 	if r.CpuLimit == 0 {
 		return -1
@@ -67,9 +68,10 @@ func (r *Limits) ConvertedCpuLimit() int64 {
 	return r.CpuLimit * 1000
 }
 
-// Set the hard limit for memory usage to be 5% more than the amount of memory assigned to
-// the server. If the memory limit for the server is < 4G, use 10%, if less than 2G use
-// 15%. This avoids unexpected crashes from processes like Java which run over the limit.
+// MemoryOverheadMultiplier sets the hard limit for memory usage to be 5% more
+// than the amount of memory assigned to the server. If the memory limit for the
+// server is < 4G, use 10%, if less than 2G use 15%. This avoids unexpected
+// crashes from processes like Java which run over the limit.
 func (r *Limits) MemoryOverheadMultiplier() float64 {
 	if r.MemoryLimit <= 2048 {
 		return 1.15
@@ -84,9 +86,9 @@ func (r *Limits) BoundedMemoryLimit() int64 {
 	return int64(math.Round(float64(r.MemoryLimit) * r.MemoryOverheadMultiplier() * 1_000_000))
 }
 
-// Returns the amount of swap available as a total in bytes. This is returned as the amount
-// of memory available to the server initially, PLUS the amount of additional swap to include
-// which is the format used by Docker.
+// ConvertedSwap returns the amount of swap available as a total in bytes. This
+// is returned as the amount of memory available to the server initially, PLUS
+// the amount of additional swap to include which is the format used by Docker.
 func (r *Limits) ConvertedSwap() int64 {
 	if r.Swap < 0 {
 		return -1
@@ -95,12 +97,19 @@ func (r *Limits) ConvertedSwap() int64 {
 	return (r.Swap * 1_000_000) + r.BoundedMemoryLimit()
 }
 
+// ProcessLimit returns the process limit for a container. This is currently
+// defined at a system level and not on a per-server basis.
+func (r *Limits) ProcessLimit() int64 {
+	return config.Get().Docker.ContainerPidLimit
+}
+
 type Variables map[string]interface{}
 
-// Ugly hacky function to handle environment variables that get passed through as not-a-string
-// from the Panel. Ideally we'd just say only pass strings, but that is a fragile idea and if a
-// string wasn't passed through you'd cause a crash or the server to become unavailable. For now
-// try to handle the most likely values from the JSON and hope for the best.
+// Get is an ugly hacky function to handle environment variables that get passed
+// through as not-a-string from the Panel. Ideally we'd just say only pass
+// strings, but that is a fragile idea and if a string wasn't passed through
+// you'd cause a crash or the server to become unavailable. For now try to
+// handle the most likely values from the JSON and hope for the best.
 func (v Variables) Get(key string) string {
 	val, ok := v[key]
 	if !ok {

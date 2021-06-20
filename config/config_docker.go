@@ -55,6 +55,12 @@ type DockerConfiguration struct {
 	// utilizes host memory for this value, and that we do not keep track of the space used here
 	// so avoid allocating too much to a server.
 	TmpfsSize uint `default:"100" json:"tmpfs_size" yaml:"tmpfs_size"`
+
+	// ContainerPidLimit sets the total number of processes that can be active in a container
+	// at any given moment. This is a security concern in shared-hosting environments where a
+	// malicious process could create enough processes to cause the host node to run out of
+	// available pids and crash.
+	ContainerPidLimit int64 `default:"256" json:"container_pid_limit" yaml:"container_pid_limit"`
 }
 
 // RegistryConfiguration defines the authentication credentials for a given
