@@ -132,7 +132,7 @@ func (e *Environment) InSituUpdate() error {
 	//
 	// @see https://github.com/moby/moby/issues/41946
 	if _, err := e.client.ContainerUpdate(ctx, e.Id, container.UpdateConfig{
-		Resources: e.resources(),
+		Resources: e.Configuration.Limits().AsContainerResources(),
 	}); err != nil {
 		return errors.Wrap(err, "environment/docker: could not update container")
 	}
@@ -203,7 +203,7 @@ func (e *Environment) Create() error {
 
 		// Define resource limits for the container based on the data passed through
 		// from the Panel.
-		Resources: e.resources(),
+		Resources: e.Configuration.Limits().AsContainerResources(),
 
 		DNS: config.Get().Docker.Network.Dns,
 

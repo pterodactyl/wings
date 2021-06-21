@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/apex/log"
+	"github.com/docker/docker/api/types/container"
 	"github.com/pterodactyl/wings/config"
 )
 
@@ -60,47 +61,64 @@ type Limits struct {
 // ConvertedCpuLimit converts the CPU limit for a server build into a number
 // that can be better understood by the Docker environment. If there is no limit
 // set, return -1 which will indicate to Docker that it has unlimited CPU quota.
-func (r *Limits) ConvertedCpuLimit() int64 {
-	if r.CpuLimit == 0 {
+func (l Limits) ConvertedCpuLimit() int64 {
+	if l.CpuLimit == 0 {
 		return -1
 	}
 
-	return r.CpuLimit * 1000
+	return l.CpuLimit * 1000
 }
 
 // MemoryOverheadMultiplier sets the hard limit for memory usage to be 5% more
 // than the amount of memory assigned to the server. If the memory limit for the
 // server is < 4G, use 10%, if less than 2G use 15%. This avoids unexpected
 // crashes from processes like Java which run over the limit.
-func (r *Limits) MemoryOverheadMultiplier() float64 {
-	if r.MemoryLimit <= 2048 {
+func (l Limits) MemoryOverheadMultiplier() float64 {
+	if l.MemoryLimit <= 2048 {
 		return 1.15
-	} else if r.MemoryLimit <= 4096 {
+	} else if l.MemoryLimit <= 4096 {
 		return 1.10
 	}
 
 	return 1.05
 }
 
-func (r *Limits) BoundedMemoryLimit() int64 {
-	return int64(math.Round(float64(r.MemoryLimit) * r.MemoryOverheadMultiplier() * 1_000_000))
+func (l Limits) BoundedMemoryLimit() int64 {
+	return int64(math.Round(float64(l.MemoryLimit) * l.MemoryOverheadMultiplier() * 1_000_000))
 }
 
 // ConvertedSwap returns the amount of swap available as a total in bytes. This
 // is returned as the amount of memory available to the server initially, PLUS
 // the amount of additional swap to include which is the format used by Docker.
-func (r *Limits) ConvertedSwap() int64 {
-	if r.Swap < 0 {
+func (l Limits) ConvertedSwap() int64 {
+	if l.Swap < 0 {
 		return -1
 	}
 
-	return (r.Swap * 1_000_000) + r.BoundedMemoryLimit()
+	return (l.Swap * 1_000_000) + l.BoundedMemoryLimit()
 }
 
 // ProcessLimit returns the process limit for a container. This is currently
 // defined at a system level and not on a per-server basis.
-func (r *Limits) ProcessLimit() int64 {
+func (l Limits) ProcessLimit() int64 {
 	return config.Get().Docker.ContainerPidLimit
+}
+
+func (l Limits) AsContainerResources() container.Resources {
+	pids := l.ProcessLimit()
+
+	return container.Resources{
+		Memory:            l.BoundedMemoryLimit(),
+		MemoryReservation: l.MemoryLimit * 1_000_000,
+		MemorySwap:        l.ConvertedSwap(),
+		CPUQuota:          l.ConvertedCpuLimit(),
+		CPUPeriod:         100_000,
+		CPUShares:         1024,
+		BlkioWeight:       l.IoWeight,
+		OomKillDisable:    &l.OOMDisabled,
+		CpusetCpus:        l.Threads,
+		PidsLimit:         &pids,
+	}
 }
 
 type Variables map[string]interface{}

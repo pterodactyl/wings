@@ -434,6 +434,7 @@ func (ip *InstallationProcess) Execute() (string, error) {
 				ReadOnly: false,
 			},
 		},
+		Resources: ip.resourceLimits(),
 		Tmpfs: map[string]string{
 			"/tmp": "rw,exec,nosuid,size=" + tmpfsSize + "M",
 		},
@@ -528,6 +529,43 @@ func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) erro
 		ip.Server.Log().WithFields(log.Fields{"container_id": id, "error": err}).Warn("error processing install output lines")
 	}
 	return nil
+}
+
+// resourceLimits returns the install container specific resource limits. This
+// looks at the globally defined install container limits and attempts to use
+// the higher of the two (defined limits & server limits). This allows for servers
+// with super low limits (e.g. Discord bots with 128Mb of memory) to perform more
+// intensive installation processes if needed.
+//
+// This also avoids a server with limits such as 4GB of memory from accidentally
+// consuming 2-5x the defined limits during the install process and causing
+// system instability.
+func (ip *InstallationProcess) resourceLimits() container.Resources {
+	limits := config.Get().Docker.InstallerLimits
+
+	// Create a copy of the configuration so we're not accidentally making changes
+	// to the underlying server build data.
+	c := *ip.Server.Config()
+	cfg := c.Build
+	if cfg.MemoryLimit < limits.Memory {
+		cfg.MemoryLimit = limits.Memory
+	}
+	// Only apply the CPU limit if neither one is currently set to unlimited. If the
+	// installer CPU limit is unlimited don't even waste time with the logic, just
+	// set the config to unlimited for this.
+	if limits.Cpu == 0 {
+		cfg.CpuLimit = 0
+	} else if cfg.CpuLimit != 0 && cfg.CpuLimit < limits.Cpu {
+		cfg.CpuLimit = limits.Cpu
+	}
+
+	resources := cfg.AsContainerResources()
+	// Explicitly remove the PID limits for the installation container. These scripts are
+	// defined at an administrative level and users can't manually execute things like a
+	// fork bomb during this process.
+	resources.PidsLimit = nil
+
+	return resources
 }
 
 // SyncInstallState makes a HTTP request to the Panel instance notifying it that

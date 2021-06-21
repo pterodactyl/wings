@@ -61,6 +61,15 @@ type DockerConfiguration struct {
 	// malicious process could create enough processes to cause the host node to run out of
 	// available pids and crash.
 	ContainerPidLimit int64 `default:"256" json:"container_pid_limit" yaml:"container_pid_limit"`
+
+	// InstallLimits defines the limits on the installer containers that prevents a server's
+	// installation process from unintentionally consuming more resources than expected. This
+	// is used in conjunction with the server's defined limits. Whichever value is higher will
+	// take precedence in the install containers.
+	InstallerLimits struct {
+		Memory int64 `default:"1024" json:"memory" yaml:"memory"`
+		Cpu    int64 `default:"100" json:"cpu" yaml:"cpu"`
+	} `json:"installer_limits" yaml:"installer_limits"`
 }
 
 // RegistryConfiguration defines the authentication credentials for a given
