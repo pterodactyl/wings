@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.4
+### Added
+* **[security]** Adds support for limiting the total number of pids any one container can have active at once to prevent malicious users from impacting other instances on the same node.
+* Server install containers now use the limits assigned to the server, or a globally defined minimum amount of memory and CPU rather than having unlimited resources.
+
 ## v1.4.3
 This build was created to address `CVE-2021-33196` in `Go` which requires a new binary
 be built on the latest `go1.15` version.
