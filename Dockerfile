@@ -2,6 +2,7 @@
 FROM golang:1.15-alpine3.12 AS builder
 
 ARG VERSION
+EXPOSE 8080
 RUN apk add --update --no-cache git make upx
 WORKDIR /app/
 COPY go.mod go.sum /app/
