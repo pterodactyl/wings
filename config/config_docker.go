@@ -60,7 +60,7 @@ type DockerConfiguration struct {
 	// at any given moment. This is a security concern in shared-hosting environments where a
 	// malicious process could create enough processes to cause the host node to run out of
 	// available pids and crash.
-	ContainerPidLimit int64 `default:"256" json:"container_pid_limit" yaml:"container_pid_limit"`
+	ContainerPidLimit int64 `default:"512" json:"container_pid_limit" yaml:"container_pid_limit"`
 
 	// InstallLimits defines the limits on the installer containers that prevents a server's
 	// installation process from unintentionally consuming more resources than expected. This

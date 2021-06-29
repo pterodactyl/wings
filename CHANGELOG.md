@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.5
+### Changed
+* Upped the process limit for a container from `256` to `512` in order to address edge-cases for some games that spawn a lot of processes.
+
 ## v1.4.4
 ### Added
 * **[security]** Adds support for limiting the total number of pids any one container can have active at once to prevent malicious users from impacting other instances on the same node.
