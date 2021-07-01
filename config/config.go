@@ -547,7 +547,7 @@ func EnableLogRotation() error {
     maxage 7
     missingok
     notifempty
-    create 0640 {{.User.Uid}} {{.User.Gid}}
+    create 0640 root root
     postrotate
         killall -SIGHUP wings
     endscript
