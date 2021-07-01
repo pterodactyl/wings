@@ -129,7 +129,7 @@ eloop:
 	for k := range s.Config().EnvVars {
 		// Don't allow any environment variables that we have already set above.
 		for _, e := range out {
-			if strings.HasPrefix(e, (strings.ToUpper(k) + "=")) {
+			if strings.HasPrefix(e, strings.ToUpper(k) + "=") {
 				continue eloop
 			}
 		}
