@@ -9,13 +9,15 @@ import (
 	"strings"
 
 	"emperror.dev/errors"
+	"github.com/pterodactyl/wings/config"
 	"github.com/spf13/afero"
 )
 
 var (
-	ErrPathNotDirectory  = errors.Sentinel("vhd: filesystem path is not a directory")
-	ErrFilesystemMounted = errors.Sentinel("vhd: filesystem is already mounted")
-	ErrFilesystemExists  = errors.Sentinel("vhd: filesystem already exists on disk")
+	ErrInvalidDiskPathTarget = errors.Sentinel("vhd: disk path is a directory or symlink")
+	ErrMountPathNotDirectory = errors.Sentinel("vhd: mount point is not a directory")
+	ErrFilesystemMounted     = errors.Sentinel("vhd: filesystem is already mounted")
+	ErrFilesystemExists      = errors.Sentinel("vhd: filesystem already exists on disk")
 )
 
 // hasExitCode allows this code to test the response error to see if there is
@@ -45,8 +47,11 @@ type CfgOption func(d *Disk) *Disk
 // Disk represents the underlying virtual disk for the instance.
 type Disk struct {
 	// The total size of the disk allowed in bytes.
-	size      int64
-	diskPath  string
+	size int64
+	// The path where the disk image should be created.
+	diskPath string
+	// The point at which this disk should be made available on the system. This
+	// is where files can be read/written to.
 	mountAt   string
 	fs        afero.Fs
 	commander CommanderProvider
@@ -92,7 +97,7 @@ func WithCommander(c CommanderProvider) func(*Disk) {
 
 // Exists reports if the disk exists on the system yet or not. This only verifies
 // the presence of the disk image, not the validity of it. An error is returned
-// if the provided disk path exists but is not a directory.
+// if the path exists but the destination is not a file or is a symlink.
 func (d *Disk) Exists() (bool, error) {
 	st, err := d.fs.Stat(d.diskPath)
 	if err != nil && os.IsNotExist(err) {
@@ -100,10 +105,10 @@ func (d *Disk) Exists() (bool, error) {
 	} else if err != nil {
 		return false, errors.WithStack(err)
 	}
-	if st.IsDir() {
+	if !st.IsDir() && st.Mode()&os.ModeSymlink == 0 {
 		return true, nil
 	}
-	return false, errors.WithStack(ErrPathNotDirectory)
+	return false, errors.WithStack(ErrInvalidDiskPathTarget)
 }
 
 // IsMounted checks to see if the given disk is currently mounted.
@@ -129,6 +134,11 @@ func (d *Disk) IsMounted(ctx context.Context) (bool, error) {
 // returned to the caller. If the disk is already mounted an ErrFilesystemMounted
 // error is returned to the caller.
 func (d *Disk) Mount(ctx context.Context) error {
+	if isMounted, err := d.IsMounted(ctx); err != nil {
+		return errors.WithStackIf(err)
+	} else if isMounted {
+		return ErrFilesystemMounted
+	}
 	if st, err := d.fs.Stat(d.mountAt); err != nil && !os.IsNotExist(err) {
 		return errors.Wrap(err, "vhd: failed to stat mount path")
 	} else if os.IsNotExist(err) {
@@ -136,12 +146,11 @@ func (d *Disk) Mount(ctx context.Context) error {
 			return errors.Wrap(err, "vhd: failed to create mount path")
 		}
 	} else if !st.IsDir() {
-		return errors.WithStack(ErrPathNotDirectory)
+		return errors.WithStack(ErrMountPathNotDirectory)
 	}
-	if isMounted, err := d.IsMounted(ctx); err != nil {
-		return errors.WithStackIf(err)
-	} else if isMounted {
-		return ErrFilesystemMounted
+	u := config.Get().System.User
+	if err := d.fs.Chown(d.mountAt, u.Uid, u.Gid); err != nil {
+		return errors.Wrap(err, "vhd: failed to chown mount point")
 	}
 	cmd := d.commander(ctx, "mount", "-t", "auto", "-o", "loop", d.diskPath, d.mountAt)
 	if _, err := cmd.Output(); err != nil {
@@ -184,13 +193,13 @@ func (d *Disk) Allocate(ctx context.Context) error {
 		return errors.Wrap(err, "vhd: failed to check for existence of root disk")
 	}
 	trim := path.Base(d.diskPath)
-	if err := os.MkdirAll(strings.TrimSuffix(d.diskPath, trim), 0600); err != nil {
+	if err := d.fs.MkdirAll(strings.TrimSuffix(d.diskPath, trim), 0600); err != nil {
 		return errors.Wrap(err, "vhd: failed to create base vhd disk directory")
 	}
 	// We use 1024 as the multiplier for all of the disk space logic within the
 	// application. Passing "K" (/1024) is the same as "KiB" for fallocate, but
 	// is different than "KB" (/1000).
-	cmd := d.commander(ctx, "fallocate", "-l", fmt.Sprintf("%dK", d.size / 1024), d.diskPath)
+	cmd := d.commander(ctx, "fallocate", "-l", fmt.Sprintf("%dK", d.size/1024), d.diskPath)
 	if _, err := cmd.Output(); err != nil {
 		msg := "vhd: failed to execute fallocate command"
 		if v, ok := err.(*exec.ExitError); ok {

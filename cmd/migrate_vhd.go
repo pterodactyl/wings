@@ -89,9 +89,13 @@ func (m *MigrateVHDCommand) Run(ctx context.Context) error {
 		}
 
 		// Copy over the files from the backup for this server.
-		cmd := exec.CommandContext(ctx, "cp", "-a", bak + "/.", s.Filesystem().Path())
+		cmd := exec.CommandContext(ctx, "mv", bak + "/*", s.Filesystem().Path())
+		s.Log().Debug(cmd.String())
 		if err := cmd.Run(); err != nil {
-			return errors.WithStack(err)
+			return errors.Wrap(err, "migrate: failed to move old server files into new direcotry")
+		}
+		if err := os.Remove(bak); err != nil {
+			s.Log().WithField("directory", bak).Warn("failed to remove backup directory")
 		}
 
 		s.Log().Info("finished migration to virtual disk...")
