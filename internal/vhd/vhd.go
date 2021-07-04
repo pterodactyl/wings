@@ -95,6 +95,14 @@ func WithCommander(c CommanderProvider) func(*Disk) {
 	}
 }
 
+func (d *Disk) Path() string {
+	return d.diskPath
+}
+
+func (d *Disk) MountPath() string {
+	return d.mountAt
+}
+
 // Exists reports if the disk exists on the system yet or not. This only verifies
 // the presence of the disk image, not the validity of it. An error is returned
 // if the path exists but the destination is not a file or is a symlink.
