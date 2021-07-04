@@ -147,7 +147,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		}),
 	)
 
-	manager, err := server.NewManager(cmd.Context(), pclient)
+	manager, err := server.NewManager(cmd.Context(), pclient, false)
 	if err != nil {
 		log.WithField("error", err).Fatal("failed to load server configurations")
 	}
