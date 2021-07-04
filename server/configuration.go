@@ -33,7 +33,9 @@ type Configuration struct {
 
 	// By default this is false, however if selected within the Panel while installing or re-installing a
 	// server, specific installation scripts will be skipped for the server process.
-	SkipEggScripts bool `default:"false" json:"skip_egg_scripts"`
+	SkipEggScripts bool `json:"skip_egg_scripts"`
+
+	StartOnCompletion bool `json:"start_on_completion"`
 
 	// An array of environment variables that should be passed along to the running
 	// server process.
@@ -41,7 +43,7 @@ type Configuration struct {
 
 	Allocations           environment.Allocations `json:"allocations"`
 	Build                 environment.Limits      `json:"build"`
-	CrashDetectionEnabled bool                    `default:"true" json:"enabled" yaml:"enabled"`
+	CrashDetectionEnabled bool                    `json:"crash_detection_enabled"`
 	Mounts                []Mount                 `json:"mounts"`
 	Egg                   EggConfiguration        `json:"egg,omitempty"`
 
@@ -54,34 +56,30 @@ type Configuration struct {
 func (s *Server) Config() *Configuration {
 	s.cfg.mu.RLock()
 	defer s.cfg.mu.RUnlock()
-
 	return &s.cfg
 }
 
-// Returns the amount of disk space available to a server in bytes.
+// DiskSpace returns the amount of disk space available to a server in bytes.
 func (s *Server) DiskSpace() int64 {
 	s.cfg.mu.RLock()
 	defer s.cfg.mu.RUnlock()
-
 	return s.cfg.Build.DiskSpace * 1024.0 * 1024.0
 }
 
 func (s *Server) MemoryLimit() int64 {
 	s.cfg.mu.RLock()
 	defer s.cfg.mu.RUnlock()
-
 	return s.cfg.Build.MemoryLimit
 }
 
 func (c *Configuration) GetUuid() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-
 	return c.Uuid
 }
 
 func (c *Configuration) SetSuspended(s bool) {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.Suspended = s
-	c.mu.Unlock()
 }
