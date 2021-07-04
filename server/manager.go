@@ -22,16 +22,18 @@ import (
 )
 
 type Manager struct {
-	mu      sync.RWMutex
-	client  remote.Client
-	servers []*Server
+	mu                    sync.RWMutex
+	client                remote.Client
+	skipVhdInitialization bool
+	servers               []*Server
 }
 
 // NewManager returns a new server manager instance. This will boot up all the
 // servers that are currently present on the filesystem and set them into the
 // manager.
-func NewManager(ctx context.Context, client remote.Client) (*Manager, error) {
+func NewManager(ctx context.Context, client remote.Client, skipVhdInit bool) (*Manager, error) {
 	m := NewEmptyManager(client)
+	m.skipVhdInitialization = skipVhdInit
 	if err := m.init(ctx); err != nil {
 		return nil, err
 	}
@@ -198,7 +200,7 @@ func (m *Manager) InitServer(ctx context.Context, data remote.ServerConfiguratio
 	s.fs = filesystem.New(s.Id(), s.DiskSpace(), s.Config().Egg.FileDenylist)
 	// If this is a virtuakl filesystem we need to go ahead and mount the disk
 	// so that everything is accessible.
-	if s.fs.IsVirtual() {
+	if s.fs.IsVirtual() && !m.skipVhdInitialization {
 		log.WithField("server", s.Id()).Info("mounting virtual disk for server")
 		if err := s.fs.MountDisk(ctx); err != nil {
 			return nil, err

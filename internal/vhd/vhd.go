@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 
 	"emperror.dev/errors"
@@ -181,6 +182,10 @@ func (d *Disk) Allocate(ctx context.Context) error {
 		}
 	} else if err != nil {
 		return errors.Wrap(err, "vhd: failed to check for existence of root disk")
+	}
+	trim := path.Base(d.diskPath)
+	if err := os.MkdirAll(strings.TrimSuffix(d.diskPath, trim), 0600); err != nil {
+		return errors.Wrap(err, "vhd: failed to create base vhd disk directory")
 	}
 	// We use 1024 as the multiplier for all of the disk space logic within the
 	// application. Passing "K" (/1024) is the same as "KiB" for fallocate, but

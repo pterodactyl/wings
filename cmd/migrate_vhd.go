@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"emperror.dev/errors"
@@ -32,7 +31,7 @@ func newMigrateVHDCommand() *cobra.Command {
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			client := remote.NewFromConfig(config.Get())
-			manager, err := server.NewManager(cmd.Context(), client)
+			manager, err := server.NewManager(cmd.Context(), client, true)
 			if err != nil {
 				log.WithField("error", err).Fatal("failed to create new server manager")
 			}
@@ -48,11 +47,6 @@ func newMigrateVHDCommand() *cobra.Command {
 
 // Run executes the migration command.
 func (m *MigrateVHDCommand) Run(ctx context.Context) error {
-	root := filepath.Join(config.Get().System.Data, ".disks")
-	if err := os.MkdirAll(root, 0600); err != nil {
-		return errors.Wrap(err, "failed to create root directory for virtual disks")
-	}
-
 	for _, s := range m.manager.All() {
 		s.Log().Debug("starting migration of server contents to virtual disk...")
 
