@@ -8,10 +8,23 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/pterodactyl/wings/config"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	config.Set(&config.Configuration{
+		AuthenticationToken: "token123",
+		System: config.SystemConfiguration{
+			User: struct {
+				Uid int
+				Gid int
+			}{Uid: 10, Gid: 10},
+		},
+	})
+}
 
 type mockCmd struct {
 	run    func() error
@@ -62,16 +75,16 @@ func newMockDisk(c CommanderProvider) *Disk {
 	if c != nil {
 		w = c
 	}
-	return New(100 * 1024 * 1024, "/foo", "/bar", WithFs(afero.NewMemMapFs()), WithCommander(w))
+	return New(100 * 1024 * 1024, "/disk.img", "/mnt", WithFs(afero.NewMemMapFs()), WithCommander(w))
 }
 
 func Test_New(t *testing.T) {
 	t.Run("creates expected struct", func(t *testing.T) {
-		d := New(100 * 1024 * 1024, "/foo", "/bar")
+		d := New(100 * 1024 * 1024, "/disk.img", "/mnt")
 		assert.NotNil(t, d)
 		assert.Equal(t, int64(100 * 1024 * 1024), d.size)
-		assert.Equal(t, "/foo", d.diskPath)
-		assert.Equal(t, "/bar", d.mountAt)
+		assert.Equal(t, "/disk.img", d.diskPath)
+		assert.Equal(t, "/mnt", d.mountAt)
 
 		// Ensure by default we get a commander interface returned and that it
 		// returns an *exec.Cmd.
@@ -93,7 +106,7 @@ func Test_New(t *testing.T) {
 			return &cprov
 		}
 
-		d := New(100, "/foo", "/bar", WithFs(fs), WithCommander(c))
+		d := New(100, "/disk.img", "/mnt", WithFs(fs), WithCommander(c))
 		assert.NotNil(t, d)
 		assert.Same(t, fs, d.fs)
 		assert.Same(t, &cprov, d.commander(context.TODO(), ""))
@@ -113,8 +126,9 @@ func Test_New(t *testing.T) {
 func TestDisk_Exists(t *testing.T) {
 	t.Run("it exists", func(t *testing.T) {
 		d := newMockDisk(nil)
-		err := d.fs.Mkdir("/foo", 0600)
+		f, err := d.fs.Create("/disk.img")
 		require.NoError(t, err)
+		_ = f.Close()
 
 		exists, err := d.Exists()
 		assert.NoError(t, err)
@@ -130,13 +144,13 @@ func TestDisk_Exists(t *testing.T) {
 
 	t.Run("it reports errors", func(t *testing.T) {
 		d := newMockDisk(nil)
-		_, err := d.fs.Create("/foo")
+		err := d.fs.Mkdir("/disk.img", 0600)
 		require.NoError(t, err)
 
 		exists, err := d.Exists()
 		assert.Error(t, err)
 		assert.False(t, exists)
-		assert.EqualError(t, err, ErrPathNotDirectory.Error())
+		assert.EqualError(t, err, ErrInvalidDiskPathTarget.Error())
 	})
 }
 
@@ -151,7 +165,7 @@ func TestDisk_IsMounted(t *testing.T) {
 			is.Same(pctx, ctx)
 			is.Equal("grep", name)
 			is.Len(args, 3)
-			is.Equal([]string{"-qs", "/bar ext4", "/proc/mounts"}, args)
+			is.Equal([]string{"-qs", "/mnt ext4", "/proc/mounts"}, args)
 
 			return &mockCmd{}
 		}
@@ -198,18 +212,24 @@ func TestDisk_IsMounted(t *testing.T) {
 }
 
 func TestDisk_Mount(t *testing.T) {
+	failedCmd := func(ctx context.Context, name string, args ...string) Commander {
+		return &mockCmd{run: func() error {
+			return &mockedExitCode{code: 1}
+		}}
+	}
+
 	t.Run("error is returned if mount point is not a directory", func(t *testing.T) {
-		disk := newMockDisk(nil)
-		_, err := disk.fs.Create("/bar")
+		disk := newMockDisk(failedCmd)
+		_, err := disk.fs.Create("/mnt")
 		require.NoError(t, err)
 
 		err = disk.Mount(context.TODO())
 		assert.Error(t, err)
-		assert.EqualError(t, err, ErrPathNotDirectory.Error())
+		assert.EqualError(t, err, ErrMountPathNotDirectory.Error())
 	})
 
 	t.Run("error is returned if mount point cannot be created", func(t *testing.T) {
-		disk := newMockDisk(nil)
+		disk := newMockDisk(failedCmd)
 		disk.fs = afero.NewReadOnlyFs(disk.fs)
 
 		err := disk.Mount(context.TODO())
@@ -235,7 +255,7 @@ func TestDisk_Mount(t *testing.T) {
 					called = true
 
 					assert.Equal(t, "mount", name)
-					assert.Equal(t, []string{"-t", "auto", "-o", "loop", "/foo", "/bar"}, args)
+					assert.Equal(t, []string{"-t", "auto", "-o", "loop", "/disk.img", "/mnt"}, args)
 
 					return nil, &exec.ExitError{
 						ProcessState: &os.ProcessState{},
@@ -253,35 +273,19 @@ func TestDisk_Mount(t *testing.T) {
 	})
 
 	t.Run("disk can be mounted at existing path", func(t *testing.T) {
-		var cmd CommanderProvider = func(ctx context.Context, name string, args ...string) Commander {
-			return &mockCmd{
-				run: func() error {
-					return &mockedExitCode{code: 1}
-				},
-			}
-		}
-
-		disk := newMockDisk(cmd)
-		require.NoError(t, disk.fs.Mkdir("/bar", 0600))
+		disk := newMockDisk(failedCmd)
+		require.NoError(t, disk.fs.Mkdir("/mnt", 0600))
 
 		err := disk.Mount(context.TODO())
 		assert.NoError(t, err)
 	})
 
 	t.Run("disk can be mounted at non-existing path", func(t *testing.T) {
-		var cmd CommanderProvider = func(ctx context.Context, name string, args ...string) Commander {
-			return &mockCmd{
-				run: func() error {
-					return &mockedExitCode{code: 1}
-				},
-			}
-		}
-
-		disk := newMockDisk(cmd)
+		disk := newMockDisk(failedCmd)
 		err := disk.Mount(context.TODO())
 		assert.NoError(t, err)
 
-		st, err := disk.fs.Stat("/bar")
+		st, err := disk.fs.Stat("/mnt")
 		assert.NoError(t, err)
 		assert.True(t, st.IsDir())
 	})
@@ -298,7 +302,7 @@ func TestDisk_Unmount(t *testing.T) {
 
 			is.Same(pctx, ctx)
 			is.Equal("umount", name)
-			is.Equal([]string{"/bar"}, args)
+			is.Equal([]string{"/mnt"}, args)
 
 			return &mockCmd{}
 		}
@@ -360,14 +364,14 @@ func TestDisk_Allocate(t *testing.T) {
 				output: func() ([]byte, error) {
 					called = true
 					assert.Equal(t, "fallocate", name)
-					assert.Equal(t, []string{"-l", "102400K", "/foo"}, args)
+					assert.Equal(t, []string{"-l", "102400K", "/disk.img"}, args)
 					return nil, nil
 				},
 			}
 		}
 
 		disk := newMockDisk(cmd)
-		err := disk.fs.Mkdir("/foo", 0600)
+		err := disk.fs.Mkdir("/mnt", 0600)
 		require.NoError(t, err)
 
 		err = disk.Allocate(context.TODO())
@@ -394,7 +398,7 @@ func TestDisk_Allocate(t *testing.T) {
 		}
 
 		disk := newMockDisk(cmd)
-		err := disk.fs.Mkdir("/foo", 0600)
+		_, err := disk.fs.Create("/disk.img")
 		require.NoError(t, err)
 
 		err = disk.Allocate(context.TODO())
@@ -416,7 +420,7 @@ func TestDisk_MakeFilesystem(t *testing.T) {
 					}
 					called = true
 					assert.Equal(t, "mkfs", name)
-					assert.Equal(t, []string{"-t", "ext4", "/foo"}, args)
+					assert.Equal(t, []string{"-t", "ext4", "/disk.img"}, args)
 					return nil
 				},
 				output: func() ([]byte, error) {
@@ -443,7 +447,7 @@ func TestDisk_MakeFilesystem(t *testing.T) {
 					}
 					called = true
 					assert.Equal(t, "mkfs", name)
-					assert.Equal(t, []string{"-t", "ext4", "/foo"}, args)
+					assert.Equal(t, []string{"-t", "ext4", "/disk.img"}, args)
 					return nil
 				},
 				output: func() ([]byte, error) {
