@@ -80,24 +80,27 @@ func (fs *Filesystem) HasSpaceAvailable(allowStaleValue bool) bool {
 	return size <= fs.MaxDisk()
 }
 
-// Returns the cached value for the amount of disk space used by the filesystem. Do not rely on this
-// function for critical logical checks. It should only be used in areas where the actual disk usage
-// does not need to be perfect, e.g. API responses for server resource usage.
+// CachedUsage returns the cached value for the amount of disk space used by the
+// filesystem. Do not rely on this function for critical logical checks. It
+// should only be used in areas where the actual disk usage does not need to be
+// perfect, e.g. API responses for server resource usage.
 func (fs *Filesystem) CachedUsage() int64 {
 	return atomic.LoadInt64(&fs.diskUsed)
 }
 
-// Internal helper function to allow other parts of the codebase to check the total used disk space
-// as needed without overly taxing the system. This will prioritize the value from the cache to avoid
-// excessive IO usage. We will only walk the filesystem and determine the size of the directory if there
+// DiskUsage is an internal helper function to allow other parts of the codebase
+// to check the total used disk space as needed without overly taxing the system.
+// This will prioritize the value from the cache to avoid excessive IO usage. We
+// will only walk the filesystem and determine the size of the directory if there
 // is no longer a cached value.
 //
-// If "allowStaleValue" is set to true, a stale value MAY be returned to the caller if there is an
-// expired cache value AND there is currently another lookup in progress. If there is no cached value but
-// no other lookup is in progress, a fresh disk space response will be returned to the caller.
+// If "allowStaleValue" is set to true, a stale value MAY be returned to the
+// caller if there is an expired cache value AND there is currently another
+// lookup in progress. If there is no cached value but no other lookup is in
+// progress, a fresh disk space response will be returned to the caller.
 //
-// This is primarily to avoid a bunch of I/O operations from piling up on the server, especially on servers
-// with a large amount of files.
+// This is primarily to avoid a bunch of I/O operations from piling up on the
+// server, especially on servers with a large amount of files.
 func (fs *Filesystem) DiskUsage(allowStaleValue bool) (int64, error) {
 	// A disk check interval of 0 means this functionality is completely disabled.
 	if fs.diskCheckInterval == 0 {
@@ -194,11 +197,14 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 	return size, errors.WrapIf(err, "server/filesystem: directorysize: failed to walk directory")
 }
 
-// Helper function to determine if a server has space available for a file of a given size.
-// If space is available, no error will be returned, otherwise an ErrNotEnoughSpace error
-// will be raised.
+// HasSpaceFor is a function to determine if a server has space available for a
+// file of a given size. If space is available, no error will be returned,
+// otherwise an ErrNotEnoughSpace error will be raised. If this filesystem is
+// configured as a virtual disk this function is a no-op as we will fall through
+// to the native implementation to throw back an error if there is not disk
+// space available.
 func (fs *Filesystem) HasSpaceFor(size int64) error {
-	if fs.MaxDisk() == 0 {
+	if fs.IsVirtual() || fs.MaxDisk() == 0 {
 		return nil
 	}
 	s, err := fs.DiskUsage(true)

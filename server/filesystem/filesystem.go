@@ -188,6 +188,12 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 
 	buf := make([]byte, 1024*4)
 	sz, err := io.CopyBuffer(file, r, buf)
+	if err != nil {
+		if strings.Contains(err.Error(), "no space left on device") {
+			return newFilesystemError(ErrCodeDiskSpace, err)
+		}
+		return errors.WrapIf(err, "filesystem: failed to copy buffer for file write")
+	}
 
 	// Adjust the disk usage to account for the old size and the new size of the file.
 	fs.addDisk(sz - currentSize)
@@ -345,8 +351,9 @@ func (fs *Filesystem) findCopySuffix(dir string, name string, extension string) 
 	return name + suffix + extension, nil
 }
 
-// Copies a given file to the same location and appends a suffix to the file to indicate that
-// it has been copied.
+// Copy takes a given input file path and creates a copy of the file at the same
+// location, appending a unique number to the end. For example, a copy of "test.txt"
+// would create "test 2.txt" as the copy, then "test 3.txt" and so on.
 func (fs *Filesystem) Copy(p string) error {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
