@@ -75,7 +75,7 @@ func New(ctx context.Context, manager *server.Manager, data []byte) (*Installer,
 
 	// Create a new server instance using the configuration we wrote to the disk
 	// so that everything gets instantiated correctly on the struct.
-	s, err := manager.InitServer(c)
+	s, err := manager.InitServer(ctx, c)
 	if err != nil {
 		return nil, errors.WrapIf(err, "installer: could not init server instance")
 	}

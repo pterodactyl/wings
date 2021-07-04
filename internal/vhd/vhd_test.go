@@ -62,14 +62,14 @@ func newMockDisk(c CommanderProvider) *Disk {
 	if c != nil {
 		w = c
 	}
-	return New(100, "/foo", "/bar", WithFs(afero.NewMemMapFs()), WithCommander(w))
+	return New(100 * 1024 * 1024, "/foo", "/bar", WithFs(afero.NewMemMapFs()), WithCommander(w))
 }
 
 func Test_New(t *testing.T) {
 	t.Run("creates expected struct", func(t *testing.T) {
-		d := New(100, "/foo", "/bar")
+		d := New(100 * 1024 * 1024, "/foo", "/bar")
 		assert.NotNil(t, d)
-		assert.Equal(t, int64(100), d.size)
+		assert.Equal(t, int64(100 * 1024 * 1024), d.size)
 		assert.Equal(t, "/foo", d.diskPath)
 		assert.Equal(t, "/bar", d.mountAt)
 
@@ -360,7 +360,7 @@ func TestDisk_Allocate(t *testing.T) {
 				output: func() ([]byte, error) {
 					called = true
 					assert.Equal(t, "fallocate", name)
-					assert.Equal(t, []string{"-l", "100M", "/foo"}, args)
+					assert.Equal(t, []string{"-l", "102400K", "/foo"}, args)
 					return nil, nil
 				},
 			}

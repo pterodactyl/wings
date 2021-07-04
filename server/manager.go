@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -166,7 +165,7 @@ func (m *Manager) ReadStates() (map[string]string, error) {
 // InitServer initializes a server using a data byte array. This will be
 // marshaled into the given struct using a YAML marshaler. This will also
 // configure the given environment for a server.
-func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, error) {
+func (m *Manager) InitServer(ctx context.Context, data remote.ServerConfigurationResponse) (*Server, error) {
 	s, err := New(m.client)
 	if err != nil {
 		return nil, err
@@ -175,7 +174,15 @@ func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, 
 		return nil, err
 	}
 
-	s.fs = filesystem.New(filepath.Join(config.Get().System.Data, s.Id()), s.DiskSpace(), s.Config().Egg.FileDenylist)
+	s.fs = filesystem.New(s.Id(), s.DiskSpace(), s.Config().Egg.FileDenylist)
+	// If this is a virtuakl filesystem we need to go ahead and mount the disk
+	// so that everything is accessible.
+	if s.fs.IsVirtual() {
+		log.WithField("server", s.Id()).Info("mounting virtual disk for server")
+		if err := s.fs.MountDisk(ctx); err != nil {
+			return nil, err
+		}
+	}
 
 	// Right now we only support a Docker based environment, so I'm going to hard code
 	// this logic in. When we're ready to support other environment we'll need to make
@@ -243,7 +250,7 @@ func (m *Manager) init(ctx context.Context) error {
 				log.WithField("server", data.Uuid).WithField("error", err).Error("failed to parse server configuration from API response, skipping...")
 				return
 			}
-			s, err := m.InitServer(d)
+			s, err := m.InitServer(ctx, d)
 			if err != nil {
 				log.WithField("server", data.Uuid).WithField("error", err).Error("failed to load server, skipping...")
 				return

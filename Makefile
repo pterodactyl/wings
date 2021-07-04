@@ -4,8 +4,11 @@ build:
 	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -gcflags "all=-trimpath=$(pwd)" -o build/wings_linux_amd64 -v wings.go
 	GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -gcflags "all=-trimpath=$(pwd)" -o build/wings_linux_arm64 -v wings.go
 
-debug:
+race:
 	go build -ldflags="-X github.com/pterodactyl/wings/system.Version=$(GIT_HEAD)" -race
+
+debug:
+	make race
 	sudo ./wings --debug --ignore-certificate-errors --config config.yml
 
 # Runs a remotly debuggable session for Wings allowing an IDE to connect and target
