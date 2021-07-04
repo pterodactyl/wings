@@ -14,6 +14,7 @@ import (
 	"github.com/pterodactyl/wings/loggers/cli"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/server/filesystem"
 	"github.com/spf13/cobra"
 )
 
@@ -55,7 +56,7 @@ func (m *MigrateVHDCommand) Run(ctx context.Context) error {
 	for _, s := range m.manager.All() {
 		s.Log().Debug("starting migration of server contents to virtual disk...")
 
-		v := s.Filesystem().NewVHD()
+		v := vhd.New(s.DiskSpace(), filesystem.VirtualDiskPath(s.Id()), s.Filesystem().Path())
 		if err := v.Allocate(ctx); err != nil {
 			return errors.WithStackIf(err)
 		}

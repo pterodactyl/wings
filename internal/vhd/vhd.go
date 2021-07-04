@@ -43,6 +43,7 @@ type CfgOption func(d *Disk) *Disk
 
 // Disk represents the underlying virtual disk for the instance.
 type Disk struct {
+	// The total size of the disk allowed in bytes.
 	size      int64
 	diskPath  string
 	mountAt   string
@@ -51,8 +52,8 @@ type Disk struct {
 }
 
 // New returns a new Disk instance. The "size" parameter should be provided in
-// megabytes of space allowed for the disk. An additional slice of option
-// callbacks can be provided to programatically swap out the underlying filesystem
+// bytes of space allowed for the disk. An additional slice of option callbacks
+// can be provided to programatically swap out the underlying filesystem
 // implementation or the underlying command exection engine.
 func New(size int64, diskPath string, mountAt string, opts ...func(*Disk)) *Disk {
 	if diskPath == "" || mountAt == "" {
@@ -181,7 +182,10 @@ func (d *Disk) Allocate(ctx context.Context) error {
 	} else if err != nil {
 		return errors.Wrap(err, "vhd: failed to check for existence of root disk")
 	}
-	cmd := d.commander(ctx, "fallocate", "-l", fmt.Sprintf("%dM", d.size), d.diskPath)
+	// We use 1024 as the multiplier for all of the disk space logic within the
+	// application. Passing "K" (/1024) is the same as "KiB" for fallocate, but
+	// is different than "KB" (/1000).
+	cmd := d.commander(ctx, "fallocate", "-l", fmt.Sprintf("%dK", d.size / 1024), d.diskPath)
 	if _, err := cmd.Output(); err != nil {
 		msg := "vhd: failed to execute fallocate command"
 		if v, ok := err.(*exec.ExitError); ok {
