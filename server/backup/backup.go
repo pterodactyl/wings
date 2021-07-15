@@ -5,14 +5,16 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/remote"
-	"golang.org/x/sync/errgroup"
 )
 
 type AdapterType string
@@ -24,7 +26,7 @@ const (
 
 // RestoreCallback is a generic restoration callback that exists for both local
 // and remote backups allowing the files to be restored.
-type RestoreCallback func(file string, r io.Reader) error
+type RestoreCallback func(file string, r io.Reader, mode fs.FileMode) error
 
 // noinspection GoNameStartsWithPackageName
 type BackupInterface interface {

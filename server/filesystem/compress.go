@@ -132,6 +132,10 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		if err := fs.Writefile(p, f); err != nil {
 			return wrapError(err, source)
 		}
+		// Update the file permissions to the one set in the archive.
+		if err := fs.Chmod(p, f.Mode()); err != nil {
+			return wrapError(err, source)
+		}
 		return nil
 	})
 	if err != nil {

@@ -13,9 +13,11 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/cenkalti/backoff/v4"
+
 	"github.com/pterodactyl/wings/server/filesystem"
 
 	"github.com/juju/ratelimit"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/remote"
 )
@@ -114,7 +116,7 @@ func (s *S3Backup) Restore(ctx context.Context, r io.Reader, callback RestoreCal
 			return err
 		}
 		if header.Typeflag == tar.TypeReg {
-			if err := callback(header.Name, tr); err != nil {
+			if err := callback(header.Name, tr, header.FileInfo().Mode()); err != nil {
 				return err
 			}
 		}

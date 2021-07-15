@@ -6,9 +6,11 @@ import (
 	"os"
 
 	"emperror.dev/errors"
+
 	"github.com/pterodactyl/wings/server/filesystem"
 
 	"github.com/mholt/archiver/v3"
+
 	"github.com/pterodactyl/wings/remote"
 )
 
@@ -85,12 +87,10 @@ func (b *LocalBackup) Restore(ctx context.Context, _ io.Reader, callback Restore
 			// Stop walking if the context is canceled.
 			return archiver.ErrStopWalk
 		default:
-			{
-				if f.IsDir() {
-					return nil
-				}
-				return callback(filesystem.ExtractNameFromArchive(f), f)
+			if f.IsDir() {
+				return nil
 			}
+			return callback(filesystem.ExtractNameFromArchive(f), f, f.Mode())
 		}
 	})
 }
