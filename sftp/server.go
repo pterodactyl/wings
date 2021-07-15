@@ -140,7 +140,7 @@ func (c *SFTPServer) AcceptInbound(conn net.Conn, config *ssh.ServerConfig) {
 
 		// Spin up a SFTP server instance for the authenticated user's server allowing
 		// them access to the underlying filesystem.
-		handler := sftp.NewRequestServer(channel, NewHandler(sconn, srv.Filesystem()).Handlers())
+		handler := sftp.NewRequestServer(channel, NewHandler(sconn, srv).Handlers())
 		if err := handler.Serve(); err == io.EOF {
 			handler.Close()
 		}

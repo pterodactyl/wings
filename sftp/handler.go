@@ -12,6 +12,7 @@ import (
 	"github.com/apex/log"
 	"github.com/pkg/sftp"
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"golang.org/x/crypto/ssh"
 )
@@ -25,8 +26,10 @@ const (
 )
 
 type Handler struct {
+	mu sync.Mutex
+
 	permissions []string
-	mu          sync.Mutex
+	server      *server.Server
 	fs          *filesystem.Filesystem
 	logger      *log.Entry
 	ro          bool
@@ -34,11 +37,12 @@ type Handler struct {
 
 // Returns a new connection handler for the SFTP server. This allows a given user
 // to access the underlying filesystem.
-func NewHandler(sc *ssh.ServerConn, fs *filesystem.Filesystem) *Handler {
+func NewHandler(sc *ssh.ServerConn, srv *server.Server) *Handler {
 	return &Handler{
-		fs:          fs,
-		ro:          config.Get().System.Sftp.ReadOnly,
 		permissions: strings.Split(sc.Permissions.Extensions["permissions"], ","),
+		server:      srv,
+		fs:          srv.Filesystem(),
+		ro:          config.Get().System.Sftp.ReadOnly,
 		logger: log.WithFields(log.Fields{
 			"subsystem": "sftp",
 			"username":  sc.User(),
@@ -277,6 +281,10 @@ func (h *Handler) Filelist(request *sftp.Request) (sftp.ListerAt, error) {
 // Determines if a user has permission to perform a specific action on the SFTP server. These
 // permissions are defined and returned by the Panel API.
 func (h *Handler) can(permission string) bool {
+	if h.server.IsSuspended() {
+		return false
+	}
+
 	// SFTPServer owners and super admins have their permissions returned as '[*]' via the Panel
 	// API, so for the sake of speed do an initial check for that before iterating over the
 	// entire array of permissions.
