@@ -70,6 +70,7 @@ type SftpAuthRequest struct {
 	IP            string `json:"ip"`
 	SessionID     []byte `json:"session_id"`
 	ClientVersion []byte `json:"client_version"`
+	Type          string `json:"type"`
 }
 
 // SftpAuthResponse is returned by the Panel when a pair of SFTP credentials
@@ -77,8 +78,8 @@ type SftpAuthRequest struct {
 // matched as well as the permissions that are assigned to the authenticated
 // user for the SFTP subsystem.
 type SftpAuthResponse struct {
+	SSHKeys     []string `json:"ssh_keys"`
 	Server      string   `json:"server"`
-	Token       string   `json:"token"`
 	Permissions []string `json:"permissions"`
 }
 

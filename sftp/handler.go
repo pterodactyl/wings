@@ -118,7 +118,7 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 	return f, nil
 }
 
-// Filecmd hander for basic SFTP system calls related to files, but not anything to do with reading
+// Filecmd handler for basic SFTP system calls related to files, but not anything to do with reading
 // or writing to those files.
 func (h *Handler) Filecmd(request *sftp.Request) error {
 	if h.ro {
