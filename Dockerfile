@@ -14,9 +14,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -o wings \
     wings.go
 RUN upx wings
+RUN echo "ID=\"distroless\"" > /etc/os-release
 
 # Stage 2 (Final)
 FROM gcr.io/distroless/static:latest
-RUN echo "ID=\"distroless\"" > /etc/os-release
+COPY --from=builder /etc/os-release /etc/os-release
 COPY --from=builder /app/wings /usr/bin/
 CMD [ "/usr/bin/wings", "--config", "/etc/pterodactyl/config.yml" ]
