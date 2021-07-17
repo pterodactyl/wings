@@ -122,11 +122,6 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		log.WithField("error", err).Fatal("failed to configure system directories for pterodactyl")
 		return
 	}
-	if err := config.EnableLogRotation(); err != nil {
-		log.WithField("error", err).Fatal("failed to configure log rotation on the system")
-		return
-	}
-
 	log.WithField("username", config.Get().System.User).Info("checking for pterodactyl system user")
 	if err := config.EnsurePterodactylUser(); err != nil {
 		log.WithField("error", err).Fatal("failed to create pterodactyl system user")
@@ -136,6 +131,10 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		"uid":      config.Get().System.User.Uid,
 		"gid":      config.Get().System.User.Gid,
 	}).Info("configured system user successfully")
+	if err := config.EnableLogRotation(); err != nil {
+		log.WithField("error", err).Fatal("failed to configure log rotation on the system")
+		return
+	}
 
 	pclient := remote.New(
 		config.Get().PanelLocation,

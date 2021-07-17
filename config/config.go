@@ -538,8 +538,7 @@ func EnableLogRotation() error {
 	}
 	defer f.Close()
 
-	t, err := template.New("logrotate").Parse(`
-{{.LogDirectory}}/wings.log {
+	t, err := template.New("logrotate").Parse(`{{.LogDirectory}}/wings.log {
     size 10M
     compress
     delaycompress
@@ -547,9 +546,8 @@ func EnableLogRotation() error {
     maxage 7
     missingok
     notifempty
-    create 0640 {{.User.Uid}} {{.User.Gid}}
     postrotate
-        killall -SIGHUP wings
+        /usr/bin/systemctl kill -s HUP wings.service >/dev/null 2>&1 || true
     endscript
 }`)
 	if err != nil {
