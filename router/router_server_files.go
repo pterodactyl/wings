@@ -254,8 +254,8 @@ func getServerPullingFiles(c *gin.Context) {
 func postServerPullRemoteFile(c *gin.Context) {
 	s := ExtractServer(c)
 	var data struct {
-		URL       string `binding:"required" json:"url"`
-		Directory string `binding:"required,omitempty" json:"directory"`
+		RootPath string `binding:"required,omitempty" json:"root"`
+		URL      string `binding:"required" json:"url"`
 	}
 	if err := c.BindJSON(&data); err != nil {
 		return
@@ -286,11 +286,11 @@ func postServerPullRemoteFile(c *gin.Context) {
 	}
 
 	dl := downloader.New(s, downloader.DownloadRequest{
+		Directory: data.RootPath,
 		URL:       u,
-		Directory: data.Directory,
 	})
 
-	// Execute this pull in a seperate thread since it may take a long time to complete.
+	// Execute this pull in a separate thread since it may take a long time to complete.
 	go func() {
 		s.Log().WithField("download_id", dl.Identifier).WithField("url", u.String()).Info("starting pull of remote file to disk")
 		if err := dl.Execute(); err != nil {
