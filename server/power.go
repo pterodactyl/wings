@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"emperror.dev/errors"
+	"golang.org/x/sync/semaphore"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
-	"golang.org/x/sync/semaphore"
 )
 
 type PowerAction string
@@ -18,7 +19,7 @@ type PowerAction string
 // example, sending two "start" actions back to back will not process the second action until
 // the first action has been completed.
 //
-// This utilizes a workerpool with a limit of one worker so that all of the actions execute
+// This utilizes a workerpool with a limit of one worker so that all the actions execute
 // in a sync manner.
 const (
 	PowerActionStart     = "start"
@@ -27,7 +28,7 @@ const (
 	PowerActionTerminate = "kill"
 )
 
-// Checks if the power action being received is valid.
+// IsValid checks if the power action being received is valid.
 func (pa PowerAction) IsValid() bool {
 	return pa == PowerActionStart ||
 		pa == PowerActionStop ||
@@ -39,7 +40,7 @@ func (pa PowerAction) IsStart() bool {
 	return pa == PowerActionStart || pa == PowerActionRestart
 }
 
-// Check if there is currently a power action being processed for the server.
+// ExecutingPowerAction checks if there is currently a power action being processed for the server.
 func (s *Server) ExecutingPowerAction() bool {
 	if s.powerLock == nil {
 		return false
@@ -54,9 +55,9 @@ func (s *Server) ExecutingPowerAction() bool {
 	return !ok
 }
 
-// Helper function that can receive a power action and then process the actions that need
-// to occur for it. This guards against someone calling Start() twice at the same time, or
-// trying to restart while another restart process is currently running.
+// HandlePowerAction is a helper function that can receive a power action and then process the
+// actions that need to occur for it. This guards against someone calling Start() twice at the
+// same time, or trying to restart while another restart process is currently running.
 //
 // However, the code design for the daemon does depend on the user correctly calling this
 // function rather than making direct calls to the start/stop/restart functions on the
@@ -107,7 +108,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 		// Release the lock once the process being requested has finished executing.
 		defer s.powerLock.Release(1)
 	} else {
-		// Still try to acquire the lock if terminating and it is available, just so that other power
+		// Still try to acquire the lock if terminating, and it is available, just so that other power
 		// actions are blocked until it has completed. However, if it is unavailable we won't stop
 		// the entire process.
 		if ok := s.powerLock.TryAcquire(1); ok {
@@ -190,14 +191,14 @@ func (s *Server) onBeforeStart() error {
 	// Update the configuration files defined for the server before beginning the boot process.
 	// This process executes a bunch of parallel updates, so we just block until that process
 	// is complete. Any errors as a result of this will just be bubbled out in the logger,
-	// we don't need to actively do anything about it at this point, worst comes to worst the
+	// we don't need to actively do anything about it at this point, worse comes to worst the
 	// server starts in a weird state and the user can manually adjust.
 	s.PublishConsoleOutputFromDaemon("Updating process configuration files...")
 	s.UpdateConfigurationFiles()
 
 	if config.Get().System.CheckPermissionsOnBoot {
 		s.PublishConsoleOutputFromDaemon("Ensuring file permissions are set correctly, this could take a few seconds...")
-		// Ensure all of the server file permissions are set correctly before booting the process.
+		// Ensure all the server file permissions are set correctly before booting the process.
 		if err := s.Filesystem().Chown("/"); err != nil {
 			return errors.WithMessage(err, "failed to chown root server directory during pre-boot process")
 		}

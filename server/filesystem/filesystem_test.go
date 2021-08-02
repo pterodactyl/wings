@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	. "github.com/franela/goblin"
+
 	"github.com/pterodactyl/wings/config"
 )
 

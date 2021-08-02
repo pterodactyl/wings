@@ -9,6 +9,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/router/middleware"
@@ -78,18 +79,18 @@ func postCreateServer(c *gin.Context) {
 		}
 
 		if i.Server().Config().StartOnCompletion {
-			log.WithField("server_id", i.Server().Id()).Debug("starting server after successful installation")
+			log.WithField("server_id", i.Server().ID()).Debug("starting server after successful installation")
 			if err := i.Server().HandlePowerAction(server.PowerActionStart, 30); err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
-					log.WithFields(log.Fields{"server_id": i.Server().Id(), "action": "start"}).
+					log.WithFields(log.Fields{"server_id": i.Server().ID(), "action": "start"}).
 						Warn("could not acquire a lock while attempting to perform a power action")
 				} else {
-					log.WithFields(log.Fields{"server_id": i.Server().Id(), "action": "start", "error": err}).
+					log.WithFields(log.Fields{"server_id": i.Server().ID(), "action": "start", "error": err}).
 						Error("encountered error processing a server power action in the background")
 				}
 			}
 		} else {
-			log.WithField("server_id", i.Server().Id()).
+			log.WithField("server_id", i.Server().ID()).
 				Debug("skipping automatic start after successful server installation")
 		}
 	}(install)

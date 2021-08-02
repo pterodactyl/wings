@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/remote"
 )
@@ -81,7 +82,7 @@ func (e *Environment) Start() error {
 			return e.Attach()
 		}
 
-		// Truncate the log file so we don't end up outputting a bunch of useless log information
+		// Truncate the log file, so we don't end up outputting a bunch of useless log information
 		// to the websocket and whatnot. Check first that the path and file exist before trying
 		// to truncate them.
 		if _, err := os.Stat(c.LogPath); err == nil {
@@ -242,7 +243,7 @@ func (e *Environment) Terminate(signal os.Signal) error {
 	}
 
 	if !c.State.Running {
-		// If the container is not running but we're not already in a stopped state go ahead
+		// If the container is not running, but we're not already in a stopped state go ahead
 		// and update things to indicate we should be completely stopped now. Set to stopping
 		// first so crash detection is not triggered.
 		if e.st.Load() != environment.ProcessOfflineState {

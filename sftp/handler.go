@@ -11,9 +11,10 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server/filesystem"
-	"golang.org/x/crypto/ssh"
 )
 
 const (

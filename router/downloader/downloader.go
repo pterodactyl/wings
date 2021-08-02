@@ -2,11 +2,8 @@ package downloader
 
 import (
 	"context"
-	"emperror.dev/errors"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/pterodactyl/wings/server"
 	"io"
 	"net"
 	"net/http"
@@ -17,11 +14,16 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"emperror.dev/errors"
+	"github.com/google/uuid"
+
+	"github.com/pterodactyl/wings/server"
 )
 
 var client = &http.Client{
 	Timeout: time.Hour * 12,
-	// Disallow any redirect on a HTTP call. This is a security requirement: do not modify
+	// Disallow any redirect on an HTTP call. This is a security requirement: do not modify
 	// this logic without first ensuring that the new target location IS NOT within the current
 	// instance's local network.
 	//
@@ -36,9 +38,9 @@ var client = &http.Client{
 }
 
 var instance = &Downloader{
-	// Tracks all of the active downloads.
+	// Tracks all the active downloads.
 	downloadCache: make(map[string]*Download),
-	// Tracks all of the downloads active for a given server instance. This is
+	// Tracks all the downloads active for a given server instance. This is
 	// primarily used to make things quicker and keep the code a little more
 	// legible throughout here.
 	serverCache: make(map[string][]string),
@@ -196,7 +198,7 @@ func (dl *Download) Cancel() {
 
 // Checks if the given download belongs to the provided server.
 func (dl *Download) BelongsTo(s *server.Server) bool {
-	return dl.server.Id() == s.Id()
+	return dl.server.ID() == s.ID()
 }
 
 // Returns the current progress of the download as a float value between 0 and 1 where
@@ -277,7 +279,7 @@ type Downloader struct {
 func (d *Downloader) track(dl *Download) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	sid := dl.server.Id()
+	sid := dl.server.ID()
 	if _, ok := d.downloadCache[dl.Identifier]; !ok {
 		d.downloadCache[dl.Identifier] = dl
 		if _, ok := d.serverCache[sid]; !ok {
@@ -299,22 +301,22 @@ func (d *Downloader) find(dlid string) *Download {
 
 // Remove the given download reference from the cache storing them. This also updates
 // the slice of active downloads for a given server to not include this download.
-func (d *Downloader) remove(dlid string) {
+func (d *Downloader) remove(dlID string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if _, ok := d.downloadCache[dlid]; !ok {
+	if _, ok := d.downloadCache[dlID]; !ok {
 		return
 	}
-	sid := d.downloadCache[dlid].server.Id()
-	delete(d.downloadCache, dlid)
-	if tracked, ok := d.serverCache[sid]; ok {
+	sID := d.downloadCache[dlID].server.ID()
+	delete(d.downloadCache, dlID)
+	if tracked, ok := d.serverCache[sID]; ok {
 		var out []string
 		for _, k := range tracked {
-			if k != dlid {
+			if k != dlID {
 				out = append(out, k)
 			}
 		}
-		d.serverCache[sid] = out
+		d.serverCache[sID] = out
 	}
 }
 

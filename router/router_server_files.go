@@ -16,12 +16,13 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/pterodactyl/wings/router/downloader"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
-	"golang.org/x/sync/errgroup"
 )
 
 // getServerFileContents returns the contents of a file on the server.
@@ -245,7 +246,7 @@ func postServerWriteFile(c *gin.Context) {
 func getServerPullingFiles(c *gin.Context) {
 	s := ExtractServer(c)
 	c.JSON(http.StatusOK, gin.H{
-		"downloads": downloader.ByServer(s.Id()),
+		"downloads": downloader.ByServer(s.ID()),
 	})
 }
 
@@ -277,7 +278,7 @@ func postServerPullRemoteFile(c *gin.Context) {
 		return
 	}
 	// Do not allow more than three simultaneous remote file downloads at one time.
-	if len(downloader.ByServer(s.Id())) >= 3 {
+	if len(downloader.ByServer(s.ID())) >= 3 {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error": "This server has reached its limit of 3 simultaneous remote file downloads at once. Please wait for one to complete before trying again.",
 		})

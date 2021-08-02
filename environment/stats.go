@@ -12,7 +12,7 @@ type Stats struct {
 
 	// The total amount of memory this container or resource can use. Inside Docker this is
 	// going to be higher than you'd expect because we're automatically allocating overhead
-	// abilities for the container, so its not going to be a perfect match.
+	// abilities for the container, so it's not going to be a perfect match.
 	MemoryLimit uint64 `json:"memory_limit_bytes"`
 
 	// The absolute CPU usage is the amount of CPU used in relation to the entire system and

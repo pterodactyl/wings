@@ -7,6 +7,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/asaskevich/govalidator"
 	"github.com/buger/jsonparser"
+
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server"
@@ -16,7 +17,7 @@ type Installer struct {
 	server *server.Server
 }
 
-// New validates the received data to ensure that all of the required fields
+// New validates the received data to ensure that all the required fields
 // have been passed along in the request. This should be manually run before
 // calling Execute().
 func New(ctx context.Context, manager *server.Manager, data []byte) (*Installer, error) {
@@ -85,7 +86,7 @@ func New(ctx context.Context, manager *server.Manager, data []byte) (*Installer,
 
 // Uuid returns the UUID associated with this installer instance.
 func (i *Installer) Uuid() string {
-	return i.server.Id()
+	return i.server.ID()
 }
 
 // Server returns the server instance.

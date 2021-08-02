@@ -2,11 +2,12 @@ package tokens
 
 import (
 	"encoding/json"
-	"github.com/apex/log"
-	"github.com/gbrlsnchs/jwt/v3"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/apex/log"
+	"github.com/gbrlsnchs/jwt/v3"
 )
 
 // The time at which Wings was booted. No JWT's created before this time are allowed to

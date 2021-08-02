@@ -21,8 +21,9 @@ import (
 	"github.com/cobaugh/osrelease"
 	"github.com/creasty/defaults"
 	"github.com/gbrlsnchs/jwt/v3"
-	"github.com/pterodactyl/wings/system"
 	"gopkg.in/yaml.v2"
+
+	"github.com/pterodactyl/wings/system"
 )
 
 const DefaultLocation = "/etc/pterodactyl/config.yml"
@@ -53,7 +54,7 @@ var _jwtAlgo *jwt.HMACSHA
 var _debugViaFlag bool
 
 // Locker specific to writing the configuration to the disk, this happens
-// in areas that might already be locked so we don't want to crash the process.
+// in areas that might already be locked, so we don't want to crash the process.
 var _writeLock sync.Mutex
 
 // SftpConfiguration defines the configuration of the internal SFTP server.

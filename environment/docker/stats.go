@@ -2,12 +2,14 @@ package docker
 
 import (
 	"context"
-	"emperror.dev/errors"
 	"encoding/json"
-	"github.com/docker/docker/api/types"
-	"github.com/pterodactyl/wings/environment"
 	"io"
 	"math"
+
+	"emperror.dev/errors"
+	"github.com/docker/docker/api/types"
+
+	"github.com/pterodactyl/wings/environment"
 )
 
 // Attach to the instance and then automatically emit an event whenever the resource usage for the
@@ -73,9 +75,8 @@ func (e *Environment) pollResources(ctx context.Context) error {
 // value which can be rather confusing to people trying to compare panel usage to
 // their stats output.
 //
-// This math is straight up lifted from their CLI repository in order to show the same
-// values to avoid people bothering me about it. It should also reflect a slightly more
-// correct memory value anyways.
+// This math is from their CLI repository in order to show the same values to avoid people
+// bothering me about it. It should also reflect a slightly more correct memory value anyways.
 //
 // @see https://github.com/docker/cli/blob/96e1d1d6/cli/command/container/stats_helpers.go#L227-L249
 func calculateDockerMemory(stats types.MemoryStats) uint64 {

@@ -8,6 +8,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/backup"
@@ -42,7 +43,7 @@ func postServerBackup(c *gin.Context) {
 	// Attach the server ID and the request ID to the adapter log context for easier
 	// parsing in the logs.
 	adapter.WithLogContext(map[string]interface{}{
-		"server":     s.Id(),
+		"server":     s.ID(),
 		"request_id": c.GetString("request_id"),
 	})
 

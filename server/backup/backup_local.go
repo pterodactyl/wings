@@ -6,12 +6,10 @@ import (
 	"os"
 
 	"emperror.dev/errors"
-
-	"github.com/pterodactyl/wings/server/filesystem"
-
 	"github.com/mholt/archiver/v3"
 
 	"github.com/pterodactyl/wings/remote"
+	"github.com/pterodactyl/wings/server/filesystem"
 )
 
 type LocalBackup struct {

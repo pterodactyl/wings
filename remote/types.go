@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/apex/log"
+
 	"github.com/pterodactyl/wings/parser"
 )
 
@@ -32,7 +33,7 @@ type Pagination struct {
 
 // ServerConfigurationResponse holds the server configuration data returned from
 // the Panel. When a server process is started, Wings communicates with the
-// Panel to fetch the latest build information as well as get all of the details
+// Panel to fetch the latest build information as well as get all the details
 // needed to parse the given Egg.
 //
 // This means we do not need to hit Wings each time part of the server is

@@ -14,7 +14,7 @@ import (
 	"github.com/juju/ratelimit"
 	"github.com/karrick/godirwalk"
 	"github.com/klauspost/pgzip"
-	"github.com/sabhiram/go-gitignore"
+	ignore "github.com/sabhiram/go-gitignore"
 
 	"github.com/pterodactyl/wings/config"
 )

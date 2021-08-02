@@ -1,17 +1,18 @@
 package cli
 
 import (
-	"emperror.dev/errors"
 	"fmt"
-	"github.com/apex/log"
-	"github.com/apex/log/handlers/cli"
-	color2 "github.com/fatih/color"
-	"github.com/mattn/go-colorable"
 	"io"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"emperror.dev/errors"
+	"github.com/apex/log"
+	"github.com/apex/log/handlers/cli"
+	color2 "github.com/fatih/color"
+	"github.com/mattn/go-colorable"
 )
 
 var Default = New(os.Stderr, true)

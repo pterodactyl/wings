@@ -23,6 +23,7 @@ import (
 	"github.com/juju/ratelimit"
 	"github.com/mholt/archiver/v3"
 	"github.com/mitchellh/colorstring"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/remote"
@@ -75,14 +76,14 @@ func getServerArchive(c *gin.Context) {
 	}
 
 	s := ExtractServer(c)
-	if token.Subject != s.Id() {
+	if token.Subject != s.ID() {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 			"error": "Missing required token subject, or subject is not valid for the requested server.",
 		})
 		return
 	}
 
-	archivePath := getArchivePath(s.Id())
+	archivePath := getArchivePath(s.ID())
 
 	// Stat the archive file.
 	st, err := os.Lstat(archivePath)
@@ -123,7 +124,7 @@ func getServerArchive(c *gin.Context) {
 	c.Header("X-Checksum", checksum)
 	c.Header("X-Mime-Type", "application/tar+gzip")
 	c.Header("Content-Length", strconv.Itoa(int(st.Size())))
-	c.Header("Content-Disposition", "attachment; filename="+strconv.Quote(s.Id()+".tar.gz"))
+	c.Header("Content-Disposition", "attachment; filename="+strconv.Quote(s.ID()+".tar.gz"))
 	c.Header("Content-Type", "application/octet-stream")
 
 	_, _ = bufio.NewReader(f).WriteTo(c.Writer)
@@ -134,7 +135,7 @@ func postServerArchive(c *gin.Context) {
 	manager := middleware.ExtractManager(c)
 
 	go func(s *server.Server) {
-		l := log.WithField("server", s.Id())
+		l := log.WithField("server", s.ID())
 
 		// This function automatically adds the Source Node prefix and Timestamp to the log
 		// output before sending it over the websocket.
@@ -157,7 +158,7 @@ func postServerArchive(c *gin.Context) {
 			s.Events().Publish(server.TransferStatusEvent, "failure")
 
 			sendTransferLog("Attempting to notify panel of archive failure..")
-			if err := manager.Client().SetArchiveStatus(s.Context(), s.Id(), false); err != nil {
+			if err := manager.Client().SetArchiveStatus(s.Context(), s.ID(), false); err != nil {
 				if !remote.IsRequestError(err) {
 					sendTransferLog("Failed to notify panel of archive failure: " + err.Error())
 					l.WithField("error", err).Error("failed to notify panel of failed archive status")
@@ -190,7 +191,7 @@ func postServerArchive(c *gin.Context) {
 		}
 
 		// Attempt to get an archive of the server.
-		if err := a.Create(getArchivePath(s.Id())); err != nil {
+		if err := a.Create(getArchivePath(s.ID())); err != nil {
 			sendTransferLog("An error occurred while archiving the server: " + err.Error())
 			l.WithField("error", err).Error("failed to get transfer archive for server")
 			return
@@ -199,7 +200,7 @@ func postServerArchive(c *gin.Context) {
 		sendTransferLog("Successfully created archive, attempting to notify panel..")
 		l.Info("successfully created server transfer archive, notifying panel..")
 
-		if err := manager.Client().SetArchiveStatus(s.Context(), s.Id(), true); err != nil {
+		if err := manager.Client().SetArchiveStatus(s.Context(), s.ID(), true); err != nil {
 			if !remote.IsRequestError(err) {
 				sendTransferLog("Failed to notify panel of archive success: " + err.Error())
 				l.WithField("error", err).Error("failed to notify panel of successful archive status")
@@ -360,7 +361,7 @@ func postTransfer(c *gin.Context) {
 				sendTransferLog("Server transfer failed, check Wings logs for additional information.")
 				s.Events().Publish(server.TransferStatusEvent, "failure")
 				manager.Remove(func(match *server.Server) bool {
-					return match.Id() == s.Id()
+					return match.ID() == s.ID()
 				})
 
 				// If the transfer status was successful but the request failed, act like the transfer failed.

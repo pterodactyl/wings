@@ -9,6 +9,7 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/mitchellh/colorstring"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/system"
 )

@@ -15,9 +15,10 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/icza/dyno"
 	"github.com/magiconair/properties"
-	"github.com/pterodactyl/wings/config"
 	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v2"
+
+	"github.com/pterodactyl/wings/config"
 )
 
 // The file parsing options that are available for a server configuration file.

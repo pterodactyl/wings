@@ -62,7 +62,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 	ignored := b.Ignored()
 	if b.Ignored() == "" {
 		if i, err := s.getServerwideIgnoredFiles(); err != nil {
-			log.WithField("server", s.Id()).WithField("error", err).Warn("failed to get server-wide ignored files")
+			log.WithField("server", s.ID()).WithField("error", err).Warn("failed to get server-wide ignored files")
 		} else {
 			ignored = i
 		}
