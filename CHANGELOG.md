@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.4.6
+### Fixed
+* Environment variable starting with the same prefix no longer get merged into a single environment variable value (skipping all but the first).
+* The `start_on_completion` flag for server installs will now properly start the server.
+* Fixes socket files unintentionally causing backups to be aborted.
+* Files extracted from a backup now have their preior mode properly set on the restored files, rather than defaulting to 0644.
+* Fixes logrotate issues due to a bad user configuration on some systems.
+
+### Updated
+* The minimum Go version required to compile Wings is now `go1.16`.
+
+### Deprecated
+> Both of these deprecations will be removed in `Wings@2.0.0`.
+
+* The `Server.Id()` method has been deprecated in favor of `Server.ID()`.
+* The `directory` field on the `/api/servers/:server/files/pull` endpoint is deprecated and should be updated to use `root` instead for consistency with other endpoints.
+
 ## v1.4.5
 ### Changed
 * Upped the process limit for a container from `256` to `512` in order to address edge-cases for some games that spawn a lot of processes.
