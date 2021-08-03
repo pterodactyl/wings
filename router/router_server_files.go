@@ -254,11 +254,18 @@ func getServerPullingFiles(c *gin.Context) {
 func postServerPullRemoteFile(c *gin.Context) {
 	s := ExtractServer(c)
 	var data struct {
-		RootPath string `binding:"required,omitempty" json:"root"`
-		URL      string `binding:"required" json:"url"`
+		// Deprecated
+		Directory string `binding:"required_without=RootPath,omitempty" json:"directory"`
+		RootPath  string `binding:"required_without=Directory,omitempty" json:"root"`
+		URL       string `binding:"required" json:"url"`
 	}
 	if err := c.BindJSON(&data); err != nil {
 		return
+	}
+
+	// Handle the deprecated Directory field in the struct until it is removed.
+	if data.Directory != "" && data.RootPath == "" {
+		data.RootPath = data.Directory
 	}
 
 	u, err := url.Parse(data.URL)
