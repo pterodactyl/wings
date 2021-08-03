@@ -99,6 +99,14 @@ func (s *Server) ID() string {
 	return s.Config().GetUuid()
 }
 
+// Id returns the UUID for the server instance. This function is deprecated
+// in favor of Server.ID().
+//
+// Deprecated
+func (s *Server) Id() string {
+	return s.ID()
+}
+
 // Cancels the context assigned to this server instance. Assuming background tasks
 // are using this server's context for things, all of the background tasks will be
 // stopped as a result.
