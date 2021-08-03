@@ -86,6 +86,24 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 		c.SkipEggScripts = v
 	}
 
+	if v, err := jsonparser.GetBoolean(data, "start_on_completion"); err != nil {
+		if err != jsonparser.KeyPathNotFoundError {
+			return errors.WithStack(err)
+		}
+	} else {
+		c.StartOnCompletion = v
+	}
+
+	if v, err := jsonparser.GetBoolean(data, "crash_detection_enabled"); err != nil {
+		if err != jsonparser.KeyPathNotFoundError {
+			return errors.WithStack(err)
+		}
+		// Enable crash detection by default.
+		c.CrashDetectionEnabled = true
+	} else {
+		c.CrashDetectionEnabled = v
+	}
+
 	// Environment and Mappings should be treated as a full update at all times, never a
 	// true patch, otherwise we can't know what we're passing along.
 	if src.EnvVars != nil && len(src.EnvVars) > 0 {
