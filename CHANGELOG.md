@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.7
+### Fixed
+* SFTP access is now properly denied if a server is suspended.
+* Correctly uses `start_on_completion` and `crash_detection_enabled` for servers.
+
 ## v1.4.6
 ### Fixed
 * Environment variable starting with the same prefix no longer get merged into a single environment variable value (skipping all but the first).
