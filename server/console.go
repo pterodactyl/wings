@@ -19,6 +19,8 @@ import (
 // a server.
 var appName string
 
+var appNameSync sync.Once
+
 var ErrTooMuchConsoleData = errors.New("console is outputting too much data")
 
 type ConsoleThrottler struct {
@@ -131,9 +133,9 @@ func (s *Server) Throttler() *ConsoleThrottler {
 // PublishConsoleOutputFromDaemon sends output to the server console formatted
 // to appear correctly as being sent from Wings.
 func (s *Server) PublishConsoleOutputFromDaemon(data string) {
-	if appName == "" {
+	appNameSync.Do(func() {
 		appName = config.Get().AppName
-	}
+	})
 	s.Events().Publish(
 		ConsoleOutputEvent,
 		colorstring.Color(fmt.Sprintf("[yellow][bold][%s Daemon]:[default] %s", appName, data)),
