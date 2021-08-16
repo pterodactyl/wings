@@ -1,16 +1,15 @@
 package router
 
 import (
-	"bytes"
 	"context"
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
-
 	"github.com/pterodactyl/wings/router/downloader"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
@@ -130,19 +129,26 @@ func postServerCommands(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Updates information about a server internally.
+// Updates information about a server internally. This endpoint is deprecated
+// and should not be used. Right now it just returns an immediate response to
+// the caller, and then triggers a background task to then re-sync the server
+// from the Panel.
+//
+// This is handled as it is now in order to avoid a breaking API change, even
+// though internally this is a whole new endpoint.
 func patchServer(c *gin.Context) {
 	s := ExtractServer(c)
 
-	buf := bytes.Buffer{}
-	buf.ReadFrom(c.Request.Body)
-
-	if err := s.UpdateDataStructure(buf.Bytes()); err != nil {
-		NewServerError(err, s).Abort(c)
-		return
-	}
-
-	s.SyncWithEnvironment()
+	go func(s *server.Server) {
+		// Give the Panel a few seconds to make sure the data is properly persisted to
+		// the database after this endpoint returns a successful response.
+		time.AfterFunc(time.Second * 2, func() {
+			s.Log().Debug("syncing server information in background after server PATCH request")
+			if err := s.Sync(); err != nil {
+				s.Log().WithField("error", err).Error("failed to sync in background after PATCH request")
+			}
+		})
+	}(s)
 
 	c.Status(http.StatusNoContent)
 }
