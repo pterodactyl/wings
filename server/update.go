@@ -58,6 +58,9 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 	// backfiring at some point, but until then...
 	c.Build = src.Build
 
+	// Yee haw.
+	c.Egg = src.Egg
+
 	// Mergo can't quite handle this boolean value correctly, so for now we'll just
 	// handle this edge case manually since none of the other data passed through in this
 	// request is going to be boolean. Allegedly.
