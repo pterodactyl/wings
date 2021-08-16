@@ -12,6 +12,7 @@ import (
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server"
@@ -62,7 +63,7 @@ func (re *RequestError) Abort(c *gin.Context, status int) {
 	// server triggered this error.
 	if s, ok := c.Get("server"); ok {
 		if s, ok := s.(*server.Server); ok {
-			event = event.WithField("server_id", s.Id())
+			event = event.WithField("server_id", s.ID())
 		}
 	}
 
@@ -262,14 +263,14 @@ func ServerExists() gin.HandlerFunc {
 		if c.Param("server") != "" {
 			manager := ExtractManager(c)
 			s = manager.Find(func(s *server.Server) bool {
-				return c.Param("server") == s.Id()
+				return c.Param("server") == s.ID()
 			})
 		}
 		if s == nil {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "The requested resource does not exist on this instance."})
 			return
 		}
-		c.Set("logger", ExtractLogger(c).WithField("server_id", s.Id()))
+		c.Set("logger", ExtractLogger(c).WithField("server_id", s.ID()))
 		c.Set("server", s)
 		c.Next()
 	}

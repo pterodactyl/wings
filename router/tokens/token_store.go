@@ -1,9 +1,10 @@
 package tokens
 
 import (
-	"github.com/patrickmn/go-cache"
 	"sync"
 	"time"
+
+	"github.com/patrickmn/go-cache"
 )
 
 type TokenStore struct {

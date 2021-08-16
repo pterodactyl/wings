@@ -12,7 +12,7 @@ type WebsocketBag struct {
 	conns map[uuid.UUID]*context.CancelFunc
 }
 
-// Returns the websocket bag which contains all of the currently open websocket connections
+// Websockets returns the websocket bag which contains all the currently open websocket connections
 // for the server instance.
 func (s *Server) Websockets() *WebsocketBag {
 	s.wsBagLocker.Lock()
@@ -25,7 +25,7 @@ func (s *Server) Websockets() *WebsocketBag {
 	return s.wsBag
 }
 
-// Adds a new websocket connection to the stack.
+// Push adds a new websocket connection to the end of the stack.
 func (w *WebsocketBag) Push(u uuid.UUID, cancel *context.CancelFunc) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -37,14 +37,14 @@ func (w *WebsocketBag) Push(u uuid.UUID, cancel *context.CancelFunc) {
 	w.conns[u] = cancel
 }
 
-// Removes a connection from the stack.
+// Remove removes a connection from the stack.
 func (w *WebsocketBag) Remove(u uuid.UUID) {
 	w.mu.Lock()
 	delete(w.conns, u)
 	w.mu.Unlock()
 }
 
-// Cancels all of the stored cancel functions which has the effect of disconnecting
+// CancelAll cancels all the stored cancel functions which has the effect of disconnecting
 // every listening websocket for the server.
 func (w *WebsocketBag) CancelAll() {
 	w.mu.Lock()

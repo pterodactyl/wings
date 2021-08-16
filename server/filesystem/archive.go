@@ -3,6 +3,7 @@ package filesystem
 import (
 	"archive/tar"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,8 +14,9 @@ import (
 	"github.com/juju/ratelimit"
 	"github.com/karrick/godirwalk"
 	"github.com/klauspost/pgzip"
+	ignore "github.com/sabhiram/go-gitignore"
+
 	"github.com/pterodactyl/wings/config"
-	"github.com/sabhiram/go-gitignore"
 )
 
 const memory = 4 * 1024
@@ -156,9 +158,15 @@ func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
 		return errors.WrapIff(err, "failed executing os.Lstat on '%s'", rp)
 	}
 
+	// Skip socket files as they are unsupported by archive/tar.
+	// Error will come from tar#FileInfoHeader: "archive/tar: sockets not supported"
+	if s.Mode()&fs.ModeSocket != 0 {
+		return nil
+	}
+
 	// Resolve the symlink target if the file is a symlink.
 	var target string
-	if s.Mode()&os.ModeSymlink != 0 {
+	if s.Mode()&fs.ModeSymlink != 0 {
 		// Read the target of the symlink. If there are any errors we will dump them out to
 		// the logs, but we're not going to stop the backup. There are far too many cases of
 		// symlinks causing all sorts of unnecessary pain in this process. Sucks to suck if
@@ -180,7 +188,7 @@ func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
 	}
 
 	// Fix the header name if the file is not a symlink.
-	if s.Mode()&os.ModeSymlink == 0 {
+	if s.Mode()&fs.ModeSymlink == 0 {
 		header.Name = rp
 	}
 

@@ -6,6 +6,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/buger/jsonparser"
 	"github.com/imdario/mergo"
+
 	"github.com/pterodactyl/wings/environment"
 )
 
@@ -25,7 +26,7 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 	// Don't allow obviously corrupted data to pass through into this function. If the UUID
 	// doesn't match something has gone wrong and the API is attempting to meld this server
 	// instance into a totally different one, which would be bad.
-	if src.Uuid != "" && s.Id() != "" && src.Uuid != s.Id() {
+	if src.Uuid != "" && s.ID() != "" && src.Uuid != s.ID() {
 		return errors.New("server/update: attempting to merge a data stack with an invalid UUID")
 	}
 
@@ -57,6 +58,9 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 	// backfiring at some point, but until then...
 	c.Build = src.Build
 
+	// Yee haw.
+	c.Egg = src.Egg
+
 	// Mergo can't quite handle this boolean value correctly, so for now we'll just
 	// handle this edge case manually since none of the other data passed through in this
 	// request is going to be boolean. Allegedly.
@@ -83,6 +87,24 @@ func (s *Server) UpdateDataStructure(data []byte) error {
 		}
 	} else {
 		c.SkipEggScripts = v
+	}
+
+	if v, err := jsonparser.GetBoolean(data, "start_on_completion"); err != nil {
+		if err != jsonparser.KeyPathNotFoundError {
+			return errors.WithStack(err)
+		}
+	} else {
+		c.StartOnCompletion = v
+	}
+
+	if v, err := jsonparser.GetBoolean(data, "crash_detection_enabled"); err != nil {
+		if err != jsonparser.KeyPathNotFoundError {
+			return errors.WithStack(err)
+		}
+		// Enable crash detection by default.
+		c.CrashDetectionEnabled = true
+	} else {
+		c.CrashDetectionEnabled = v
 	}
 
 	// Environment and Mappings should be treated as a full update at all times, never a

@@ -2,11 +2,14 @@ package router
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/router/middleware"
@@ -65,14 +68,30 @@ func postCreateServer(c *gin.Context) {
 	// cycle. If there are any errors they will be logged and communicated back
 	// to the Panel where a reinstall may take place.
 	go func(i *installer.Installer) {
-		err := i.Server().CreateEnvironment()
-		if err != nil {
+		if err := i.Server().CreateEnvironment(); err != nil {
 			i.Server().Log().WithField("error", err).Error("failed to create server environment during install process")
 			return
 		}
 
 		if err := i.Server().Install(false); err != nil {
 			log.WithFields(log.Fields{"server": i.Uuid(), "error": err}).Error("failed to run install process for server")
+			return
+		}
+
+		if i.Server().Config().StartOnCompletion {
+			log.WithField("server_id", i.Server().ID()).Debug("starting server after successful installation")
+			if err := i.Server().HandlePowerAction(server.PowerActionStart, 30); err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					log.WithFields(log.Fields{"server_id": i.Server().ID(), "action": "start"}).
+						Warn("could not acquire a lock while attempting to perform a power action")
+				} else {
+					log.WithFields(log.Fields{"server_id": i.Server().ID(), "action": "start", "error": err}).
+						Error("encountered error processing a server power action in the background")
+				}
+			}
+		} else {
+			log.WithField("server_id", i.Server().ID()).
+				Debug("skipping automatic start after successful server installation")
 		}
 	}(install)
 

@@ -30,7 +30,7 @@ func (e *EventBus) Publish(topic string, data string) {
 	// Some of our topics for the socket support passing a more specific namespace,
 	// such as "backup completed:1234" to indicate which specific backup was completed.
 	//
-	// In these cases, we still need to the send the event using the standard listener
+	// In these cases, we still need to send the event using the standard listener
 	// name of "backup completed".
 	if strings.Contains(topic, ":") {
 		parts := strings.SplitN(topic, ":", 2)
@@ -43,7 +43,7 @@ func (e *EventBus) Publish(topic string, data string) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	// Acquire a read lock and loop over all of the channels registered for the topic. This
+	// Acquire a read lock and loop over all the channels registered for the topic. This
 	// avoids a panic crash if the process tries to unregister the channel while this routine
 	// is running.
 	if cp, ok := e.pools[t]; ok {
@@ -65,7 +65,7 @@ func (e *EventBus) Publish(topic string, data string) {
 	}
 }
 
-// Publishes a JSON message to a given topic.
+// PublishJson publishes a JSON message to a given topic.
 func (e *EventBus) PublishJson(topic string, data interface{}) error {
 	b, err := json.Marshal(data)
 	if err != nil {
@@ -77,7 +77,7 @@ func (e *EventBus) PublishJson(topic string, data interface{}) error {
 	return nil
 }
 
-// Register a callback function that will be executed each time one of the events using the topic
+// On adds a callback function that will be executed each time one of the events using the topic
 // name is called.
 func (e *EventBus) On(topic string, callback *func(Event)) {
 	e.mu.Lock()
@@ -97,7 +97,7 @@ func (e *EventBus) On(topic string, callback *func(Event)) {
 	e.pools[topic].Add(callback)
 }
 
-// Removes an event listener from the bus.
+// Off removes an event listener from the bus.
 func (e *EventBus) Off(topic string, callback *func(Event)) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -107,7 +107,7 @@ func (e *EventBus) Off(topic string, callback *func(Event)) {
 	}
 }
 
-// Removes all of the event listeners that have been registered for any topic. Also stops the worker
+// Destroy removes all the event listeners that have been registered for any topic. Also stops the worker
 // pool to close that routine.
 func (e *EventBus) Destroy() {
 	e.mu.Lock()

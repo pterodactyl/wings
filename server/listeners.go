@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/apex/log"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
@@ -40,7 +41,7 @@ func (dsl *diskSpaceLimiter) Reset() {
 // 15 seconds, and terminate it forcefully if it does not stop.
 //
 // This function is only executed one time, so whenever a server is marked as booting the limiter
-// should be reset so it can properly be triggered as needed.
+// should be reset, so it can properly be triggered as needed.
 func (dsl *diskSpaceLimiter) Trigger() {
 	dsl.o.Do(func() {
 		dsl.server.PublishConsoleOutputFromDaemon("Server is exceeding the assigned disk space limit, stopping process now.")
@@ -50,7 +51,7 @@ func (dsl *diskSpaceLimiter) Trigger() {
 	})
 }
 
-// Adds all of the internal event listeners we want to use for a server. These listeners can only be
+// StartEventListeners adds all the internal event listeners we want to use for a server. These listeners can only be
 // removed by deleting the server as they should last for the duration of the process' lifetime.
 func (s *Server) StartEventListeners() {
 	console := func(e events.Event) {
@@ -106,15 +107,15 @@ func (s *Server) StartEventListeners() {
 	}
 
 	stats := func(e events.Event) {
-		st := new(environment.Stats)
-		if err := json.Unmarshal([]byte(e.Data), st); err != nil {
+		var st environment.Stats
+		if err := json.Unmarshal([]byte(e.Data), &st); err != nil {
 			s.Log().WithField("error", err).Warn("failed to unmarshal server environment stats")
 			return
 		}
 
 		// Update the server resource tracking object with the resources we got here.
 		s.resources.mu.Lock()
-		s.resources.Stats = *st
+		s.resources.Stats = st
 		s.resources.mu.Unlock()
 
 		// If there is no disk space available at this point, trigger the server disk limiter logic

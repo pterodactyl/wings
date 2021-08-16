@@ -1,9 +1,11 @@
 package tokens
 
 import (
-	"github.com/gbrlsnchs/jwt/v3"
-	"github.com/pterodactyl/wings/config"
 	"time"
+
+	"github.com/gbrlsnchs/jwt/v3"
+
+	"github.com/pterodactyl/wings/config"
 )
 
 type TokenData interface {

@@ -10,6 +10,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+
 	"github.com/pterodactyl/wings/router/downloader"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
@@ -195,7 +196,7 @@ func deleteServer(c *gin.Context) {
 	s.Websockets().CancelAll()
 
 	// Remove any pending remote file downloads for the server.
-	for _, dl := range downloader.ByServer(s.Id()) {
+	for _, dl := range downloader.ByServer(s.ID()) {
 		dl.Cancel()
 	}
 
@@ -220,7 +221,7 @@ func deleteServer(c *gin.Context) {
 	}(s.Filesystem().Path())
 
 	middleware.ExtractManager(c).Remove(func(server *server.Server) bool {
-		return server.Id() == s.Id()
+		return server.ID() == s.ID()
 	})
 
 	// Deallocate the reference to this server.

@@ -8,7 +8,7 @@ import (
 	"github.com/pterodactyl/wings/system"
 )
 
-// Defines the current resource usage for a given server instance. If a server is offline you
+// ResourceUsage defines the current resource usage for a given server instance. If a server is offline you
 // should obviously expect memory and CPU usage to be 0. However, disk will always be returned
 // since that is not dependent on the server being running to collect that data.
 type ResourceUsage struct {
@@ -26,7 +26,7 @@ type ResourceUsage struct {
 	Disk int64 `json:"disk_bytes"`
 }
 
-// Returns the current resource usage stats for the server instance. This returns
+// Proc returns the current resource usage stats for the server instance. This returns
 // a copy of the tracked resources, so making any changes to the response will not
 // have the desired outcome for you most likely.
 func (s *Server) Proc() ResourceUsage {
@@ -38,11 +38,12 @@ func (s *Server) Proc() ResourceUsage {
 	return s.resources
 }
 
-// Resets the usages values to zero, used when a server is stopped to ensure we don't hold
+// Reset resets the usages values to zero, used when a server is stopped to ensure we don't hold
 // onto any values incorrectly.
 func (ru *ResourceUsage) Reset() {
 	ru.mu.Lock()
 	defer ru.mu.Unlock()
+
 	ru.Memory = 0
 	ru.CpuAbsolute = 0
 	ru.Network.TxBytes = 0

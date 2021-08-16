@@ -2,9 +2,10 @@ package websocket
 
 import (
 	"context"
+	"time"
+
 	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/server"
-	"time"
 )
 
 // Checks the time to expiration on the JWT every 30 seconds until the token has

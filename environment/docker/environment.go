@@ -10,6 +10,7 @@ import (
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/remote"
@@ -21,7 +22,7 @@ type Metadata struct {
 	Stop  remote.ProcessStopConfiguration
 }
 
-// Ensure that the Docker environment is always implementing all of the methods
+// Ensure that the Docker environment is always implementing all the methods
 // from the base environment interface.
 var _ environment.ProcessEnvironment = (*Environment)(nil)
 

@@ -17,6 +17,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/remote"
@@ -88,7 +89,7 @@ func (s *Server) Reinstall() error {
 
 // Internal installation function used to simplify reporting back to the Panel.
 func (s *Server) internalInstall() error {
-	script, err := s.client.GetInstallationScript(s.Context(), s.Id())
+	script, err := s.client.GetInstallationScript(s.Context(), s.ID())
 	if err != nil {
 		return err
 	}
@@ -156,7 +157,7 @@ func (s *Server) SetRestoring(state bool) {
 
 // Removes the installer container for the server.
 func (ip *InstallationProcess) RemoveContainer() error {
-	err := ip.client.ContainerRemove(ip.context, ip.Server.Id()+"_installer", types.ContainerRemoveOptions{
+	err := ip.client.ContainerRemove(ip.context, ip.Server.ID()+"_installer", types.ContainerRemoveOptions{
 		RemoveVolumes: true,
 		Force:         true,
 	})
@@ -206,7 +207,7 @@ func (ip *InstallationProcess) Run() error {
 
 // Returns the location of the temporary data for the installation process.
 func (ip *InstallationProcess) tempDir() string {
-	return filepath.Join(os.TempDir(), "pterodactyl/", ip.Server.Id())
+	return filepath.Join(os.TempDir(), "pterodactyl/", ip.Server.ID())
 }
 
 // Writes the installation script to a temporary file on the host machine so that it
@@ -329,7 +330,7 @@ func (ip *InstallationProcess) BeforeExecute() error {
 
 // Returns the log path for the installation process.
 func (ip *InstallationProcess) GetLogPath() string {
-	return filepath.Join(config.Get().System.LogDirectory, "/install", ip.Server.Id()+".log")
+	return filepath.Join(config.Get().System.LogDirectory, "/install", ip.Server.ID()+".log")
 }
 
 // Cleans up after the execution of the installation process. This grabs the logs from the
@@ -365,7 +366,7 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 |
 | Details
 | ------------------------------
-  Server UUID:          {{.Server.Id}}
+  Server UUID:          {{.Server.ID}}
   Container Image:      {{.Script.ContainerImage}}
   Container Entrypoint: {{.Script.Entrypoint}}
 
@@ -469,7 +470,7 @@ func (ip *InstallationProcess) Execute() (string, error) {
 		}
 	}()
 
-	r, err := ip.client.ContainerCreate(ctx, conf, hostConf, nil, nil, ip.Server.Id()+"_installer")
+	r, err := ip.client.ContainerCreate(ctx, conf, hostConf, nil, nil, ip.Server.ID()+"_installer")
 	if err != nil {
 		return "", err
 	}
@@ -573,5 +574,5 @@ func (ip *InstallationProcess) resourceLimits() container.Resources {
 // server is. A boolean value of "true" means everything was successful, "false"
 // means something went wrong and the server must be deleted and re-created.
 func (s *Server) SyncInstallState(successful bool) error {
-	return s.client.SetInstallationStatus(s.Context(), s.Id(), successful)
+	return s.client.SetInstallationStatus(s.Context(), s.ID(), successful)
 }

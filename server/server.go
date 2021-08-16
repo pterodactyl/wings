@@ -11,6 +11,8 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/creasty/defaults"
+	"golang.org/x/sync/semaphore"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/environment/docker"
@@ -18,7 +20,6 @@ import (
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server/filesystem"
 	"github.com/pterodactyl/wings/system"
-	"golang.org/x/sync/semaphore"
 )
 
 // Server is the high level definition for a server instance being controlled
@@ -93,9 +94,17 @@ func New(client remote.Client) (*Server, error) {
 	return &s, nil
 }
 
-// Id returns the UUID for the server instance.
-func (s *Server) Id() string {
+// ID returns the UUID for the server instance.
+func (s *Server) ID() string {
 	return s.Config().GetUuid()
+}
+
+// Id returns the UUID for the server instance. This function is deprecated
+// in favor of Server.ID().
+//
+// Deprecated
+func (s *Server) Id() string {
+	return s.ID()
 }
 
 // Cancels the context assigned to this server instance. Assuming background tasks
@@ -129,7 +138,7 @@ eloop:
 	for k := range s.Config().EnvVars {
 		// Don't allow any environment variables that we have already set above.
 		for _, e := range out {
-			if strings.HasPrefix(e, strings.ToUpper(k)) {
+			if strings.HasPrefix(e, strings.ToUpper(k)+"=") {
 				continue eloop
 			}
 		}
@@ -141,7 +150,7 @@ eloop:
 }
 
 func (s *Server) Log() *log.Entry {
-	return log.WithField("server", s.Id())
+	return log.WithField("server", s.ID())
 }
 
 // Sync syncs the state of the server on the Panel with Wings. This ensures that
@@ -151,7 +160,7 @@ func (s *Server) Log() *log.Entry {
 // This also means mass actions can be performed against servers on the Panel
 // and they will automatically sync with Wings when the server is started.
 func (s *Server) Sync() error {
-	cfg, err := s.client.GetServerConfiguration(s.Context(), s.Id())
+	cfg, err := s.client.GetServerConfiguration(s.Context(), s.ID())
 	if err != nil {
 		if err := remote.AsRequestError(err); err != nil && err.StatusCode() == http.StatusNotFound {
 			return &serverDoesNotExist{}
@@ -246,7 +255,7 @@ func (s *Server) EnsureDataDirectoryExists() error {
 	return nil
 }
 
-// Sets the state of the server internally. This function handles crash detection as
+// OnStateChange sets the state of the server internally. This function handles crash detection as
 // well as reporting to event listeners for the server.
 func (s *Server) OnStateChange() {
 	prevState := s.resources.State.Load()
@@ -261,7 +270,7 @@ func (s *Server) OnStateChange() {
 		s.Events().Publish(StatusEvent, st)
 	}
 
-	// Reset the resource usage to 0 when the process fully stops so that all of the UI
+	// Reset the resource usage to 0 when the process fully stops so that all the UI
 	// views in the Panel correctly display 0.
 	if st == environment.ProcessOfflineState {
 		s.resources.Reset()
@@ -293,7 +302,7 @@ func (s *Server) OnStateChange() {
 }
 
 // IsRunning determines if the server state is running or not. This is different
-// than the environment state, it is simply the tracked state from this daemon
+// from the environment state, it is simply the tracked state from this daemon
 // instance, and not the response from Docker.
 func (s *Server) IsRunning() bool {
 	st := s.Environment.State()

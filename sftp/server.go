@@ -18,10 +18,11 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server"
-	"golang.org/x/crypto/ssh"
 )
 
 // Usernames all follow the same format, so don't even bother hitting the API if the username is not
@@ -132,7 +133,7 @@ func (c *SFTPServer) AcceptInbound(conn net.Conn, config *ssh.ServerConfig) {
 			if uuid == "" {
 				return false
 			}
-			return s.Id() == uuid
+			return s.ID() == uuid
 		})
 		if srv == nil {
 			continue
@@ -140,7 +141,7 @@ func (c *SFTPServer) AcceptInbound(conn net.Conn, config *ssh.ServerConfig) {
 
 		// Spin up a SFTP server instance for the authenticated user's server allowing
 		// them access to the underlying filesystem.
-		handler := sftp.NewRequestServer(channel, NewHandler(sconn, srv.Filesystem()).Handlers())
+		handler := sftp.NewRequestServer(channel, NewHandler(sconn, srv).Handlers())
 		if err := handler.Serve(); err == io.EOF {
 			handler.Close()
 		}

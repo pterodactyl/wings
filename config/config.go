@@ -21,8 +21,9 @@ import (
 	"github.com/cobaugh/osrelease"
 	"github.com/creasty/defaults"
 	"github.com/gbrlsnchs/jwt/v3"
-	"github.com/pterodactyl/wings/system"
 	"gopkg.in/yaml.v2"
+
+	"github.com/pterodactyl/wings/system"
 )
 
 const DefaultLocation = "/etc/pterodactyl/config.yml"
@@ -53,7 +54,7 @@ var _jwtAlgo *jwt.HMACSHA
 var _debugViaFlag bool
 
 // Locker specific to writing the configuration to the disk, this happens
-// in areas that might already be locked so we don't want to crash the process.
+// in areas that might already be locked, so we don't want to crash the process.
 var _writeLock sync.Mutex
 
 // SftpConfiguration defines the configuration of the internal SFTP server.
@@ -394,7 +395,7 @@ func EnsurePterodactylUser() error {
 	}
 
 	// Our way of detecting if wings is running inside of Docker.
-	if sysName == "busybox" {
+	if sysName == "distroless" {
 		_config.System.Username = system.FirstNotEmpty(os.Getenv("WINGS_USERNAME"), "pterodactyl")
 		_config.System.User.Uid = system.MustInt(system.FirstNotEmpty(os.Getenv("WINGS_UID"), "988"))
 		_config.System.User.Gid = system.MustInt(system.FirstNotEmpty(os.Getenv("WINGS_GID"), "988"))
@@ -538,8 +539,7 @@ func EnableLogRotation() error {
 	}
 	defer f.Close()
 
-	t, err := template.New("logrotate").Parse(`
-{{.LogDirectory}}/wings.log {
+	t, err := template.New("logrotate").Parse(`{{.LogDirectory}}/wings.log {
     size 10M
     compress
     delaycompress
@@ -547,9 +547,8 @@ func EnableLogRotation() error {
     maxage 7
     missingok
     notifempty
-    create 0640 {{.User.Uid}} {{.User.Gid}}
     postrotate
-        killall -SIGHUP wings
+        /usr/bin/systemctl kill -s HUP wings.service >/dev/null 2>&1 || true
     endscript
 }`)
 	if err != nil {

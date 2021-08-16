@@ -2,8 +2,7 @@ name: Publish Docker Image
 on:
   push:
     branches:
-      - 'develop'
-
+      - develop
     tags:
       - 'v*'
 jobs:
@@ -44,6 +43,7 @@ jobs:
           build-args: |
             VERSION=${{ steps.build_info.outputs.version_tag }}
           labels: ${{ steps.docker_meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.docker_meta.outputs.tags }}
       - name: Release Development Build
@@ -53,5 +53,6 @@ jobs:
           build-args: |
             VERSION=dev-${{ steps.build_info.outputs.short_sha }}
           labels: ${{ steps.docker_meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta.outputs.tags }}

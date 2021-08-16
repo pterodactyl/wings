@@ -9,6 +9,7 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/mitchellh/colorstring"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/system"
 )
@@ -17,6 +18,8 @@ import (
 // the configuration every time we need to send output along to the websocket for
 // a server.
 var appName string
+
+var appNameSync sync.Once
 
 var ErrTooMuchConsoleData = errors.New("console is outputting too much data")
 
@@ -130,9 +133,9 @@ func (s *Server) Throttler() *ConsoleThrottler {
 // PublishConsoleOutputFromDaemon sends output to the server console formatted
 // to appear correctly as being sent from Wings.
 func (s *Server) PublishConsoleOutputFromDaemon(data string) {
-	if appName == "" {
+	appNameSync.Do(func() {
 		appName = config.Get().AppName
-	}
+	})
 	s.Events().Publish(
 		ConsoleOutputEvent,
 		colorstring.Color(fmt.Sprintf("[yellow][bold][%s Daemon]:[default] %s", appName, data)),

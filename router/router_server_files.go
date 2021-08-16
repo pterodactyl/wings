@@ -16,12 +16,13 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/pterodactyl/wings/router/downloader"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
-	"golang.org/x/sync/errgroup"
 )
 
 // getServerFileContents returns the contents of a file on the server.
@@ -245,7 +246,7 @@ func postServerWriteFile(c *gin.Context) {
 func getServerPullingFiles(c *gin.Context) {
 	s := ExtractServer(c)
 	c.JSON(http.StatusOK, gin.H{
-		"downloads": downloader.ByServer(s.Id()),
+		"downloads": downloader.ByServer(s.ID()),
 	})
 }
 
@@ -253,11 +254,18 @@ func getServerPullingFiles(c *gin.Context) {
 func postServerPullRemoteFile(c *gin.Context) {
 	s := ExtractServer(c)
 	var data struct {
+		// Deprecated
+		Directory string `binding:"required_without=RootPath,omitempty" json:"directory"`
+		RootPath  string `binding:"required_without=Directory,omitempty" json:"root"`
 		URL       string `binding:"required" json:"url"`
-		Directory string `binding:"required,omitempty" json:"directory"`
 	}
 	if err := c.BindJSON(&data); err != nil {
 		return
+	}
+
+	// Handle the deprecated Directory field in the struct until it is removed.
+	if data.Directory != "" && data.RootPath == "" {
+		data.RootPath = data.Directory
 	}
 
 	u, err := url.Parse(data.URL)
@@ -277,7 +285,7 @@ func postServerPullRemoteFile(c *gin.Context) {
 		return
 	}
 	// Do not allow more than three simultaneous remote file downloads at one time.
-	if len(downloader.ByServer(s.Id())) >= 3 {
+	if len(downloader.ByServer(s.ID())) >= 3 {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error": "This server has reached its limit of 3 simultaneous remote file downloads at once. Please wait for one to complete before trying again.",
 		})
@@ -285,11 +293,11 @@ func postServerPullRemoteFile(c *gin.Context) {
 	}
 
 	dl := downloader.New(s, downloader.DownloadRequest{
+		Directory: data.RootPath,
 		URL:       u,
-		Directory: data.Directory,
 	})
 
-	// Execute this pull in a seperate thread since it may take a long time to complete.
+	// Execute this pull in a separate thread since it may take a long time to complete.
 	go func() {
 		s.Log().WithField("download_id", dl.Identifier).WithField("url", u.String()).Info("starting pull of remote file to disk")
 		if err := dl.Execute(); err != nil {

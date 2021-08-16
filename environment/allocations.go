@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/docker/go-connections/nat"
+
 	"github.com/pterodactyl/wings/config"
 )
 
@@ -19,7 +20,7 @@ type Allocations struct {
 		Port int    `json:"port"`
 	} `json:"default"`
 
-	// Mappings contains all of the ports that should be assigned to a given server
+	// Mappings contains all the ports that should be assigned to a given server
 	// attached to the IP they correspond to.
 	Mappings map[string][]int `json:"mappings"`
 }
@@ -62,7 +63,7 @@ func (a *Allocations) DockerBindings() nat.PortMap {
 	iface := config.Get().Docker.Network.Interface
 
 	out := a.Bindings()
-	// Loop over all of the bindings for this container, and convert any that reference 127.0.0.1
+	// Loop over all the bindings for this container, and convert any that reference 127.0.0.1
 	// to use the pterodactyl0 network interface IP, as that is the true local for what people are
 	// trying to do when creating servers.
 	for p, binds := range out {
