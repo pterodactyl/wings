@@ -3,6 +3,7 @@ package parser
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -57,17 +58,22 @@ func (cv *ReplaceValue) Type() jsonparser.ValueType {
 // handle casting the UTF-8 sequence into the expected value, switching something
 // like "\u00a7Foo" into "§Foo".
 func (cv *ReplaceValue) String() string {
-	if cv.Type() != jsonparser.String {
-		if cv.Type() == jsonparser.Null {
-			return "<nil>"
+	switch cv.Type() {
+	case jsonparser.String:
+		str, err := jsonparser.ParseString(cv.value)
+		if err != nil {
+			panic(errors.Wrap(err, "parser: could not parse value"))
 		}
+		return str
+	case jsonparser.Null:
+		return "<nil>"
+	case jsonparser.Boolean:
+		return string(cv.value)
+	case jsonparser.Number:
+		return string(cv.value)
+	default:
 		return "<invalid>"
 	}
-	str, err := jsonparser.ParseString(cv.value)
-	if err != nil {
-		panic(errors.Wrap(err, "parser: could not parse value"))
-	}
-	return str
 }
 
 type ConfigurationParser string
