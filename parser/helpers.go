@@ -48,19 +48,19 @@ func readFileBytes(path string) ([]byte, error) {
 }
 
 // Gets the value of a key based on the value type defined.
-func (cfr *ConfigurationFileReplacement) getKeyValue(value []byte) interface{} {
+func (cfr *ConfigurationFileReplacement) getKeyValue(value string) interface{} {
 	if cfr.ReplaceWith.Type() == jsonparser.Boolean {
-		v, _ := strconv.ParseBool(string(value))
+		v, _ := strconv.ParseBool(value)
 		return v
 	}
 
 	// Try to parse into an int, if this fails just ignore the error and continue
 	// through, returning the string.
-	if v, err := strconv.Atoi(string(value)); err == nil {
+	if v, err := strconv.Atoi(value); err == nil {
 		return v
 	}
 
-	return string(value)
+	return value
 }
 
 // Iterate over an unstructured JSON/YAML/etc. interface and set all of the required
@@ -97,7 +97,7 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 			// If the child is a null value, nothing will happen. Seems reasonable as of the
 			// time this code is being written.
 			for _, child := range parsed.Path(strings.Trim(parts[0], ".")).Children() {
-				if err := v.SetAtPathway(child, strings.Trim(parts[1], "."), []byte(value)); err != nil {
+				if err := v.SetAtPathway(child, strings.Trim(parts[1], "."), value); err != nil {
 					if errors.Is(err, gabs.ErrNotFound) {
 						continue
 					}
@@ -106,7 +106,7 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 				}
 			}
 		} else {
-			if err = v.SetAtPathway(parsed, v.Match, []byte(value)); err != nil {
+			if err = v.SetAtPathway(parsed, v.Match, value); err != nil {
 				if errors.Is(err, gabs.ErrNotFound) {
 					continue
 				}
@@ -196,13 +196,13 @@ func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
 
 // Sets the value at a specific pathway, but checks if we were looking for a specific
 // value or not before doing it.
-func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path string, value []byte) error {
+func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path string, value string) error {
 	if cfr.IfValue == "" {
 		return setValueAtPath(c, path, cfr.getKeyValue(value))
 	}
 
 	// If this is a regex based matching, we need to get a little more creative since
-	// we're only going to replacing part of the string, and not the whole thing.
+	// we're only going to replace part of the string, and not the whole thing.
 	if c.ExistsP(path) && strings.HasPrefix(cfr.IfValue, "regex:") {
 		// We're doing some regex here.
 		r, err := regexp.Compile(strings.TrimPrefix(cfr.IfValue, "regex:"))
@@ -215,9 +215,9 @@ func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path st
 
 		// If the path exists and there is a regex match, go ahead and attempt the replacement
 		// using the value we got from the key. This will only replace the one match.
-		v := strings.Trim(string(c.Path(path).Bytes()), "\"")
+		v := strings.Trim(c.Path(path).String(), "\"")
 		if r.Match([]byte(v)) {
-			return setValueAtPath(c, path, r.ReplaceAllString(v, string(value)))
+			return setValueAtPath(c, path, r.ReplaceAllString(v, value))
 		}
 
 		return nil
