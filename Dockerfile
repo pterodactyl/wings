@@ -1,5 +1,5 @@
 # Stage 1 (Build)
-FROM --platform=$BUILDPLATFORM golang:1.16-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.17-alpine AS builder
 
 ARG VERSION
 RUN apk add --update --no-cache git make upx
