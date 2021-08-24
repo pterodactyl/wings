@@ -101,18 +101,17 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 					if errors.Is(err, gabs.ErrNotFound) {
 						continue
 					}
-
 					return nil, errors.WithMessage(err, "failed to set config value of array child")
 				}
 			}
-		} else {
-			if err = v.SetAtPathway(parsed, v.Match, value); err != nil {
-				if errors.Is(err, gabs.ErrNotFound) {
-					continue
-				}
+			continue
+		}
 
-				return nil, errors.WithMessage(err, "unable to set config value at pathway: "+v.Match)
+		if err := v.SetAtPathway(parsed, v.Match, value); err != nil {
+			if errors.Is(err, gabs.ErrNotFound) {
+				continue
 			}
+			return nil, errors.WithMessage(err, "unable to set config value at pathway: "+v.Match)
 		}
 	}
 
@@ -132,13 +131,10 @@ func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
 	var err error
 
 	matches := checkForArrayElement.FindStringSubmatch(path)
-	if len(matches) < 3 {
-		// Only update the value if the pathway actually exists in the configuration, otherwise
-		// do nothing.
-		if c.ExistsP(path) {
-			_, err = c.SetP(value, path)
-		}
 
+	// Check if we are **NOT** updating an array element.
+	if len(matches) < 3 {
+		_, err = c.SetP(value, path)
 		return err
 	}
 
@@ -201,27 +197,29 @@ func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path st
 		return setValueAtPath(c, path, cfr.getKeyValue(value))
 	}
 
-	// If this is a regex based matching, we need to get a little more creative since
-	// we're only going to replace part of the string, and not the whole thing.
-	if c.ExistsP(path) && strings.HasPrefix(cfr.IfValue, "regex:") {
-		// We're doing some regex here.
+	// Check if we are replacing instead of overwriting.
+	if strings.HasPrefix(cfr.IfValue, "regex:") {
+		// Doing a regex replacement requires an existing value.
+		// TODO: Do we try passing an empty string to the regex?
+		if c.ExistsP(path) {
+			return gabs.ErrNotFound
+		}
+
 		r, err := regexp.Compile(strings.TrimPrefix(cfr.IfValue, "regex:"))
 		if err != nil {
 			log.WithFields(log.Fields{"if_value": strings.TrimPrefix(cfr.IfValue, "regex:"), "error": err}).
 				Warn("configuration if_value using invalid regexp, cannot perform replacement")
-
 			return nil
 		}
 
-		// If the path exists and there is a regex match, go ahead and attempt the replacement
-		// using the value we got from the key. This will only replace the one match.
 		v := strings.Trim(c.Path(path).String(), "\"")
 		if r.Match([]byte(v)) {
 			return setValueAtPath(c, path, r.ReplaceAllString(v, value))
 		}
-
 		return nil
-	} else if !c.ExistsP(path) || (c.ExistsP(path) && !bytes.Equal(c.Bytes(), []byte(cfr.IfValue))) {
+	}
+
+	if c.ExistsP(path) && !bytes.Equal(c.Bytes(), []byte(cfr.IfValue)) {
 		return nil
 	}
 
