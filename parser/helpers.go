@@ -48,19 +48,19 @@ func readFileBytes(path string) ([]byte, error) {
 }
 
 // Gets the value of a key based on the value type defined.
-func (cfr *ConfigurationFileReplacement) getKeyValue(value []byte) interface{} {
+func (cfr *ConfigurationFileReplacement) getKeyValue(value string) interface{} {
 	if cfr.ReplaceWith.Type() == jsonparser.Boolean {
-		v, _ := strconv.ParseBool(string(value))
+		v, _ := strconv.ParseBool(value)
 		return v
 	}
 
 	// Try to parse into an int, if this fails just ignore the error and continue
 	// through, returning the string.
-	if v, err := strconv.Atoi(string(value)); err == nil {
+	if v, err := strconv.Atoi(value); err == nil {
 		return v
 	}
 
-	return string(value)
+	return value
 }
 
 // Iterate over an unstructured JSON/YAML/etc. interface and set all of the required
@@ -97,22 +97,21 @@ func (f *ConfigurationFile) IterateOverJson(data []byte) (*gabs.Container, error
 			// If the child is a null value, nothing will happen. Seems reasonable as of the
 			// time this code is being written.
 			for _, child := range parsed.Path(strings.Trim(parts[0], ".")).Children() {
-				if err := v.SetAtPathway(child, strings.Trim(parts[1], "."), []byte(value)); err != nil {
+				if err := v.SetAtPathway(child, strings.Trim(parts[1], "."), value); err != nil {
 					if errors.Is(err, gabs.ErrNotFound) {
 						continue
 					}
-
 					return nil, errors.WithMessage(err, "failed to set config value of array child")
 				}
 			}
-		} else {
-			if err = v.SetAtPathway(parsed, v.Match, []byte(value)); err != nil {
-				if errors.Is(err, gabs.ErrNotFound) {
-					continue
-				}
+			continue
+		}
 
-				return nil, errors.WithMessage(err, "unable to set config value at pathway: "+v.Match)
+		if err := v.SetAtPathway(parsed, v.Match, value); err != nil {
+			if errors.Is(err, gabs.ErrNotFound) {
+				continue
 			}
+			return nil, errors.WithMessage(err, "unable to set config value at pathway: "+v.Match)
 		}
 	}
 
@@ -132,13 +131,10 @@ func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
 	var err error
 
 	matches := checkForArrayElement.FindStringSubmatch(path)
-	if len(matches) < 3 {
-		// Only update the value if the pathway actually exists in the configuration, otherwise
-		// do nothing.
-		if c.ExistsP(path) {
-			_, err = c.SetP(value, path)
-		}
 
+	// Check if we are **NOT** updating an array element.
+	if len(matches) < 3 {
+		_, err = c.SetP(value, path)
 		return err
 	}
 
@@ -196,32 +192,34 @@ func setValueAtPath(c *gabs.Container, path string, value interface{}) error {
 
 // Sets the value at a specific pathway, but checks if we were looking for a specific
 // value or not before doing it.
-func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path string, value []byte) error {
+func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path string, value string) error {
 	if cfr.IfValue == "" {
 		return setValueAtPath(c, path, cfr.getKeyValue(value))
 	}
 
-	// If this is a regex based matching, we need to get a little more creative since
-	// we're only going to replacing part of the string, and not the whole thing.
-	if c.ExistsP(path) && strings.HasPrefix(cfr.IfValue, "regex:") {
-		// We're doing some regex here.
+	// Check if we are replacing instead of overwriting.
+	if strings.HasPrefix(cfr.IfValue, "regex:") {
+		// Doing a regex replacement requires an existing value.
+		// TODO: Do we try passing an empty string to the regex?
+		if c.ExistsP(path) {
+			return gabs.ErrNotFound
+		}
+
 		r, err := regexp.Compile(strings.TrimPrefix(cfr.IfValue, "regex:"))
 		if err != nil {
 			log.WithFields(log.Fields{"if_value": strings.TrimPrefix(cfr.IfValue, "regex:"), "error": err}).
 				Warn("configuration if_value using invalid regexp, cannot perform replacement")
-
 			return nil
 		}
 
-		// If the path exists and there is a regex match, go ahead and attempt the replacement
-		// using the value we got from the key. This will only replace the one match.
-		v := strings.Trim(string(c.Path(path).Bytes()), "\"")
+		v := strings.Trim(c.Path(path).String(), "\"")
 		if r.Match([]byte(v)) {
-			return setValueAtPath(c, path, r.ReplaceAllString(v, string(value)))
+			return setValueAtPath(c, path, r.ReplaceAllString(v, value))
 		}
-
 		return nil
-	} else if !c.ExistsP(path) || (c.ExistsP(path) && !bytes.Equal(c.Bytes(), []byte(cfr.IfValue))) {
+	}
+
+	if c.ExistsP(path) && !bytes.Equal(c.Bytes(), []byte(cfr.IfValue)) {
 		return nil
 	}
 
