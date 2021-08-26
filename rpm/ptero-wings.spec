@@ -49,7 +49,9 @@ WorkingDirectory=/etc/pterodactyl
 ExecStart=/usr/bin/wings
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
-LimitNOFILE=4096
+StartLimitInterval=180
+StartLimitBurst=30
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
