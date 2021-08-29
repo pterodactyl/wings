@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.5.0
+### Fixed
+* Fixes a race condition when setting the application name in the console output for a server.
+* Fixes a server being reinstalled causing the `file_denylist` parameter for an Egg to be ignored until Wings is restarted.
+* Fixes YAML file parser not correctly setting boolean values.
+
+### Added
+* Exposes `8080` in the default Docker setup to better support proxy tools.
+
+### Changed
+* Releases are now built using `Go 1.17` — the minimum version required to build Wings remains `Go 1.16`.
+* Simplifed the logic powering server updates to only pull information from the Panel rather than trying to accept updated values. All parts of Wings needing the most up-to-date server details should call `Server#Sync()` to fetch the latest stored build information.
+
+### Removed
+* Removes the `PATCH /api/servers/:server` endpoint — if you were previously using this API call it should be replaced with `POST /api/servers/:server/sync`.
+
 ## v1.4.7
 ### Fixed
 * SFTP access is now properly denied if a server is suspended.
