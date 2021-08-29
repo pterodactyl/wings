@@ -12,6 +12,7 @@
 ### Changed
 * Releases are now built using `Go 1.17` — the minimum version required to build Wings remains `Go 1.16`.
 * Simplifed the logic powering server updates to only pull information from the Panel rather than trying to accept updated values. All parts of Wings needing the most up-to-date server details should call `Server#Sync()` to fetch the latest stored build information.
+* `Installer#New()` no longer requires passing all of the server data as a byte slice, rather a new `Installer#ServerDetails` struct is exposed which can be passed and accepts a UUID and if the server should be started after the installer finishes.
 
 ### Removed
 * Removes complicated (and unused) logic during the server installation process that was a hold-over from legacy Wings architectures.
