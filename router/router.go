@@ -6,11 +6,11 @@ import (
 
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/router/middleware"
-	"github.com/pterodactyl/wings/server"
+	wserver "github.com/pterodactyl/wings/server"
 )
 
 // Configure configures the routing infrastructure for this daemon instance.
-func Configure(m *server.Manager, client remote.Client) *gin.Engine {
+func Configure(m *wserver.Manager, client remote.Client) *gin.Engine {
 	gin.SetMode("release")
 
 	router := gin.New()
@@ -63,7 +63,6 @@ func Configure(m *server.Manager, client remote.Client) *gin.Engine {
 	server.Use(middleware.RequireAuthorization(), middleware.ServerExists())
 	{
 		server.GET("", getServer)
-		server.PATCH("", patchServer)
 		server.DELETE("", deleteServer)
 
 		server.GET("/logs", getServerLogs)
@@ -71,6 +70,7 @@ func Configure(m *server.Manager, client remote.Client) *gin.Engine {
 		server.POST("/commands", postServerCommands)
 		server.POST("/install", postServerInstall)
 		server.POST("/reinstall", postServerReinstall)
+		server.POST("/sync", postServerSync)
 		server.POST("/ws/deny", postServerDenyWSTokens)
 
 		// This archive request causes the archive to start being created

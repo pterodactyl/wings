@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -129,28 +128,18 @@ func postServerCommands(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Updates information about a server internally. This endpoint is deprecated
-// and should not be used. Right now it just returns an immediate response to
-// the caller, and then triggers a background task to then re-sync the server
-// from the Panel.
-//
-// This is handled as it is now in order to avoid a breaking API change, even
-// though internally this is a whole new endpoint.
-func patchServer(c *gin.Context) {
+// postServerSync will accept a POST request and trigger a re-sync of the given
+// server against the Panel. This can be manually triggered when needed by an
+// external system, or triggered by the Panel itself when modifications are made
+// to the build of a server internally.
+func postServerSync(c *gin.Context) {
 	s := ExtractServer(c)
 
-	go func(s *server.Server) {
-		// Give the Panel a few seconds to make sure the data is properly persisted to
-		// the database after this endpoint returns a successful response.
-		time.AfterFunc(time.Second * 2, func() {
-			s.Log().Debug("syncing server information in background after server PATCH request")
-			if err := s.Sync(); err != nil {
-				s.Log().WithField("error", err).Error("failed to sync in background after PATCH request")
-			}
-		})
-	}(s)
-
-	c.Status(http.StatusNoContent)
+	if err := s.Sync(); err != nil {
+		WithError(c, err)
+	} else {
+		c.Status(http.StatusNoContent)
+	}
 }
 
 // Performs a server installation in a background thread.
