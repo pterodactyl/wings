@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
-	"github.com/pterodactyl/wings/environment/docker"
 	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server/filesystem"
@@ -167,30 +167,47 @@ func (s *Server) Sync() error {
 		}
 		return errors.WithStackIf(err)
 	}
-	return s.SyncWithConfiguration(cfg)
+
+	if err := s.SyncWithConfiguration(cfg); err != nil {
+		return errors.WithStackIf(err)
+	}
+
+	// Update the disk space limits for the server whenever the configuration for
+	// it changes.
+	s.fs.SetDiskLimit(s.DiskSpace())
+
+	s.SyncWithEnvironment()
+
+	return nil
 }
 
+// SyncWithConfiguration accepts a configuration object for a server and will
+// sync all of the values with the existing server state. This only replaces the
+// existing configuration and process configuration for the server. The
+// underlying environment will not be affected. This is because this function
+// can be called from scoped where the server may not be fully initialized,
+// therefore other things like the filesystem and environment may not exist yet.
 func (s *Server) SyncWithConfiguration(cfg remote.ServerConfigurationResponse) error {
-	// Update the data structure and persist it to the disk.
-	if err := s.UpdateDataStructure(cfg.Settings); err != nil {
-		return err
+	c := Configuration{}
+	if err := json.Unmarshal(cfg.Settings, &c); err != nil {
+		return errors.WithStackIf(err)
 	}
+
+	s.cfg.mu.Lock()
+	defer s.cfg.mu.Unlock()
+
+	// Lock the new configuration. Since we have the defered Unlock above we need
+	// to make sure that the NEW configuration object is already locked since that
+	// defer is running on the memory address for "s.cfg.mu" which we're explcitly
+	// changing on the next line.
+	c.mu.Lock()
+
+	//goland:noinspection GoVetCopyLock
+	s.cfg = c
 
 	s.Lock()
 	s.procConfig = cfg.ProcessConfiguration
 	s.Unlock()
-
-	// Update the disk space limits for the server whenever the configuration
-	// for it changes.
-	s.fs.SetDiskLimit(s.DiskSpace())
-
-	// If this is a Docker environment we need to sync the stop configuration with it so that
-	// the process isn't just terminated when a user requests it be stopped.
-	if e, ok := s.Environment.(*docker.Environment); ok {
-		s.Log().Debug("syncing stop configuration with configured docker environment")
-		e.SetImage(s.Config().Container.Image)
-		e.SetStopConfiguration(cfg.ProcessConfiguration.Stop)
-	}
 
 	return nil
 }

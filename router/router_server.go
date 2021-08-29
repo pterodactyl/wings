@@ -1,7 +1,6 @@
 package router
 
 import (
-	"bytes"
 	"context"
 	"net/http"
 	"os"
@@ -10,7 +9,6 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
-
 	"github.com/pterodactyl/wings/router/downloader"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
@@ -130,21 +128,18 @@ func postServerCommands(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Updates information about a server internally.
-func patchServer(c *gin.Context) {
+// postServerSync will accept a POST request and trigger a re-sync of the given
+// server against the Panel. This can be manually triggered when needed by an
+// external system, or triggered by the Panel itself when modifications are made
+// to the build of a server internally.
+func postServerSync(c *gin.Context) {
 	s := ExtractServer(c)
 
-	buf := bytes.Buffer{}
-	buf.ReadFrom(c.Request.Body)
-
-	if err := s.UpdateDataStructure(buf.Bytes()); err != nil {
-		NewServerError(err, s).Abort(c)
-		return
+	if err := s.Sync(); err != nil {
+		WithError(c, err)
+	} else {
+		c.Status(http.StatusNoContent)
 	}
-
-	s.SyncWithEnvironment()
-
-	c.Status(http.StatusNoContent)
 }
 
 // Performs a server installation in a background thread.
