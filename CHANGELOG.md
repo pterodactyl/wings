@@ -14,6 +14,7 @@
 * Simplifed the logic powering server updates to only pull information from the Panel rather than trying to accept updated values. All parts of Wings needing the most up-to-date server details should call `Server#Sync()` to fetch the latest stored build information.
 
 ### Removed
+* Removes complicated (and unused) logic during the server installation process that was a hold-over from legacy Wings architectures.
 * Removes the `PATCH /api/servers/:server` endpoint — if you were previously using this API call it should be replaced with `POST /api/servers/:server/sync`.
 
 ## v1.4.7

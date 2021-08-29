@@ -2,13 +2,11 @@ package installer
 
 import (
 	"context"
-	"encoding/json"
 
 	"emperror.dev/errors"
 	"github.com/asaskevich/govalidator"
 	"github.com/buger/jsonparser"
 
-	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server"
 )
@@ -21,53 +19,12 @@ type Installer struct {
 // have been passed along in the request. This should be manually run before
 // calling Execute().
 func New(ctx context.Context, manager *server.Manager, data []byte) (*Installer, error) {
-	if !govalidator.IsUUIDv4(getString(data, "uuid")) {
+	uuid := getString(data, "uuid")
+	if !govalidator.IsUUIDv4(uuid) {
 		return nil, NewValidationError("uuid provided was not in a valid format")
 	}
 
-	cfg := &server.Configuration{
-		Uuid:              getString(data, "uuid"),
-		Suspended:         false,
-		Invocation:        getString(data, "invocation"),
-		SkipEggScripts:    getBoolean(data, "skip_egg_scripts"),
-		StartOnCompletion: getBoolean(data, "start_on_completion"),
-		Build: environment.Limits{
-			MemoryLimit: getInt(data, "build", "memory"),
-			Swap:        getInt(data, "build", "swap"),
-			IoWeight:    uint16(getInt(data, "build", "io")),
-			CpuLimit:    getInt(data, "build", "cpu"),
-			DiskSpace:   getInt(data, "build", "disk"),
-			Threads:     getString(data, "build", "threads"),
-		},
-		CrashDetectionEnabled: true,
-	}
-
-	cfg.Allocations.DefaultMapping.Ip = getString(data, "allocations", "default", "ip")
-	cfg.Allocations.DefaultMapping.Port = int(getInt(data, "allocations", "default", "port"))
-
-	// Unmarshal the environment variables from the request into the server struct.
-	if b, _, _, err := jsonparser.Get(data, "environment"); err != nil {
-		return nil, errors.WithStackIf(err)
-	} else {
-		cfg.EnvVars = make(environment.Variables)
-		if err := json.Unmarshal(b, &cfg.EnvVars); err != nil {
-			return nil, errors.WrapIf(err, "installer: could not unmarshal environment variables for server")
-		}
-	}
-
-	// Unmarshal the allocation mappings from the request into the server struct.
-	if b, _, _, err := jsonparser.Get(data, "allocations", "mappings"); err != nil {
-		return nil, errors.WithStackIf(err)
-	} else {
-		cfg.Allocations.Mappings = make(map[string][]int)
-		if err := json.Unmarshal(b, &cfg.Allocations.Mappings); err != nil {
-			return nil, errors.Wrap(err, "installer: could not unmarshal allocation mappings")
-		}
-	}
-
-	cfg.Container.Image = getString(data, "container", "image")
-
-	c, err := manager.Client().GetServerConfiguration(ctx, cfg.Uuid)
+	c, err := manager.Client().GetServerConfiguration(ctx, uuid)
 	if err != nil {
 		if !remote.IsRequestError(err) {
 			return nil, errors.WithStackIf(err)
