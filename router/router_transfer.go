@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -47,10 +46,10 @@ type downloadProgress struct {
 
 // Data passed over to initiate a server transfer.
 type serverTransferRequest struct {
-	ServerID string          `binding:"required" json:"server_id"`
-	URL      string          `binding:"required" json:"url"`
-	Token    string          `binding:"required" json:"token"`
-	Server   json.RawMessage `json:"server"`
+	ServerID string                  `binding:"required" json:"server_id"`
+	URL      string                  `binding:"required" json:"url"`
+	Token    string                  `binding:"required" json:"token"`
+	Server   installer.ServerDetails `json:"server"`
 }
 
 func getArchivePath(sID string) string {

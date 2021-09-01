@@ -35,8 +35,6 @@ type Configuration struct {
 	// server, specific installation scripts will be skipped for the server process.
 	SkipEggScripts bool `json:"skip_egg_scripts"`
 
-	StartOnCompletion bool `json:"start_on_completion"`
-
 	// An array of environment variables that should be passed along to the running
 	// server process.
 	EnvVars environment.Variables `json:"environment"`

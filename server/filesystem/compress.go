@@ -136,6 +136,10 @@ func (fs *Filesystem) DecompressFile(dir string, file string) error {
 		if err := fs.Chmod(p, f.Mode()); err != nil {
 			return wrapError(err, source)
 		}
+		// Update the file modification time to the one set in the archive.
+		if err := fs.Chtimes(p, f.ModTime(), f.ModTime()); err != nil {
+			return wrapError(err, source)
+		}
 		return nil
 	})
 	if err != nil {

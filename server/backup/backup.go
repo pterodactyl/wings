@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -26,7 +27,7 @@ const (
 
 // RestoreCallback is a generic restoration callback that exists for both local
 // and remote backups allowing the files to be restored.
-type RestoreCallback func(file string, r io.Reader, mode fs.FileMode) error
+type RestoreCallback func(file string, r io.Reader, mode fs.FileMode, atime, mtime time.Time) error
 
 // noinspection GoNameStartsWithPackageName
 type BackupInterface interface {

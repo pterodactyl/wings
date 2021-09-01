@@ -172,8 +172,11 @@ func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, 
 	if err != nil {
 		return nil, err
 	}
-	if err := s.UpdateDataStructure(data.Settings); err != nil {
-		return nil, err
+
+	// Setup the base server configuration data which will be used for all of the
+	// remaining functionality in this call.
+	if err := s.SyncWithConfiguration(data); err != nil {
+		return nil, errors.WithStackIf(err)
 	}
 
 	s.fs = filesystem.New(filepath.Join(config.Get().System.Data, s.ID()), s.DiskSpace(), s.Config().Egg.FileDenylist)
@@ -198,11 +201,6 @@ func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, 
 		s.Environment = env
 		s.StartEventListeners()
 		s.Throttler().StartTimer(s.Context())
-	}
-
-	// Forces the configuration to be synced with the panel.
-	if err := s.SyncWithConfiguration(data); err != nil {
-		return nil, err
 	}
 
 	// If the server's data directory exists, force disk usage calculation.
