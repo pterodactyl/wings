@@ -528,3 +528,20 @@ func (fs *Filesystem) ListDirectory(p string) ([]Stat, error) {
 
 	return out, nil
 }
+
+func (fs *Filesystem) Chtimes(path string, atime, mtime time.Time) error {
+	cleaned, err := fs.SafePath(path)
+	if err != nil {
+		return err
+	}
+
+	if fs.isTest {
+		return nil
+	}
+
+	if err := os.Chtimes(cleaned, atime, mtime); err != nil {
+		return err
+	}
+
+	return nil
+}

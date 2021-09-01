@@ -116,7 +116,7 @@ func (s *S3Backup) Restore(ctx context.Context, r io.Reader, callback RestoreCal
 			return err
 		}
 		if header.Typeflag == tar.TypeReg {
-			if err := callback(header.Name, tr, header.FileInfo().Mode()); err != nil {
+			if err := callback(header.Name, tr, header.FileInfo().Mode(), header.AccessTime, header.ModTime); err != nil {
 				return err
 			}
 		}

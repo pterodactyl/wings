@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"os"
+	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -152,12 +153,15 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	// Attempt to restore the backup to the server by running through each entry
 	// in the file one at a time and writing them to the disk.
 	s.Log().Debug("starting file writing process for backup restoration")
-	err = b.Restore(s.Context(), reader, func(file string, r io.Reader, mode fs.FileMode) error {
+	err = b.Restore(s.Context(), reader, func(file string, r io.Reader, mode fs.FileMode, atime, mtime time.Time) error {
 		s.Events().Publish(DaemonMessageEvent, "(restoring): "+file)
 		if err := s.Filesystem().Writefile(file, r); err != nil {
 			return err
 		}
-		return s.Filesystem().Chmod(file, mode)
+		if err := s.Filesystem().Chmod(file, mode); err != nil {
+			return err
+		}
+		return s.Filesystem().Chtimes(file, atime, mtime)
 	})
 
 	return errors.WithStackIf(err)

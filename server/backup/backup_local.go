@@ -88,7 +88,7 @@ func (b *LocalBackup) Restore(ctx context.Context, _ io.Reader, callback Restore
 			if f.IsDir() {
 				return nil
 			}
-			return callback(filesystem.ExtractNameFromArchive(f), f, f.Mode())
+			return callback(filesystem.ExtractNameFromArchive(f), f, f.Mode(), f.ModTime(), f.ModTime())
 		}
 	})
 }
