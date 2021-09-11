@@ -17,16 +17,17 @@ import (
 	"github.com/pterodactyl/wings/remote"
 )
 
-// Run before the container starts and get the process configuration from the Panel.
-// This is important since we use this to check configuration files as well as ensure
-// we always have the latest version of an egg available for server processes.
+// OnBeforeStart run before the container starts and get the process
+// configuration from the Panel. This is important since we use this to check
+// configuration files as well as ensure we always have the latest version of
+// an egg available for server processes.
 //
-// This process will also confirm that the server environment exists and is in a bootable
-// state. This ensures that unexpected container deletion while Wings is running does
-// not result in the server becoming un-bootable.
-func (e *Environment) OnBeforeStart() error {
+// This process will also confirm that the server environment exists and is in
+// a bootable state. This ensures that unexpected container deletion while Wings
+// is running does not result in the server becoming un-bootable.
+func (e *Environment) OnBeforeStart(ctx context.Context) error {
 	// Always destroy and re-create the server container to ensure that synced data from the Panel is used.
-	if err := e.client.ContainerRemove(context.Background(), e.Id, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
+	if err := e.client.ContainerRemove(ctx, e.Id, types.ContainerRemoveOptions{RemoveVolumes: true}); err != nil {
 		if !client.IsErrNotFound(err) {
 			return errors.WrapIf(err, "environment/docker: failed to remove container during pre-boot")
 		}
@@ -46,10 +47,10 @@ func (e *Environment) OnBeforeStart() error {
 	return nil
 }
 
-// Starts the server environment and begins piping output to the event listeners for the
-// console. If a container does not exist, or needs to be rebuilt that will happen in the
-// call to OnBeforeStart().
-func (e *Environment) Start() error {
+// Start will start the server environment and begins piping output to the event
+// listeners for the console. If a container does not exist, or needs to be
+// rebuilt that will happen in the call to OnBeforeStart().
+func (e *Environment) Start(ctx context.Context) error {
 	sawError := false
 
 	// If sawError is set to true there was an error somewhere in the pipeline that
@@ -65,7 +66,7 @@ func (e *Environment) Start() error {
 		}
 	}()
 
-	if c, err := e.client.ContainerInspect(context.Background(), e.Id); err != nil {
+	if c, err := e.client.ContainerInspect(ctx, e.Id); err != nil {
 		// Do nothing if the container is not found, we just don't want to continue
 		// to the next block of code here. This check was inlined here to guard against
 		// a nil-pointer when checking c.State below.
@@ -79,7 +80,7 @@ func (e *Environment) Start() error {
 		if c.State.Running {
 			e.SetState(environment.ProcessRunningState)
 
-			return e.Attach()
+			return e.Attach(ctx)
 		}
 
 		// Truncate the log file, so we don't end up outputting a bunch of useless log information
@@ -101,21 +102,23 @@ func (e *Environment) Start() error {
 	// Run the before start function and wait for it to finish. This will validate that the container
 	// exists on the system, and rebuild the container if that is required for server booting to
 	// occur.
-	if err := e.OnBeforeStart(); err != nil {
+	if err := e.OnBeforeStart(ctx); err != nil {
 		return errors.WithStackIf(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	// If we cannot start & attach to the container in 30 seconds something has gone
+	// quite sideways and we should stop trying to avoid a hanging situation.
+	actx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
-	if err := e.client.ContainerStart(ctx, e.Id, types.ContainerStartOptions{}); err != nil {
+	if err := e.client.ContainerStart(actx, e.Id, types.ContainerStartOptions{}); err != nil {
 		return errors.WrapIf(err, "environment/docker: failed to start container")
 	}
 
 	// No errors, good to continue through.
 	sawError = false
 
-	return e.Attach()
+	return e.Attach(actx)
 }
 
 // Stop stops the container that the server is running in. This will allow up to

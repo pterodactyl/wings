@@ -45,7 +45,7 @@ func (nw noopWriter) Write(b []byte) (int, error) {
 // Calling this function will poll resources for the container in the background
 // until the provided context is canceled by the caller. Failure to cancel said
 // context will cause background memory leaks as the goroutine will not exit.
-func (e *Environment) Attach() error {
+func (e *Environment) Attach(ctx context.Context) error {
 	if e.IsAttached() {
 		return nil
 	}
@@ -62,14 +62,17 @@ func (e *Environment) Attach() error {
 	}
 
 	// Set the stream again with the container.
-	if st, err := e.client.ContainerAttach(context.Background(), e.Id, opts); err != nil {
+	if st, err := e.client.ContainerAttach(ctx, e.Id, opts); err != nil {
 		return err
 	} else {
 		e.SetStream(&st)
 	}
 
 	go func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		// Don't use the context provided to the function, that'll cause the polling to
+		// exit unexpectedly. We want a custom context for this, the one passed to the
+		// function is to avoid a hang situation when trying to attach to a container.
+		pollCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		defer e.stream.Close()
 		defer func() {
@@ -78,7 +81,7 @@ func (e *Environment) Attach() error {
 		}()
 
 		go func() {
-			if err := e.pollResources(ctx); err != nil {
+			if err := e.pollResources(pollCtx); err != nil {
 				if !errors.Is(err, context.Canceled) {
 					e.log().WithField("error", err).Error("error during environment resource polling")
 				} else {
