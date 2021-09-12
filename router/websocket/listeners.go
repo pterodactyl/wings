@@ -8,16 +8,14 @@ import (
 	"github.com/pterodactyl/wings/server"
 )
 
-// Checks the time to expiration on the JWT every 30 seconds until the token has
-// expired. If we are within 3 minutes of the token expiring, send a notice over
-// the socket that it is expiring soon. If it has expired, send that notice as well.
+// ListenForExpiration checks the time to expiration on the JWT every 30 seconds
+// until the token has expired. If we are within 3 minutes of the token expiring,
+// send a notice over the socket that it is expiring soon. If it has expired,
+// send that notice as well.
 func (h *Handler) ListenForExpiration(ctx context.Context) {
 	// Make a ticker and completion channel that is used to continuously poll the
 	// JWT stored in the session to send events to the socket when it is expiring.
 	ticker := time.NewTicker(time.Second * 30)
-
-	// Whenever this function is complete, end the ticker, close out the channel,
-	// and then close the websocket connection.
 	defer ticker.Stop()
 
 	for {
@@ -51,8 +49,9 @@ var e = []string{
 	server.TransferStatusEvent,
 }
 
-// Listens for different events happening on a server and sends them along
-// to the connected websocket.
+// ListenForServerEvents will listen for different events happening on a server
+// and send them along to the connected websocket client. This function will
+// block until the context provided to it is canceled.
 func (h *Handler) ListenForServerEvents(ctx context.Context) {
 	h.server.Log().Debug("listening for server events over websocket")
 	callback := func(e events.Event) {
@@ -67,13 +66,10 @@ func (h *Handler) ListenForServerEvents(ctx context.Context) {
 		h.server.Events().On(evt, &callback)
 	}
 
-	go func(ctx context.Context) {
-		select {
-		case <-ctx.Done():
-			// Once this context is stopped, de-register all of the listeners that have been registered.
-			for _, evt := range e {
-				h.server.Events().Off(evt, &callback)
-			}
-		}
-	}(ctx)
+	<-ctx.Done()
+	// Block until the context is stopped and then de-register all of the event listeners
+	// that we registered earlier.
+	for _, evt := range e {
+		h.server.Events().Off(evt, &callback)
+	}
 }
