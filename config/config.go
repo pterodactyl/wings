@@ -181,6 +181,9 @@ type SystemConfiguration struct {
 }
 
 type CrashDetection struct {
+	// Whether or not the CrashDetection is enabled for this instance.
+	CrashDetectionEnabled bool `default:"true" yaml:"crash_detection_enabled"`
+
 	// Determines if Wings should detect a server that stops with a normal exit code of
 	// "0" as being crashed if the process stopped without any Wings interaction. E.g.
 	// the user did not press the stop button, but the process stopped cleanly.
