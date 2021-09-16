@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.5.1
+### Added
+* Global configuration option for toggling server crash detection (`system.crash_detection.enabled`)
+* RPM specfile
+
 ## v1.5.0
 ### Fixed
 * Fixes a race condition when setting the application name in the console output for a server.
