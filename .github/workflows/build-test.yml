@@ -60,7 +60,7 @@ jobs:
         run: go test ./...
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
-        if: ${{ matrix.go == '^1.16' && (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') }}
+        if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
         with:
           name: wings_${{ matrix.goos }}_${{ matrix.goarch }}
           path: build/wings_${{ matrix.goos }}_${{ matrix.goarch }}

@@ -1,10 +1,18 @@
 # Changelog
 
+## v1.5.1
+### Added
+* Global configuration option for toggling server crash detection (`system.crash_detection.enabled`)
+* RPM specfile
+
 ## v1.5.0
 ### Fixed
 * Fixes a race condition when setting the application name in the console output for a server.
 * Fixes a server being reinstalled causing the `file_denylist` parameter for an Egg to be ignored until Wings is restarted.
 * Fixes YAML file parser not correctly setting boolean values.
+* Fixes potential issue where the underlying websocket connection is closed but the parent request context is not yet canceled causing a write over a closed connection.
+* Fixes race condition when closing all active websocket connections when a server is deleted.
+* Fixes logic to determine if a server's context is closed out and send a websocket close message to connected clients. Previously this fired off whenever the request itself was closed, and not when the server context was closed.
 
 ### Added
 * Exposes `8080` in the default Docker setup to better support proxy tools.

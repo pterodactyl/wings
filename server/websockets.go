@@ -44,11 +44,11 @@ func (w *WebsocketBag) Remove(u uuid.UUID) {
 	w.mu.Unlock()
 }
 
-// CancelAll cancels all the stored cancel functions which has the effect of disconnecting
-// every listening websocket for the server.
+// CancelAll cancels all the stored cancel functions which has the effect of
+// disconnecting every listening websocket for the server.
 func (w *WebsocketBag) CancelAll() {
 	w.mu.Lock()
-	w.mu.Unlock()
+	defer w.mu.Unlock()
 
 	if w.conns != nil {
 		for _, cancel := range w.conns {

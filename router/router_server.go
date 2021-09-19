@@ -101,7 +101,7 @@ func postServerPower(c *gin.Context) {
 func postServerCommands(c *gin.Context) {
 	s := ExtractServer(c)
 
-	if running, err := s.Environment.IsRunning(); err != nil {
+	if running, err := s.Environment.IsRunning(c.Request.Context()); err != nil {
 		NewServerError(err, s).Abort(c)
 		return
 	} else if !running {

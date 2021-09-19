@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -209,7 +210,17 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 				st = state
 			}
 
-			r, err := s.Environment.IsRunning()
+			// Use a timed context here to avoid booting issues where Docker hangs for a
+			// specific container that would cause Wings to be un-bootable until the entire
+			// machine is rebooted. It is much better for us to just have a single failed
+			// server instance than an entire offline node.
+			//
+			// @see https://github.com/pterodactyl/panel/issues/2475
+			// @see https://github.com/pterodactyl/panel/issues/3358
+			ctx, cancel := context.WithTimeout(cmd.Context(), time.Second * 30)
+			defer cancel()
+
+			r, err := s.Environment.IsRunning(ctx)
 			// We ignore missing containers because we don't want to actually block booting of wings at this
 			// point. If we didn't do this, and you pruned all the images and then started wings you could
 			// end up waiting a long period of time for all the images to be re-pulled on Wings boot rather
@@ -238,7 +249,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 				s.Log().Info("detected server is running, re-attaching to process...")
 
 				s.Environment.SetState(environment.ProcessRunningState)
-				if err := s.Environment.Attach(); err != nil {
+				if err := s.Environment.Attach(ctx); err != nil {
 					s.Log().WithField("error", err).Warn("failed to attach to running server environment")
 				}
 			} else {

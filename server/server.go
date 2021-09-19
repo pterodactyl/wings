@@ -188,7 +188,9 @@ func (s *Server) Sync() error {
 // can be called from scoped where the server may not be fully initialized,
 // therefore other things like the filesystem and environment may not exist yet.
 func (s *Server) SyncWithConfiguration(cfg remote.ServerConfigurationResponse) error {
-	c := Configuration{}
+	c := Configuration{
+		CrashDetectionEnabled: config.Get().System.CrashDetection.CrashDetectionEnabled,
+	}
 	if err := json.Unmarshal(cfg.Settings, &c); err != nil {
 		return errors.WithStackIf(err)
 	}
@@ -196,9 +198,9 @@ func (s *Server) SyncWithConfiguration(cfg remote.ServerConfigurationResponse) e
 	s.cfg.mu.Lock()
 	defer s.cfg.mu.Unlock()
 
-	// Lock the new configuration. Since we have the defered Unlock above we need
+	// Lock the new configuration. Since we have the deferred Unlock above we need
 	// to make sure that the NEW configuration object is already locked since that
-	// defer is running on the memory address for "s.cfg.mu" which we're explcitly
+	// defer is running on the memory address for "s.cfg.mu" which we're explicitly
 	// changing on the next line.
 	c.mu.Lock()
 
@@ -259,7 +261,7 @@ func (s *Server) EnsureDataDirectoryExists() error {
 	if _, err := os.Lstat(s.fs.Path()); err != nil {
 		if os.IsNotExist(err) {
 			s.Log().Debug("server: creating root directory and setting permissions")
-			if err := os.MkdirAll(s.fs.Path(), 0700); err != nil {
+			if err := os.MkdirAll(s.fs.Path(), 0o700); err != nil {
 				return errors.WithStack(err)
 			}
 			if err := s.fs.Chown("/"); err != nil {

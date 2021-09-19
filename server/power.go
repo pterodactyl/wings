@@ -128,7 +128,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 			return err
 		}
 
-		return s.Environment.Start()
+		return s.Environment.Start(s.Context())
 	case PowerActionStop:
 		// We're specifically waiting for the process to be stopped here, otherwise the lock is released
 		// too soon, and you can rack up all sorts of issues.
@@ -151,7 +151,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 			return err
 		}
 
-		return s.Environment.Start()
+		return s.Environment.Start(s.Context())
 	case PowerActionTerminate:
 		return s.Environment.Terminate(os.Kill)
 	}

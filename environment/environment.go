@@ -1,6 +1,7 @@
 package environment
 
 import (
+	"context"
 	"os"
 
 	"github.com/pterodactyl/wings/events"
@@ -41,9 +42,9 @@ type ProcessEnvironment interface {
 	// a basic CLI environment this can probably just return true right away.
 	Exists() (bool, error)
 
-	// Determines if the environment is currently active and running a server process
-	// for this specific server instance.
-	IsRunning() (bool, error)
+	// IsRunning determines if the environment is currently active and running
+	// a server process for this specific server instance.
+	IsRunning(ctx context.Context) (bool, error)
 
 	// Performs an update of server resource limits without actually stopping the server
 	// process. This only executes if the environment supports it, otherwise it is
@@ -52,11 +53,11 @@ type ProcessEnvironment interface {
 
 	// Runs before the environment is started. If an error is returned starting will
 	// not occur, otherwise proceeds as normal.
-	OnBeforeStart() error
+	OnBeforeStart(ctx context.Context) error
 
 	// Starts a server instance. If the server instance is not in a state where it
 	// can be started an error should be returned.
-	Start() error
+	Start(ctx context.Context) error
 
 	// Stops a server instance. If the server is already stopped an error should
 	// not be returned.
@@ -84,10 +85,10 @@ type ProcessEnvironment interface {
 	// server.
 	Create() error
 
-	// Attaches to the server console environment and allows piping the output to a
-	// websocket or other internal tool to monitor output. Also allows you to later
+	// Attach attaches to the server console environment and allows piping the output
+	// to a websocket or other internal tool to monitor output. Also allows you to later
 	// send data into the environment's stdin.
-	Attach() error
+	Attach(ctx context.Context) error
 
 	// Sends the provided command to the running server instance.
 	SendCommand(string) error
