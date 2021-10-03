@@ -104,4 +104,8 @@ type ProcessEnvironment interface {
 	// handle this itself, but there are some scenarios where it is helpful for the server
 	// to update the state externally (e.g. starting -> started).
 	SetState(string)
+
+	// Uptime returns the current environment uptime in milliseconds. This is
+	// the time that has passed since it was last started.
+	Uptime(ctx context.Context) (int64, error)
 }

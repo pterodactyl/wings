@@ -46,6 +46,7 @@ func (ru *ResourceUsage) Reset() {
 
 	ru.Memory = 0
 	ru.CpuAbsolute = 0
+	ru.Uptime = 0
 	ru.Network.TxBytes = 0
 	ru.Network.RxBytes = 0
 }
