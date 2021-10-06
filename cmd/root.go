@@ -217,7 +217,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 			//
 			// @see https://github.com/pterodactyl/panel/issues/2475
 			// @see https://github.com/pterodactyl/panel/issues/3358
-			ctx, cancel := context.WithTimeout(cmd.Context(), time.Second * 30)
+			ctx, cancel := context.WithTimeout(cmd.Context(), time.Second*30)
 			defer cancel()
 
 			r, err := s.Environment.IsRunning(ctx)
@@ -258,6 +258,13 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 				// state being tracked.
 				s.Environment.SetState(environment.ProcessOfflineState)
 			}
+
+			if state := s.Environment.State(); state == environment.ProcessStartingState || state == environment.ProcessRunningState {
+				s.Log().Debug("re-syncing server configuration for already running server")
+				if err := s.Sync(); err != nil {
+					s.Log().WithError(err).Error("failed to re-sync server configuration")
+				}
+			}
 		})
 	}
 
@@ -290,12 +297,12 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 
 	sys := config.Get().System
 	// Ensure the archive directory exists.
-	if err := os.MkdirAll(sys.ArchiveDirectory, 0755); err != nil {
+	if err := os.MkdirAll(sys.ArchiveDirectory, 0o755); err != nil {
 		log.WithField("error", err).Error("failed to create archive directory")
 	}
 
 	// Ensure the backup directory exists.
-	if err := os.MkdirAll(sys.BackupDirectory, 0755); err != nil {
+	if err := os.MkdirAll(sys.BackupDirectory, 0o755); err != nil {
 		log.WithField("error", err).Error("failed to create backup directory")
 	}
 
@@ -402,7 +409,7 @@ func initConfig() {
 // in the code without having to pass around a logger instance.
 func initLogging() {
 	dir := config.Get().System.LogDirectory
-	if err := os.MkdirAll(path.Join(dir, "/install"), 0700); err != nil {
+	if err := os.MkdirAll(path.Join(dir, "/install"), 0o700); err != nil {
 		log2.Fatalf("cmd/root: failed to create install directory path: %s", err)
 	}
 	p := filepath.Join(dir, "/wings.log")

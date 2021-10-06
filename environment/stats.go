@@ -1,8 +1,6 @@
 package environment
 
-// Defines the current resource usage for a given server instance. If a server is offline you
-// should obviously expect memory and CPU usage to be 0. However, disk will always be returned
-// since that is not dependent on the server being running to collect that data.
+// Stats defines the current resource usage for a given server instance.
 type Stats struct {
 	// The total amount of memory, in bytes, that this server instance is consuming. This is
 	// calculated slightly differently than just using the raw Memory field that the stats
@@ -19,12 +17,11 @@ type Stats struct {
 	// does not take into account any limits on the server process itself.
 	CpuAbsolute float64 `json:"cpu_absolute"`
 
-	// The current disk space being used by the server. This is cached to prevent slow lookup
-	// issues on frequent refreshes.
-	// Disk int64 `json:"disk_bytes"`
-
 	// Current network transmit in & out for a container.
 	Network NetworkStats `json:"network"`
+
+	// The current uptime of the container, in milliseconds.
+	Uptime int64 `json:"uptime"`
 }
 
 type NetworkStats struct {

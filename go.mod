@@ -33,7 +33,6 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/iancoleman/strcase v0.2.0
 	github.com/icza/dyno v0.0.0-20210726202311-f1bafe5d9996
-	github.com/imdario/mergo v0.3.12
 	github.com/juju/ratelimit v1.0.1
 	github.com/karrick/godirwalk v1.16.1
 	github.com/klauspost/compress v1.13.2 // indirect
