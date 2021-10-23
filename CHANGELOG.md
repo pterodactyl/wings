@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.5.2
+### Fixed
+* Fixes servers not properly re-syncing with the Panel if they are already running causing them to be hard-stopped when terminated, rather than stopped with the configured action.
+
+### Changed
+* Changes SFTP server implementation to use ED25519 server keys rather than deprecated SHA1 RSA keys.
+
+### Added
+* Adds server uptime output in the stats event emitted to the websocket.
+
 ## v1.5.1
 ### Added
 * Global configuration option for toggling server crash detection (`system.crash_detection.enabled`)
