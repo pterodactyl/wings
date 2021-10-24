@@ -75,7 +75,7 @@ func NewTokenPayload(token []byte) (*tokens.WebsocketPayload, error) {
 	return &payload, nil
 }
 
-// Returns a new websocket handler using the context provided.
+// GetHandler returns a new websocket handler using the context provided.
 func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request) (*Handler, error) {
 	upgrader := websocket.Upgrader{
 		// Ensure that the websocket request is originating from the Panel itself,
@@ -114,6 +114,12 @@ func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request) (*Hand
 
 func (h *Handler) Uuid() uuid.UUID {
 	return h.uuid
+}
+
+func (h *Handler) Logger() *log.Entry {
+	return log.WithField("subsystem", "websocket").
+		WithField("connection", h.Uuid().String()).
+		WithField("server", h.server.ID())
 }
 
 func (h *Handler) SendJson(v *Message) error {

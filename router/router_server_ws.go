@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"emperror.dev/errors"
 	"github.com/gin-gonic/gin"
 	ws "github.com/gorilla/websocket"
 
@@ -24,12 +25,6 @@ var expectedCloseCodes = []int{
 func getServerWebsocket(c *gin.Context) {
 	manager := middleware.ExtractManager(c)
 	s, _ := manager.Get(c.Param("server"))
-	handler, err := websocket.GetHandler(s, c.Writer, c.Request)
-	if err != nil {
-		NewServerError(err, s).Abort(c)
-		return
-	}
-	defer handler.Connection.Close()
 
 	// Create a context that can be canceled when the user disconnects from this
 	// socket that will also cancel listeners running in separate threads. If the
@@ -38,10 +33,22 @@ func getServerWebsocket(c *gin.Context) {
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 
+	handler, err := websocket.GetHandler(s, c.Writer, c.Request)
+	if err != nil {
+		NewServerError(err, s).Abort(c)
+		return
+	}
+	defer handler.Connection.Close()
+
 	// Track this open connection on the server so that we can close them all programmatically
 	// if the server is deleted.
 	s.Websockets().Push(handler.Uuid(), &cancel)
-	defer s.Websockets().Remove(handler.Uuid())
+	handler.Logger().Debug("opening connection to server websocket")
+
+	defer func() {
+		s.Websockets().Remove(handler.Uuid())
+		handler.Logger().Debug("closing connection to server websocket")
+	}()
 
 	// If the server is deleted we need to send a close message to the connected client
 	// so that they disconnect since there will be no more events sent along. Listen for
@@ -57,7 +64,15 @@ func getServerWebsocket(c *gin.Context) {
 		}
 	}()
 
-	go handler.ListenForServerEvents(ctx)
+	go func() {
+		if err := handler.ListenForServerEvents(ctx); err != nil {
+			handler.Logger().Warn("error while processing server event; closing websocket connection")
+			if err := handler.Connection.Close(); err != nil {
+				handler.Logger().WithField("error", errors.WithStack(err)).Error("error closing websocket connection")
+			}
+		}
+	}()
+
 	go handler.ListenForExpiration(ctx)
 
 	for {
@@ -66,7 +81,7 @@ func getServerWebsocket(c *gin.Context) {
 		_, p, err := handler.Connection.ReadMessage()
 		if err != nil {
 			if ws.IsUnexpectedCloseError(err, expectedCloseCodes...) {
-				s.Log().WithField("error", err).Warn("error handling websocket message for server")
+				handler.Logger().WithField("error", err).Warn("error handling websocket message for server")
 			}
 			break
 		}

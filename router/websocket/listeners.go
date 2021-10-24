@@ -2,8 +2,10 @@ package websocket
 
 import (
 	"context"
+	"sync"
 	"time"
 
+	"emperror.dev/errors"
 	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/server"
 )
@@ -52,24 +54,45 @@ var e = []string{
 // ListenForServerEvents will listen for different events happening on a server
 // and send them along to the connected websocket client. This function will
 // block until the context provided to it is canceled.
-func (h *Handler) ListenForServerEvents(ctx context.Context) {
-	h.server.Log().Debug("listening for server events over websocket")
+func (h *Handler) ListenForServerEvents(pctx context.Context) error {
+	var o sync.Once
+	var err error
+	ctx, cancel := context.WithCancel(pctx)
+
+	h.Logger().Debug("listening for server events")
 	callback := func(e events.Event) {
-		if err := h.SendJson(&Message{Event: e.Topic, Args: []string{e.Data}}); err != nil {
-			h.server.Log().WithField("error", err).Warn("error while sending server data over websocket")
+		if sendErr := h.SendJson(&Message{Event: e.Topic, Args: []string{e.Data}}); sendErr != nil {
+			h.Logger().WithField("event", e.Topic).WithField("error", sendErr).Error("failed to send event over server websocket")
+			// Avoid race conditions by only setting the error once and then canceling
+			// the context. This way if additional processing errors come through due
+			// to a massive flood of things you still only report and stop at the first.
+			o.Do(func() {
+				err = sendErr
+				cancel()
+			})
 		}
 	}
 
-	// Subscribe to all of the events with the same callback that will push the data out over the
-	// websocket for the server.
+	// Subscribe to all of the events with the same callback that will push the
+	// data out over the websocket for the server.
 	for _, evt := range e {
 		h.server.Events().On(evt, &callback)
 	}
 
+	// When this function returns de-register all of the event listeners.
+	defer func() {
+		for _, evt := range e {
+			h.server.Events().Off(evt, &callback)
+		}
+	}()
+
 	<-ctx.Done()
-	// Block until the context is stopped and then de-register all of the event listeners
-	// that we registered earlier.
-	for _, evt := range e {
-		h.server.Events().Off(evt, &callback)
+	// If the internal context is stopped it is either because the parent context
+	// got canceled or because we ran into an error. If the "err" variable is nil
+	// we can assume the parent was canceled and need not perform any actions.
+	if err != nil {
+		return errors.WithStack(err)
 	}
+
+	return nil
 }

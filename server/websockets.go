@@ -52,8 +52,7 @@ func (w *WebsocketBag) CancelAll() {
 
 	if w.conns != nil {
 		for _, cancel := range w.conns {
-			c := *cancel
-			c()
+			(*cancel)()
 		}
 	}
 
