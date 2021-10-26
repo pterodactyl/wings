@@ -10,11 +10,37 @@ import (
 	"github.com/pterodactyl/wings/server"
 )
 
+// RegisterListenerEvents will setup the server event listeners and expiration
+// timers. This is only triggered on first authentication with the websocket,
+// reconnections will not call it.
+//
+// This needs to be called once the socket is properly authenticated otherwise
+// you'll get a flood of error spam in the output that doesn't make sense because
+// Docker events being output to the socket will fail when it hasn't been
+// properly initialized yet.
+//
+// @see https://github.com/pterodactyl/panel/issues/3295
+func (h *Handler) registerListenerEvents(ctx context.Context) {
+	h.Logger().Debug("registering event listeners for connection")
+
+	go func() {
+		if err := h.listenForServerEvents(ctx); err != nil {
+			h.Logger().Warn("error while processing server event; closing websocket connection")
+			if err := h.Connection.Close(); err != nil {
+				h.Logger().WithField("error", errors.WithStack(err)).Error("error closing websocket connection")
+			}
+		}
+	}()
+
+	go h.listenForExpiration(ctx)
+}
+
+
 // ListenForExpiration checks the time to expiration on the JWT every 30 seconds
 // until the token has expired. If we are within 3 minutes of the token expiring,
 // send a notice over the socket that it is expiring soon. If it has expired,
 // send that notice as well.
-func (h *Handler) ListenForExpiration(ctx context.Context) {
+func (h *Handler) listenForExpiration(ctx context.Context) {
 	// Make a ticker and completion channel that is used to continuously poll the
 	// JWT stored in the session to send events to the socket when it is expiring.
 	ticker := time.NewTicker(time.Second * 30)
@@ -54,12 +80,11 @@ var e = []string{
 // ListenForServerEvents will listen for different events happening on a server
 // and send them along to the connected websocket client. This function will
 // block until the context provided to it is canceled.
-func (h *Handler) ListenForServerEvents(pctx context.Context) error {
+func (h *Handler) listenForServerEvents(pctx context.Context) error {
 	var o sync.Once
 	var err error
 	ctx, cancel := context.WithCancel(pctx)
 
-	h.Logger().Debug("listening for server events")
 	callback := func(e events.Event) {
 		if sendErr := h.SendJson(&Message{Event: e.Topic, Args: []string{e.Data}}); sendErr != nil {
 			h.Logger().WithField("event", e.Topic).WithField("error", sendErr).Error("failed to send event over server websocket")

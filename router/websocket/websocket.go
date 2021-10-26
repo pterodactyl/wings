@@ -269,7 +269,7 @@ func (h *Handler) setJwt(token *tokens.WebsocketPayload) {
 }
 
 // HandleInbound handles an inbound socket request and route it to the proper action.
-func (h *Handler) HandleInbound(m Message) error {
+func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 	if m.Event != AuthenticationEvent {
 		if err := h.TokenValid(); err != nil {
 			h.unsafeSendJson(Message{
@@ -285,13 +285,6 @@ func (h *Handler) HandleInbound(m Message) error {
 		{
 			token, err := NewTokenPayload([]byte(strings.Join(m.Args, "")))
 			if err != nil {
-				// If the error says the JWT expired, send a token expired
-				// event and hopefully the client renews the token.
-				if err == jwt.ErrExpValidation {
-					h.SendJson(&Message{Event: TokenExpiredEvent})
-					return nil
-				}
-
 				return err
 			}
 
@@ -304,10 +297,7 @@ func (h *Handler) HandleInbound(m Message) error {
 			h.setJwt(token)
 
 			// Tell the client they authenticated successfully.
-			h.unsafeSendJson(Message{
-				Event: AuthenticationSuccessEvent,
-				Args:  []string{},
-			})
+			h.unsafeSendJson(Message{Event: AuthenticationSuccessEvent})
 
 			// Check if the client was refreshing their authentication token
 			// instead of authenticating for the first time.
@@ -316,6 +306,11 @@ func (h *Handler) HandleInbound(m Message) error {
 				// https://github.com/pterodactyl/panel/issues/2077
 				return nil
 			}
+
+			// Now that we've authenticated with the token and confirmed that we're not
+			// reconnecting to the socket, register the event listeners for the server and
+			// the token expiration.
+			h.registerListenerEvents(ctx)
 
 			// On every authentication event, send the current server status back
 			// to the client. :)
