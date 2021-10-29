@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.5.3
+### Fixed
+* Fixes improper event registration and error handling during socket authentication that would cause the incorrect error message to be returned to the client, or no error in some scenarios. Event registration is now delayed until the socket is fully authenticated to ensure needless listeners are not registed.
+* Fixes dollar signs always being evaluated as environment variables with no way to escape them. They can now be escaped as `$$` which will transform into a single dollar sign.
+
+### Changed
+* A websocket connection to a server will be closed by Wings if there is a send error encountered and the client will be left to handle reconnections, rather than simply logging the error and continuing to listen for new events.
+
+## v1.5.2
+### Fixed
+* Fixes servers not properly re-syncing with the Panel if they are already running causing them to be hard-stopped when terminated, rather than stopped with the configured action.
+
+### Changed
+* Changes SFTP server implementation to use ED25519 server keys rather than deprecated SHA1 RSA keys.
+
+### Added
+* Adds server uptime output in the stats event emitted to the websocket.
+
 ## v1.5.1
 ### Added
 * Global configuration option for toggling server crash detection (`system.crash_detection.enabled`)
