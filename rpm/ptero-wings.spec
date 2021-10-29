@@ -1,5 +1,5 @@
 Name:       ptero-wings
-Version:    1.5.0
+Version:    0.0.1
 Release:    1%{?dist}
 Summary:    The server control plane for Pterodactyl Panel. Written from the ground-up with security, speed, and stability in mind.
 BuildArch:  x86_64
@@ -91,24 +91,5 @@ rm -rf /var/log/pterodactyl
 wings --version
 
 %changelog
-* Sun Sep 12 2021 Capitol Hosting Solutions Systems Engineering <syseng@chs.gg> - 1.5.0-1
-- specfile by Capitol Hosting Solutions, Upstream by Pterodactyl
-- Rebased for https://github.com/pterodactyl/wings/releases/tag/v1.5.0
-- Fixes a race condition when setting the application name in the console output for a server.
-- Fixes a server being reinstalled causing the file_denylist parameter for an Egg to be ignored until Wings is restarted.
-- Fixes YAML file parser not correctly setting boolean values.
-- Fixes potential issue where the underlying websocket connection is closed but the parent request context is not yet canceled causing a write over a closed connection.
-- Fixes race condition when closing all active websocket connections when a server is deleted.
-- Fixes logic to determine if a server's context is closed out and send a websocket close message to connected clients. Previously this fired off whenever the request itself was closed, and not when the server context was closed.
-- Exposes 8080 in the wings Dockerfile to better support reverse proxy tools.
-- Releases are now built using Go 1.17 — the minimum version required to build Wings remains Go 1.16.
-- Simplifed the logic powering server updates to only pull information from the Panel rather than trying to accept updated values. All parts of Wings needing the most up-to-date server details should call Server#Sync() to fetch the latest stored build information.
-- Installer#New() no longer requires passing all of the server data as a byte slice, rather a new Installer#ServerDetails struct is exposed which can be passed and accepts a UUID and if the server should be started after the installer finishes.
-- Removes complicated (and unused) logic during the server installation process that was a hold-over from legacy Wings architectures.
-- Removes the PATCH /api/servers/:server endpoint — if you were previously using this API call it should be replaced with POST /api/servers/:server/sync.
-
 * Wed Aug 25 2021 Capitol Hosting Solutions Systems Engineering <syseng@chs.gg> - 1.4.7-1
 - specfile by Capitol Hosting Solutions, Upstream by Pterodactyl
-- Rebased for https://github.com/pterodactyl/wings/releases/tag/v1.4.7
-- SFTP access is now properly denied if a server is suspended.
-- Correctly uses start_on_completion and crash_detection_enabled for servers.

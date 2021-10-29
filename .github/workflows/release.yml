@@ -46,7 +46,8 @@ jobs:
           git checkout -b $BRANCH
           git push -u origin $BRANCH
           sed -i "s/	Version = \".*\"/	Version = \"${REF:11}\"/" system/const.go
-          git add system/const.go
+          sed -i "s/Version: .*/Version:    ${REF:11}/" rpm/ptero-wings.spec
+          git add system/const.go rpm/ptero-wings.spec
           git commit -m "bump version for release"
           git push
       - name: Create Release
@@ -86,4 +87,13 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./checksums.txt
           asset_name: checksums.txt
+          asset_content_type: text/plain
+      - name: Upload rpm spec
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: rpm/ptero-wings.spec
+          asset_name: ptero-wings.spec
           asset_content_type: text/plain
