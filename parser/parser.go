@@ -212,7 +212,7 @@ func (f *ConfigurationFile) Parse(path string, internal bool) error {
 		}
 
 		b := strings.TrimSuffix(path, filepath.Base(path))
-		if err := os.MkdirAll(b, 0755); err != nil {
+		if err := os.MkdirAll(b, 0o755); err != nil {
 			return errors.WithMessage(err, "failed to create base directory for missing configuration file")
 		} else {
 			if _, err := os.Create(path); err != nil {
@@ -229,7 +229,7 @@ func (f *ConfigurationFile) Parse(path string, internal bool) error {
 // Parses an xml file.
 func (f *ConfigurationFile) parseXmlFile(path string) error {
 	doc := etree.NewDocument()
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return err
 	}
@@ -322,7 +322,7 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 	// Ini package can't handle a non-existent file, so handle that automatically here
 	// by creating it if not exists. Then, immediately close the file since we will use
 	// other methods to write the new contents.
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return err
 	}
@@ -334,7 +334,30 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 	}
 
 	for _, replacement := range f.Replace {
-		path := strings.SplitN(replacement.Match, ".", 2)
+		var (
+			path         []string
+			bracketDepth int
+			v            []int32
+		)
+		for _, c := range replacement.Match {
+			switch c {
+			case '[':
+				bracketDepth++
+			case ']':
+				bracketDepth--
+			case '.':
+				if bracketDepth > 0 || len(path) == 1 {
+					v = append(v, c)
+					continue
+				}
+				path = append(path, string(v))
+				v = v[:0]
+			default:
+				v = append(v, c)
+			}
+		}
+		path = append(path, string(v))
+		// path := strings.SplitN(replacement.Match, ".", 2)
 
 		value, err := f.LookupConfigurationValue(replacement)
 		if err != nil {
@@ -387,7 +410,7 @@ func (f *ConfigurationFile) parseJsonFile(path string) error {
 	}
 
 	output := []byte(data.StringIndent("", "    "))
-	return ioutil.WriteFile(path, output, 0644)
+	return ioutil.WriteFile(path, output, 0o644)
 }
 
 // Parses a yaml file and updates any matching key/value pairs before persisting
@@ -424,7 +447,7 @@ func (f *ConfigurationFile) parseYamlFile(path string) error {
 		return err
 	}
 
-	return ioutil.WriteFile(path, marshaled, 0644)
+	return ioutil.WriteFile(path, marshaled, 0o644)
 }
 
 // Parses a text file using basic find and replace. This is a highly inefficient method of
@@ -449,7 +472,7 @@ func (f *ConfigurationFile) parseTextFile(path string) error {
 		}
 	}
 
-	if err := ioutil.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644); err != nil {
+	if err := ioutil.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
 		return err
 	}
 
@@ -545,7 +568,7 @@ func (f *ConfigurationFile) parsePropertiesFile(path string) error {
 	}
 
 	// Open the file for writing.
-	w, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	w, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
