@@ -78,7 +78,7 @@ func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
 		{
 			Name: "ReviewBeforeUpload",
 			Prompt: &survey.Confirm{
-				Message: "Do you want to review the collected data before uploading to hastebin.com?",
+				Message: "Do you want to review the collected data before uploading to " + diagnosticsArgs.HastebinURL + "?",
 				Help:    "The data, especially the logs, might contain sensitive information, so you should review it. You will be asked again if you want to upload.",
 				Default: true,
 			},
@@ -96,40 +96,40 @@ func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
 	output := &strings.Builder{}
 	fmt.Fprintln(output, "Pterodactyl Wings - Diagnostics Report")
 	printHeader(output, "Versions")
-	fmt.Fprintln(output, "         wings:", system.Version)
+	fmt.Fprintln(output, "               Wings:", system.Version)
 	if dockerErr == nil {
-		fmt.Fprintln(output, "Docker:", dockerVersion.Version)
+		fmt.Fprintln(output, "              Docker:", dockerVersion.Version)
 	}
 	if v, err := kernel.GetKernelVersion(); err == nil {
-		fmt.Fprintln(output, "Kernel:", v)
+		fmt.Fprintln(output, "              Kernel:", v)
 	}
 	if os, err := operatingsystem.GetOperatingSystem(); err == nil {
-		fmt.Fprintln(output, "    OS:", os)
+		fmt.Fprintln(output, "                  OS:", os)
 	}
 
 	printHeader(output, "Wings Configuration")
 	if err := config.FromFile(config.DefaultLocation); err != nil {
 	}
 	cfg := config.Get()
-	fmt.Fprintln(output, "    Panel Location:", redact(cfg.PanelLocation))
+	fmt.Fprintln(output, "      Panel Location:", redact(cfg.PanelLocation))
 	fmt.Fprintln(output, "")
-	fmt.Fprintln(output, " Internal Webserver:", redact(cfg.Api.Host), ":", cfg.Api.Port)
-	fmt.Fprintln(output, "        SSL Enabled:", cfg.Api.Ssl.Enabled)
-	fmt.Fprintln(output, "    SSL Certificate:", redact(cfg.Api.Ssl.CertificateFile))
-	fmt.Fprintln(output, "            SSL Key:", redact(cfg.Api.Ssl.KeyFile))
+	fmt.Fprintln(output, "  Internal Webserver:", redact(cfg.Api.Host), ":", cfg.Api.Port)
+	fmt.Fprintln(output, "         SSL Enabled:", cfg.Api.Ssl.Enabled)
+	fmt.Fprintln(output, "     SSL Certificate:", redact(cfg.Api.Ssl.CertificateFile))
+	fmt.Fprintln(output, "             SSL Key:", redact(cfg.Api.Ssl.KeyFile))
 	fmt.Fprintln(output, "")
-	fmt.Fprintln(output, "        SFTP Server:", redact(cfg.System.Sftp.Address), ":", cfg.System.Sftp.Port)
-	fmt.Fprintln(output, "     SFTP Read-Only:", cfg.System.Sftp.ReadOnly)
+	fmt.Fprintln(output, "         SFTP Server:", redact(cfg.System.Sftp.Address), ":", cfg.System.Sftp.Port)
+	fmt.Fprintln(output, "      SFTP Read-Only:", cfg.System.Sftp.ReadOnly)
 	fmt.Fprintln(output, "")
-	fmt.Fprintln(output, "     Root Directory:", cfg.System.RootDirectory)
-	fmt.Fprintln(output, "     Logs Directory:", cfg.System.LogDirectory)
-	fmt.Fprintln(output, "     Data Directory:", cfg.System.Data)
-	fmt.Fprintln(output, "  Archive Directory:", cfg.System.ArchiveDirectory)
-	fmt.Fprintln(output, "   Backup Directory:", cfg.System.BackupDirectory)
+	fmt.Fprintln(output, "      Root Directory:", cfg.System.RootDirectory)
+	fmt.Fprintln(output, "      Logs Directory:", cfg.System.LogDirectory)
+	fmt.Fprintln(output, "      Data Directory:", cfg.System.Data)
+	fmt.Fprintln(output, "   Archive Directory:", cfg.System.ArchiveDirectory)
+	fmt.Fprintln(output, "    Backup Directory:", cfg.System.BackupDirectory)
 	fmt.Fprintln(output, "")
-	fmt.Fprintln(output, "           Username:", cfg.System.Username)
-	fmt.Fprintln(output, "        Server Time:", time.Now().Format(time.RFC1123Z))
-	fmt.Fprintln(output, "         Debug Mode:", cfg.Debug)
+	fmt.Fprintln(output, "            Username:", cfg.System.Username)
+	fmt.Fprintln(output, "         Server Time:", time.Now().Format(time.RFC1123Z))
+	fmt.Fprintln(output, "          Debug Mode:", cfg.Debug)
 
 	printHeader(output, "Docker: Info")
 	if dockerErr == nil {
