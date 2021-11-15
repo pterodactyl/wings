@@ -455,31 +455,17 @@ func FromFile(path string) error {
 	if err != nil {
 		return err
 	}
-	// Replace environment variables within the configuration file with their
-	// values from the host system. This function works almost identically to
-	// the default os.ExpandEnv function, except it supports escaping dollar
-	// signs in the text if you pass "$$" through.
-	//
-	// "some$$foo" -> "some$foo"
-	// "some$foo" -> "some" (or "someVALUE_OF_FOO" if FOO is defined in env)
-	//
-	// @see https://github.com/pterodactyl/panel/issues/3692
-	exp := os.Expand(string(b), func(s string) string {
-		if s == "$" {
-			return s
-		}
-		return os.Getenv(s)
-	})
 
-	if err := yaml.Unmarshal([]byte(exp), c); err != nil {
+	if err := yaml.Unmarshal([]byte(b), c); err != nil {
 		return err
 	}
+
 	// Store this configuration in the global state.
 	Set(c)
 	return nil
 }
 
-// ConfigureDirectories ensures that all of the system directories exist on the
+// ConfigureDirectories ensures that all the system directories exist on the
 // system. These directories are created so that only the owner can read the data,
 // and no other users.
 //
