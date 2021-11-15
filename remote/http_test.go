@@ -87,7 +87,6 @@ func TestPost(t *testing.T) {
 	}
 	c, _ := createTestClient(func(rw http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
-
 	})
 	r, err := c.Post(context.Background(), "/test", test)
 	assert.NoError(t, err)

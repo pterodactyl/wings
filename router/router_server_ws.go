@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"emperror.dev/errors"
 	"github.com/gin-gonic/gin"
 	ws "github.com/gorilla/websocket"
 
@@ -64,17 +63,6 @@ func getServerWebsocket(c *gin.Context) {
 		}
 	}()
 
-	go func() {
-		if err := handler.ListenForServerEvents(ctx); err != nil {
-			handler.Logger().Warn("error while processing server event; closing websocket connection")
-			if err := handler.Connection.Close(); err != nil {
-				handler.Logger().WithField("error", errors.WithStack(err)).Error("error closing websocket connection")
-			}
-		}
-	}()
-
-	go handler.ListenForExpiration(ctx)
-
 	for {
 		j := websocket.Message{}
 
@@ -94,7 +82,7 @@ func getServerWebsocket(c *gin.Context) {
 		}
 
 		go func(msg websocket.Message) {
-			if err := handler.HandleInbound(msg); err != nil {
+			if err := handler.HandleInbound(ctx, msg); err != nil {
 				handler.SendErrorJson(msg, err)
 			}
 		}(j)

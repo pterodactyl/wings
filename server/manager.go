@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -137,7 +136,7 @@ func (m *Manager) PersistStates() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	if err := ioutil.WriteFile(config.Get().System.GetStatesPath(), data, 0644); err != nil {
+	if err := os.WriteFile(config.Get().System.GetStatesPath(), data, 0o644); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
@@ -145,7 +144,7 @@ func (m *Manager) PersistStates() error {
 
 // ReadStates returns the state of the servers.
 func (m *Manager) ReadStates() (map[string]string, error) {
-	f, err := os.OpenFile(config.Get().System.GetStatesPath(), os.O_RDONLY|os.O_CREATE, 0644)
+	f, err := os.OpenFile(config.Get().System.GetStatesPath(), os.O_RDONLY|os.O_CREATE, 0o644)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

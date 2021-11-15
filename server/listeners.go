@@ -59,7 +59,6 @@ func (s *Server) StartEventListeners() {
 		err := t.Increment(func() {
 			s.PublishConsoleOutputFromDaemon("Your server is outputting too much data and is being throttled.")
 		})
-
 		// An error is only returned if the server has breached the thresholds set.
 		if err != nil {
 			// If the process is already stopping, just let it continue with that action rather than attempting

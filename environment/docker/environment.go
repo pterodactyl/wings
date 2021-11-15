@@ -114,7 +114,6 @@ func (e *Environment) Events() *events.EventBus {
 // ID auto-assigned when the container is created.
 func (e *Environment) Exists() (bool, error) {
 	_, err := e.client.ContainerInspect(context.Background(), e.Id)
-
 	if err != nil {
 		// If this error is because the container instance wasn't found via Docker we
 		// can safely ignore the error and just return false.

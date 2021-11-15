@@ -142,12 +142,12 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 		}
 		mode := request.Attributes().FileMode().Perm()
 		// If the client passes an invalid FileMode just use the default 0644.
-		if mode == 0000 {
-			mode = os.FileMode(0644)
+		if mode == 0o000 {
+			mode = os.FileMode(0o644)
 		}
 		// Force directories to be 0755.
 		if request.Attributes().FileMode().IsDir() {
-			mode = 0755
+			mode = 0o755
 		}
 		if err := h.fs.Chmod(request.Filepath, mode); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
@@ -260,7 +260,6 @@ func (h *Handler) Filelist(request *sftp.Request) (sftp.ListerAt, error) {
 		files, err := ioutil.ReadDir(p)
 		if err != nil {
 			h.logger.WithField("source", request.Filepath).WithField("error", err).Error("error while listing directory")
-
 			return nil, sftp.ErrSSHFxFailure
 		}
 		return ListerAt(files), nil
