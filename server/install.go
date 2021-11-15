@@ -215,11 +215,11 @@ func (ip *InstallationProcess) tempDir() string {
 func (ip *InstallationProcess) writeScriptToDisk() error {
 	// Make sure the temp directory root exists before trying to make a directory within it. The
 	// ioutil.TempDir call expects this base to exist, it won't create it for you.
-	if err := os.MkdirAll(ip.tempDir(), 0700); err != nil {
+	if err := os.MkdirAll(ip.tempDir(), 0o700); err != nil {
 		return errors.WithMessage(err, "could not create temporary directory for install process")
 	}
 
-	f, err := os.OpenFile(filepath.Join(ip.tempDir(), "install.sh"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	f, err := os.OpenFile(filepath.Join(ip.tempDir(), "install.sh"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return errors.WithMessage(err, "failed to write server installation script to disk before mount")
 	}
@@ -350,7 +350,7 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 		return err
 	}
 
-	f, err := os.OpenFile(ip.GetLogPath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	f, err := os.OpenFile(ip.GetLogPath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
@@ -516,7 +516,6 @@ func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) erro
 		ShowStderr: true,
 		Follow:     true,
 	})
-
 	if err != nil {
 		return err
 	}

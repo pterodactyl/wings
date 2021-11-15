@@ -456,7 +456,7 @@ func FromFile(path string) error {
 		return err
 	}
 
-	if err := yaml.Unmarshal([]byte(b), c); err != nil {
+	if err := yaml.Unmarshal(b, c); err != nil {
 		return err
 	}
 

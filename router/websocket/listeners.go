@@ -35,7 +35,6 @@ func (h *Handler) registerListenerEvents(ctx context.Context) {
 	go h.listenForExpiration(ctx)
 }
 
-
 // ListenForExpiration checks the time to expiration on the JWT every 30 seconds
 // until the token has expired. If we are within 3 minutes of the token expiring,
 // send a notice over the socket that it is expiring soon. If it has expired,

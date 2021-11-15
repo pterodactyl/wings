@@ -369,7 +369,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 		}
 	case SendServerLogsEvent:
 		{
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second * 5)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 			defer cancel()
 			if running, _ := h.server.Environment.IsRunning(ctx); !running {
 				return nil

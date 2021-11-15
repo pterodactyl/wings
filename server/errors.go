@@ -12,8 +12,7 @@ var (
 	ErrServerIsRestoring    = errors.New("server is currently being restored")
 )
 
-type crashTooFrequent struct {
-}
+type crashTooFrequent struct{}
 
 func (e *crashTooFrequent) Error() string {
 	return "server has crashed too soon after the last detected crash"
@@ -25,8 +24,7 @@ func IsTooFrequentCrashError(err error) bool {
 	return ok
 }
 
-type serverDoesNotExist struct {
-}
+type serverDoesNotExist struct{}
 
 func (e *serverDoesNotExist) Error() string {
 	return "server does not exist on remote system"

@@ -14,8 +14,10 @@ import (
 	"github.com/pterodactyl/wings/config"
 )
 
-var _conce sync.Once
-var _client *client.Client
+var (
+	_conce  sync.Once
+	_client *client.Client
+)
 
 // Docker returns a docker client to be used throughout the codebase. Once a
 // client has been created it will be returned for all subsequent calls to this

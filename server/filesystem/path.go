@@ -115,8 +115,8 @@ func (fs *Filesystem) ParallelSafePath(paths []string) ([]string, error) {
 	var cleaned []string
 
 	// Simple locker function to avoid racy appends to the array of cleaned paths.
-	var m = new(sync.Mutex)
-	var push = func(c string) {
+	m := new(sync.Mutex)
+	push := func(c string) {
 		m.Lock()
 		cleaned = append(cleaned, c)
 		m.Unlock()

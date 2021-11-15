@@ -31,7 +31,7 @@ type Allocations struct {
 //
 // You'll want to use DockerBindings() if you need to re-map 127.0.0.1 to the Docker interface.
 func (a *Allocations) Bindings() nat.PortMap {
-	var out = nat.PortMap{}
+	out := nat.PortMap{}
 
 	for ip, ports := range a.Mappings {
 		for _, port := range ports {
@@ -94,7 +94,7 @@ func (a *Allocations) DockerBindings() nat.PortMap {
 // To accomplish this, we'll just get the values from "DockerBindings" and then set them
 // to empty structs. Because why not.
 func (a *Allocations) Exposed() nat.PortSet {
-	var out = nat.PortSet{}
+	out := nat.PortSet{}
 
 	for port := range a.DockerBindings() {
 		out[port] = struct{}{}

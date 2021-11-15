@@ -15,8 +15,10 @@ import (
 	"emperror.dev/errors"
 )
 
-var cr = []byte(" \r")
-var crr = []byte("\r\n")
+var (
+	cr  = []byte(" \r")
+	crr = []byte("\r\n")
+)
 
 // FirstNotEmpty returns the first string passed in that is not an empty value.
 func FirstNotEmpty(v ...string) string {
