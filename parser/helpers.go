@@ -2,7 +2,7 @@ package parser
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"os"
 	"regexp"
 	"strconv"
@@ -38,13 +38,13 @@ var xmlValueMatchRegex = regexp.MustCompile(`^\[([\w]+)='(.*)'\]$`)
 // Gets the []byte representation of a configuration file to be passed through to other
 // handler functions. If the file does not currently exist, it will be created.
 func readFileBytes(path string) ([]byte, error) {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	return ioutil.ReadAll(file)
+	return io.ReadAll(file)
 }
 
 // Gets the value of a key based on the value type defined.

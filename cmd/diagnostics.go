@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os/exec"
@@ -29,18 +28,18 @@ import (
 	"github.com/pterodactyl/wings/system"
 )
 
-const DefaultHastebinUrl = "https://ptero.co"
-const DefaultLogLines = 200
-
-var (
-	diagnosticsArgs struct {
-		IncludeEndpoints   bool
-		IncludeLogs        bool
-		ReviewBeforeUpload bool
-		HastebinURL        string
-		LogLines           int
-	}
+const (
+	DefaultHastebinUrl = "https://ptero.co"
+	DefaultLogLines    = 200
 )
+
+var diagnosticsArgs struct {
+	IncludeEndpoints   bool
+	IncludeLogs        bool
+	ReviewBeforeUpload bool
+	HastebinURL        string
+	LogLines           int
+}
 
 func newDiagnosticsCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -110,7 +109,6 @@ func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
 
 	printHeader(output, "Wings Configuration")
 	if err := config.FromFile(config.DefaultLocation); err != nil {
-
 	}
 	cfg := config.Get()
 	fmt.Fprintln(output, "    Panel Location:", redact(cfg.PanelLocation))
@@ -226,7 +224,7 @@ func uploadToHastebin(hbUrl, content string) (string, error) {
 		return "", err
 	}
 	pres := make(map[string]interface{})
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		fmt.Println("Failed to parse response.", err)
 		return "", err

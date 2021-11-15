@@ -6,15 +6,15 @@ import (
 )
 
 const (
-	// Extends the default SFTP server to return a quota exceeded error to the client.
+	// ErrSSHQuotaExceeded extends the default SFTP server to return a quota exceeded error to the client.
 	//
 	// @see https://tools.ietf.org/id/draft-ietf-secsh-filexfer-13.txt
-	ErrSSHQuotaExceeded = fxerr(15)
+	ErrSSHQuotaExceeded = fxErr(15)
 )
 
 type ListerAt []os.FileInfo
 
-// Returns the number of entries copied and an io.EOF error if we made it to the end of the file list.
+// ListAt returns the number of entries copied and an io.EOF error if we made it to the end of the file list.
 // Take a look at the pkg/sftp godoc for more information about how this function should work.
 func (l ListerAt) ListAt(f []os.FileInfo, offset int64) (int, error) {
 	if offset >= int64(len(l)) {
@@ -28,9 +28,9 @@ func (l ListerAt) ListAt(f []os.FileInfo, offset int64) (int, error) {
 	}
 }
 
-type fxerr uint32
+type fxErr uint32
 
-func (e fxerr) Error() string {
+func (e fxErr) Error() string {
 	switch e {
 	case ErrSSHQuotaExceeded:
 		return "Quota Exceeded"

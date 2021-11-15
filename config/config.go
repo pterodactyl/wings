@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -380,7 +379,7 @@ func WriteToDisk(c *Configuration) error {
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(c.path, b, 0o600); err != nil {
+	if err := os.WriteFile(c.path, b, 0o600); err != nil {
 		return err
 	}
 	return nil
@@ -448,7 +447,7 @@ func EnsurePterodactylUser() error {
 // FromFile reads the configuration from the provided file and stores it in the
 // global singleton for this instance.
 func FromFile(path string) error {
-	b, err := ioutil.ReadFile(path)
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -592,7 +591,7 @@ func ConfigureTimezone() error {
 		_config.System.Timezone = tz
 	}
 	if _config.System.Timezone == "" {
-		b, err := ioutil.ReadFile("/etc/timezone")
+		b, err := os.ReadFile("/etc/timezone")
 		if err != nil {
 			if !os.IsNotExist(err) {
 				return errors.WithMessage(err, "config: failed to open timezone file")

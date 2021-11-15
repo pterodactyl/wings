@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -224,9 +223,9 @@ func (r *Response) Read() ([]byte, error) {
 		return nil, errors.New("remote: attempting to read missing response")
 	}
 	if r.Response.Body != nil {
-		b, _ = ioutil.ReadAll(r.Response.Body)
+		b, _ = io.ReadAll(r.Response.Body)
 	}
-	r.Response.Body = ioutil.NopCloser(bytes.NewBuffer(b))
+	r.Response.Body = io.NopCloser(bytes.NewBuffer(b))
 	return b, nil
 }
 

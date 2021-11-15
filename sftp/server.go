@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"path"
@@ -59,7 +58,7 @@ func (c *SFTPServer) Run() error {
 	} else if err != nil {
 		return errors.Wrap(err, "sftp: could not stat private key file")
 	}
-	pb, err := ioutil.ReadFile(c.PrivateKeyPath())
+	pb, err := os.ReadFile(c.PrivateKeyPath())
 	if err != nil {
 		return errors.Wrap(err, "sftp: could not read private key file")
 	}
@@ -159,10 +158,10 @@ func (c *SFTPServer) generateED25519PrivateKey() error {
 	if err != nil {
 		return errors.Wrap(err, "sftp: failed to generate ED25519 private key")
 	}
-	if err := os.MkdirAll(path.Dir(c.PrivateKeyPath()), 0755); err != nil {
+	if err := os.MkdirAll(path.Dir(c.PrivateKeyPath()), 0o755); err != nil {
 		return errors.Wrap(err, "sftp: could not create internal sftp data directory")
 	}
-	o, err := os.OpenFile(c.PrivateKeyPath(), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	o, err := os.OpenFile(c.PrivateKeyPath(), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return errors.WithStack(err)
 	}

@@ -3,7 +3,6 @@ package server
 import (
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -49,7 +48,7 @@ func (s *Server) getServerwideIgnoredFiles() (string, error) {
 		// Don't read a symlinked ignore file, or a file larger than 32KiB in size.
 		return "", nil
 	}
-	b, err := ioutil.ReadAll(f)
+	b, err := io.ReadAll(f)
 	if err != nil {
 		return "", err
 	}

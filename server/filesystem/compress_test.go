@@ -1,7 +1,7 @@
 package filesystem
 
 import (
-	"io/ioutil"
+	"os"
 	"sync/atomic"
 	"testing"
 
@@ -19,11 +19,10 @@ func TestFilesystem_DecompressFile(t *testing.T) {
 	fs, rfs := NewFs()
 
 	g.Describe("Decompress", func() {
-
 		for _, ext := range []string{"zip", "rar", "tar", "tar.gz"} {
 			g.It("can decompress a "+ext, func() {
 				// copy the file to the new FS
-				c, err := ioutil.ReadFile("./testdata/test." + ext)
+				c, err := os.ReadFile("./testdata/test." + ext)
 				g.Assert(err).IsNil()
 				err = rfs.CreateServerFile("./test."+ext, c)
 				g.Assert(err).IsNil()

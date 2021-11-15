@@ -3,7 +3,6 @@ package parser
 import (
 	"bufio"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -357,7 +356,6 @@ func (f *ConfigurationFile) parseIniFile(path string) error {
 			}
 		}
 		path = append(path, string(v))
-		// path := strings.SplitN(replacement.Match, ".", 2)
 
 		value, err := f.LookupConfigurationValue(replacement)
 		if err != nil {
@@ -410,7 +408,7 @@ func (f *ConfigurationFile) parseJsonFile(path string) error {
 	}
 
 	output := []byte(data.StringIndent("", "    "))
-	return ioutil.WriteFile(path, output, 0o644)
+	return os.WriteFile(path, output, 0o644)
 }
 
 // Parses a yaml file and updates any matching key/value pairs before persisting
@@ -447,14 +445,14 @@ func (f *ConfigurationFile) parseYamlFile(path string) error {
 		return err
 	}
 
-	return ioutil.WriteFile(path, marshaled, 0o644)
+	return os.WriteFile(path, marshaled, 0o644)
 }
 
 // Parses a text file using basic find and replace. This is a highly inefficient method of
 // scanning a file and performing a replacement. You should attempt to use anything other
 // than this function where possible.
 func (f *ConfigurationFile) parseTextFile(path string) error {
-	input, err := ioutil.ReadFile(path)
+	input, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -472,7 +470,7 @@ func (f *ConfigurationFile) parseTextFile(path string) error {
 		}
 	}
 
-	if err := ioutil.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
 		return err
 	}
 
