@@ -79,22 +79,17 @@ var e = []string{
 // ListenForServerEvents will listen for different events happening on a server
 // and send them along to the connected websocket client. This function will
 // block until the context provided to it is canceled.
-func (h *Handler) listenForServerEvents(pctx context.Context) error {
+func (h *Handler) listenForServerEvents(ctx context.Context) error {
 	var o sync.Once
 	var err error
-	ctx, cancel := context.WithCancel(pctx)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	c := make(chan events.Event)
 
 	callback := func(e events.Event) {
-		if sendErr := h.SendJson(&Message{Event: e.Topic, Args: []string{e.Data}}); sendErr != nil {
-			h.Logger().WithField("event", e.Topic).WithField("error", sendErr).Error("failed to send event over server websocket")
-			// Avoid race conditions by only setting the error once and then canceling
-			// the context. This way if additional processing errors come through due
-			// to a massive flood of things you still only report and stop at the first.
-			o.Do(func() {
-				err = sendErr
-				cancel()
-			})
-		}
+		c <- e
 	}
 
 	// Subscribe to all of the events with the same callback that will push the
@@ -103,20 +98,38 @@ func (h *Handler) listenForServerEvents(pctx context.Context) error {
 		h.server.Events().On(evt, &callback)
 	}
 
-	// When this function returns de-register all of the event listeners.
-	defer func() {
-		for _, evt := range e {
-			h.server.Events().Off(evt, &callback)
-		}
-	}()
+	for {
+		select {
+		case <-ctx.Done():
+			break
+		case e := <-c:
+			sendErr := h.SendJson(&Message{Event: e.Topic, Args: []string{e.Data}})
+			if sendErr == nil {
+				continue
+			}
 
-	<-ctx.Done()
+			h.Logger().WithField("event", e.Topic).WithField("error", sendErr).Error("failed to send event over server websocket")
+			// Avoid race conditions by only setting the error once and then canceling
+			// the context. This way if additional processing errors come through due
+			// to a massive flood of things you still only report and stop at the first.
+			o.Do(func() {
+				err = sendErr
+			})
+			cancel()
+		}
+		break
+	}
+
+	for _, evt := range e {
+		h.server.Events().Off(evt, &callback)
+	}
+	close(c)
+
 	// If the internal context is stopped it is either because the parent context
 	// got canceled or because we ran into an error. If the "err" variable is nil
 	// we can assume the parent was canceled and need not perform any actions.
 	if err != nil {
 		return errors.WithStack(err)
 	}
-
 	return nil
 }

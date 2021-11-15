@@ -125,15 +125,14 @@ func (h *Handler) Logger() *log.Entry {
 func (h *Handler) SendJson(v *Message) error {
 	// Do not send JSON down the line if the JWT on the connection is not valid!
 	if err := h.TokenValid(); err != nil {
-		h.unsafeSendJson(Message{
+		_ = h.unsafeSendJson(Message{
 			Event: JwtErrorEvent,
 			Args:  []string{err.Error()},
 		})
 		return nil
 	}
 
-	j := h.GetJwt()
-	if j != nil {
+	if j := h.GetJwt(); j != nil {
 		// If we're sending installation output but the user does not have the required
 		// permissions to see the output, don't send it down the line.
 		if v.Event == server.InstallOutputEvent {
@@ -297,7 +296,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 			h.setJwt(token)
 
 			// Tell the client they authenticated successfully.
-			h.unsafeSendJson(Message{Event: AuthenticationSuccessEvent})
+			_ = h.unsafeSendJson(Message{Event: AuthenticationSuccessEvent})
 
 			// Check if the client was refreshing their authentication token
 			// instead of authenticating for the first time.
@@ -315,7 +314,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 			// On every authentication event, send the current server status back
 			// to the client. :)
 			state := h.server.Environment.State()
-			h.SendJson(&Message{
+			_ = h.SendJson(&Message{
 				Event: server.StatusEvent,
 				Args:  []string{state},
 			})
@@ -327,7 +326,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 					_ = h.server.Filesystem().HasSpaceAvailable(false)
 
 					b, _ := json.Marshal(h.server.Proc())
-					h.SendJson(&Message{
+					_ = h.SendJson(&Message{
 						Event: server.StatsEvent,
 						Args:  []string{string(b)},
 					})
@@ -357,7 +356,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 			if errors.Is(err, context.DeadlineExceeded) {
 				m, _ := h.GetErrorMessage("another power action is currently being processed for this server, please try again later")
 
-				h.SendJson(&Message{
+				_ = h.SendJson(&Message{
 					Event: ErrorEvent,
 					Args:  []string{m},
 				})
@@ -381,7 +380,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 			}
 
 			for _, line := range logs {
-				h.SendJson(&Message{
+				_ = h.SendJson(&Message{
 					Event: server.ConsoleOutputEvent,
 					Args:  []string{line},
 				})
@@ -392,7 +391,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 	case SendStatsEvent:
 		{
 			b, _ := json.Marshal(h.server.Proc())
-			h.SendJson(&Message{
+			_ = h.SendJson(&Message{
 				Event: server.StatsEvent,
 				Args:  []string{string(b)},
 			})
