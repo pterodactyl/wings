@@ -45,7 +45,7 @@ jobs:
           git config --local user.name "Pterodactyl CI"
           git checkout -b $BRANCH
           git push -u origin $BRANCH
-          sed -i "s/	Version = \".*\"/	Version = \"${REF:11}\"/" system/const.go
+          sed -i "s/var Version = \".*\"/var Version = \"1.0.0\"/" system/const.go
           git add system/const.go
           git commit -m "bump version for release"
           git push
