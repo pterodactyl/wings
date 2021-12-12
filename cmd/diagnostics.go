@@ -188,6 +188,16 @@ func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
 		survey.AskOne(&survey.Confirm{Message: "Upload to " + diagnosticsArgs.HastebinURL + "?", Default: false}, &upload)
 	}
 	if upload {
+		if !diagnosticsArgs.IncludeEndpoints {
+			s := output.String()
+			output.Reset()
+			a := strings.ReplaceAll(cfg.PanelLocation, s, "{redacted}")
+			a = strings.ReplaceAll(cfg.Api.Host, a, "{redacted}")
+			a = strings.ReplaceAll(cfg.Api.Ssl.CertificateFile, a, "{redacted}")
+			a = strings.ReplaceAll(cfg.Api.Ssl.KeyFile, a, "{redacted}")
+			a = strings.ReplaceAll(cfg.System.Sftp.Address, a, "{redacted}")
+			output.WriteString(a)
+		}
 		u, err := uploadToHastebin(diagnosticsArgs.HastebinURL, output.String())
 		if err == nil {
 			fmt.Println("Your report is available here: ", u)
