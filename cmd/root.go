@@ -355,7 +355,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	// Check if main http server should run with TLS. Otherwise reset the TLS
 	// config on the server and then serve it over normal HTTP.
 	if api.Ssl.Enabled {
-		if err := s.ListenAndServeTLS(strings.ToLower(api.Ssl.CertificateFile), strings.ToLower(api.Ssl.KeyFile)); err != nil {
+		if err := s.ListenAndServeTLS(api.Ssl.CertificateFile, api.Ssl.KeyFile); err != nil {
 			log.WithFields(log.Fields{"auto_tls": false, "error": err}).Fatal("failed to configure HTTPS server")
 		}
 		return
