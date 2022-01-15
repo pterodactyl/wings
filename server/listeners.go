@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/apex/log"
 
@@ -51,48 +52,68 @@ func (dsl *diskSpaceLimiter) Trigger() {
 	})
 }
 
+func (s *Server) processConsoleOutputEvent(v []byte) {
+	t := s.Throttler()
+	err := t.Increment(func() {
+		s.PublishConsoleOutputFromDaemon("Your server is outputting too much data and is being throttled.")
+	})
+	// An error is only returned if the server has breached the thresholds set.
+	if err != nil {
+		// If the process is already stopping, just let it continue with that action rather than attempting
+		// to terminate again.
+		if s.Environment.State() != environment.ProcessStoppingState {
+			s.Environment.SetState(environment.ProcessStoppingState)
+
+			go func() {
+				s.Log().Warn("stopping server instance, violating throttle limits")
+				s.PublishConsoleOutputFromDaemon("Your server is being stopped for outputting too much data in a short period of time.")
+
+				// Completely skip over server power actions and terminate the running instance. This gives the
+				// server 15 seconds to finish stopping gracefully before it is forcefully terminated.
+				if err := s.Environment.WaitForStop(config.Get().Throttles.StopGracePeriod, true); err != nil {
+					// If there is an error set the process back to running so that this throttler is called
+					// again and hopefully kills the server.
+					if s.Environment.State() != environment.ProcessOfflineState {
+						s.Environment.SetState(environment.ProcessRunningState)
+					}
+
+					s.Log().WithField("error", err).Error("failed to terminate environment after triggering throttle")
+				}
+			}()
+		}
+	}
+
+	// If we are not throttled, go ahead and output the data.
+	if !t.Throttled() {
+		s.logChannelsMx.RLock()
+		for _, c := range s.logChannels {
+			// TODO: should this be done in parallel?
+			select {
+			// Send the log output to the channel
+			case c <- v:
+			// Timeout after 500 milliseconds, this will cause the write to the channel to be cancelled.
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
+		s.logChannelsMx.RUnlock()
+	}
+
+	// Also pass the data along to the console output channel.
+	s.onConsoleOutput(string(v))
+}
+
 // StartEventListeners adds all the internal event listeners we want to use for a server. These listeners can only be
 // removed by deleting the server as they should last for the duration of the process' lifetime.
 func (s *Server) StartEventListeners() {
-	console := func(e events.Event) {
-		t := s.Throttler()
-		err := t.Increment(func() {
-			s.PublishConsoleOutputFromDaemon("Your server is outputting too much data and is being throttled.")
-		})
-		// An error is only returned if the server has breached the thresholds set.
-		if err != nil {
-			// If the process is already stopping, just let it continue with that action rather than attempting
-			// to terminate again.
-			if s.Environment.State() != environment.ProcessStoppingState {
-				s.Environment.SetState(environment.ProcessStoppingState)
-
-				go func() {
-					s.Log().Warn("stopping server instance, violating throttle limits")
-					s.PublishConsoleOutputFromDaemon("Your server is being stopped for outputting too much data in a short period of time.")
-
-					// Completely skip over server power actions and terminate the running instance. This gives the
-					// server 15 seconds to finish stopping gracefully before it is forcefully terminated.
-					if err := s.Environment.WaitForStop(config.Get().Throttles.StopGracePeriod, true); err != nil {
-						// If there is an error set the process back to running so that this throttler is called
-						// again and hopefully kills the server.
-						if s.Environment.State() != environment.ProcessOfflineState {
-							s.Environment.SetState(environment.ProcessRunningState)
-						}
-
-						s.Log().WithField("error", err).Error("failed to terminate environment after triggering throttle")
-					}
-				}()
+	c := make(chan []byte)
+	go func() {
+		for {
+			select {
+			case v := <-c:
+				s.processConsoleOutputEvent(v)
 			}
 		}
-
-		// If we are not throttled, go ahead and output the data.
-		if !t.Throttled() {
-			s.Events().Publish(ConsoleOutputEvent, e.Data)
-		}
-
-		// Also pass the data along to the console output channel.
-		s.onConsoleOutput(e.Data)
-	}
+	}()
 
 	l := newDiskLimiter(s)
 	state := func(e events.Event) {
@@ -137,12 +158,13 @@ func (s *Server) StartEventListeners() {
 	}
 
 	s.Log().Debug("registering event listeners: console, state, resources...")
-	s.Environment.Events().On(environment.ConsoleOutputEvent, &console)
+	s.Environment.LogOutputOn(c)
 	s.Environment.Events().On(environment.StateChangeEvent, &state)
 	s.Environment.Events().On(environment.ResourceEvent, &stats)
 	for _, evt := range dockerEvents {
 		s.Environment.Events().On(evt, &docker)
 	}
+	// TODO: do these events ever get unregistered (do they need to bed)?
 }
 
 var stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")

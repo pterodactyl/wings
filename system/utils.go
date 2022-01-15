@@ -37,7 +37,7 @@ func MustInt(v string) int {
 	return i
 }
 
-func ScanReader(r io.Reader, callback func(line string)) error {
+func ScanReader(r io.Reader, callback func(line []byte)) error {
 	br := bufio.NewReader(r)
 	// Avoid constantly re-allocating memory when we're flooding lines through this
 	// function by using the same buffer for the duration of the call and just truncating
@@ -72,7 +72,7 @@ func ScanReader(r io.Reader, callback func(line string)) error {
 		// output event, otherwise you get funky handling in the browser console.
 		s := bufio.NewScanner(buf)
 		for s.Scan() {
-			callback(s.Text())
+			callback(s.Bytes())
 		}
 		// If the error we got previously that lead to the line being output is an io.EOF we want to
 		// exit the entire looping process.

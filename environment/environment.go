@@ -108,4 +108,9 @@ type ProcessEnvironment interface {
 	// Uptime returns the current environment uptime in milliseconds. This is
 	// the time that has passed since it was last started.
 	Uptime(ctx context.Context) (int64, error)
+
+	// LogOutputOn .
+	LogOutputOn(chan []byte)
+	// LogOutputOff .
+	LogOutputOff(chan []byte)
 }

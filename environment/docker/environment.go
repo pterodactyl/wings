@@ -51,8 +51,36 @@ type Environment struct {
 
 	emitter *events.EventBus
 
+	logChannelsMx sync.RWMutex
+	logChannels   []chan []byte
+
 	// Tracks the environment state.
 	st *system.AtomicString
+}
+
+func (e *Environment) LogOutputOn(c chan []byte) {
+	e.logChannelsMx.Lock()
+	defer e.logChannelsMx.Unlock()
+
+	e.logChannels = append(e.logChannels, c)
+}
+
+func (e *Environment) LogOutputOff(c chan []byte) {
+	e.logChannelsMx.Lock()
+	defer e.logChannelsMx.Unlock()
+
+	logChannels := e.logChannels
+
+	for i, c2 := range logChannels {
+		if c != c2 {
+			continue
+		}
+		copy(logChannels[i:], logChannels[i+1:])
+		logChannels[len(logChannels)-1] = nil
+		logChannels = logChannels[:len(logChannels)-1]
+		e.logChannels = logChannels
+		return
+	}
 }
 
 // New creates a new base Docker environment. The ID passed through will be the

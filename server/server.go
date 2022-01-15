@@ -70,6 +70,34 @@ type Server struct {
 	// Tracks open websocket connections for the server.
 	wsBag       *WebsocketBag
 	wsBagLocker sync.Mutex
+
+	logChannelsMx sync.RWMutex
+	logChannels   []chan []byte
+}
+
+func (s *Server) LogOutputOn(c chan []byte) {
+	s.logChannelsMx.Lock()
+	defer s.logChannelsMx.Unlock()
+
+	s.logChannels = append(s.logChannels, c)
+}
+
+func (s *Server) LogOutputOff(c chan []byte) {
+	s.logChannelsMx.Lock()
+	defer s.logChannelsMx.Unlock()
+
+	logChannels := s.logChannels
+
+	for i, c2 := range logChannels {
+		if c != c2 {
+			continue
+		}
+		copy(logChannels[i:], logChannels[i+1:])
+		logChannels[len(logChannels)-1] = nil
+		logChannels = logChannels[:len(logChannels)-1]
+		s.logChannels = logChannels
+		return
+	}
 }
 
 // New returns a new server instance with a context and all of the default
