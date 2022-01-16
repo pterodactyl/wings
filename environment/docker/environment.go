@@ -49,38 +49,13 @@ type Environment struct {
 	// Holds the stats stream used by the polling commands so that we can easily close it out.
 	stats io.ReadCloser
 
-	emitter *events.EventBus
+	emitter *events.Bus
 
-	logChannelsMx sync.RWMutex
-	logChannels   []chan []byte
+	logCallbackMx sync.Mutex
+	logCallback   func([]byte)
 
 	// Tracks the environment state.
 	st *system.AtomicString
-}
-
-func (e *Environment) LogOutputOn(c chan []byte) {
-	e.logChannelsMx.Lock()
-	defer e.logChannelsMx.Unlock()
-
-	e.logChannels = append(e.logChannels, c)
-}
-
-func (e *Environment) LogOutputOff(c chan []byte) {
-	e.logChannelsMx.Lock()
-	defer e.logChannelsMx.Unlock()
-
-	logChannels := e.logChannels
-
-	for i, c2 := range logChannels {
-		if c != c2 {
-			continue
-		}
-		copy(logChannels[i:], logChannels[i+1:])
-		logChannels[len(logChannels)-1] = nil
-		logChannels = logChannels[:len(logChannels)-1]
-		e.logChannels = logChannels
-		return
-	}
 }
 
 // New creates a new base Docker environment. The ID passed through will be the
@@ -128,9 +103,9 @@ func (e *Environment) IsAttached() bool {
 	return e.stream != nil
 }
 
-func (e *Environment) Events() *events.EventBus {
+func (e *Environment) Events() *events.Bus {
 	e.eventMu.Do(func() {
-		e.emitter = events.New()
+		e.emitter = events.NewBus()
 	})
 
 	return e.emitter
@@ -241,4 +216,11 @@ func (e *Environment) SetState(state string) {
 		e.st.Store(state)
 		e.Events().Publish(environment.StateChangeEvent, state)
 	}
+}
+
+func (e *Environment) SetLogCallback(f func([]byte)) {
+	e.logCallbackMx.Lock()
+	defer e.logCallbackMx.Unlock()
+
+	e.logCallback = f
 }

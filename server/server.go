@@ -49,7 +49,7 @@ type Server struct {
 	fs *filesystem.Filesystem
 
 	// Events emitted by the server instance.
-	emitter *events.EventBus
+	emitter *events.Bus
 
 	// Defines the process configuration for the server instance. This is dynamically
 	// fetched from the Pterodactyl Server instance each time the server process is
@@ -98,6 +98,17 @@ func (s *Server) LogOutputOff(c chan []byte) {
 		s.logChannels = logChannels
 		return
 	}
+}
+
+func (s *Server) LogOutputDestroy() {
+	s.logChannelsMx.Lock()
+	defer s.logChannelsMx.Unlock()
+
+	for _, c := range s.logChannels {
+		close(c)
+	}
+
+	s.logChannels = nil
 }
 
 // New returns a new server instance with a context and all of the default

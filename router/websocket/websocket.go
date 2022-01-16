@@ -122,7 +122,7 @@ func (h *Handler) Logger() *log.Entry {
 		WithField("server", h.server.ID())
 }
 
-func (h *Handler) SendJson(v *Message) error {
+func (h *Handler) SendJson(v Message) error {
 	// Do not send JSON down the line if the JWT on the connection is not valid!
 	if err := h.TokenValid(); err != nil {
 		_ = h.unsafeSendJson(Message{
@@ -314,7 +314,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 			// On every authentication event, send the current server status back
 			// to the client. :)
 			state := h.server.Environment.State()
-			_ = h.SendJson(&Message{
+			_ = h.SendJson(Message{
 				Event: server.StatusEvent,
 				Args:  []string{state},
 			})
@@ -326,7 +326,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 					_ = h.server.Filesystem().HasSpaceAvailable(false)
 
 					b, _ := json.Marshal(h.server.Proc())
-					_ = h.SendJson(&Message{
+					_ = h.SendJson(Message{
 						Event: server.StatsEvent,
 						Args:  []string{string(b)},
 					})
@@ -356,7 +356,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 			if errors.Is(err, context.DeadlineExceeded) {
 				m, _ := h.GetErrorMessage("another power action is currently being processed for this server, please try again later")
 
-				_ = h.SendJson(&Message{
+				_ = h.SendJson(Message{
 					Event: ErrorEvent,
 					Args:  []string{m},
 				})
@@ -380,7 +380,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 			}
 
 			for _, line := range logs {
-				_ = h.SendJson(&Message{
+				_ = h.SendJson(Message{
 					Event: server.ConsoleOutputEvent,
 					Args:  []string{line},
 				})
@@ -391,7 +391,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 	case SendStatsEvent:
 		{
 			b, _ := json.Marshal(h.server.Proc())
-			_ = h.SendJson(&Message{
+			_ = h.SendJson(Message{
 				Event: server.StatsEvent,
 				Args:  []string{string(b)},
 			})

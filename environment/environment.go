@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	ConsoleOutputEvent       = "console output"
 	StateChangeEvent         = "state change"
 	ResourceEvent            = "resources"
 	DockerImagePullStarted   = "docker image pull started"
@@ -35,7 +34,7 @@ type ProcessEnvironment interface {
 	// Returns an event emitter instance that can be hooked into to listen for different
 	// events that are fired by the environment. This should not allow someone to publish
 	// events, only subscribe to them.
-	Events() *events.EventBus
+	Events() *events.Bus
 
 	// Determines if the server instance exists. For example, in a docker environment
 	// this should confirm that the container is created and in a bootable state. In
@@ -109,8 +108,6 @@ type ProcessEnvironment interface {
 	// the time that has passed since it was last started.
 	Uptime(ctx context.Context) (int64, error)
 
-	// LogOutputOn .
-	LogOutputOn(chan []byte)
-	// LogOutputOff .
-	LogOutputOff(chan []byte)
+	// SetLogCallback .
+	SetLogCallback(func([]byte))
 }

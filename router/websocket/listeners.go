@@ -2,10 +2,12 @@ package websocket
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
 	"emperror.dev/errors"
+	"github.com/apex/log"
 	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/server"
 )
@@ -53,9 +55,9 @@ func (h *Handler) listenForExpiration(ctx context.Context) {
 			jwt := h.GetJwt()
 			if jwt != nil {
 				if jwt.ExpirationTime.Unix()-time.Now().Unix() <= 0 {
-					_ = h.SendJson(&Message{Event: TokenExpiredEvent})
+					_ = h.SendJson(Message{Event: TokenExpiredEvent})
 				} else if jwt.ExpirationTime.Unix()-time.Now().Unix() <= 60 {
-					_ = h.SendJson(&Message{Event: TokenExpiringEvent})
+					_ = h.SendJson(Message{Event: TokenExpiringEvent})
 				}
 			}
 		}
@@ -80,6 +82,7 @@ var e = []string{
 // and send them along to the connected websocket client. This function will
 // block until the context provided to it is canceled.
 func (h *Handler) listenForServerEvents(ctx context.Context) error {
+	defer log.Error("listenForServerEvents: closed")
 	var o sync.Once
 	var err error
 
@@ -88,15 +91,9 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 
 	c := make(chan events.Event)
 
-	callback := func(e events.Event) {
-		c <- e
-	}
-
 	// Subscribe to all of the events with the same callback that will push the
 	// data out over the websocket for the server.
-	for _, evt := range e {
-		h.server.Events().On(evt, &callback)
-	}
+	h.server.Events().On(c, e...)
 
 	c2 := make(chan []byte)
 	h.server.LogOutputOn(c2)
@@ -106,7 +103,7 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 		case <-ctx.Done():
 			break
 		case e := <-c2:
-			sendErr := h.SendJson(&Message{Event: server.ConsoleOutputEvent, Args: []string{string(e)}})
+			sendErr := h.SendJson(Message{Event: server.ConsoleOutputEvent, Args: []string{string(e)}})
 			if sendErr == nil {
 				continue
 			}
@@ -120,7 +117,23 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 			})
 			cancel()
 		case e := <-c:
-			sendErr := h.SendJson(&Message{Event: e.Topic, Args: []string{e.Data}})
+			var sendErr error
+			message := Message{Event: e.Topic}
+			if str, ok := e.Data.(string); ok {
+				message.Args = []string{str}
+			} else if b, ok := e.Data.([]byte); ok {
+				message.Args = []string{string(b)}
+			} else {
+				b, sendErr = json.Marshal(e.Data)
+				if sendErr == nil {
+					message.Args = []string{string(b)}
+				}
+			}
+
+			if sendErr == nil {
+				sendErr = h.SendJson(message)
+			}
+
 			if sendErr == nil {
 				continue
 			}
@@ -137,9 +150,7 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 		break
 	}
 
-	for _, evt := range e {
-		h.server.Events().Off(evt, &callback)
-	}
+	h.server.Events().Off(c, e...)
 	close(c)
 
 	h.server.LogOutputOff(c2)
@@ -151,5 +162,6 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
 	return nil
 }

@@ -343,15 +343,9 @@ func (e *Environment) scanOutput(reader io.ReadCloser) {
 	defer reader.Close()
 
 	if err := system.ScanReader(reader, func(v []byte) {
-		e.logChannelsMx.RLock()
-		defer e.logChannelsMx.RUnlock()
-
-		for _, c := range e.logChannels {
-			select {
-			case c <- v:
-			case <-time.After(500 * time.Millisecond):
-			}
-		}
+		e.logCallbackMx.Lock()
+		defer e.logCallbackMx.Unlock()
+		e.logCallback(v)
 	}); err != nil && err != io.EOF {
 		log.WithField("error", err).WithField("container_id", e.Id).Warn("error processing scanner line in console output")
 		return

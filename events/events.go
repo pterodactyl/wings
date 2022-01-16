@@ -1,122 +1,111 @@
+// Package events2 ...
 package events
 
 import (
-	"encoding/json"
-	"strings"
 	"sync"
-
-	"github.com/gammazero/workerpool"
 )
 
+type Listener chan Event
+
+// Event .
 type Event struct {
-	Data  string
+	// Topic .
 	Topic string
+	// Data .
+	Data interface{}
 }
 
-type EventBus struct {
-	mu    sync.RWMutex
-	pools map[string]*CallbackPool
+// Bus .
+type Bus struct {
+	listenersMx sync.Mutex
+	listeners   map[string][]Listener
 }
 
-func New() *EventBus {
-	return &EventBus{
-		pools: make(map[string]*CallbackPool),
+// NewBus .
+func NewBus() *Bus {
+	return &Bus{
+		listeners: make(map[string][]Listener),
 	}
 }
 
-// Publish data to a given topic.
-func (e *EventBus) Publish(topic string, data string) {
-	t := topic
-	// Some of our topics for the socket support passing a more specific namespace,
-	// such as "backup completed:1234" to indicate which specific backup was completed.
-	//
-	// In these cases, we still need to send the event using the standard listener
-	// name of "backup completed".
-	if strings.Contains(topic, ":") {
-		parts := strings.SplitN(topic, ":", 2)
+func (b *Bus) Off(listener Listener, topics ...string) {
+	b.listenersMx.Lock()
+	defer b.listenersMx.Unlock()
 
-		if len(parts) == 2 {
-			t = parts[0]
+	for _, topic := range topics {
+		b.off(topic, listener)
+	}
+}
+
+func (b *Bus) off(topic string, listener Listener) bool {
+	listeners, ok := b.listeners[topic]
+	if !ok {
+		return false
+	}
+	for i, l := range listeners {
+		if l != listener {
+			continue
+		}
+
+		listeners = append(listeners[:i], listeners[i+1:]...)
+		b.listeners[topic] = listeners
+		return true
+	}
+	return false
+}
+
+func (b *Bus) On(listener Listener, topics ...string) {
+	b.listenersMx.Lock()
+	defer b.listenersMx.Unlock()
+
+	for _, topic := range topics {
+		b.on(topic, listener)
+	}
+}
+
+func (b *Bus) on(topic string, listener Listener) {
+	listeners, ok := b.listeners[topic]
+	if !ok {
+		b.listeners[topic] = []Listener{listener}
+	} else {
+		b.listeners[topic] = append(listeners, listener)
+	}
+}
+
+func (b *Bus) Publish(topic string, data interface{}) {
+	b.listenersMx.Lock()
+	defer b.listenersMx.Unlock()
+
+	listeners, ok := b.listeners[topic]
+	if !ok {
+		return
+	}
+	if len(listeners) < 1 {
+		return
+	}
+
+	var wg sync.WaitGroup
+	event := Event{Topic: topic, Data: data}
+	for _, listener := range listeners {
+		l := listener
+		wg.Add(1)
+		go func(l Listener, event Event) {
+			defer wg.Done()
+			l <- event
+		}(l, event)
+	}
+	wg.Wait()
+}
+
+func (b *Bus) Destroy() {
+	b.listenersMx.Lock()
+	defer b.listenersMx.Unlock()
+
+	for _, listeners := range b.listeners {
+		for _, listener := range listeners {
+			close(listener)
 		}
 	}
 
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-
-	// Acquire a read lock and loop over all the channels registered for the topic. This
-	// avoids a panic crash if the process tries to unregister the channel while this routine
-	// is running.
-	if cp, ok := e.pools[t]; ok {
-		for _, callback := range cp.callbacks {
-			c := *callback
-			evt := Event{Data: data, Topic: topic}
-			// Using the workerpool with one worker allows us to execute events in a FIFO manner. Running
-			// this using goroutines would cause things such as console output to just output in random order
-			// if more than one event is fired at the same time.
-			//
-			// However, the pool submission does not block the execution of this function itself, allowing
-			// us to call publish without blocking any of the other pathways.
-			//
-			// @see https://github.com/pterodactyl/panel/issues/2303
-			cp.pool.Submit(func() {
-				c(evt)
-			})
-		}
-	}
-}
-
-// PublishJson publishes a JSON message to a given topic.
-func (e *EventBus) PublishJson(topic string, data interface{}) error {
-	b, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	e.Publish(topic, string(b))
-
-	return nil
-}
-
-// On adds a callback function that will be executed each time one of the events using the topic
-// name is called.
-func (e *EventBus) On(topic string, callback *func(Event)) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	// Check if this topic has been registered at least once for the event listener, and if
-	// not create an empty struct for the topic.
-	if _, exists := e.pools[topic]; !exists {
-		e.pools[topic] = &CallbackPool{
-			callbacks: make([]*func(Event), 0),
-			pool:      workerpool.New(1),
-		}
-	}
-
-	// If this callback is not already registered as an event listener, go ahead and append
-	// it to the array of callbacks for this topic.
-	e.pools[topic].Add(callback)
-}
-
-// Off removes an event listener from the bus.
-func (e *EventBus) Off(topic string, callback *func(Event)) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	if cp, ok := e.pools[topic]; ok {
-		cp.Remove(callback)
-	}
-}
-
-// Destroy removes all the event listeners that have been registered for any topic. Also stops the worker
-// pool to close that routine.
-func (e *EventBus) Destroy() {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	// Stop every pool that exists for a given callback topic.
-	for _, cp := range e.pools {
-		cp.pool.Stop()
-	}
-
-	e.pools = make(map[string]*CallbackPool)
+	b.listeners = make(map[string][]Listener)
 }

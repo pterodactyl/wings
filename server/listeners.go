@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"regexp"
 	"strconv"
 	"sync"
@@ -105,66 +104,59 @@ func (s *Server) processConsoleOutputEvent(v []byte) {
 // StartEventListeners adds all the internal event listeners we want to use for a server. These listeners can only be
 // removed by deleting the server as they should last for the duration of the process' lifetime.
 func (s *Server) StartEventListeners() {
-	c := make(chan []byte)
+	state := make(chan events.Event)
+	stats := make(chan events.Event)
+	docker := make(chan events.Event)
+
 	go func() {
+		l := newDiskLimiter(s)
+
 		for {
 			select {
-			case v := <-c:
-				s.processConsoleOutputEvent(v)
+			case e := <-state:
+				go func() {
+					// Reset the throttler when the process is started.
+					if e.Data == environment.ProcessStartingState {
+						l.Reset()
+						s.Throttler().Reset()
+					}
+
+					s.OnStateChange()
+				}()
+			case e := <-stats:
+				go func() {
+					// Update the server resource tracking object with the resources we got here.
+					s.resources.mu.Lock()
+					s.resources.Stats = e.Data.(environment.Stats)
+					s.resources.mu.Unlock()
+
+					// If there is no disk space available at this point, trigger the server disk limiter logic
+					// which will start to stop the running instance.
+					if !s.Filesystem().HasSpaceAvailable(true) {
+						l.Trigger()
+					}
+
+					s.emitProcUsage()
+				}()
+			case e := <-docker:
+				go func() {
+					if e.Topic == environment.DockerImagePullStatus {
+						s.Events().Publish(InstallOutputEvent, e.Data)
+					} else if e.Topic == environment.DockerImagePullStarted {
+						s.PublishConsoleOutputFromDaemon("Pulling Docker container image, this could take a few minutes to complete...")
+					} else {
+						s.PublishConsoleOutputFromDaemon("Finished pulling Docker container image")
+					}
+				}()
 			}
 		}
 	}()
 
-	l := newDiskLimiter(s)
-	state := func(e events.Event) {
-		// Reset the throttler when the process is started.
-		if e.Data == environment.ProcessStartingState {
-			l.Reset()
-			s.Throttler().Reset()
-		}
-
-		s.OnStateChange()
-	}
-
-	stats := func(e events.Event) {
-		var st environment.Stats
-		if err := json.Unmarshal([]byte(e.Data), &st); err != nil {
-			s.Log().WithField("error", err).Warn("failed to unmarshal server environment stats")
-			return
-		}
-
-		// Update the server resource tracking object with the resources we got here.
-		s.resources.mu.Lock()
-		s.resources.Stats = st
-		s.resources.mu.Unlock()
-
-		// If there is no disk space available at this point, trigger the server disk limiter logic
-		// which will start to stop the running instance.
-		if !s.Filesystem().HasSpaceAvailable(true) {
-			l.Trigger()
-		}
-
-		s.emitProcUsage()
-	}
-
-	docker := func(e events.Event) {
-		if e.Topic == environment.DockerImagePullStatus {
-			s.Events().Publish(InstallOutputEvent, e.Data)
-		} else if e.Topic == environment.DockerImagePullStarted {
-			s.PublishConsoleOutputFromDaemon("Pulling Docker container image, this could take a few minutes to complete...")
-		} else {
-			s.PublishConsoleOutputFromDaemon("Finished pulling Docker container image")
-		}
-	}
-
 	s.Log().Debug("registering event listeners: console, state, resources...")
-	s.Environment.LogOutputOn(c)
-	s.Environment.Events().On(environment.StateChangeEvent, &state)
-	s.Environment.Events().On(environment.ResourceEvent, &stats)
-	for _, evt := range dockerEvents {
-		s.Environment.Events().On(evt, &docker)
-	}
-	// TODO: do these events ever get unregistered (do they need to bed)?
+	s.Environment.SetLogCallback(s.processConsoleOutputEvent)
+	s.Environment.Events().On(state, environment.StateChangeEvent)
+	s.Environment.Events().On(stats, environment.ResourceEvent)
+	s.Environment.Events().On(docker, dockerEvents...)
 }
 
 var stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
