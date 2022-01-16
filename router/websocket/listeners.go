@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"emperror.dev/errors"
-	"github.com/apex/log"
 	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/server"
 )
@@ -82,7 +81,6 @@ var e = []string{
 // and send them along to the connected websocket client. This function will
 // block until the context provided to it is canceled.
 func (h *Handler) listenForServerEvents(ctx context.Context) error {
-	defer log.Error("listenForServerEvents: closed")
 	var o sync.Once
 	var err error
 
