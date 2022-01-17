@@ -4,7 +4,6 @@ import (
 	"regexp"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/apex/log"
 
@@ -84,17 +83,7 @@ func (s *Server) processConsoleOutputEvent(v []byte) {
 
 	// If we are not throttled, go ahead and output the data.
 	if !t.Throttled() {
-		s.logOutputsMx.RLock()
-		for _, c := range s.logOutputs {
-			// TODO: should this be done in parallel?
-			select {
-			// Send the log output to the channel
-			case c <- v:
-			// Timeout after 100 milliseconds, this will cause the write to the channel to be cancelled.
-			case <-time.After(100 * time.Millisecond):
-			}
-		}
-		s.logOutputsMx.RUnlock()
+		s.LogSink().Push(v)
 	}
 
 	// Also pass the data along to the console output channel.
@@ -140,11 +129,12 @@ func (s *Server) StartEventListeners() {
 				}()
 			case e := <-docker:
 				go func() {
-					if e.Topic == environment.DockerImagePullStatus {
+					switch e.Topic {
+					case environment.DockerImagePullStatus:
 						s.Events().Publish(InstallOutputEvent, e.Data)
-					} else if e.Topic == environment.DockerImagePullStarted {
+					case environment.DockerImagePullStarted:
 						s.PublishConsoleOutputFromDaemon("Pulling Docker container image, this could take a few minutes to complete...")
-					} else {
+					default:
 						s.PublishConsoleOutputFromDaemon("Finished pulling Docker container image")
 					}
 				}()

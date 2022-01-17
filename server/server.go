@@ -71,11 +71,8 @@ type Server struct {
 	wsBag       *WebsocketBag
 	wsBagLocker sync.Mutex
 
-	logOutputsMx sync.RWMutex
-	logOutputs   []chan []byte
-
-	installOutputsMx sync.RWMutex
-	installOutputs   []chan []byte
+	logSink     *sinkPool
+	installSink *sinkPool
 }
 
 // New returns a new server instance with a context and all of the default
@@ -89,6 +86,9 @@ func New(client remote.Client) (*Server, error) {
 		installing:   system.NewAtomicBool(false),
 		transferring: system.NewAtomicBool(false),
 		restoring:    system.NewAtomicBool(false),
+
+		logSink:     newSinkPool(),
+		installSink: newSinkPool(),
 	}
 	if err := defaults.Set(&s); err != nil {
 		return nil, errors.Wrap(err, "server: could not set default values for struct")
@@ -356,80 +356,10 @@ func (s *Server) ToAPIResponse() APIResponse {
 	}
 }
 
-// LogOutputOn .
-func (s *Server) LogOutputOn(c chan []byte) {
-	s.logOutputsMx.Lock()
-	defer s.logOutputsMx.Unlock()
-
-	s.logOutputs = append(s.logOutputs, c)
+func (s *Server) LogSink() *sinkPool {
+	return s.logSink
 }
 
-// LogOutputOff .
-func (s *Server) LogOutputOff(c chan []byte) {
-	s.logOutputsMx.Lock()
-	defer s.logOutputsMx.Unlock()
-
-	channels := s.logOutputs
-
-	for i, c2 := range channels {
-		if c != c2 {
-			continue
-		}
-		copy(channels[i:], channels[i+1:])
-		channels[len(channels)-1] = nil
-		channels = channels[:len(channels)-1]
-		s.logOutputs = channels
-		return
-	}
-}
-
-// LogOutputDestroy .
-func (s *Server) LogOutputDestroy() {
-	s.logOutputsMx.Lock()
-	defer s.logOutputsMx.Unlock()
-
-	for _, c := range s.logOutputs {
-		close(c)
-	}
-
-	s.logOutputs = nil
-}
-
-// InstallOutputOn .
-func (s *Server) InstallOutputOn(c chan []byte) {
-	s.installOutputsMx.Lock()
-	defer s.installOutputsMx.Unlock()
-
-	s.installOutputs = append(s.installOutputs, c)
-}
-
-// InstallOutputOff .
-func (s *Server) InstallOutputOff(c chan []byte) {
-	s.installOutputsMx.Lock()
-	defer s.installOutputsMx.Unlock()
-
-	channels := s.installOutputs
-
-	for i, c2 := range channels {
-		if c != c2 {
-			continue
-		}
-		copy(channels[i:], channels[i+1:])
-		channels[len(channels)-1] = nil
-		channels = channels[:len(channels)-1]
-		s.installOutputs = channels
-		return
-	}
-}
-
-// InstallOutputDestroy .
-func (s *Server) InstallOutputDestroy() {
-	s.installOutputsMx.Lock()
-	defer s.installOutputsMx.Unlock()
-
-	for _, c := range s.installOutputs {
-		close(c)
-	}
-
-	s.installOutputs = nil
+func (s *Server) InstallSink() *sinkPool {
+	return s.installSink
 }

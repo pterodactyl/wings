@@ -88,15 +88,11 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 	defer cancel()
 
 	eventChan := make(chan events.Event)
-
-	// Subscribe to all of the events with the same callback that will push the
-	// data out over the websocket for the server.
-	h.server.Events().On(eventChan, e...)
-
 	logOutput := make(chan []byte)
-	h.server.LogOutputOn(logOutput)
 	installOutput := make(chan []byte)
-	h.server.InstallOutputOn(installOutput)
+	h.server.Events().On(eventChan, e...)
+	h.server.LogSink().On(logOutput)
+	h.server.InstallSink().On(installOutput)
 
 	onError := func(evt string, err2 error) {
 		h.Logger().WithField("event", evt).WithField("error", err2).Error("failed to send event over server websocket")
@@ -151,10 +147,10 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 	}
 
 	h.server.Events().Off(eventChan, e...)
+	h.server.InstallSink().Off(logOutput)
+	h.server.InstallSink().Off(installOutput)
 	close(eventChan)
-	h.server.LogOutputOff(logOutput)
 	close(logOutput)
-	h.server.InstallOutputOff(installOutput)
 	close(installOutput)
 
 	// If the internal context is stopped it is either because the parent context

@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -522,19 +521,7 @@ func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) erro
 	}
 	defer reader.Close()
 
-	err = system.ScanReader(reader, func(v []byte) {
-		ip.Server.installOutputsMx.RLock()
-		for _, c := range ip.Server.logOutputs {
-			// TODO: should this be done in parallel?
-			select {
-			// Send the log output to the channel
-			case c <- v:
-			// Timeout after 100 milliseconds, this will cause the write to the channel to be cancelled.
-			case <-time.After(100 * time.Millisecond):
-			}
-		}
-		ip.Server.installOutputsMx.RUnlock()
-	})
+	err = system.ScanReader(reader, ip.Server.InstallSink().Push)
 	if err != nil {
 		ip.Server.Log().WithFields(log.Fields{"container_id": id, "error": err}).Warn("error processing install output lines")
 	}
