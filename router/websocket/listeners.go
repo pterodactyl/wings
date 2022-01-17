@@ -87,34 +87,45 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	c := make(chan events.Event)
+	eventChan := make(chan events.Event)
 
 	// Subscribe to all of the events with the same callback that will push the
 	// data out over the websocket for the server.
-	h.server.Events().On(c, e...)
+	h.server.Events().On(eventChan, e...)
 
-	c2 := make(chan []byte)
-	h.server.LogOutputOn(c2)
+	logOutput := make(chan []byte)
+	h.server.LogOutputOn(logOutput)
+	installOutput := make(chan []byte)
+	h.server.InstallOutputOn(installOutput)
+
+	onError := func(evt string, err2 error) {
+		h.Logger().WithField("event", evt).WithField("error", err2).Error("failed to send event over server websocket")
+		// Avoid race conditions by only setting the error once and then canceling
+		// the context. This way if additional processing errors come through due
+		// to a massive flood of things you still only report and stop at the first.
+		o.Do(func() {
+			err = err2
+		})
+		cancel()
+	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			break
-		case e := <-c2:
+		case e := <-logOutput:
 			sendErr := h.SendJson(Message{Event: server.ConsoleOutputEvent, Args: []string{string(e)}})
 			if sendErr == nil {
 				continue
 			}
-
-			h.Logger().WithField("event", server.ConsoleOutputEvent).WithField("error", sendErr).Error("failed to send event over server websocket")
-			// Avoid race conditions by only setting the error once and then canceling
-			// the context. This way if additional processing errors come through due
-			// to a massive flood of things you still only report and stop at the first.
-			o.Do(func() {
-				err = sendErr
-			})
-			cancel()
-		case e := <-c:
+			onError(server.ConsoleOutputEvent, sendErr)
+		case e := <-installOutput:
+			sendErr := h.SendJson(Message{Event: server.InstallOutputEvent, Args: []string{string(e)}})
+			if sendErr == nil {
+				continue
+			}
+			onError(server.InstallOutputEvent, sendErr)
+		case e := <-eventChan:
 			var sendErr error
 			message := Message{Event: e.Topic}
 			if str, ok := e.Data.(string); ok {
@@ -130,29 +141,21 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 
 			if sendErr == nil {
 				sendErr = h.SendJson(message)
+				if sendErr == nil {
+					continue
+				}
 			}
-
-			if sendErr == nil {
-				continue
-			}
-
-			h.Logger().WithField("event", e.Topic).WithField("error", sendErr).Error("failed to send event over server websocket")
-			// Avoid race conditions by only setting the error once and then canceling
-			// the context. This way if additional processing errors come through due
-			// to a massive flood of things you still only report and stop at the first.
-			o.Do(func() {
-				err = sendErr
-			})
-			cancel()
+			onError(message.Event, sendErr)
 		}
 		break
 	}
 
-	h.server.Events().Off(c, e...)
-	close(c)
-
-	h.server.LogOutputOff(c2)
-	close(c2)
+	h.server.Events().Off(eventChan, e...)
+	close(eventChan)
+	h.server.LogOutputOff(logOutput)
+	close(logOutput)
+	h.server.InstallOutputOff(installOutput)
+	close(installOutput)
 
 	// If the internal context is stopped it is either because the parent context
 	// got canceled or because we ran into an error. If the "err" variable is nil

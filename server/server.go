@@ -71,44 +71,11 @@ type Server struct {
 	wsBag       *WebsocketBag
 	wsBagLocker sync.Mutex
 
-	logChannelsMx sync.RWMutex
-	logChannels   []chan []byte
-}
+	logOutputsMx sync.RWMutex
+	logOutputs   []chan []byte
 
-func (s *Server) LogOutputOn(c chan []byte) {
-	s.logChannelsMx.Lock()
-	defer s.logChannelsMx.Unlock()
-
-	s.logChannels = append(s.logChannels, c)
-}
-
-func (s *Server) LogOutputOff(c chan []byte) {
-	s.logChannelsMx.Lock()
-	defer s.logChannelsMx.Unlock()
-
-	logChannels := s.logChannels
-
-	for i, c2 := range logChannels {
-		if c != c2 {
-			continue
-		}
-		copy(logChannels[i:], logChannels[i+1:])
-		logChannels[len(logChannels)-1] = nil
-		logChannels = logChannels[:len(logChannels)-1]
-		s.logChannels = logChannels
-		return
-	}
-}
-
-func (s *Server) LogOutputDestroy() {
-	s.logChannelsMx.Lock()
-	defer s.logChannelsMx.Unlock()
-
-	for _, c := range s.logChannels {
-		close(c)
-	}
-
-	s.logChannels = nil
+	installOutputsMx sync.RWMutex
+	installOutputs   []chan []byte
 }
 
 // New returns a new server instance with a context and all of the default
@@ -387,4 +354,82 @@ func (s *Server) ToAPIResponse() APIResponse {
 		Utilization:   s.Proc(),
 		Configuration: *s.Config(),
 	}
+}
+
+// LogOutputOn .
+func (s *Server) LogOutputOn(c chan []byte) {
+	s.logOutputsMx.Lock()
+	defer s.logOutputsMx.Unlock()
+
+	s.logOutputs = append(s.logOutputs, c)
+}
+
+// LogOutputOff .
+func (s *Server) LogOutputOff(c chan []byte) {
+	s.logOutputsMx.Lock()
+	defer s.logOutputsMx.Unlock()
+
+	channels := s.logOutputs
+
+	for i, c2 := range channels {
+		if c != c2 {
+			continue
+		}
+		copy(channels[i:], channels[i+1:])
+		channels[len(channels)-1] = nil
+		channels = channels[:len(channels)-1]
+		s.logOutputs = channels
+		return
+	}
+}
+
+// LogOutputDestroy .
+func (s *Server) LogOutputDestroy() {
+	s.logOutputsMx.Lock()
+	defer s.logOutputsMx.Unlock()
+
+	for _, c := range s.logOutputs {
+		close(c)
+	}
+
+	s.logOutputs = nil
+}
+
+// InstallOutputOn .
+func (s *Server) InstallOutputOn(c chan []byte) {
+	s.installOutputsMx.Lock()
+	defer s.installOutputsMx.Unlock()
+
+	s.installOutputs = append(s.installOutputs, c)
+}
+
+// InstallOutputOff .
+func (s *Server) InstallOutputOff(c chan []byte) {
+	s.installOutputsMx.Lock()
+	defer s.installOutputsMx.Unlock()
+
+	channels := s.installOutputs
+
+	for i, c2 := range channels {
+		if c != c2 {
+			continue
+		}
+		copy(channels[i:], channels[i+1:])
+		channels[len(channels)-1] = nil
+		channels = channels[:len(channels)-1]
+		s.installOutputs = channels
+		return
+	}
+}
+
+// InstallOutputDestroy .
+func (s *Server) InstallOutputDestroy() {
+	s.installOutputsMx.Lock()
+	defer s.installOutputsMx.Unlock()
+
+	for _, c := range s.installOutputs {
+		close(c)
+	}
+
+	s.installOutputs = nil
 }

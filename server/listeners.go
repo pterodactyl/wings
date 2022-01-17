@@ -84,17 +84,17 @@ func (s *Server) processConsoleOutputEvent(v []byte) {
 
 	// If we are not throttled, go ahead and output the data.
 	if !t.Throttled() {
-		s.logChannelsMx.RLock()
-		for _, c := range s.logChannels {
+		s.logOutputsMx.RLock()
+		for _, c := range s.logOutputs {
 			// TODO: should this be done in parallel?
 			select {
 			// Send the log output to the channel
 			case c <- v:
-			// Timeout after 500 milliseconds, this will cause the write to the channel to be cancelled.
-			case <-time.After(500 * time.Millisecond):
+			// Timeout after 100 milliseconds, this will cause the write to the channel to be cancelled.
+			case <-time.After(100 * time.Millisecond):
 			}
 		}
-		s.logChannelsMx.RUnlock()
+		s.logOutputsMx.RUnlock()
 	}
 
 	// Also pass the data along to the console output channel.

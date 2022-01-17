@@ -189,6 +189,7 @@ func deleteServer(c *gin.Context) {
 	s.CtxCancel()
 	s.Events().Destroy()
 	s.LogOutputDestroy()
+	s.InstallOutputDestroy()
 	s.Websockets().CancelAll()
 
 	// Remove any pending remote file downloads for the server.
