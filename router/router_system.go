@@ -103,15 +103,17 @@ func postUpdateConfiguration(c *gin.Context) {
 	if err := c.BindJSON(&cfg); err != nil {
 		return
 	}
+
 	// Keep the SSL certificates the same since the Panel will send through Lets Encrypt
 	// default locations. However, if we picked a different location manually we don't
 	// want to override that.
 	//
 	// If you pass through manual locations in the API call this logic will be skipped.
 	if strings.HasPrefix(cfg.Api.Ssl.KeyFile, "/etc/letsencrypt/live/") {
-		cfg.Api.Ssl.KeyFile = strings.ToLower(config.Get().Api.Ssl.KeyFile)
-		cfg.Api.Ssl.CertificateFile = strings.ToLower(config.Get().Api.Ssl.CertificateFile)
+		cfg.Api.Ssl.KeyFile = config.Get().Api.Ssl.KeyFile
+		cfg.Api.Ssl.CertificateFile = config.Get().Api.Ssl.CertificateFile
 	}
+
 	// Try to write this new configuration to the disk before updating our global
 	// state with it.
 	if err := config.WriteToDisk(cfg); err != nil {
