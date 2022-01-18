@@ -1,5 +1,5 @@
 Name:       ptero-wings
-Version:    1.5.0
+Version:    1.5.3
 Release:    1%{?dist}
 Summary:    The server control plane for Pterodactyl Panel. Written from the ground-up with security, speed, and stability in mind.
 BuildArch:  x86_64
@@ -91,6 +91,13 @@ rm -rf /var/log/pterodactyl
 wings --version
 
 %changelog
+* Wed Oct 27 2021 Capitol Hosting Solutions Systems Engineering <syseng@chs.gg> - 1.5.3-1
+- specfile by Capitol Hosting Solutions, Upstream by Pterodactyl
+- Rebased for https://github.com/pterodactyl/wings/releases/tag/v1.5.3
+- Fixes improper event registration and error handling during socket authentication that would cause the incorrect error message to be returned to the client, or no error in some scenarios. Event registration is now delayed until the socket is fully authenticated to ensure needless listeners are not registed.
+- Fixes dollar signs always being evaluated as environment variables with no way to escape them. They can now be escaped as $$ which will transform into a single dollar sign.
+- A websocket connection to a server will be closed by Wings if there is a send error encountered and the client will be left to handle reconnections, rather than simply logging the error and continuing to listen for new events.
+
 * Sun Sep 12 2021 Capitol Hosting Solutions Systems Engineering <syseng@chs.gg> - 1.5.0-1
 - specfile by Capitol Hosting Solutions, Upstream by Pterodactyl
 - Rebased for https://github.com/pterodactyl/wings/releases/tag/v1.5.0
