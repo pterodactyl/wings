@@ -178,7 +178,3 @@ func TestBus_Publish(t *testing.T) {
 		})
 	})
 }
-
-func TestBus_Destroy(t *testing.T) {
-	// TODO
-}

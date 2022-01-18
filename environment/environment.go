@@ -108,6 +108,6 @@ type ProcessEnvironment interface {
 	// the time that has passed since it was last started.
 	Uptime(ctx context.Context) (int64, error)
 
-	// SetLogCallback .
+	// SetLogCallback sets the callback that the container's log output will be passed to.
 	SetLogCallback(func([]byte))
 }

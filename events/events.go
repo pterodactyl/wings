@@ -1,4 +1,3 @@
-// Package events2 ...
 package events
 
 import (
@@ -8,7 +7,7 @@ import (
 
 type Listener chan Event
 
-// Event .
+// Event represents an Event sent over a Bus.
 type Event struct {
 	// Topic .
 	Topic string
@@ -16,19 +15,20 @@ type Event struct {
 	Data interface{}
 }
 
-// Bus .
+// Bus represents an Event Bus.
 type Bus struct {
 	listenersMx sync.Mutex
 	listeners   map[string][]Listener
 }
 
-// NewBus .
+// NewBus returns a new empty Event Bus.
 func NewBus() *Bus {
 	return &Bus{
 		listeners: make(map[string][]Listener),
 	}
 }
 
+// Off unregisters a listener from the specified topics on the Bus.
 func (b *Bus) Off(listener Listener, topics ...string) {
 	b.listenersMx.Lock()
 	defer b.listenersMx.Unlock()
@@ -55,6 +55,7 @@ func (b *Bus) off(topic string, listener Listener) bool {
 	return false
 }
 
+// On registers a listener to the specified topics on the Bus.
 func (b *Bus) On(listener Listener, topics ...string) {
 	b.listenersMx.Lock()
 	defer b.listenersMx.Unlock()
@@ -73,6 +74,7 @@ func (b *Bus) on(topic string, listener Listener) {
 	}
 }
 
+// Publish publishes a message to the Bus.
 func (b *Bus) Publish(topic string, data interface{}) {
 	// Some of our topics for the socket support passing a more specific namespace,
 	// such as "backup completed:1234" to indicate which specific backup was completed.
@@ -111,6 +113,7 @@ func (b *Bus) Publish(topic string, data interface{}) {
 	wg.Wait()
 }
 
+// Destroy destroys the Event Bus by unregistering and closing all listeners.
 func (b *Bus) Destroy() {
 	b.listenersMx.Lock()
 	defer b.listenersMx.Unlock()

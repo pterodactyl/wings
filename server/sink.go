@@ -5,18 +5,18 @@ import (
 	"time"
 )
 
-// sinkPool .
+// sinkPool represents a pool with sinks.
 type sinkPool struct {
 	mx    sync.RWMutex
 	sinks []chan []byte
 }
 
-// newSinkPool .
+// newSinkPool returns a new empty sinkPool.
 func newSinkPool() *sinkPool {
 	return &sinkPool{}
 }
 
-// On .
+// On adds a sink on the pool.
 func (p *sinkPool) On(c chan []byte) {
 	p.mx.Lock()
 	defer p.mx.Unlock()
@@ -24,7 +24,7 @@ func (p *sinkPool) On(c chan []byte) {
 	p.sinks = append(p.sinks, c)
 }
 
-// Off .
+// Off removes a sink from the pool.
 func (p *sinkPool) Off(c chan []byte) {
 	p.mx.Lock()
 	defer p.mx.Unlock()
@@ -43,7 +43,7 @@ func (p *sinkPool) Off(c chan []byte) {
 	}
 }
 
-// Destroy .
+// Destroy destroys the pool by removing and closing all sinks.
 func (p *sinkPool) Destroy() {
 	p.mx.Lock()
 	defer p.mx.Unlock()
@@ -55,6 +55,7 @@ func (p *sinkPool) Destroy() {
 	p.sinks = nil
 }
 
+// Push pushes a message to all registered sinks.
 func (p *sinkPool) Push(v []byte) {
 	p.mx.RLock()
 	for _, c := range p.sinks {
