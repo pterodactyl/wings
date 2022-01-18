@@ -521,10 +521,7 @@ func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) erro
 	}
 	defer reader.Close()
 
-	evts := ip.Server.Events()
-	err = system.ScanReader(reader, func(line string) {
-		evts.Publish(InstallOutputEvent, line)
-	})
+	err = system.ScanReader(reader, ip.Server.InstallSink().Push)
 	if err != nil {
 		ip.Server.Log().WithFields(log.Fields{"container_id": id, "error": err}).Warn("error processing install output lines")
 	}

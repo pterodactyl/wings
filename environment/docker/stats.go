@@ -90,11 +90,7 @@ func (e *Environment) pollResources(ctx context.Context) error {
 				st.Network.TxBytes += nw.TxBytes
 			}
 
-			if b, err := json.Marshal(st); err != nil {
-				e.log().WithField("error", err).Warn("error while marshaling stats object for environment")
-			} else {
-				e.Events().Publish(environment.ResourceEvent, string(b))
-			}
+			e.Events().Publish(environment.ResourceEvent, st)
 		}
 	}
 }

@@ -21,12 +21,12 @@ const (
 )
 
 // Returns the server's emitter instance.
-func (s *Server) Events() *events.EventBus {
+func (s *Server) Events() *events.Bus {
 	s.emitterLock.Lock()
 	defer s.emitterLock.Unlock()
 
 	if s.emitter == nil {
-		s.emitter = events.New()
+		s.emitter = events.NewBus()
 	}
 
 	return s.emitter

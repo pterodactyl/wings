@@ -49,7 +49,10 @@ type Environment struct {
 	// Holds the stats stream used by the polling commands so that we can easily close it out.
 	stats io.ReadCloser
 
-	emitter *events.EventBus
+	emitter *events.Bus
+
+	logCallbackMx sync.Mutex
+	logCallback   func([]byte)
 
 	// Tracks the environment state.
 	st *system.AtomicString
@@ -100,9 +103,9 @@ func (e *Environment) IsAttached() bool {
 	return e.stream != nil
 }
 
-func (e *Environment) Events() *events.EventBus {
+func (e *Environment) Events() *events.Bus {
 	e.eventMu.Do(func() {
-		e.emitter = events.New()
+		e.emitter = events.NewBus()
 	})
 
 	return e.emitter
@@ -213,4 +216,11 @@ func (e *Environment) SetState(state string) {
 		e.st.Store(state)
 		e.Events().Publish(environment.StateChangeEvent, state)
 	}
+}
+
+func (e *Environment) SetLogCallback(f func([]byte)) {
+	e.logCallbackMx.Lock()
+	defer e.logCallbackMx.Unlock()
+
+	e.logCallback = f
 }

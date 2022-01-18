@@ -52,7 +52,5 @@ func (ru *ResourceUsage) Reset() {
 }
 
 func (s *Server) emitProcUsage() {
-	if err := s.Events().PublishJson(StatsEvent, s.Proc()); err != nil {
-		s.Log().WithField("error", err).Warn("error while emitting server resource usage to listeners")
-	}
+	s.Events().Publish(StatsEvent, s.Proc())
 }
