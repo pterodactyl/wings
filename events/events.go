@@ -9,10 +9,8 @@ type Listener chan Event
 
 // Event represents an Event sent over a Bus.
 type Event struct {
-	// Topic .
 	Topic string
-	// Data .
-	Data interface{}
+	Data  interface{}
 }
 
 // Bus represents an Event Bus.
