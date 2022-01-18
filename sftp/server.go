@@ -52,7 +52,9 @@ func New(m *server.Manager) *SFTPServer {
 	}
 }
 
-// Starts the SFTP server and add a persistent listener to handle inbound SFTP connections.
+// Run starts the SFTP server and add a persistent listener to handle inbound
+// SFTP connections. This will automatically generate an ED25519 key if one does
+// not already exist on the system for host key verification purposes.
 func (c *SFTPServer) Run() error {
 	keys, err := c.loadPrivateKeys()
 	if err != nil {
@@ -214,10 +216,10 @@ func (c *SFTPServer) generateRSAPrivateKey() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(path.Join(c.BasePath, ".sftp"), 0755); err != nil {
+	if err := os.MkdirAll(path.Dir(c.PrivateKeyPath("rsa")), 0o755); err != nil {
 		return errors.Wrap(err, "sftp/server: could not create .sftp directory")
 	}
-	o, err := os.OpenFile(path.Join(c.BasePath, ".sftp/id_rsa"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	o, err := os.OpenFile(c.PrivateKeyPath("rsa"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
@@ -238,10 +240,10 @@ func (c *SFTPServer) generateECDSAPrivateKey() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(path.Join(c.BasePath, ".sftp"), 0755); err != nil {
+	if err := os.MkdirAll(path.Dir(c.PrivateKeyPath("ecdsa")), 0o755); err != nil {
 		return errors.Wrap(err, "sftp/server: could not create .sftp directory")
 	}
-	o, err := os.OpenFile(path.Join(c.BasePath, ".sftp/id_ecdsa"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	o, err := os.OpenFile(c.PrivateKeyPath("ecdsa"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
@@ -261,16 +263,16 @@ func (c *SFTPServer) generateECDSAPrivateKey() error {
 	return nil
 }
 
-// generateEd25519PrivateKey generates a ed25519 private key that will be used by the SFTP server.
+// generateEd25519PrivateKey generates an ed25519 private key that will be used by the SFTP server.
 func (c *SFTPServer) generateEd25519PrivateKey() error {
 	_, key, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(path.Join(c.BasePath, ".sftp"), 0755); err != nil {
+	if err := os.MkdirAll(path.Dir(c.PrivateKeyPath("ed25519")), 0o755); err != nil {
 		return errors.Wrap(err, "sftp/server: could not create .sftp directory")
 	}
-	o, err := os.OpenFile(path.Join(c.BasePath, ".sftp/id_ed25519"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	o, err := os.OpenFile(c.PrivateKeyPath("ed25519"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
@@ -288,6 +290,11 @@ func (c *SFTPServer) generateEd25519PrivateKey() error {
 		return err
 	}
 	return nil
+}
+
+// PrivateKeyPath returns the path the host private key for this server instance.
+func (c *SFTPServer) PrivateKeyPath(name string) string {
+	return path.Join(c.BasePath, ".sftp", "id_"+name)
 }
 
 // A function capable of validating user credentials with the Panel API.

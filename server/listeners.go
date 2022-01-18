@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"regexp"
 	"strconv"
 	"sync"
@@ -51,99 +50,103 @@ func (dsl *diskSpaceLimiter) Trigger() {
 	})
 }
 
+func (s *Server) processConsoleOutputEvent(v []byte) {
+	t := s.Throttler()
+	err := t.Increment(func() {
+		s.PublishConsoleOutputFromDaemon("Your server is outputting too much data and is being throttled.")
+	})
+	// An error is only returned if the server has breached the thresholds set.
+	if err != nil {
+		// If the process is already stopping, just let it continue with that action rather than attempting
+		// to terminate again.
+		if s.Environment.State() != environment.ProcessStoppingState {
+			s.Environment.SetState(environment.ProcessStoppingState)
+
+			go func() {
+				s.Log().Warn("stopping server instance, violating throttle limits")
+				s.PublishConsoleOutputFromDaemon("Your server is being stopped for outputting too much data in a short period of time.")
+
+				// Completely skip over server power actions and terminate the running instance. This gives the
+				// server 15 seconds to finish stopping gracefully before it is forcefully terminated.
+				if err := s.Environment.WaitForStop(config.Get().Throttles.StopGracePeriod, true); err != nil {
+					// If there is an error set the process back to running so that this throttler is called
+					// again and hopefully kills the server.
+					if s.Environment.State() != environment.ProcessOfflineState {
+						s.Environment.SetState(environment.ProcessRunningState)
+					}
+
+					s.Log().WithField("error", err).Error("failed to terminate environment after triggering throttle")
+				}
+			}()
+		}
+	}
+
+	// If we are not throttled, go ahead and output the data.
+	if !t.Throttled() {
+		s.LogSink().Push(v)
+	}
+
+	// Also pass the data along to the console output channel.
+	s.onConsoleOutput(string(v))
+}
+
 // StartEventListeners adds all the internal event listeners we want to use for a server. These listeners can only be
 // removed by deleting the server as they should last for the duration of the process' lifetime.
 func (s *Server) StartEventListeners() {
-	console := func(e events.Event) {
-		t := s.Throttler()
-		err := t.Increment(func() {
-			s.PublishConsoleOutputFromDaemon("Your server is outputting too much data and is being throttled.")
-		})
+	state := make(chan events.Event)
+	stats := make(chan events.Event)
+	docker := make(chan events.Event)
 
-		// An error is only returned if the server has breached the thresholds set.
-		if err != nil {
-			// If the process is already stopping, just let it continue with that action rather than attempting
-			// to terminate again.
-			if s.Environment.State() != environment.ProcessStoppingState {
-				s.Environment.SetState(environment.ProcessStoppingState)
+	go func() {
+		l := newDiskLimiter(s)
 
+		for {
+			select {
+			case e := <-state:
 				go func() {
-					s.Log().Warn("stopping server instance, violating throttle limits")
-					s.PublishConsoleOutputFromDaemon("Your server is being stopped for outputting too much data in a short period of time.")
+					// Reset the throttler when the process is started.
+					if e.Data == environment.ProcessStartingState {
+						l.Reset()
+						s.Throttler().Reset()
+					}
 
-					// Completely skip over server power actions and terminate the running instance. This gives the
-					// server 15 seconds to finish stopping gracefully before it is forcefully terminated.
-					if err := s.Environment.WaitForStop(config.Get().Throttles.StopGracePeriod, true); err != nil {
-						// If there is an error set the process back to running so that this throttler is called
-						// again and hopefully kills the server.
-						if s.Environment.State() != environment.ProcessOfflineState {
-							s.Environment.SetState(environment.ProcessRunningState)
-						}
+					s.OnStateChange()
+				}()
+			case e := <-stats:
+				go func() {
+					// Update the server resource tracking object with the resources we got here.
+					s.resources.mu.Lock()
+					s.resources.Stats = e.Data.(environment.Stats)
+					s.resources.mu.Unlock()
 
-						s.Log().WithField("error", err).Error("failed to terminate environment after triggering throttle")
+					// If there is no disk space available at this point, trigger the server disk limiter logic
+					// which will start to stop the running instance.
+					if !s.Filesystem().HasSpaceAvailable(true) {
+						l.Trigger()
+					}
+
+					s.emitProcUsage()
+				}()
+			case e := <-docker:
+				go func() {
+					switch e.Topic {
+					case environment.DockerImagePullStatus:
+						s.Events().Publish(InstallOutputEvent, e.Data)
+					case environment.DockerImagePullStarted:
+						s.PublishConsoleOutputFromDaemon("Pulling Docker container image, this could take a few minutes to complete...")
+					default:
+						s.PublishConsoleOutputFromDaemon("Finished pulling Docker container image")
 					}
 				}()
 			}
 		}
-
-		// If we are not throttled, go ahead and output the data.
-		if !t.Throttled() {
-			s.Events().Publish(ConsoleOutputEvent, e.Data)
-		}
-
-		// Also pass the data along to the console output channel.
-		s.onConsoleOutput(e.Data)
-	}
-
-	l := newDiskLimiter(s)
-	state := func(e events.Event) {
-		// Reset the throttler when the process is started.
-		if e.Data == environment.ProcessStartingState {
-			l.Reset()
-			s.Throttler().Reset()
-		}
-
-		s.OnStateChange()
-	}
-
-	stats := func(e events.Event) {
-		var st environment.Stats
-		if err := json.Unmarshal([]byte(e.Data), &st); err != nil {
-			s.Log().WithField("error", err).Warn("failed to unmarshal server environment stats")
-			return
-		}
-
-		// Update the server resource tracking object with the resources we got here.
-		s.resources.mu.Lock()
-		s.resources.Stats = st
-		s.resources.mu.Unlock()
-
-		// If there is no disk space available at this point, trigger the server disk limiter logic
-		// which will start to stop the running instance.
-		if !s.Filesystem().HasSpaceAvailable(true) {
-			l.Trigger()
-		}
-
-		s.emitProcUsage()
-	}
-
-	docker := func(e events.Event) {
-		if e.Topic == environment.DockerImagePullStatus {
-			s.Events().Publish(InstallOutputEvent, e.Data)
-		} else if e.Topic == environment.DockerImagePullStarted {
-			s.PublishConsoleOutputFromDaemon("Pulling Docker container image, this could take a few minutes to complete...")
-		} else {
-			s.PublishConsoleOutputFromDaemon("Finished pulling Docker container image")
-		}
-	}
+	}()
 
 	s.Log().Debug("registering event listeners: console, state, resources...")
-	s.Environment.Events().On(environment.ConsoleOutputEvent, &console)
-	s.Environment.Events().On(environment.StateChangeEvent, &state)
-	s.Environment.Events().On(environment.ResourceEvent, &stats)
-	for _, evt := range dockerEvents {
-		s.Environment.Events().On(evt, &docker)
-	}
+	s.Environment.SetLogCallback(s.processConsoleOutputEvent)
+	s.Environment.Events().On(state, environment.StateChangeEvent)
+	s.Environment.Events().On(stats, environment.ResourceEvent)
+	s.Environment.Events().On(docker, dockerEvents...)
 }
 
 var stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")

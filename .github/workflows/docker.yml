@@ -34,7 +34,7 @@ jobs:
       - name: Get Build Information
         id: build_info
         run: |
-          echo "::set-output name=version_tag::${GITHUB_REF/refs\/tags\//}"
+          echo "::set-output name=version_tag::${GITHUB_REF/refs\/tags\/v/}"
           echo "::set-output name=short_sha::$(git rev-parse --short HEAD)"
       - name: Release Production Build
         uses: docker/build-push-action@v2

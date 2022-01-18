@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,16 +19,14 @@ import (
 	"github.com/pterodactyl/wings/config"
 )
 
-var (
-	configureArgs struct {
-		PanelURL      string
-		Token         string
-		ConfigPath    string
-		Node          string
-		Override      bool
-		AllowInsecure bool
-	}
-)
+var configureArgs struct {
+	PanelURL      string
+	Token         string
+	ConfigPath    string
+	Node          string
+	Override      bool
+	AllowInsecure bool
+}
 
 var nodeIdRegex = regexp.MustCompile(`^(\d+)$`)
 
@@ -140,13 +138,13 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 		fmt.Println("The authentication credentials provided were not valid.")
 		os.Exit(1)
 	} else if res.StatusCode != http.StatusOK {
-		b, _ := ioutil.ReadAll(res.Body)
+		b, _ := io.ReadAll(res.Body)
 
 		fmt.Println("An error occurred while processing this request.\n", string(b))
 		os.Exit(1)
 	}
 
-	b, err := ioutil.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 
 	cfg, err := config.NewAtPath(configPath)
 	if err != nil {

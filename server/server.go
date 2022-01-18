@@ -49,7 +49,7 @@ type Server struct {
 	fs *filesystem.Filesystem
 
 	// Events emitted by the server instance.
-	emitter *events.EventBus
+	emitter *events.Bus
 
 	// Defines the process configuration for the server instance. This is dynamically
 	// fetched from the Pterodactyl Server instance each time the server process is
@@ -70,6 +70,9 @@ type Server struct {
 	// Tracks open websocket connections for the server.
 	wsBag       *WebsocketBag
 	wsBagLocker sync.Mutex
+
+	logSink     *sinkPool
+	installSink *sinkPool
 }
 
 // New returns a new server instance with a context and all of the default
@@ -83,6 +86,9 @@ func New(client remote.Client) (*Server, error) {
 		installing:   system.NewAtomicBool(false),
 		transferring: system.NewAtomicBool(false),
 		restoring:    system.NewAtomicBool(false),
+
+		logSink:     newSinkPool(),
+		installSink: newSinkPool(),
 	}
 	if err := defaults.Set(&s); err != nil {
 		return nil, errors.Wrap(err, "server: could not set default values for struct")
@@ -348,4 +354,12 @@ func (s *Server) ToAPIResponse() APIResponse {
 		Utilization:   s.Proc(),
 		Configuration: *s.Config(),
 	}
+}
+
+func (s *Server) LogSink() *sinkPool {
+	return s.logSink
+}
+
+func (s *Server) InstallSink() *sinkPool {
+	return s.installSink
 }

@@ -3,7 +3,6 @@ package filesystem
 import (
 	"bytes"
 	"errors"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -25,7 +24,7 @@ func NewFs() (*Filesystem, *rootFs) {
 		},
 	})
 
-	tmpDir, err := ioutil.TempDir(os.TempDir(), "pterodactyl")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "pterodactyl")
 	if err != nil {
 		panic(err)
 	}
@@ -71,7 +70,7 @@ func (rfs *rootFs) reset() {
 		}
 	}
 
-	if err := os.Mkdir(filepath.Join(rfs.root, "/server"), 0755); err != nil {
+	if err := os.Mkdir(filepath.Join(rfs.root, "/server"), 0o755); err != nil {
 		panic(err)
 	}
 }
@@ -99,7 +98,7 @@ func TestFilesystem_Readfile(t *testing.T) {
 		})
 
 		g.It("returns an error if the \"file\" is a directory", func() {
-			err := os.Mkdir(filepath.Join(rfs.root, "/server/test.txt"), 0755)
+			err := os.Mkdir(filepath.Join(rfs.root, "/server/test.txt"), 0o755)
 			g.Assert(err).IsNil()
 
 			err = fs.Readfile("test.txt", buf)
@@ -341,7 +340,7 @@ func TestFilesystem_Rename(t *testing.T) {
 		})
 
 		g.It("allows a folder to be renamed", func() {
-			err := os.Mkdir(filepath.Join(rfs.root, "/server/source_dir"), 0755)
+			err := os.Mkdir(filepath.Join(rfs.root, "/server/source_dir"), 0o755)
 			g.Assert(err).IsNil()
 
 			err = fs.Rename("source_dir", "target_dir")
@@ -405,7 +404,7 @@ func TestFilesystem_Copy(t *testing.T) {
 		})
 
 		g.It("should return an error if the source directory is outside the root", func() {
-			err := os.MkdirAll(filepath.Join(rfs.root, "/nested/in/dir"), 0755)
+			err := os.MkdirAll(filepath.Join(rfs.root, "/nested/in/dir"), 0o755)
 			g.Assert(err).IsNil()
 
 			err = rfs.CreateServerFileFromString("/../nested/in/dir/ext-source.txt", "external content")
@@ -421,7 +420,7 @@ func TestFilesystem_Copy(t *testing.T) {
 		})
 
 		g.It("should return an error if the source is a directory", func() {
-			err := os.Mkdir(filepath.Join(rfs.root, "/server/dir"), 0755)
+			err := os.Mkdir(filepath.Join(rfs.root, "/server/dir"), 0o755)
 			g.Assert(err).IsNil()
 
 			err = fs.Copy("dir")
@@ -466,7 +465,7 @@ func TestFilesystem_Copy(t *testing.T) {
 		})
 
 		g.It("should create a copy inside of a directory", func() {
-			err := os.MkdirAll(filepath.Join(rfs.root, "/server/nested/in/dir"), 0755)
+			err := os.MkdirAll(filepath.Join(rfs.root, "/server/nested/in/dir"), 0o755)
 			g.Assert(err).IsNil()
 
 			err = rfs.CreateServerFileFromString("nested/in/dir/source.txt", "test content")
@@ -545,7 +544,7 @@ func TestFilesystem_Delete(t *testing.T) {
 				"foo/bar/baz/source.txt",
 			}
 
-			err := os.MkdirAll(filepath.Join(rfs.root, "/server/foo/bar/baz"), 0755)
+			err := os.MkdirAll(filepath.Join(rfs.root, "/server/foo/bar/baz"), 0o755)
 			g.Assert(err).IsNil()
 
 			for _, s := range sources {

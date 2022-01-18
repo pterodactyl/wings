@@ -75,13 +75,7 @@ func (l Limits) ConvertedCpuLimit() int64 {
 // server is < 4G, use 10%, if less than 2G use 15%. This avoids unexpected
 // crashes from processes like Java which run over the limit.
 func (l Limits) MemoryOverheadMultiplier() float64 {
-	if l.MemoryLimit <= 2048 {
-		return 1.15
-	} else if l.MemoryLimit <= 4096 {
-		return 1.10
-	}
-
-	return 1.05
+	return config.Get().Docker.Overhead.GetMultiplier(l.MemoryLimit)
 }
 
 func (l Limits) BoundedMemoryLimit() int64 {

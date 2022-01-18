@@ -107,7 +107,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 		panic(err)
 	}
 
-	if err := os.Mkdir(filepath.Join(rfs.root, "/malicious_dir"), 0777); err != nil {
+	if err := os.Mkdir(filepath.Join(rfs.root, "/malicious_dir"), 0o777); err != nil {
 		panic(err)
 	}
 

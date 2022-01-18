@@ -57,8 +57,7 @@ func (re *RequestError) StatusCode() int {
 	return re.response.StatusCode
 }
 
-type SftpInvalidCredentialsError struct {
-}
+type SftpInvalidCredentialsError struct{}
 
 func (ice SftpInvalidCredentialsError) Error() string {
 	return "the credentials provided were invalid"
