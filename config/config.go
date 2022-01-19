@@ -286,6 +286,12 @@ type Configuration struct {
 	// The Panel URL is automatically allowed, this is only needed for adding
 	// additional origins.
 	AllowedOrigins []string `json:"allowed_origins" yaml:"allowed_origins"`
+
+	// AllowCORSPrivateNetwork sets the `Access-Control-Request-Private-Network` header which
+	// allows client browsers to make requests to internal IP addresses over HTTP.  This setting
+	// is only required by users running Wings without SSL certificates and using internal IP
+	// addresses in order to connect. Most users should NOT enable this setting.
+	AllowCORSPrivateNetwork bool `json:"allow_cors_private_network" yaml:"allow_cors_private_network"`
 }
 
 // NewAtPath creates a new struct and set the path where it should be stored.
