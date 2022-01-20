@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.5.5
+### Fixed
+* Fixes sending to a closed channel when sending server logs over the websocket
+* Fixes `wings diagnostics` uploading no content
+* Fixes a panic caused by the event bus closing channels multiple times when a server is deleted
+
 ## v1.5.4
 ### Fixed
 * Fixes SSL paths being improperly converted to lowercase in environments where the path is case-sensitive.
