@@ -146,12 +146,10 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 		break
 	}
 
+	// These functions will automatically close the channel if it hasn't been already.
 	h.server.Events().Off(eventChan, e...)
 	h.server.LogSink().Off(logOutput)
 	h.server.InstallSink().Off(installOutput)
-	close(eventChan)
-	close(logOutput)
-	close(installOutput)
 
 	// If the internal context is stopped it is either because the parent context
 	// got canceled or because we ran into an error. If the "err" variable is nil

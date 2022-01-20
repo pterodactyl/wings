@@ -36,8 +36,6 @@ func TestBus_Off(t *testing.T) {
 
 			bus.Off(listener, topic)
 			g.Assert(len(bus.listeners[topic])).Equal(0, "Topic still has one or more listeners")
-
-			close(listener)
 		})
 
 		g.It("unregisters correct listener", func() {
@@ -62,9 +60,6 @@ func TestBus_Off(t *testing.T) {
 
 			// Cleanup
 			bus.Off(listener2, topic)
-			close(listener)
-			close(listener2)
-			close(listener3)
 		})
 	})
 }
@@ -91,7 +86,6 @@ func TestBus_On(t *testing.T) {
 
 			// Cleanup
 			bus.Off(listener, topic)
-			close(listener)
 		})
 	})
 }
@@ -127,7 +121,6 @@ func TestBus_Publish(t *testing.T) {
 			<-done
 
 			// Cleanup
-			close(listener)
 			bus.Off(listener, topic)
 		})
 
@@ -172,9 +165,6 @@ func TestBus_Publish(t *testing.T) {
 			bus.Off(listener, topic)
 			bus.Off(listener2, topic)
 			bus.Off(listener3, topic)
-			close(listener)
-			close(listener2)
-			close(listener3)
 		})
 	})
 }

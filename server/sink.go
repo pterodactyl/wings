@@ -16,14 +16,6 @@ func newSinkPool() *sinkPool {
 	return &sinkPool{}
 }
 
-// On adds a sink on the pool.
-func (p *sinkPool) On(c chan []byte) {
-	p.mx.Lock()
-	defer p.mx.Unlock()
-
-	p.sinks = append(p.sinks, c)
-}
-
 // Off removes a sink from the pool.
 func (p *sinkPool) Off(c chan []byte) {
 	p.mx.Lock()
@@ -39,8 +31,17 @@ func (p *sinkPool) Off(c chan []byte) {
 		sinks[len(sinks)-1] = nil
 		sinks = sinks[:len(sinks)-1]
 		p.sinks = sinks
+		close(c)
 		return
 	}
+}
+
+// On adds a sink on the pool.
+func (p *sinkPool) On(c chan []byte) {
+	p.mx.Lock()
+	defer p.mx.Unlock()
+
+	p.sinks = append(p.sinks, c)
 }
 
 // Destroy destroys the pool by removing and closing all sinks.

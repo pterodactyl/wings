@@ -3,6 +3,8 @@ package events
 import (
 	"strings"
 	"sync"
+
+	"github.com/apex/log"
 )
 
 type Listener chan Event
@@ -31,8 +33,15 @@ func (b *Bus) Off(listener Listener, topics ...string) {
 	b.listenersMx.Lock()
 	defer b.listenersMx.Unlock()
 
+	var closed bool
+
 	for _, topic := range topics {
-		b.off(topic, listener)
+		ok := b.off(topic, listener)
+		if !closed && ok {
+			log.Debug("closing event channel!")
+			close(listener)
+			closed = true
+		}
 	}
 }
 
@@ -116,11 +125,30 @@ func (b *Bus) Destroy() {
 	b.listenersMx.Lock()
 	defer b.listenersMx.Unlock()
 
+	// Track what listeners have already been closed. Because the same listener
+	// can be listening on multiple topics, we need a way to essentially
+	// "de-duplicate" all the listeners across all the topics.
+	var closed []Listener
+
 	for _, listeners := range b.listeners {
 		for _, listener := range listeners {
+			if contains(closed, listener) {
+				continue
+			}
+
 			close(listener)
+			closed = append(closed, listener)
 		}
 	}
 
 	b.listeners = make(map[string][]Listener)
+}
+
+func contains(closed []Listener, listener Listener) bool {
+	for _, c := range closed {
+		if c == listener {
+			return true
+		}
+	}
+	return false
 }
