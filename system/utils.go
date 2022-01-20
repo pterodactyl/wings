@@ -68,6 +68,8 @@ func ScanReader(r io.Reader, callback func(line []byte)) error {
 				return err
 			}
 		}
+		// Ensure that the scanner is always able to read the last line.
+		_, _ = buf.Write([]byte("\r\n"))
 		// Publish the line for this loop. Break on new-line characters so every line is sent as a single
 		// output event, otherwise you get funky handling in the browser console.
 		s := bufio.NewScanner(buf)
