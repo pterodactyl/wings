@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.5.4
+### Fixed
+* Fixes SSL paths being improperly converted to lowercase in environments where the path is case-sensitive.
+* Fixes a memory leak due to the implemention of server event processing.
+
+### Changed
+* Selecting to redact information now redacts URLs from the log output when running the diagnostic command.
+
+### Added
+* Adds support for modifying the default memory overhead percentages in environments where the shipped values are not adequate.
+* Adds support for sending the `Access-Control-Request-Private-Network` header in environments where Wings will be accessed over a private network. This is defaulted to `off`.
+
 ## v1.5.3
 ### Fixed
 * Fixes improper event registration and error handling during socket authentication that would cause the incorrect error message to be returned to the client, or no error in some scenarios. Event registration is now delayed until the socket is fully authenticated to ensure needless listeners are not registed.
