@@ -3,8 +3,6 @@ package events
 import (
 	"strings"
 	"sync"
-
-	"github.com/apex/log"
 )
 
 type Listener chan Event
@@ -38,7 +36,6 @@ func (b *Bus) Off(listener Listener, topics ...string) {
 	for _, topic := range topics {
 		ok := b.off(topic, listener)
 		if !closed && ok {
-			log.Debug("closing event channel!")
 			close(listener)
 			closed = true
 		}
