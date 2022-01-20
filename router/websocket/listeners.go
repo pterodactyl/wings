@@ -147,7 +147,7 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 	}
 
 	h.server.Events().Off(eventChan, e...)
-	h.server.InstallSink().Off(logOutput)
+	h.server.LogSink().Off(logOutput)
 	h.server.InstallSink().Off(installOutput)
 	close(eventChan)
 	close(logOutput)
