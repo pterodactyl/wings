@@ -104,17 +104,13 @@ func (b *Bus) Publish(topic string, data interface{}) {
 		return
 	}
 
-	var wg sync.WaitGroup
 	event := Event{Topic: topic, Data: data}
 	for _, listener := range listeners {
 		l := listener
-		wg.Add(1)
 		go func(l Listener, event Event) {
-			defer wg.Done()
 			l <- event
 		}(l, event)
 	}
-	wg.Wait()
 }
 
 // Destroy destroys the Event Bus by unregistering and closing all listeners.
