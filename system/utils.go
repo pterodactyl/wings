@@ -22,7 +22,7 @@ var (
 // The maximum size of the buffer used to send output over the console to
 // clients. Once this length is reached, the line will be truncated and sent
 // as is.
-const maxBufferSize = 64 * 1024
+var maxBufferSize = 64 * 1024
 
 // FirstNotEmpty returns the first string passed in that is not an empty value.
 func FirstNotEmpty(v ...string) string {
