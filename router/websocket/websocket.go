@@ -267,11 +267,18 @@ func (h *Handler) setJwt(token *tokens.WebsocketPayload) {
 	h.Unlock()
 }
 
+var actions = map[server.PowerAction]string{
+	server.PowerActionStart:     PermissionSendPowerStart,
+	server.PowerActionStop:      PermissionSendPowerStop,
+	server.PowerActionRestart:   PermissionSendPowerRestart,
+	server.PowerActionTerminate: PermissionSendPowerStop,
+}
+
 // HandleInbound handles an inbound socket request and route it to the proper action.
 func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 	if m.Event != AuthenticationEvent {
 		if err := h.TokenValid(); err != nil {
-			h.unsafeSendJson(Message{
+			_ = h.unsafeSendJson(Message{
 				Event: JwtErrorEvent,
 				Args:  []string{err.Error()},
 			})
@@ -338,12 +345,6 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 	case SetStateEvent:
 		{
 			action := server.PowerAction(strings.Join(m.Args, ""))
-
-			actions := make(map[server.PowerAction]string)
-			actions[server.PowerActionStart] = PermissionSendPowerStart
-			actions[server.PowerActionStop] = PermissionSendPowerStop
-			actions[server.PowerActionRestart] = PermissionSendPowerRestart
-			actions[server.PowerActionTerminate] = PermissionSendPowerStop
 
 			// Check that they have permission to perform this action if it is needed.
 			if permission, exists := actions[action]; exists {
