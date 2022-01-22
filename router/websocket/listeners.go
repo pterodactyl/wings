@@ -87,9 +87,9 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	eventChan := make(chan events.Event, 8)
-	logOutput := make(chan []byte, 8)
-	installOutput := make(chan []byte, 8)
+	eventChan := make(chan events.Event)
+	logOutput := make(chan []byte)
+	installOutput := make(chan []byte)
 	h.server.Events().On(eventChan, e...)
 	h.server.LogSink().On(logOutput)
 	h.server.InstallSink().On(installOutput)
