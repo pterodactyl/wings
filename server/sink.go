@@ -2,7 +2,6 @@ package server
 
 import (
 	"sync"
-	"time"
 )
 
 // sinkPool represents a pool with sinks.
@@ -60,12 +59,9 @@ func (p *sinkPool) Destroy() {
 func (p *sinkPool) Push(v []byte) {
 	p.mx.RLock()
 	for _, c := range p.sinks {
-		// TODO: should this be done in parallel?
 		select {
 		// Send the log output to the channel
 		case c <- v:
-		// Timeout after 100 milliseconds, this will cause the write to the channel to be cancelled.
-		case <-time.After(100 * time.Millisecond):
 		}
 	}
 	p.mx.RUnlock()
