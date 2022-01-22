@@ -99,6 +99,8 @@ func ScanReader(r io.Reader, callback func(line []byte)) error {
 		// the websocket. The front-end can handle the linebreaks in the middle of
 		// the output, it simply expects that the end of the event emit is a newline.
 		if buf.Len() > 0 {
+			// You need to make a copy of the buffer here because the callback will encounter
+			// a race condition since "buf.Bytes()" is going to be by-reference if passed directly.
 			c := make([]byte, buf.Len())
 			copy(c, buf.Bytes())
 			callback(c)
