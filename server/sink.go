@@ -52,10 +52,12 @@ func (p *sinkPool) Off(c chan []byte) {
 		copy(sinks[i:], sinks[i+1:])
 		sinks[len(sinks)-1] = nil
 		sinks = sinks[:len(sinks)-1]
-
-		// Update our tracked sinks, and close the matched channel.
 		p.sinks = sinks
-		close(c)
+
+		// Avoid a panic if the sink channel is nil at this point.
+		if c != nil {
+			close(c)
+		}
 
 		return
 	}
@@ -68,7 +70,9 @@ func (p *sinkPool) Destroy() {
 	defer p.mu.Unlock()
 
 	for _, c := range p.sinks {
-		close(c)
+		if c != nil {
+			close(c)
+		}
 	}
 
 	p.sinks = nil
@@ -77,10 +81,15 @@ func (p *sinkPool) Destroy() {
 // Push sends a given message to each of the channels registered in the pool.
 func (p *sinkPool) Push(data []byte) {
 	p.mu.RLock()
+	// Attempt to send the data over to the channels. If the channel buffer is full,
+	// or otherwise blocked for some reason (such as being a nil channel), just discard
+	// the event data and move on to the next channel in the slice. If you don't
+	// implement the "default" on the select you'll block execution until the channel
+	// becomes unblocked, which is not what we want to do here.
 	for _, c := range p.sinks {
 		select {
-		// Send the event data over to the channels.
 		case c <- data:
+		default:
 		}
 	}
 	p.mu.RUnlock()
