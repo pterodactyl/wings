@@ -74,7 +74,7 @@ func (pl *powerLocker) Acquire() error {
 	pl.mu.Lock()
 	defer pl.mu.Unlock()
 	if len(pl.ch) == 1 {
-		return ErrPowerLockerLocked
+		return errors.WithStack(ErrPowerLockerLocked)
 	}
 	pl.ch <- true
 	return nil
@@ -88,7 +88,7 @@ func (pl *powerLocker) TryAcquire(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		if err := ctx.Err(); err != nil {
-			return errors.Combine(err, ErrPowerLockerLocked)
+			return errors.WithStack(err)
 		}
 		return nil
 	}
@@ -166,13 +166,13 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 			// time than that passes an error will be propagated back up the chain and this
 			// request will be aborted.
 			if err := s.powerLock.TryAcquire(ctx); err != nil {
-				return errors.WithMessage(err, fmt.Sprintf("could not acquire lock on power action after %d seconds", wait))
+				return errors.Wrap(err, fmt.Sprintf("could not acquire lock on power action after %d seconds", wait))
 			}
 		} else {
 			// If no wait duration was provided we will attempt to immediately acquire the lock
 			// and bail out with a context deadline error if it is not acquired immediately.
 			if err := s.powerLock.Acquire(); err != nil {
-				return errors.WithMessage(err, "failed to acquire exclusive lock for power actions")
+				return errors.Wrap(err, "failed to acquire exclusive lock for power actions")
 			}
 		}
 
