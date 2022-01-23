@@ -46,7 +46,14 @@ func MustInt(v string) int {
 // over the websocket. If a line exceeds that size, it is truncated and only that
 // amount is sent over.
 func ScanReader(r io.Reader, callback func(line []byte)) error {
-	br := bufio.NewReader(r)
+	// Based on benchmarking this seems to be the best size for the reader buffer
+	// to maintain fast enough workflows without hammering the CPU for allocations.
+	//
+	// Additionally, most games are outputting a high-frequency of smaller lines,
+	// rather than a bunch of massive lines. This allocation amount is the total
+	// number of bytes being output for each call to ReadLine() before it moves on
+	// to the next data pull.
+	br := bufio.NewReaderSize(r, 256)
 	// Avoid constantly re-allocating memory when we're flooding lines through this
 	// function by using the same buffer for the duration of the call and just truncating
 	// the value back to 0 every loop.

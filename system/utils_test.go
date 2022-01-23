@@ -1,13 +1,15 @@
 package system
 
 import (
+	"math/rand"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/franela/goblin"
 )
 
-func TestScanReader(t *testing.T) {
+func Test_Utils(t *testing.T) {
 	g := Goblin(t)
 
 	g.Describe("ScanReader", func() {
@@ -38,4 +40,20 @@ func TestScanReader(t *testing.T) {
 			g.Assert(lines).Equal([]string{"test\rstrin", "another\rli", "hodor\r\r\rhe", "material g"})
 		})
 	})
+}
+
+func Benchmark_ScanReader(b *testing.B) {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	var str string
+	for i := 0; i < 10; i++ {
+		str += strings.Repeat("hello \rworld", r.Intn(2000)) + "\n"
+	}
+	reader := strings.NewReader(str)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = ScanReader(reader, func(line []byte) {
+			// no op
+		})
+	}
 }
