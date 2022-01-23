@@ -52,7 +52,8 @@ func postServerPower(c *gin.Context) {
 	s := ExtractServer(c)
 
 	var data struct {
-		Action server.PowerAction `json:"action"`
+		Action      server.PowerAction `json:"action"`
+		WaitSeconds int                `json:"wait_seconds"`
 	}
 
 	if err := c.BindJSON(&data); err != nil {
@@ -83,12 +84,16 @@ func postServerPower(c *gin.Context) {
 	// we can immediately return a response from the server. Some of these actions
 	// can take quite some time, especially stopping or restarting.
 	go func(s *server.Server) {
-		if err := s.HandlePowerAction(data.Action, 30); err != nil {
+		if data.WaitSeconds < 0 || data.WaitSeconds > 300 {
+			data.WaitSeconds = 30
+		}
+		if err := s.HandlePowerAction(data.Action, data.WaitSeconds); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
-				s.Log().WithField("action", data.Action).
-					Warn("could not acquire a lock while attempting to perform a power action")
+				s.Log().WithField("action", data.Action).WithField("error", err).Warn("could not process server power action")
+			} else if errors.Is(err, server.ErrIsRunning) {
+				// Do nothing, this isn't something we care about for logging,
 			} else {
-				s.Log().WithFields(log.Fields{"action": data, "error": err}).
+				s.Log().WithFields(log.Fields{"action": data.Action, "wait_seconds": data.WaitSeconds, "error": err}).
 					Error("encountered error processing a server power action in the background")
 			}
 		}
@@ -182,14 +187,7 @@ func deleteServer(c *gin.Context) {
 	// Immediately suspend the server to prevent a user from attempting
 	// to start it while this process is running.
 	s.Config().SetSuspended(true)
-
-	// Stop all running background tasks for this server that are using the context on
-	// the server struct. This will cancel any running install processes for the server
-	// as well.
-	s.CtxCancel()
-	s.Events().Destroy()
-	s.DestroyAllSinks()
-	s.Websockets().CancelAll()
+	s.CleanupForDestroy()
 
 	// Remove any pending remote file downloads for the server.
 	for _, dl := range downloader.ByServer(s.ID()) {

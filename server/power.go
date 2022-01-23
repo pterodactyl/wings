@@ -2,12 +2,13 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"emperror.dev/errors"
-	"golang.org/x/sync/semaphore"
-
+	"github.com/google/uuid"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 )
@@ -40,19 +41,85 @@ func (pa PowerAction) IsStart() bool {
 	return pa == PowerActionStart || pa == PowerActionRestart
 }
 
-// ExecutingPowerAction checks if there is currently a power action being processed for the server.
+type powerLocker struct {
+	mu sync.RWMutex
+	ch chan bool
+}
+
+func newPowerLocker() *powerLocker {
+	return &powerLocker{
+		ch: make(chan bool, 1),
+	}
+}
+
+type errPowerLockerLocked struct{}
+
+func (e errPowerLockerLocked) Error() string {
+	return "cannot acquire a lock on the power state: already locked"
+}
+
+var ErrPowerLockerLocked error = errPowerLockerLocked{}
+
+// IsLocked returns the current state of the locker channel. If there is
+// currently a value in the channel, it is assumed to be locked.
+func (pl *powerLocker) IsLocked() bool {
+	pl.mu.RLock()
+	defer pl.mu.RUnlock()
+	return len(pl.ch) == 1
+}
+
+// Acquire will acquire the power lock if it is not currently locked. If it is
+// already locked, acquire will fail to acquire the lock, and will return false.
+func (pl *powerLocker) Acquire() error {
+	pl.mu.Lock()
+	defer pl.mu.Unlock()
+	if len(pl.ch) == 1 {
+		return errors.WithStack(ErrPowerLockerLocked)
+	}
+	pl.ch <- true
+	return nil
+}
+
+// TryAcquire will attempt to acquire a power-lock until the context provided
+// is canceled.
+func (pl *powerLocker) TryAcquire(ctx context.Context) error {
+	select {
+	case pl.ch <- true:
+		return nil
+	case <-ctx.Done():
+		if err := ctx.Err(); err != nil {
+			return errors.WithStack(err)
+		}
+		return nil
+	}
+}
+
+// Release will drain the locker channel so that we can properly re-acquire it
+// at a later time.
+func (pl *powerLocker) Release() {
+	pl.mu.Lock()
+	if len(pl.ch) == 1 {
+		<-pl.ch
+	}
+	pl.mu.Unlock()
+}
+
+// Destroy cleans up the power locker by closing the channel.
+func (pl *powerLocker) Destroy() {
+	pl.mu.Lock()
+	if pl.ch != nil {
+		if len(pl.ch) == 1 {
+			<-pl.ch
+		}
+		close(pl.ch)
+	}
+	pl.mu.Unlock()
+}
+
+// ExecutingPowerAction checks if there is currently a power action being
+// processed for the server.
 func (s *Server) ExecutingPowerAction() bool {
-	if s.powerLock == nil {
-		return false
-	}
-
-	ok := s.powerLock.TryAcquire(1)
-	if ok {
-		s.powerLock.Release(1)
-	}
-
-	// Remember, if we acquired a lock it means nothing was running.
-	return !ok
+	return s.powerLock.IsLocked()
 }
 
 // HandlePowerAction is a helper function that can receive a power action and then process the
@@ -63,22 +130,29 @@ func (s *Server) ExecutingPowerAction() bool {
 // function rather than making direct calls to the start/stop/restart functions on the
 // environment struct.
 func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error {
-	if s.IsInstalling() {
+	if s.IsInstalling() || s.IsTransferring() || s.IsRestoring() {
+		if s.IsRestoring() {
+			return ErrServerIsRestoring
+		} else if s.IsTransferring() {
+			return ErrServerIsTransferring
+		}
 		return ErrServerIsInstalling
 	}
 
-	if s.IsTransferring() {
-		return ErrServerIsTransferring
+	lockId, _ := uuid.NewUUID()
+	log := s.Log().WithField("lock_id", lockId.String()).WithField("action", action)
+
+	cleanup := func() {
+		log.Info("releasing exclusive lock for power action")
+		s.powerLock.Release()
 	}
 
-	if s.IsRestoring() {
-		return ErrServerIsRestoring
+	var wait int
+	if len(waitSeconds) > 0 && waitSeconds[0] > 0 {
+		wait = waitSeconds[0]
 	}
 
-	if s.powerLock == nil {
-		s.powerLock = semaphore.NewWeighted(1)
-	}
-
+	log.WithField("wait_seconds", wait).Debug("acquiring power action lock for instance")
 	// Only attempt to acquire a lock on the process if this is not a termination event. We want to
 	// just allow those events to pass right through for good reason. If a server is currently trying
 	// to process a power action but has gotten stuck you still should be able to pass through the
@@ -87,33 +161,38 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 	if action != PowerActionTerminate {
 		// Determines if we should wait for the lock or not. If a value greater than 0 is passed
 		// into this function we will wait that long for a lock to be acquired.
-		if len(waitSeconds) > 0 && waitSeconds[0] != 0 {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(waitSeconds[0]))
+		if wait > 0 {
+			ctx, cancel := context.WithTimeout(s.ctx, time.Second*time.Duration(wait))
 			defer cancel()
 
 			// Attempt to acquire a lock on the power action lock for up to 30 seconds. If more
 			// time than that passes an error will be propagated back up the chain and this
 			// request will be aborted.
-			if err := s.powerLock.Acquire(ctx, 1); err != nil {
-				return errors.WithMessage(err, "could not acquire lock on power state")
+			if err := s.powerLock.TryAcquire(ctx); err != nil {
+				return errors.Wrap(err, fmt.Sprintf("could not acquire lock on power action after %d seconds", wait))
 			}
 		} else {
 			// If no wait duration was provided we will attempt to immediately acquire the lock
 			// and bail out with a context deadline error if it is not acquired immediately.
-			if ok := s.powerLock.TryAcquire(1); !ok {
-				return errors.WithMessage(context.DeadlineExceeded, "could not acquire lock on power state")
+			if err := s.powerLock.Acquire(); err != nil {
+				return errors.Wrap(err, "failed to acquire exclusive lock for power actions")
 			}
 		}
 
-		// Release the lock once the process being requested has finished executing.
-		defer s.powerLock.Release(1)
+		log.Info("acquired exclusive lock on power actions, processing event...")
+		defer cleanup()
 	} else {
-		// Still try to acquire the lock if terminating, and it is available, just so that other power
-		// actions are blocked until it has completed. However, if it is unavailable we won't stop
-		// the entire process.
-		if ok := s.powerLock.TryAcquire(1); ok {
-			// If we managed to acquire the lock be sure to released it once this process is completed.
-			defer s.powerLock.Release(1)
+		// Still try to acquire the lock if terminating, and it is available, just so that
+		// other power actions are blocked until it has completed. However, if it cannot be
+		// acquired we won't stop the entire process.
+		//
+		// If we did successfully acquire the lock, make sure we release it once we're done
+		// executiong the power actions.
+		if err := s.powerLock.Acquire(); err == nil {
+			log.Info("acquired exclusive lock on power actions, processing event...")
+			defer cleanup()
+		} else {
+			log.Warn("failed to acquire exclusive lock, ignoring failure for termination event")
 		}
 	}
 
