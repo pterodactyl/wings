@@ -71,6 +71,8 @@ type Server struct {
 	wsBag       *WebsocketBag
 	wsBagLocker sync.Mutex
 
+	sinks map[SinkName]*sinkPool
+
 	logSink     *sinkPool
 	installSink *sinkPool
 }
@@ -86,9 +88,10 @@ func New(client remote.Client) (*Server, error) {
 		installing:   system.NewAtomicBool(false),
 		transferring: system.NewAtomicBool(false),
 		restoring:    system.NewAtomicBool(false),
-
-		logSink:     newSinkPool(),
-		installSink: newSinkPool(),
+		sinks: map[SinkName]*sinkPool{
+			LogSink:     newSinkPool(),
+			InstallSink: newSinkPool(),
+		},
 	}
 	if err := defaults.Set(&s); err != nil {
 		return nil, errors.Wrap(err, "server: could not set default values for struct")
@@ -354,12 +357,4 @@ func (s *Server) ToAPIResponse() APIResponse {
 		Utilization:   s.Proc(),
 		Configuration: *s.Config(),
 	}
-}
-
-func (s *Server) LogSink() *sinkPool {
-	return s.logSink
-}
-
-func (s *Server) InstallSink() *sinkPool {
-	return s.installSink
 }

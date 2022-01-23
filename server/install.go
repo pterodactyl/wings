@@ -507,9 +507,9 @@ func (ip *InstallationProcess) Execute() (string, error) {
 	return r.ID, nil
 }
 
-// Streams the output of the installation process to a log file in the server configuration
-// directory, as well as to a websocket listener so that the process can be viewed in
-// the panel by administrators.
+// StreamOutput streams the output of the installation process to a log file in
+// the server configuration directory, as well as to a websocket listener so
+// that the process can be viewed in the panel by administrators.
 func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) error {
 	reader, err := ip.client.ContainerLogs(ctx, id, types.ContainerLogsOptions{
 		ShowStdout: true,
@@ -521,7 +521,7 @@ func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) erro
 	}
 	defer reader.Close()
 
-	err = system.ScanReader(reader, ip.Server.InstallSink().Push)
+	err = system.ScanReader(reader, ip.Server.Sink(InstallSink).Push)
 	if err != nil {
 		ip.Server.Log().WithFields(log.Fields{"container_id": id, "error": err}).Warn("error processing install output lines")
 	}
