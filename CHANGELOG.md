@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.5.6
+### Fixed
+* Rewrote handler logic for the power actions lock to hopefully address issues people have been having when a server crashes and they're unable to start it again until restarting Wings.
+* Fixes files uploaded with SFTP not being owned by the Pterodactyl user.
+* Fixes excessive memory usage when large lines are sent through the console event handler.
+
+### Changed
+* Replaced usage of `encoding/json` throughout the codebase with a more performant encoder (`goccy/go-json`) to hopefully improve overall performance for JSON operations.
+* Added custom `ContainerInspect` function to handle direct calls to Docker's CLI and make use of the new JSON encoder logic. This should reduce the total number of memory allocations and be more performant overall in a hot pathway.
+
 ## v1.5.5
 ### Fixed
 * Fixes sending to a closed channel when sending server logs over the websocket
