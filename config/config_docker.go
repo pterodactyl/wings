@@ -75,6 +75,8 @@ type DockerConfiguration struct {
 	// Overhead controls the memory overhead given to all containers to circumvent certain
 	// software such as the JVM not staying below the maximum memory limit.
 	Overhead Overhead `json:"overhead" yaml:"overhead"`
+
+	UsePerformantInspect bool `default:"true" json:"use_performant_inspect" yaml:"use_performant_inspect"`
 }
 
 // RegistryConfiguration defines the authentication credentials for a given
