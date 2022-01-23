@@ -16,7 +16,7 @@ func MutexLocked(m *sync.RWMutex) bool {
 	return state.Int()&1 == 1 || v.FieldByName("readerCount").Int() > 0
 }
 
-func Test(t *testing.T) {
+func TestSink(t *testing.T) {
 	g := Goblin(t)
 
 	g.Describe("SinkPool#On", func() {

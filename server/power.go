@@ -52,10 +52,10 @@ func newPowerLocker() *powerLocker {
 	}
 }
 
-type errPowerLockerLocked struct {}
+type errPowerLockerLocked struct{}
 
 func (e errPowerLockerLocked) Error() string {
-    return "cannot acquire a lock on the power state: already locked"
+	return "cannot acquire a lock on the power state: already locked"
 }
 
 var ErrPowerLockerLocked error = errPowerLockerLocked{}
@@ -108,6 +108,9 @@ func (pl *powerLocker) Release() {
 func (pl *powerLocker) Destroy() {
 	pl.mu.Lock()
 	if pl.ch != nil {
+		if len(pl.ch) == 1 {
+			<-pl.ch
+		}
 		close(pl.ch)
 	}
 	pl.mu.Unlock()
@@ -139,7 +142,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 	lockId, _ := uuid.NewUUID()
 	log := s.Log().WithField("lock_id", lockId.String()).WithField("action", action)
 
-	cleanup := func () {
+	cleanup := func() {
 		log.Info("releasing exclusive lock for power action")
 		s.powerLock.Release()
 	}
