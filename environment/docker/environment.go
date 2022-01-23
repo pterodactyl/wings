@@ -10,7 +10,6 @@ import (
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/remote"
@@ -116,7 +115,7 @@ func (e *Environment) Events() *events.Bus {
 // will work fine when using the container name as the lookup parameter in addition to the longer
 // ID auto-assigned when the container is created.
 func (e *Environment) Exists() (bool, error) {
-	_, err := e.client.ContainerInspect(context.Background(), e.Id)
+	_, err := e.ContainerInspect(context.Background())
 	if err != nil {
 		// If this error is because the container instance wasn't found via Docker we
 		// can safely ignore the error and just return false.
@@ -140,7 +139,7 @@ func (e *Environment) Exists() (bool, error) {
 //
 // @see docker/client/errors.go
 func (e *Environment) IsRunning(ctx context.Context) (bool, error) {
-	c, err := e.client.ContainerInspect(ctx, e.Id)
+	c, err := e.ContainerInspect(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -150,7 +149,7 @@ func (e *Environment) IsRunning(ctx context.Context) (bool, error) {
 // Determine the container exit state and return the exit code and whether or not
 // the container was killed by the OOM killer.
 func (e *Environment) ExitState() (uint32, bool, error) {
-	c, err := e.client.ContainerInspect(context.Background(), e.Id)
+	c, err := e.ContainerInspect(context.Background())
 	if err != nil {
 		// I'm not entirely sure how this can happen to be honest. I tried deleting a
 		// container _while_ a server was running and wings gracefully saw the crash and

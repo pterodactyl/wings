@@ -66,7 +66,7 @@ func (e *Environment) Start(ctx context.Context) error {
 		}
 	}()
 
-	if c, err := e.client.ContainerInspect(ctx, e.Id); err != nil {
+	if c, err := e.ContainerInspect(ctx); err != nil {
 		// Do nothing if the container is not found, we just don't want to continue
 		// to the next block of code here. This check was inlined here to guard against
 		// a nil-pointer when checking c.State below.
@@ -235,7 +235,7 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 
 // Terminate forcefully terminates the container using the signal provided.
 func (e *Environment) Terminate(signal os.Signal) error {
-	c, err := e.client.ContainerInspect(context.Background(), e.Id)
+	c, err := e.ContainerInspect(context.Background())
 	if err != nil {
 		// Treat missing containers as an okay error state, means it is obviously
 		// already terminated at this point.

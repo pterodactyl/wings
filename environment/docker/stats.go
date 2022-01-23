@@ -16,7 +16,7 @@ import (
 // Uptime returns the current uptime of the container in milliseconds. If the
 // container is not currently running this will return 0.
 func (e *Environment) Uptime(ctx context.Context) (int64, error) {
-	ins, err := e.client.ContainerInspect(ctx, e.Id)
+	ins, err := e.ContainerInspect(ctx)
 	if err != nil {
 		return 0, errors.Wrap(err, "environment: could not inspect container")
 	}

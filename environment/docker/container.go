@@ -118,7 +118,7 @@ func (e *Environment) InSituUpdate() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	if _, err := e.client.ContainerInspect(ctx, e.Id); err != nil {
+	if _, err := e.ContainerInspect(ctx); err != nil {
 		// If the container doesn't exist for some reason there really isn't anything
 		// we can do to fix that in this process (it doesn't make sense at least). In those
 		// cases just return without doing anything since we still want to save the configuration
@@ -150,7 +150,7 @@ func (e *Environment) Create() error {
 	// If the container already exists don't hit the user with an error, just return
 	// the current information about it which is what we would do when creating the
 	// container anyways.
-	if _, err := e.client.ContainerInspect(context.Background(), e.Id); err == nil {
+	if _, err := e.ContainerInspect(context.Background()); err == nil {
 		return nil
 	} else if !client.IsErrNotFound(err) {
 		return errors.Wrap(err, "environment/docker: failed to inspect container")
