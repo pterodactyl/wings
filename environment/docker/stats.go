@@ -2,13 +2,13 @@ package docker
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"math"
 	"time"
 
 	"emperror.dev/errors"
 	"github.com/docker/docker/api/types"
+	"github.com/goccy/go-json"
 
 	"github.com/pterodactyl/wings/environment"
 )

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"emperror.dev/errors"
+	"github.com/goccy/go-json"
 )
 
 var (

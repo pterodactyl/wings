@@ -125,7 +125,7 @@ func (s *Server) StartEventListeners() {
 						l.Trigger()
 					}
 
-					s.emitProcUsage()
+					s.Events().Publish(StatsEvent, s.Proc())
 				}()
 			case e := <-docker:
 				go func() {

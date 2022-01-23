@@ -50,7 +50,3 @@ func (ru *ResourceUsage) Reset() {
 	ru.Network.TxBytes = 0
 	ru.Network.RxBytes = 0
 }
-
-func (s *Server) emitProcUsage() {
-	s.Events().Publish(StatsEvent, s.Proc())
-}

@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/creasty/defaults"
+	"github.com/goccy/go-json"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
@@ -312,7 +313,7 @@ func (s *Server) OnStateChange() {
 	// views in the Panel correctly display 0.
 	if st == environment.ProcessOfflineState {
 		s.resources.Reset()
-		s.emitProcUsage()
+		s.Events().Publish(StatsEvent, s.Proc())
 	}
 
 	// If server was in an online state, and is now in an offline state we should handle

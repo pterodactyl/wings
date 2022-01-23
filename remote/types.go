@@ -1,11 +1,11 @@
 package remote
 
 import (
-	"encoding/json"
 	"regexp"
 	"strings"
 
 	"github.com/apex/log"
+	"github.com/goccy/go-json"
 
 	"github.com/pterodactyl/wings/parser"
 )

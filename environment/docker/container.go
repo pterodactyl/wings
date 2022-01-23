@@ -3,7 +3,6 @@ package docker
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/buger/jsonparser"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
@@ -364,11 +364,6 @@ func (e *Environment) scanOutput(reader io.ReadCloser) {
 	go e.followOutput()
 }
 
-type imagePullStatus struct {
-	Status   string `json:"status"`
-	Progress string `json:"progress"`
-}
-
 // Pulls the image from Docker. If there is an error while pulling the image
 // from the source but the image already exists locally, we will report that
 // error to the logger but continue with the process.
@@ -454,12 +449,11 @@ func (e *Environment) ensureImageExists(image string) error {
 	scanner := bufio.NewScanner(out)
 
 	for scanner.Scan() {
-		s := imagePullStatus{}
-		fmt.Println(scanner.Text())
+		b := scanner.Bytes()
+		status, _ := jsonparser.GetString(b, "status")
+		progress, _ := jsonparser.GetString(b, "progress")
 
-		if err := json.Unmarshal(scanner.Bytes(), &s); err == nil {
-			e.Events().Publish(environment.DockerImagePullStatus, s.Status+" "+s.Progress)
-		}
+		e.Events().Publish(environment.DockerImagePullStatus, status+" "+progress)
 	}
 
 	if err := scanner.Err(); err != nil {
