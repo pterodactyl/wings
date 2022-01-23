@@ -12,8 +12,6 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/creasty/defaults"
-	"golang.org/x/sync/semaphore"
-
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
@@ -32,7 +30,7 @@ type Server struct {
 	ctxCancel *context.CancelFunc
 
 	emitterLock  sync.Mutex
-	powerLock    *semaphore.Weighted
+	powerLock    *powerLocker
 	throttleOnce sync.Once
 
 	// Maintains the configuration for the server. This is the data that gets returned by the Panel
@@ -88,6 +86,7 @@ func New(client remote.Client) (*Server, error) {
 		installing:   system.NewAtomicBool(false),
 		transferring: system.NewAtomicBool(false),
 		restoring:    system.NewAtomicBool(false),
+		powerLock:    newPowerLocker(),
 		sinks: map[SinkName]*sinkPool{
 			LogSink:     newSinkPool(),
 			InstallSink: newSinkPool(),
@@ -101,6 +100,17 @@ func New(client remote.Client) (*Server, error) {
 	}
 	s.resources.State = system.NewAtomicString(environment.ProcessOfflineState)
 	return &s, nil
+}
+
+// CleanupForDestroy stops all running background tasks for this server that are
+// using the context on the server struct. This will cancel any running install
+// processes for the server as well.
+func (s *Server) CleanupForDestroy() {
+	s.CtxCancel()
+	s.Events().Destroy()
+	s.DestroyAllSinks()
+	s.Websockets().CancelAll()
+	s.powerLock.Destroy()
 }
 
 // ID returns the UUID for the server instance.

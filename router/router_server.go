@@ -182,14 +182,7 @@ func deleteServer(c *gin.Context) {
 	// Immediately suspend the server to prevent a user from attempting
 	// to start it while this process is running.
 	s.Config().SetSuspended(true)
-
-	// Stop all running background tasks for this server that are using the context on
-	// the server struct. This will cancel any running install processes for the server
-	// as well.
-	s.CtxCancel()
-	s.Events().Destroy()
-	s.DestroyAllSinks()
-	s.Websockets().CancelAll()
+	s.CleanupForDestroy()
 
 	// Remove any pending remote file downloads for the server.
 	for _, dl := range downloader.ByServer(s.ID()) {
