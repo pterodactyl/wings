@@ -49,10 +49,12 @@ func (e *Environment) Attach(ctx context.Context) error {
 	if e.IsAttached() {
 		return nil
 	}
+	e.log().Debug("not attached to container, continuing with attach...")
 
 	if err := e.followOutput(); err != nil {
 		return err
 	}
+	e.log().Debug("following container output")
 
 	opts := types.ContainerAttachOptions{
 		Stdin:  true,
@@ -62,11 +64,13 @@ func (e *Environment) Attach(ctx context.Context) error {
 	}
 
 	// Set the stream again with the container.
+	e.log().Debug("attempting to attach...")
 	if st, err := e.client.ContainerAttach(ctx, e.Id, opts); err != nil {
 		return err
 	} else {
 		e.SetStream(&st)
 	}
+	e.log().Debug("attached!")
 
 	go func() {
 		// Don't use the context provided to the function, that'll cause the polling to

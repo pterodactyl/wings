@@ -115,9 +115,11 @@ func (e *Environment) Start(ctx context.Context) error {
 		return err
 	}
 
+	e.log().Debug("attempting to start container...")
 	if err := e.client.ContainerStart(actx, e.Id, types.ContainerStartOptions{}); err != nil {
 		return errors.WrapIf(err, "environment/docker: failed to start container")
 	}
+	e.log().Debug("started container!")
 
 	// No errors, good to continue through.
 	sawError = false
