@@ -111,14 +111,17 @@ func (e *Environment) Start(ctx context.Context) error {
 	actx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
+	if err := e.Attach(actx); err != nil {
+		return err
+	}
+
 	if err := e.client.ContainerStart(actx, e.Id, types.ContainerStartOptions{}); err != nil {
 		return errors.WrapIf(err, "environment/docker: failed to start container")
 	}
 
 	// No errors, good to continue through.
 	sawError = false
-
-	return e.Attach(actx)
+	return nil
 }
 
 // Stop stops the container that the server is running in. This will allow up to
