@@ -38,6 +38,13 @@ func (s *Server) Proc() ResourceUsage {
 	return s.resources
 }
 
+// UpdateStats updates the current stats for the server's resource usage.
+func (ru *ResourceUsage) UpdateStats(stats environment.Stats) {
+	ru.mu.Lock()
+	ru.Stats = stats
+	ru.mu.Unlock()
+}
+
 // Reset resets the usages values to zero, used when a server is stopped to ensure we don't hold
 // onto any values incorrectly.
 func (ru *ResourceUsage) Reset() {

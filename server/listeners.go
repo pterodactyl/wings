@@ -122,13 +122,10 @@ func (s *Server) StartEventListeners() {
 				}()
 			case e := <-stats:
 				go func() {
-					// Update the server resource tracking object with the resources we got here.
-					s.resources.mu.Lock()
-					s.resources.Stats = e.Data.(environment.Stats)
-					s.resources.mu.Unlock()
+					s.resources.UpdateStats(e.Data.(environment.Stats))
 
-					// If there is no disk space available at this point, trigger the server disk limiter logic
-					// which will start to stop the running instance.
+					// If there is no disk space available at this point, trigger the server
+					// disk limiter logic which will start to stop the running instance.
 					if !s.Filesystem().HasSpaceAvailable(true) {
 						l.Trigger()
 					}
