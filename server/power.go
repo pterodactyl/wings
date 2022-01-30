@@ -73,10 +73,11 @@ func (pl *powerLocker) IsLocked() bool {
 func (pl *powerLocker) Acquire() error {
 	pl.mu.Lock()
 	defer pl.mu.Unlock()
-	if len(pl.ch) == 1 {
+	select {
+	case pl.ch <- true:
+	default:
 		return errors.WithStack(ErrPowerLockerLocked)
 	}
-	pl.ch <- true
 	return nil
 }
 
@@ -95,11 +96,13 @@ func (pl *powerLocker) TryAcquire(ctx context.Context) error {
 }
 
 // Release will drain the locker channel so that we can properly re-acquire it
-// at a later time.
+// at a later time. If the channel is not currently locked this function is a
+// no-op and will immediately return.
 func (pl *powerLocker) Release() {
 	pl.mu.Lock()
-	if len(pl.ch) == 1 {
-		<-pl.ch
+	select {
+	case <-pl.ch:
+	default:
 	}
 	pl.mu.Unlock()
 }
@@ -108,8 +111,9 @@ func (pl *powerLocker) Release() {
 func (pl *powerLocker) Destroy() {
 	pl.mu.Lock()
 	if pl.ch != nil {
-		if len(pl.ch) == 1 {
-			<-pl.ch
+		select {
+		case <-pl.ch:
+		default:
 		}
 		close(pl.ch)
 	}
