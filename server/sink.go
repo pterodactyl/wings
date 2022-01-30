@@ -2,6 +2,7 @@ package server
 
 import (
 	"sync"
+	"time"
 )
 
 // SinkName represents one of the registered sinks for a server.
@@ -79,20 +80,44 @@ func (p *sinkPool) Destroy() {
 }
 
 // Push sends a given message to each of the channels registered in the pool.
+// This will use a Ring Buffer channel in order to avoid blocking the channel
+// sends, and attempt to push though the most recent messages in the queue in
+// favor of the oldest messages.
+//
+// If the channel becomes full and isn't being drained fast enough, this
+// function will remove the oldest message in the channel, and then push the
+// message that it got onto the end, effectively making the channel a rolling
+// buffer.
+//
+// There is a potential for data to be lost when passing it through this
+// function, but only in instances where the channel buffer is full and the
+// channel is not drained fast enough, in which case dropping messages is most
+// likely the best option anyways. This uses waitgroups to allow every channel
+// to attempt its send concurrently thus making the total blocking time of this
+// function "O(1)" instead of "O(n)".
 func (p *sinkPool) Push(data []byte) {
 	p.mu.RLock()
-	// Attempt to send the data over to the channels. If the channel buffer is full,
-	// or otherwise blocked for some reason (such as being a nil channel), just discard
-	// the event data and move on to the next channel in the slice. If you don't
-	// implement the "default" on the select you'll block execution until the channel
-	// becomes unblocked, which is not what we want to do here.
+	defer p.mu.RUnlock()
+	var wg sync.WaitGroup
+	wg.Add(len(p.sinks))
 	for _, c := range p.sinks {
-		select {
-		case c <- data:
-		default:
-		}
+		go func(c chan []byte) {
+			defer wg.Done()
+			select {
+			case c <- data:
+			case <-time.After(time.Millisecond * 10):
+				// If there is nothing in the channel to read, but we also cannot write
+				// to the channel, just skip over sending data. If we don't do this you'll
+				// end up blocking the application on the channel read below.
+				if len(c) == 0 {
+					break
+				}
+				<-c
+				c <- data
+			}
+		}(c)
 	}
-	p.mu.RUnlock()
+	wg.Wait()
 }
 
 // Sink returns the instantiated and named sink for a server. If the sink has
