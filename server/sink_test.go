@@ -66,10 +66,10 @@ func TestSink(t *testing.T) {
 
 		g.It("removes a channel and maintains the order", func() {
 			channels := make([]chan []byte, 8)
-            for i := 0; i < len(channels); i++ {
+			for i := 0; i < len(channels); i++ {
 				channels[i] = make(chan []byte, 1)
-                pool.On(channels[i])
-            }
+				pool.On(channels[i])
+			}
 
 			g.Assert(len(pool.sinks)).Equal(8)
 
@@ -83,10 +83,10 @@ func TestSink(t *testing.T) {
 		g.It("does not panic if a nil channel is provided", func() {
 			ch := make([]chan []byte, 1)
 
-			defer func () {
+			defer func() {
 				if r := recover(); r != nil {
-                    g.Fail("removing a nil channel should not cause a panic")
-                }
+					g.Fail("removing a nil channel should not cause a panic")
+				}
 			}()
 
 			pool.On(ch[0])

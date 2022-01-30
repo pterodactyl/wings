@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"bytes"
 	"regexp"
 	"strings"
 
@@ -85,37 +86,38 @@ type SftpAuthResponse struct {
 type OutputLineMatcher struct {
 	// The raw string to match against. This may or may not be prefixed with
 	// regex: which indicates we want to match against the regex expression.
-	raw string
+	raw []byte
 	reg *regexp.Regexp
 }
 
-// Matches determines if a given string "s" matches the given line.
-func (olm *OutputLineMatcher) Matches(s string) bool {
+// Matches determines if the provided byte string matches the given regex or
+// raw string provided to the matcher.
+func (olm *OutputLineMatcher) Matches(s []byte) bool {
 	if olm.reg == nil {
-		return strings.Contains(s, olm.raw)
+		return bytes.Contains(s, olm.raw)
 	}
-
-	return olm.reg.MatchString(s)
+	return olm.reg.Match(s)
 }
 
 // String returns the matcher's raw comparison string.
 func (olm *OutputLineMatcher) String() string {
-	return olm.raw
+	return string(olm.raw)
 }
 
 // UnmarshalJSON unmarshals the startup lines into individual structs for easier
 // matching abilities.
 func (olm *OutputLineMatcher) UnmarshalJSON(data []byte) error {
-	if err := json.Unmarshal(data, &olm.raw); err != nil {
+	var r string
+	if err := json.Unmarshal(data, &r); err != nil {
 		return err
 	}
 
-	if strings.HasPrefix(olm.raw, "regex:") && len(olm.raw) > 6 {
-		r, err := regexp.Compile(strings.TrimPrefix(olm.raw, "regex:"))
+	olm.raw = []byte(r)
+	if bytes.HasPrefix(olm.raw, []byte("regex:")) && len(olm.raw) > 6 {
+		r, err := regexp.Compile(strings.TrimPrefix(string(olm.raw), "regex:"))
 		if err != nil {
-			log.WithField("error", err).WithField("raw", olm.raw).Warn("failed to compile output line marked as being regex")
+			log.WithField("error", err).WithField("raw", string(olm.raw)).Warn("failed to compile output line marked as being regex")
 		}
-
 		olm.reg = r
 	}
 

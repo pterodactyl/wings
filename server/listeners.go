@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"regexp"
 	"strconv"
 	"sync"
@@ -50,6 +51,11 @@ func (dsl *diskSpaceLimiter) Trigger() {
 	})
 }
 
+// processConsoleOutputEvent handles output from a server's Docker container
+// and runs through different limiting logic to ensure that spam console output
+// does not cause negative effects to the system. This will also monitor the
+// output lines to determine if the server is started yet, and if the output is
+// not being throttled, will send the data over to the websocket.
 func (s *Server) processConsoleOutputEvent(v []byte) {
 	t := s.Throttler()
 	err := t.Increment(func() {
@@ -81,13 +87,15 @@ func (s *Server) processConsoleOutputEvent(v []byte) {
 		}
 	}
 
+	// Always process the console output, but do this in a seperate thread since we
+	// don't really care about side-effects from this call, and don't want it to block
+	// the console sending logic.
+	go s.onConsoleOutput(v)
+
 	// If we are not throttled, go ahead and output the data.
 	if !t.Throttled() {
 		s.Sink(LogSink).Push(v)
 	}
-
-	// Also pass the data along to the console output channel.
-	s.onConsoleOutput(string(v))
 }
 
 // StartEventListeners adds all the internal event listeners we want to use for a server. These listeners can only be
@@ -153,27 +161,34 @@ var stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-z
 
 // Custom listener for console output events that will check if the given line
 // of output matches one that should mark the server as started or not.
-func (s *Server) onConsoleOutput(data string) {
-	// Get the server's process configuration.
+func (s *Server) onConsoleOutput(data []byte) {
+	if s.Environment.State() != environment.ProcessStartingState && !s.IsRunning() {
+		return
+	}
+
 	processConfiguration := s.ProcessConfiguration()
+
+	// Make a copy of the data provided since it is by reference, otherwise you'll
+	// potentially introduce a race condition by modifying the value.
+	v := make([]byte, len(data))
+	copy(v, data)
 
 	// Check if the server is currently starting.
 	if s.Environment.State() == environment.ProcessStartingState {
 		// Check if we should strip ansi color codes.
 		if processConfiguration.Startup.StripAnsi {
-			// Strip ansi color codes from the data string.
-			data = stripAnsiRegex.ReplaceAllString(data, "")
+			v = stripAnsiRegex.ReplaceAll(v, []byte(""))
 		}
 
 		// Iterate over all the done lines.
 		for _, l := range processConfiguration.Startup.Done {
-			if !l.Matches(data) {
+			if !l.Matches(v) {
 				continue
 			}
 
 			s.Log().WithFields(log.Fields{
 				"match":   l.String(),
-				"against": strconv.QuoteToASCII(data),
+				"against": strconv.QuoteToASCII(string(v)),
 			}).Debug("detected server in running state based on console line output")
 
 			// If the specific line of output is one that would mark the server as started,
@@ -190,7 +205,7 @@ func (s *Server) onConsoleOutput(data string) {
 	if s.IsRunning() {
 		stop := processConfiguration.Stop
 
-		if stop.Type == remote.ProcessStopCommand && data == stop.Value {
+		if stop.Type == remote.ProcessStopCommand && bytes.Equal(v, []byte(stop.Value)) {
 			s.Environment.SetState(environment.ProcessOfflineState)
 		}
 	}
