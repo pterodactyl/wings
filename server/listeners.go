@@ -98,8 +98,9 @@ func (s *Server) processConsoleOutputEvent(v []byte) {
 	}
 }
 
-// StartEventListeners adds all the internal event listeners we want to use for a server. These listeners can only be
-// removed by deleting the server as they should last for the duration of the process' lifetime.
+// StartEventListeners adds all the internal event listeners we want to use for
+// a server. These listeners can only be removed by deleting the server as they
+// should last for the duration of the process' lifetime.
 func (s *Server) StartEventListeners() {
 	state := make(chan events.Event)
 	stats := make(chan events.Event)
@@ -139,8 +140,10 @@ func (s *Server) StartEventListeners() {
 						s.Events().Publish(InstallOutputEvent, e.Data)
 					case environment.DockerImagePullStarted:
 						s.PublishConsoleOutputFromDaemon("Pulling Docker container image, this could take a few minutes to complete...")
-					default:
+					case environment.DockerImagePullCompleted:
 						s.PublishConsoleOutputFromDaemon("Finished pulling Docker container image")
+					default:
+						s.Log().WithField("topic", e.Topic).Error("unhandled docker event topic")
 					}
 				}()
 			}
