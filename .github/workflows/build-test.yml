@@ -56,9 +56,9 @@ jobs:
           CGO_ENABLED: 0
           SRC_PATH: github.com/pterodactyl/wings
         run: |
-          go build -v -trimpath -ldflags="-s -w -X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_${{ matrix.goos }}_${{ matrix.goarch }} wings.go
-          upx build/wings_${{ matrix.goos }}_${{ matrix.goarch }}
-          chmod +x build/wings_${{ matrix.goos }}_${{ matrix.goarch }}
+          go build -v -trimpath -ldflags="-X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_${{ matrix.goos }}_${{ matrix.goarch }}_debug wings.go
+          upx build/wings_${{ matrix.goos }}_${{ matrix.goarch }}_debug
+          chmod +x build/wings_${{ matrix.goos }}_${{ matrix.goarch }}_debug
       - name: Tests
         run: go test ./...
       - name: Tests (Race)
@@ -67,5 +67,5 @@ jobs:
         uses: actions/upload-artifact@v2
         if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
         with:
-          name: wings_${{ matrix.goos }}_${{ matrix.goarch }}
-          path: build/wings_${{ matrix.goos }}_${{ matrix.goarch }}
+          name: wings_${{ matrix.goos }}_${{ matrix.goarch }}_debug
+          path: build/wings_${{ matrix.goos }}_${{ matrix.goarch }}_debug
