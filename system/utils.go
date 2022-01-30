@@ -165,9 +165,9 @@ func (ab *AtomicBool) Store(v bool) {
 	ab.mu.Unlock()
 }
 
-// Stores the value "v" if the current value stored in the AtomicBool is the opposite
-// boolean value. If successfully swapped, the response is "true", otherwise "false"
-// is returned.
+// SwapIf stores the value "v" if the current value stored in the AtomicBool is
+// the opposite boolean value. If successfully swapped, the response is "true",
+// otherwise "false" is returned.
 func (ab *AtomicBool) SwapIf(v bool) bool {
 	ab.mu.Lock()
 	defer ab.mu.Unlock()
