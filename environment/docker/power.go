@@ -111,6 +111,13 @@ func (e *Environment) Start(ctx context.Context) error {
 	actx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
+	// You must attach to the instance _before_ you start the container. If you do this
+	// in the opposite order you'll enter a deadlock condition where we're attached to
+	// the instance successfully, but the container has already stopped and you'll get
+	// the entire program into a very confusing state.
+	//
+	// By explicitly attaching to the instance before we start it, we can immediately
+	// react to errors/output stopping/etc. when starting.
 	if err := e.Attach(actx); err != nil {
 		return err
 	}

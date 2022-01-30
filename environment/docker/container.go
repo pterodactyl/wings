@@ -38,13 +38,13 @@ func (nw noopWriter) Write(b []byte) (int, error) {
 }
 
 // Attach attaches to the docker container itself and ensures that we can pipe
-// data in and out of the process stream. This should not be used for reading
-// console data as you *will* miss important output at the beginning because of
-// the time delay with attaching to the output.
+// data in and out of the process stream. This should always be called before
+// you have started the container, but after you've ensured it exists.
 //
 // Calling this function will poll resources for the container in the background
-// until the provided context is canceled by the caller. Failure to cancel said
-// context will cause background memory leaks as the goroutine will not exit.
+// until the container is stopped. The context provided to this function is used
+// for the purposes of attaching to the container, a seecond context is created
+// within the function for managing polling.
 func (e *Environment) Attach(ctx context.Context) error {
 	if e.IsAttached() {
 		return nil

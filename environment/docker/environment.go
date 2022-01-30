@@ -27,7 +27,6 @@ var _ environment.ProcessEnvironment = (*Environment)(nil)
 
 type Environment struct {
 	mu      sync.RWMutex
-	eventMu sync.Once
 
 	// The public identifier for this environment. In this case it is the Docker container
 	// name that will be used for all instances created under it.
@@ -73,6 +72,7 @@ func New(id string, m *Metadata, c *environment.Configuration) (*Environment, er
 		meta:          m,
 		client:        cli,
 		st:            system.NewAtomicString(environment.ProcessOfflineState),
+		emitter:       events.NewBus(),
 	}
 
 	return e, nil
@@ -86,34 +86,33 @@ func (e *Environment) Type() string {
 	return "docker"
 }
 
-// Set if this process is currently attached to the process.
+// SetStream sets the current stream value from the Docker client. If a nil
+// value is provided we assume that the stream is no longer operational and the
+// instance is effectively offline.
 func (e *Environment) SetStream(s *types.HijackedResponse) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
-
 	e.stream = s
+	e.mu.Unlock()
 }
 
-// Determine if the this process is currently attached to the container.
+// IsAttached determine if the this process is currently attached to the
+// container instance by checking if the stream is nil or not.
 func (e *Environment) IsAttached() bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-
 	return e.stream != nil
 }
 
+// Events returns an event bus for the environment.
 func (e *Environment) Events() *events.Bus {
-	e.eventMu.Do(func() {
-		e.emitter = events.NewBus()
-	})
-
 	return e.emitter
 }
 
-// Determines if the container exists in this environment. The ID passed through should be the
-// server UUID since containers are created utilizing the server UUID as the name and docker
-// will work fine when using the container name as the lookup parameter in addition to the longer
-// ID auto-assigned when the container is created.
+// Exists determines if the container exists in this environment. The ID passed
+// through should be the server UUID since containers are created utilizing the
+// server UUID as the name and docker will work fine when using the container
+// name as the lookup parameter in addition to the longer ID auto-assigned when
+// the container is created.
 func (e *Environment) Exists() (bool, error) {
 	_, err := e.ContainerInspect(context.Background())
 	if err != nil {
@@ -122,10 +121,8 @@ func (e *Environment) Exists() (bool, error) {
 		if client.IsErrNotFound(err) {
 			return false, nil
 		}
-
 		return false, err
 	}
-
 	return true, nil
 }
 
@@ -146,7 +143,7 @@ func (e *Environment) IsRunning(ctx context.Context) (bool, error) {
 	return c.State.Running, nil
 }
 
-// Determine the container exit state and return the exit code and whether or not
+// ExitState returns the container exit state, the exit code and whether or not
 // the container was killed by the OOM killer.
 func (e *Environment) ExitState() (uint32, bool, error) {
 	c, err := e.ContainerInspect(context.Background())
@@ -163,15 +160,13 @@ func (e *Environment) ExitState() (uint32, bool, error) {
 		if client.IsErrNotFound(err) {
 			return 1, false, nil
 		}
-
 		return 0, false, err
 	}
-
 	return uint32(c.State.ExitCode), c.State.OOMKilled, nil
 }
 
-// Returns the environment configuration allowing a process to make modifications of the
-// environment on the fly.
+// Config returns the environment configuration allowing a process to make
+// modifications of the environment on the fly.
 func (e *Environment) Config() *environment.Configuration {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -179,12 +174,11 @@ func (e *Environment) Config() *environment.Configuration {
 	return e.Configuration
 }
 
-// Sets the stop configuration for the environment.
+// SetStopConfiguration sets the stop configuration for the environment.
 func (e *Environment) SetStopConfiguration(c remote.ProcessStopConfiguration) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
-
 	e.meta.Stop = c
+	e.mu.Unlock()
 }
 
 func (e *Environment) SetImage(i string) {

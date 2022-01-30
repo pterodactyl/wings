@@ -239,14 +239,6 @@ func (s *Server) ReadLogfile(len int) ([]string, error) {
 	return s.Environment.Readlog(len)
 }
 
-// Determine if the server is bootable in it's current state or not. This will not
-// indicate why a server is not bootable, only if it is.
-func (s *Server) IsBootable() bool {
-	exists, _ := s.Environment.Exists()
-
-	return exists
-}
-
 // Initializes a server instance. This will run through and ensure that the environment
 // for the server is setup, and that all of the necessary files are created.
 func (s *Server) CreateEnvironment() error {
