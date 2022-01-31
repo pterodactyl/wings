@@ -6,7 +6,7 @@ build:
 
 debug:
 	go build -ldflags="-X github.com/pterodactyl/wings/system.Version=$(GIT_HEAD)"
-	sudo ./wings --debug --ignore-certificate-errors --config config.yml --pprof
+	sudo ./wings --debug --ignore-certificate-errors --config config.yml --pprof --pprof-block-rate 1
 
 # Runs a remotly debuggable session for Wings allowing an IDE to connect and target
 # different breakpoints.

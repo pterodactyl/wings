@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -76,6 +77,7 @@ func init() {
 
 	// Flags specifically used when running the API.
 	rootCommand.Flags().Bool("pprof", false, "if the pprof profiler should be enabled. The profiler will bind to localhost:6060 by default")
+	rootCommand.Flags().Int("pprof-block-rate", 0, "enables block profile support, may have performance impacts")
 	rootCommand.Flags().Int("pprof-port", 6060, "If provided with --pprof, the port it will run on")
 	rootCommand.Flags().Bool("auto-tls", false, "pass in order to have wings generate and manage it's own SSL certificates using Let's Encrypt")
 	rootCommand.Flags().String("tls-hostname", "", "required with --auto-tls, the FQDN for the generated SSL certificate")
@@ -309,6 +311,12 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 
 	profile, _ := cmd.Flags().GetBool("pprof")
 	if profile {
+		if r, _ := cmd.Flags().GetInt("pprof-block-rate"); r > 0 {
+			runtime.SetBlockProfileRate(r)
+		}
+		// Catch at least 1% of mutex contention issues.
+		runtime.SetMutexProfileFraction(100)
+
 		profilePort, _ := cmd.Flags().GetInt("pprof-port")
 		go func() {
 			http.ListenAndServe(fmt.Sprintf("localhost:%d", profilePort), nil)
