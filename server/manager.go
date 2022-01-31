@@ -199,7 +199,6 @@ func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, 
 	} else {
 		s.Environment = env
 		s.StartEventListeners()
-		s.Throttler().StartTimer(s.Context())
 	}
 
 	// If the server's data directory exists, force disk usage calculation.

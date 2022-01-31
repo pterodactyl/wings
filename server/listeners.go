@@ -8,7 +8,6 @@ import (
 
 	"github.com/apex/log"
 
-	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/remote"
@@ -57,45 +56,23 @@ func (dsl *diskSpaceLimiter) Trigger() {
 // output lines to determine if the server is started yet, and if the output is
 // not being throttled, will send the data over to the websocket.
 func (s *Server) processConsoleOutputEvent(v []byte) {
-	t := s.Throttler()
-	err := t.Increment(func() {
-		s.PublishConsoleOutputFromDaemon("Your server is outputting too much data and is being throttled.")
-	})
-	// An error is only returned if the server has breached the thresholds set.
-	if err != nil {
-		// If the process is already stopping, just let it continue with that action rather than attempting
-		// to terminate again.
-		if s.Environment.State() != environment.ProcessStoppingState {
-			s.Environment.SetState(environment.ProcessStoppingState)
-
-			go func() {
-				s.Log().Warn("stopping server instance, violating throttle limits")
-				s.PublishConsoleOutputFromDaemon("Your server is being stopped for outputting too much data in a short period of time.")
-
-				// Completely skip over server power actions and terminate the running instance. This gives the
-				// server 15 seconds to finish stopping gracefully before it is forcefully terminated.
-				if err := s.Environment.WaitForStop(config.Get().Throttles.StopGracePeriod, true); err != nil {
-					// If there is an error set the process back to running so that this throttler is called
-					// again and hopefully kills the server.
-					if s.Environment.State() != environment.ProcessOfflineState {
-						s.Environment.SetState(environment.ProcessRunningState)
-					}
-
-					s.Log().WithField("error", err).Error("failed to terminate environment after triggering throttle")
-				}
-			}()
-		}
-	}
-
 	// Always process the console output, but do this in a seperate thread since we
 	// don't really care about side-effects from this call, and don't want it to block
 	// the console sending logic.
 	go s.onConsoleOutput(v)
 
-	// If we are not throttled, go ahead and output the data.
-	if !t.Throttled() {
-		s.Sink(LogSink).Push(v)
+	// If the console is being throttled, do nothing else with it, we don't want
+	// to waste time. This code previously terminated server instances after violating
+	// different throttle limits. That code was clunky and difficult to reason about,
+	// in addition to being a consistent pain point for users.
+	//
+	// In the interest of building highly efficient software, that code has been removed
+	// here, and we'll rely on the host to detect bad actors through their own means.
+	if !s.Throttler().Allow() {
+		return
 	}
+
+	s.Sink(LogSink).Push(v)
 }
 
 // StartEventListeners adds all the internal event listeners we want to use for

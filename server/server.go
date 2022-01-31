@@ -30,9 +30,8 @@ type Server struct {
 	ctx       context.Context
 	ctxCancel *context.CancelFunc
 
-	emitterLock  sync.Mutex
-	powerLock    *powerLocker
-	throttleOnce sync.Once
+	emitterLock sync.Mutex
+	powerLock   *system.Locker
 
 	// Maintains the configuration for the server. This is the data that gets returned by the Panel
 	// such as build settings and container images.
@@ -64,7 +63,8 @@ type Server struct {
 	restoring    *system.AtomicBool
 
 	// The console throttler instance used to control outputs.
-	throttler *ConsoleThrottler
+	throttler    *ConsoleThrottle
+	throttleOnce sync.Once
 
 	// Tracks open websocket connections for the server.
 	wsBag       *WebsocketBag
@@ -87,7 +87,7 @@ func New(client remote.Client) (*Server, error) {
 		installing:   system.NewAtomicBool(false),
 		transferring: system.NewAtomicBool(false),
 		restoring:    system.NewAtomicBool(false),
-		powerLock:    newPowerLocker(),
+		powerLock:    system.NewLocker(),
 		sinks: map[SinkName]*sinkPool{
 			LogSink:     newSinkPool(),
 			InstallSink: newSinkPool(),
