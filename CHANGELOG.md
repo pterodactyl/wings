@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.6.0
+### Fixed
+* Internal logic for processing a server start event has been adjusted to attach to the Docker container before attempting to start the container. This should fix issues where a server would get stuck after pulling the container image.
+* Fixes a bug in the console output that was dropping console lines when a large number of lines were sent at once.
+
+### Changed
+* Removed the console throttle logic that would terminate a server instance that was sending too much data. This logic has been replaced with simpler logic that only throttles the console, it does not try to terminate the server. In addition, this change has reduced the number of go-routines needed by the application and dramatically simplified internal logic.
+* Removed the `--profiler` flag and replaced it with `--pprof` which will start an internal server listening on `localhost:6060` allowing you to use Go's standard `pprof` tooling.
+* Replaced the `json` log driver for Docker containers with `local` to reduce the amount of overhead when it comes to streaming logs from instances.
+
 ## v1.5.6
 ### Fixed
 * Rewrote handler logic for the power actions lock to hopefully address issues people have been having when a server crashes and they're unable to start it again until restarting Wings.
