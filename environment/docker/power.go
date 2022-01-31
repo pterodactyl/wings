@@ -138,9 +138,7 @@ func (e *Environment) Start(ctx context.Context) error {
 // You most likely want to be using WaitForStop() rather than this function,
 // since this will return as soon as the command is sent, rather than waiting
 // for the process to be completed stopped.
-//
-// TODO: pass context through from the server instance.
-func (e *Environment) Stop() error {
+func (e *Environment) Stop(ctx context.Context) error {
 	e.mu.RLock()
 	s := e.meta.Stop
 	e.mu.RUnlock()
@@ -164,7 +162,7 @@ func (e *Environment) Stop() error {
 		case "SIGTERM":
 			signal = syscall.SIGTERM
 		}
-		return e.Terminate(signal)
+		return e.Terminate(ctx, signal)
 	}
 
 	// If the process is already offline don't switch it back to stopping. Just leave it how
@@ -180,7 +178,7 @@ func (e *Environment) Stop() error {
 	}
 
 	t := time.Second * 30
-	if err := e.client.ContainerStop(context.Background(), e.Id, &t); err != nil {
+	if err := e.client.ContainerStop(ctx, e.Id, &t); err != nil {
 		// If the container does not exist just mark the process as stopped and return without
 		// an error.
 		if client.IsErrNotFound(err) {
@@ -199,12 +197,16 @@ func (e *Environment) Stop() error {
 // be returned, or the instance will be terminated forcefully depending on the
 // value of the second argument.
 func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
-	if err := e.Stop(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(seconds))
+	defer cancel()
+
+	return e.WaitForStopWithContext(ctx, terminate)
+}
+
+func (e *Environment) WaitForStopWithContext(ctx context.Context, terminate bool) error {
+	if err := e.Stop(ctx); err != nil {
 		return err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(seconds)*time.Second)
-	defer cancel()
 
 	// Block the return of this function until the container as been marked as no
 	// longer running. If this wait does not end by the time seconds have passed,
@@ -212,14 +214,13 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 	ok, errChan := e.client.ContainerWait(ctx, e.Id, container.WaitConditionNotRunning)
 	select {
 	case <-ctx.Done():
-		if ctxErr := ctx.Err(); ctxErr != nil {
+		if err := ctx.Err(); err != nil {
 			if terminate {
 				log.WithField("container_id", e.Id).Info("server did not stop in time, executing process termination")
 
-				return e.Terminate(os.Kill)
+				return e.Terminate(ctx, os.Kill)
 			}
-
-			return ctxErr
+			return err
 		}
 	case err := <-errChan:
 		// If the error stems from the container not existing there is no point in wasting
@@ -233,7 +234,7 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 					l.WithField("error", err).Warn("error while waiting for container stop; terminating process")
 				}
 
-				return e.Terminate(os.Kill)
+				return e.Terminate(ctx, os.Kill)
 			}
 			return errors.WrapIf(err, "environment/docker: error waiting on container to enter \"not-running\" state")
 		}
@@ -244,8 +245,8 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 }
 
 // Terminate forcefully terminates the container using the signal provided.
-func (e *Environment) Terminate(signal os.Signal) error {
-	c, err := e.ContainerInspect(context.Background())
+func (e *Environment) Terminate(ctx context.Context, signal os.Signal) error {
+	c, err := e.ContainerInspect(ctx)
 	if err != nil {
 		// Treat missing containers as an okay error state, means it is obviously
 		// already terminated at this point.
@@ -270,7 +271,7 @@ func (e *Environment) Terminate(signal os.Signal) error {
 	// We set it to stopping than offline to prevent crash detection from being triggered.
 	e.SetState(environment.ProcessStoppingState)
 	sig := strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed")
-	if err := e.client.ContainerKill(context.Background(), e.Id, sig); err != nil && !client.IsErrNotFound(err) {
+	if err := e.client.ContainerKill(ctx, e.Id, sig); err != nil && !client.IsErrNotFound(err) {
 		return errors.WithStack(err)
 	}
 	e.SetState(environment.ProcessOfflineState)

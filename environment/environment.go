@@ -58,18 +58,24 @@ type ProcessEnvironment interface {
 	// can be started an error should be returned.
 	Start(ctx context.Context) error
 
-	// Stops a server instance. If the server is already stopped an error should
-	// not be returned.
-	Stop() error
+	// Stop stops a server instance. If the server is already stopped an error will
+	// not be returned, this function will act as a no-op.
+	Stop(ctx context.Context) error
 
-	// Waits for a server instance to stop gracefully. If the server is still detected
-	// as running after seconds, an error will be returned, or the server will be terminated
-	// depending on the value of the second argument.
+	// WaitForStop waits for a server instance to stop gracefully. If the server is
+	// still detected as running after seconds, an error will be returned, or the server
+	// will be terminated depending on the value of the second argument.
 	WaitForStop(seconds uint, terminate bool) error
 
-	// Terminates a running server instance using the provided signal. If the server
-	// is not running no error should be returned.
-	Terminate(signal os.Signal) error
+	// WaitForStopWithContext works in the same fashion as WaitForStop, but accepts a
+	// context value and will stop waiting when the context is canceled. If the terminate
+	// option is true, the server will be terminate when the context is canceled if the
+	// server has not stopped at that point.
+	WaitForStopWithContext(ctx context.Context, terminate bool) error
+
+	// Terminate stops a running server instance using the provided signal. This function
+	// is a no-op if the server is already stopped.
+	Terminate(ctx context.Context, signal os.Signal) error
 
 	// Destroys the environment removing any containers that were created (in Docker
 	// environments at least).

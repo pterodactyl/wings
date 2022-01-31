@@ -133,11 +133,14 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 
 		return s.Environment.Start(s.Context())
 	case PowerActionStop:
-		// We're specifically waiting for the process to be stopped here, otherwise the lock is released
-		// too soon, and you can rack up all sorts of issues.
-		return s.Environment.WaitForStop(10*60, true)
+		fallthrough
 	case PowerActionRestart:
-		if err := s.Environment.WaitForStop(10*60, true); err != nil {
+		ctx, cancel := context.WithTimeout(s.Context(), time.Second)
+		defer cancel()
+
+		// We're specifically waiting for the process to be stopped here, otherwise the lock is
+		// released too soon, and you can rack up all sorts of issues.
+		if err := s.Environment.WaitForStopWithContext(ctx, true); err != nil {
 			// Even timeout errors should be bubbled back up the stack. If the process didn't stop
 			// nicely, but the terminate argument was passed then the server is stopped without an
 			// error being returned.
@@ -149,6 +152,15 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 			return err
 		}
 
+		if action == PowerActionStop {
+			return nil
+		}
+
+		// Release the resources we acquired for the initial timer context since we don't
+		// need them anymore at this point, and the start process can take quite awhile to
+		// complete.
+		cancel()
+
 		// Now actually try to start the process by executing the normal pre-boot logic.
 		if err := s.onBeforeStart(); err != nil {
 			return err
@@ -156,7 +168,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 
 		return s.Environment.Start(s.Context())
 	case PowerActionTerminate:
-		return s.Environment.Terminate(os.Kill)
+		return s.Environment.Terminate(s.Context(), os.Kill)
 	}
 
 	return errors.New("attempting to handle unknown power action")
@@ -207,5 +219,6 @@ func (s *Server) onBeforeStart() error {
 		}
 	}
 
+	s.Log().Info("completed server preflight, starting boot process...")
 	return nil
 }
