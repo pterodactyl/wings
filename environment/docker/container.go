@@ -16,7 +16,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/daemon/logger/jsonfilelog"
+	"github.com/docker/docker/daemon/logger/local"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -216,11 +216,12 @@ func (e *Environment) Create() error {
 		// since we only need it for the last few hundred lines of output and don't care
 		// about anything else in it.
 		LogConfig: container.LogConfig{
-			Type: jsonfilelog.Name,
+			Type: local.Name,
 			Config: map[string]string{
 				"max-size": "5m",
 				"max-file": "1",
 				"compress": "false",
+				"mode":     "non-blocking",
 			},
 		},
 
