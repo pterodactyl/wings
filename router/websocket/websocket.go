@@ -11,9 +11,10 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gbrlsnchs/jwt/v3"
+	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/goccy/go-json"
+	"github.com/pterodactyl/wings/system"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -353,7 +354,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 			}
 
 			err := h.server.HandlePowerAction(action)
-			if errors.Is(err, context.DeadlineExceeded) {
+			if errors.Is(err, system.ErrLockerLocked) {
 				m, _ := h.GetErrorMessage("another power action is currently being processed for this server, please try again later")
 
 				_ = h.SendJson(Message{

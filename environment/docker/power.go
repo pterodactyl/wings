@@ -177,7 +177,9 @@ func (e *Environment) Stop(ctx context.Context) error {
 		return e.SendCommand(s.Value)
 	}
 
-	t := time.Second * 30
+	// Allow the stop action to run for however long it takes, similar to executing a command
+	// and using a different logic pathway to wait for the container to stop successfully.
+	t := time.Duration(-1)
 	if err := e.client.ContainerStop(ctx, e.Id, &t); err != nil {
 		// If the container does not exist just mark the process as stopped and return without
 		// an error.
@@ -196,48 +198,66 @@ func (e *Environment) Stop(ctx context.Context) error {
 // command. If the server does not stop after seconds have passed, an error will
 // be returned, or the instance will be terminated forcefully depending on the
 // value of the second argument.
-func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(seconds))
+//
+// Calls to Environment.Terminate() in this function use the context passed
+// through since we don't want to prevent termination of the server instance
+// just because the context.WithTimeout() has expired.
+func (e *Environment) WaitForStop(ctx context.Context, duration time.Duration, terminate bool) error {
+	tctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 
-	return e.WaitForStopWithContext(ctx, terminate)
-}
+	// If the parent context is canceled, abort the timed context for termination.
+	go func() {
+		select {
+		case <-ctx.Done():
+			cancel()
+		case <-tctx.Done():
+			// When the timed context is canceled, terminate this routine since we no longer
+			// need to worry about the parent routine being canceled.
+			break
+		}
+	}()
 
-func (e *Environment) WaitForStopWithContext(ctx context.Context, terminate bool) error {
-	if err := e.Stop(ctx); err != nil {
+	doTermination := func (s string) error {
+		e.log().WithField("step", s).WithField("duration", duration).Warn("container stop did not complete in time, terminating process...")
+		return e.Terminate(ctx, os.Kill)
+	}
+
+	// We pass through the timed context for this stop action so that if one of the
+	// internal docker calls fails to ever finish before we've exhausted the time limit
+	// the resources get cleaned up, and the exection is stopped.
+	if err := e.Stop(tctx); err != nil {
+		if terminate && errors.Is(err, context.DeadlineExceeded) {
+			return doTermination("stop")
+		}
 		return err
 	}
 
 	// Block the return of this function until the container as been marked as no
 	// longer running. If this wait does not end by the time seconds have passed,
 	// attempt to terminate the container, or return an error.
-	ok, errChan := e.client.ContainerWait(ctx, e.Id, container.WaitConditionNotRunning)
+	ok, errChan := e.client.ContainerWait(tctx, e.Id, container.WaitConditionNotRunning)
 	select {
 	case <-ctx.Done():
 		if err := ctx.Err(); err != nil {
 			if terminate {
-				log.WithField("container_id", e.Id).Info("server did not stop in time, executing process termination")
-
-				return e.Terminate(ctx, os.Kill)
+				return doTermination("parent-context")
 			}
 			return err
 		}
 	case err := <-errChan:
 		// If the error stems from the container not existing there is no point in wasting
 		// CPU time to then try and terminate it.
-		if err != nil && !client.IsErrNotFound(err) {
-			if terminate {
-				l := log.WithField("container_id", e.Id)
-				if errors.Is(err, context.DeadlineExceeded) {
-					l.Warn("deadline exceeded for container stop; terminating process")
-				} else {
-					l.WithField("error", err).Warn("error while waiting for container stop; terminating process")
-				}
-
-				return e.Terminate(ctx, os.Kill)
-			}
-			return errors.WrapIf(err, "environment/docker: error waiting on container to enter \"not-running\" state")
+		if err == nil || client.IsErrNotFound(err) {
+			return nil
 		}
+		if terminate {
+			if !errors.Is(err, context.DeadlineExceeded) {
+				e.log().WithField("error", err).Warn("error while waiting for container stop; terminating process")
+			}
+			return doTermination("wait")
+		}
+		return errors.WrapIf(err, "environment/docker: error waiting on container to enter \"not-running\" state")
 	case <-ok:
 	}
 

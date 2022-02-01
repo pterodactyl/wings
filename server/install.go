@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -79,7 +80,7 @@ func (s *Server) Install(sync bool) error {
 func (s *Server) Reinstall() error {
 	if s.Environment.State() != environment.ProcessOfflineState {
 		s.Log().Debug("waiting for server instance to enter a stopped state")
-		if err := s.Environment.WaitForStop(10, true); err != nil {
+		if err := s.Environment.WaitForStop(s.Context(), time.Second*10, true); err != nil {
 			return err
 		}
 	}

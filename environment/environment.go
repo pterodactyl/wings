@@ -3,6 +3,7 @@ package environment
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/pterodactyl/wings/events"
 )
@@ -63,15 +64,11 @@ type ProcessEnvironment interface {
 	Stop(ctx context.Context) error
 
 	// WaitForStop waits for a server instance to stop gracefully. If the server is
-	// still detected as running after seconds, an error will be returned, or the server
-	// will be terminated depending on the value of the second argument.
-	WaitForStop(seconds uint, terminate bool) error
-
-	// WaitForStopWithContext works in the same fashion as WaitForStop, but accepts a
-	// context value and will stop waiting when the context is canceled. If the terminate
-	// option is true, the server will be terminate when the context is canceled if the
-	// server has not stopped at that point.
-	WaitForStopWithContext(ctx context.Context, terminate bool) error
+	// still detected as running after "duration", an error will be returned, or the server
+	// will be terminated depending on the value of the second argument. If the context
+	// provided is canceled the underlying wait conditions will be stopped and the
+	// entire loop will be ended (potentially without stopping or terminating).
+	WaitForStop(ctx context.Context, duration time.Duration, terminate bool) error
 
 	// Terminate stops a running server instance using the provided signal. This function
 	// is a no-op if the server is already stopped.

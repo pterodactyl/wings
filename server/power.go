@@ -135,12 +135,9 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 	case PowerActionStop:
 		fallthrough
 	case PowerActionRestart:
-		ctx, cancel := context.WithTimeout(s.Context(), time.Second)
-		defer cancel()
-
 		// We're specifically waiting for the process to be stopped here, otherwise the lock is
 		// released too soon, and you can rack up all sorts of issues.
-		if err := s.Environment.WaitForStopWithContext(ctx, true); err != nil {
+		if err := s.Environment.WaitForStop(s.Context(), time.Minute*10, true); err != nil {
 			// Even timeout errors should be bubbled back up the stack. If the process didn't stop
 			// nicely, but the terminate argument was passed then the server is stopped without an
 			// error being returned.
@@ -155,11 +152,6 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 		if action == PowerActionStop {
 			return nil
 		}
-
-		// Release the resources we acquired for the initial timer context since we don't
-		// need them anymore at this point, and the start process can take quite awhile to
-		// complete.
-		cancel()
 
 		// Now actually try to start the process by executing the normal pre-boot logic.
 		if err := s.onBeforeStart(); err != nil {
