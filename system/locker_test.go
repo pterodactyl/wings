@@ -81,7 +81,7 @@ func TestPower(t *testing.T) {
 				err := l.TryAcquire(ctx)
 
 				g.Assert(err).IsNotNil()
-				g.Assert(errors.Is(err, context.DeadlineExceeded)).IsTrue()
+				g.Assert(errors.Is(err, ErrLockerLocked)).IsTrue()
 				g.Assert(cap(l.ch)).Equal(1)
 				g.Assert(len(l.ch)).Equal(1)
 				g.Assert(l.IsLocked()).IsTrue()
