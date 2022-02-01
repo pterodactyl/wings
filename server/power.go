@@ -201,11 +201,14 @@ func (s *Server) onBeforeStart() error {
 	// we don't need to actively do anything about it at this point, worse comes to worst the
 	// server starts in a weird state and the user can manually adjust.
 	s.PublishConsoleOutputFromDaemon("Updating process configuration files...")
+	s.Log().Debug("updating server configuration files...")
 	s.UpdateConfigurationFiles()
+	s.Log().Debug("updated server configuration files")
 
 	if config.Get().System.CheckPermissionsOnBoot {
 		s.PublishConsoleOutputFromDaemon("Ensuring file permissions are set correctly, this could take a few seconds...")
 		// Ensure all the server file permissions are set correctly before booting the process.
+		s.Log().Debug("chowning server root directory...")
 		if err := s.Filesystem().Chown("/"); err != nil {
 			return errors.WithMessage(err, "failed to chown root server directory during pre-boot process")
 		}
