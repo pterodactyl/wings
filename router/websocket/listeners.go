@@ -7,9 +7,9 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/goccy/go-json"
+	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/system"
 
-	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/server"
 )
 
@@ -89,10 +89,11 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	eventChan := make(chan events.Event)
+	eventChan := make(chan []byte)
 	logOutput := make(chan []byte, 8)
 	installOutput := make(chan []byte, 4)
-	h.server.Events().On(eventChan, e...)
+
+	h.server.Events().On(eventChan) // TODO: make a sinky
 	h.server.Sink(system.LogSink).On(logOutput)
 	h.server.Sink(system.InstallSink).On(installOutput)
 
@@ -111,19 +112,20 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			break
-		case e := <-logOutput:
-			sendErr := h.SendJson(Message{Event: server.ConsoleOutputEvent, Args: []string{string(e)}})
+		case b := <-logOutput:
+			sendErr := h.SendJson(Message{Event: server.ConsoleOutputEvent, Args: []string{string(b)}})
 			if sendErr == nil {
 				continue
 			}
 			onError(server.ConsoleOutputEvent, sendErr)
-		case e := <-installOutput:
-			sendErr := h.SendJson(Message{Event: server.InstallOutputEvent, Args: []string{string(e)}})
+		case b := <-installOutput:
+			sendErr := h.SendJson(Message{Event: server.InstallOutputEvent, Args: []string{string(b)}})
 			if sendErr == nil {
 				continue
 			}
 			onError(server.InstallOutputEvent, sendErr)
-		case e := <-eventChan:
+		case b := <-eventChan:
+			e := events.MustDecode(b)
 			var sendErr error
 			message := Message{Event: e.Topic}
 			if str, ok := e.Data.(string); ok {
@@ -149,7 +151,7 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 	}
 
 	// These functions will automatically close the channel if it hasn't been already.
-	h.server.Events().Off(eventChan, e...)
+	h.server.Events().Off(eventChan)
 	h.server.Sink(system.LogSink).Off(logOutput)
 	h.server.Sink(system.InstallSink).Off(installOutput)
 

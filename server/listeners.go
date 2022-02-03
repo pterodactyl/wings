@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/apex/log"
+	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/system"
 
 	"github.com/pterodactyl/wings/environment"
-	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/remote"
 )
 
@@ -81,40 +81,44 @@ func (s *Server) processConsoleOutputEvent(v []byte) {
 // a server. These listeners can only be removed by deleting the server as they
 // should last for the duration of the process' lifetime.
 func (s *Server) StartEventListeners() {
-	state := make(chan events.Event)
-	stats := make(chan events.Event)
-	docker := make(chan events.Event)
+	c := make(chan []byte, 8)
+	limit := newDiskLimiter(s)
+
+	s.Log().Debug("registering event listeners: console, state, resources...")
+	s.Environment.Events().On(c)
+	s.Environment.SetLogCallback(s.processConsoleOutputEvent)
 
 	go func() {
-		l := newDiskLimiter(s)
-
 		for {
 			select {
-			case e := <-state:
-				go func() {
-					// Reset the throttler when the process is started.
-					if e.Data == environment.ProcessStartingState {
-						l.Reset()
-						s.Throttler().Reset()
-					}
-
-					s.OnStateChange()
-				}()
-			case e := <-stats:
-				go func() {
-					s.resources.UpdateStats(e.Data.(environment.Stats))
-
-					// If there is no disk space available at this point, trigger the server
-					// disk limiter logic which will start to stop the running instance.
-					if !s.Filesystem().HasSpaceAvailable(true) {
-						l.Trigger()
-					}
-
-					s.Events().Publish(StatsEvent, s.Proc())
-				}()
-			case e := <-docker:
-				go func() {
+			case v := <-c:
+				go func(v []byte, limit *diskSpaceLimiter) {
+					e := events.MustDecode(v)
 					switch e.Topic {
+					case environment.ResourceEvent:
+						{
+							var stats struct {
+								Topic string
+								Data  environment.Stats
+							}
+							events.MustDecodeTo(v, &stats)
+							s.resources.UpdateStats(stats.Data)
+							// If there is no disk space available at this point, trigger the server
+							// disk limiter logic which will start to stop the running instance.
+							if !s.Filesystem().HasSpaceAvailable(true) {
+								limit.Trigger()
+							}
+							s.Events().Publish(StatsEvent, s.Proc())
+						}
+					case environment.StateChangeEvent:
+						{
+							// Reset the throttler when the process is started.
+							if e.Data == environment.ProcessStartingState {
+								limit.Reset()
+								s.Throttler().Reset()
+							}
+							s.OnStateChange()
+						}
 					case environment.DockerImagePullStatus:
 						s.Events().Publish(InstallOutputEvent, e.Data)
 					case environment.DockerImagePullStarted:
@@ -122,18 +126,13 @@ func (s *Server) StartEventListeners() {
 					case environment.DockerImagePullCompleted:
 						s.PublishConsoleOutputFromDaemon("Finished pulling Docker container image")
 					default:
-						s.Log().WithField("topic", e.Topic).Error("unhandled docker event topic")
 					}
-				}()
+				}(v, limit)
+			case <-s.Context().Done():
+				return
 			}
 		}
 	}()
-
-	s.Log().Debug("registering event listeners: console, state, resources...")
-	s.Environment.SetLogCallback(s.processConsoleOutputEvent)
-	s.Environment.Events().On(state, environment.StateChangeEvent)
-	s.Environment.Events().On(stats, environment.ResourceEvent)
-	s.Environment.Events().On(docker, dockerEvents...)
 }
 
 var stripAnsiRegex = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
