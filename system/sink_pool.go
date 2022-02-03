@@ -1,4 +1,4 @@
-package server
+package system
 
 import (
 	"sync"
@@ -16,20 +16,20 @@ const (
 	InstallSink SinkName = "install"
 )
 
-// sinkPool represents a pool with sinks.
-type sinkPool struct {
+// SinkPool represents a pool with sinks.
+type SinkPool struct {
 	mu    sync.RWMutex
 	sinks []chan []byte
 }
 
-// newSinkPool returns a new empty sinkPool. A sink pool generally lives with a
+// NewSinkPool returns a new empty SinkPool. A sink pool generally lives with a
 // server instance for it's full lifetime.
-func newSinkPool() *sinkPool {
-	return &sinkPool{}
+func NewSinkPool() *SinkPool {
+	return &SinkPool{}
 }
 
 // On adds a channel to the sink pool instance.
-func (p *sinkPool) On(c chan []byte) {
+func (p *SinkPool) On(c chan []byte) {
 	p.mu.Lock()
 	p.sinks = append(p.sinks, c)
 	p.mu.Unlock()
@@ -37,7 +37,7 @@ func (p *sinkPool) On(c chan []byte) {
 
 // Off removes a given channel from the sink pool. If no matching sink is found
 // this function is a no-op. If a matching channel is found, it will be removed.
-func (p *sinkPool) Off(c chan []byte) {
+func (p *SinkPool) Off(c chan []byte) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -66,7 +66,7 @@ func (p *sinkPool) Off(c chan []byte) {
 
 // Destroy destroys the pool by removing and closing all sinks and destroying
 // all of the channels that are present.
-func (p *sinkPool) Destroy() {
+func (p *SinkPool) Destroy() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -95,7 +95,7 @@ func (p *sinkPool) Destroy() {
 // likely the best option anyways. This uses waitgroups to allow every channel
 // to attempt its send concurrently thus making the total blocking time of this
 // function "O(1)" instead of "O(n)".
-func (p *sinkPool) Push(data []byte) {
+func (p *SinkPool) Push(data []byte) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	var wg sync.WaitGroup
@@ -118,25 +118,4 @@ func (p *sinkPool) Push(data []byte) {
 		}(c)
 	}
 	wg.Wait()
-}
-
-// Sink returns the instantiated and named sink for a server. If the sink has
-// not been configured yet this function will cause a panic condition.
-func (s *Server) Sink(name SinkName) *sinkPool {
-	sink, ok := s.sinks[name]
-	if !ok {
-		s.Log().Fatalf("attempt to access nil sink: %s", name)
-	}
-	return sink
-}
-
-// DestroyAllSinks iterates over all of the sinks configured for the server and
-// destroys their instances. Note that this will cause a panic if you attempt
-// to call Server.Sink() again after. This function is only used when a server
-// is being deleted from the system.
-func (s *Server) DestroyAllSinks() {
-	s.Log().Info("destroying all registered sinks for server instance")
-	for _, sink := range s.sinks {
-		sink.Destroy()
-	}
 }

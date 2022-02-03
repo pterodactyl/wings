@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/apex/log"
+	"github.com/pterodactyl/wings/system"
 
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
@@ -73,7 +74,7 @@ func (s *Server) processConsoleOutputEvent(v []byte) {
 		return
 	}
 
-	s.Sink(LogSink).Push(v)
+	s.Sink(system.LogSink).Push(v)
 }
 
 // StartEventListeners adds all the internal event listeners we want to use for

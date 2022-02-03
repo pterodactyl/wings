@@ -522,7 +522,7 @@ func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) erro
 	}
 	defer reader.Close()
 
-	err = system.ScanReader(reader, ip.Server.Sink(InstallSink).Push)
+	err = system.ScanReader(reader, ip.Server.Sink(system.InstallSink).Push)
 	if err != nil {
 		ip.Server.Log().WithFields(log.Fields{"container_id": id, "error": err}).Warn("error processing install output lines")
 	}

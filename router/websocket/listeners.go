@@ -7,6 +7,7 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/goccy/go-json"
+	"github.com/pterodactyl/wings/system"
 
 	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/server"
@@ -92,8 +93,8 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 	logOutput := make(chan []byte, 8)
 	installOutput := make(chan []byte, 4)
 	h.server.Events().On(eventChan, e...)
-	h.server.Sink(server.LogSink).On(logOutput)
-	h.server.Sink(server.InstallSink).On(installOutput)
+	h.server.Sink(system.LogSink).On(logOutput)
+	h.server.Sink(system.InstallSink).On(installOutput)
 
 	onError := func(evt string, err2 error) {
 		h.Logger().WithField("event", evt).WithField("error", err2).Error("failed to send event over server websocket")
@@ -149,8 +150,8 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 
 	// These functions will automatically close the channel if it hasn't been already.
 	h.server.Events().Off(eventChan, e...)
-	h.server.Sink(server.LogSink).Off(logOutput)
-	h.server.Sink(server.InstallSink).Off(installOutput)
+	h.server.Sink(system.LogSink).Off(logOutput)
+	h.server.Sink(system.InstallSink).Off(installOutput)
 
 	// If the internal context is stopped it is either because the parent context
 	// got canceled or because we ran into an error. If the "err" variable is nil

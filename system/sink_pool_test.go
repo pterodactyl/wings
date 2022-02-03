@@ -1,4 +1,4 @@
-package server
+package system
 
 import (
 	"fmt"
@@ -23,7 +23,7 @@ func TestSink(t *testing.T) {
 
 	g.Describe("SinkPool#On", func() {
 		g.It("pushes additional channels to a sink", func() {
-			pool := &sinkPool{}
+			pool := &SinkPool{}
 
 			g.Assert(pool.sinks).IsZero()
 
@@ -36,9 +36,9 @@ func TestSink(t *testing.T) {
 	})
 
 	g.Describe("SinkPool#Off", func() {
-		var pool *sinkPool
+		var pool *SinkPool
 		g.BeforeEach(func() {
-			pool = &sinkPool{}
+			pool = &SinkPool{}
 		})
 
 		g.It("works when no sinks are registered", func() {
@@ -97,9 +97,9 @@ func TestSink(t *testing.T) {
 	})
 
 	g.Describe("SinkPool#Push", func() {
-		var pool *sinkPool
+		var pool *SinkPool
 		g.BeforeEach(func() {
-			pool = &sinkPool{}
+			pool = &SinkPool{}
 		})
 
 		g.It("works when no sinks are registered", func() {
@@ -190,9 +190,9 @@ func TestSink(t *testing.T) {
 	})
 
 	g.Describe("SinkPool#Destroy", func() {
-		var pool *sinkPool
+		var pool *SinkPool
 		g.BeforeEach(func() {
-			pool = &sinkPool{}
+			pool = &SinkPool{}
 		})
 
 		g.It("works if no sinks are registered", func() {

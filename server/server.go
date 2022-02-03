@@ -70,10 +70,10 @@ type Server struct {
 	wsBag       *WebsocketBag
 	wsBagLocker sync.Mutex
 
-	sinks map[SinkName]*sinkPool
+	sinks map[system.SinkName]*system.SinkPool
 
-	logSink     *sinkPool
-	installSink *sinkPool
+	logSink     *system.SinkPool
+	installSink *system.SinkPool
 }
 
 // New returns a new server instance with a context and all of the default
@@ -88,9 +88,9 @@ func New(client remote.Client) (*Server, error) {
 		transferring: system.NewAtomicBool(false),
 		restoring:    system.NewAtomicBool(false),
 		powerLock:    system.NewLocker(),
-		sinks: map[SinkName]*sinkPool{
-			LogSink:     newSinkPool(),
-			InstallSink: newSinkPool(),
+		sinks: map[system.SinkName]*system.SinkPool{
+			system.LogSink:     system.NewSinkPool(),
+			system.InstallSink: system.NewSinkPool(),
 		},
 	}
 	if err := defaults.Set(&s); err != nil {
