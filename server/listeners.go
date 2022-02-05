@@ -101,7 +101,10 @@ func (s *Server) StartEventListeners() {
 								Topic string
 								Data  environment.Stats
 							}
-							events.MustDecodeTo(v, &stats)
+							if err := events.DecodeTo(v, &stats); err != nil {
+								s.Log().WithField("error", err).Warn("failed to decode server resource event")
+								return
+							}
 							s.resources.UpdateStats(stats.Data)
 							// If there is no disk space available at this point, trigger the server
 							// disk limiter logic which will start to stop the running instance.

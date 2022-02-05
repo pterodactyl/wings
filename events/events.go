@@ -55,12 +55,16 @@ func (b *Bus) Publish(topic string, data interface{}) {
 // MustDecode decodes the event byte slice back into an events.Event struct or
 // panics if an error is encountered during this process.
 func MustDecode(data []byte) (e Event) {
-	MustDecodeTo(data, &e)
+	if err := DecodeTo(data, &e); err != nil {
+		panic(err)
+	}
 	return
 }
 
-func MustDecodeTo(data []byte, v interface{}) {
+// DecodeTo decodes a byte slice of event data into the given interface.
+func DecodeTo(data []byte, v interface{}) error {
 	if err := json.Unmarshal(data, &v); err != nil {
-		panic(errors.Wrap(err, "events: failed to decode event data into interface"))
+		return errors.Wrap(err, "events: failed to decode byte slice")
 	}
+	return nil
 }
