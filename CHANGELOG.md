@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.6.1
+### Fixed
+* Fixes error that would sometimes occur when starting a server that would cause the temporary power action lock to never be released due to a blocked channel.
+* Fixes a bug causing the CPU usage of Wings to get stuck at 100% when a server is deleted while the installation process is running.
+
+### Changed
+* Cleans up a lot of the logic for handling events between the server and environment process to make it easier to make modifications to down the road.
+* Cleans up logic handling the `StopAndWait` logic for stopping a server gracefully before terminating the process if it does not respond.
+
 ## v1.6.0
 ### Fixed
 * Internal logic for processing a server start event has been adjusted to attach to the Docker container before attempting to start the container. This should fix issues where a server would get stuck after pulling the container image.
