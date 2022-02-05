@@ -18,18 +18,18 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
-
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/system"
 )
 
-// Executes the installation stack for a server process. Bubbles any errors up to the calling
-// function which should handle contacting the panel to notify it of the server state.
+// Install executes the installation stack for a server process. Bubbles any
+// errors up to the calling function which should handle contacting the panel to
+// notify it of the server state.
 //
-// Pass true as the first argument in order to execute a server sync before the process to
-// ensure the latest information is used.
+// Pass true as the first argument in order to execute a server sync before the
+// process to ensure the latest information is used.
 func (s *Server) Install(sync bool) error {
 	if sync {
 		s.Log().Info("syncing server state with remote source before executing installation process")
@@ -111,9 +111,7 @@ func (s *Server) internalInstall() error {
 type InstallationProcess struct {
 	Server *Server
 	Script *remote.InstallationScript
-
-	client  *client.Client
-	context context.Context
+	client *client.Client
 }
 
 // Generates a new installation process struct that will be used to create containers,
@@ -128,7 +126,6 @@ func NewInstallationProcess(s *Server, script *remote.InstallationScript) (*Inst
 		return nil, err
 	} else {
 		proc.client = c
-		proc.context = s.Context()
 	}
 
 	return proc, nil
@@ -158,7 +155,7 @@ func (s *Server) SetRestoring(state bool) {
 
 // Removes the installer container for the server.
 func (ip *InstallationProcess) RemoveContainer() error {
-	err := ip.client.ContainerRemove(ip.context, ip.Server.ID()+"_installer", types.ContainerRemoveOptions{
+	err := ip.client.ContainerRemove(ip.Server.Context(), ip.Server.ID()+"_installer", types.ContainerRemoveOptions{
 		RemoveVolumes: true,
 		Force:         true,
 	})
@@ -168,11 +165,10 @@ func (ip *InstallationProcess) RemoveContainer() error {
 	return nil
 }
 
-// Runs the installation process, this is done as in a background thread. This will configure
-// the required environment, and then spin up the installation container.
-//
-// Once the container finishes installing the results will be stored in an installation
-// log in the server's configuration directory.
+// Run runs the installation process, this is done as in a background thread.
+// This will configure the required environment, and then spin up the
+// installation container. Once the container finishes installing the results
+// are stored in an installation log in the server's configuration directory.
 func (ip *InstallationProcess) Run() error {
 	ip.Server.Log().Debug("acquiring installation process lock")
 	if !ip.Server.installing.SwapIf(true) {
@@ -268,9 +264,9 @@ func (ip *InstallationProcess) pullInstallationImage() error {
 		imagePullOptions.RegistryAuth = b64
 	}
 
-	r, err := ip.client.ImagePull(context.Background(), ip.Script.ContainerImage, imagePullOptions)
+	r, err := ip.client.ImagePull(ip.Server.Context(), ip.Script.ContainerImage, imagePullOptions)
 	if err != nil {
-		images, ierr := ip.client.ImageList(context.Background(), types.ImageListOptions{})
+		images, ierr := ip.client.ImageList(ip.Server.Context(), types.ImageListOptions{})
 		if ierr != nil {
 			// Well damn, something has gone really wrong here, just go ahead and abort there
 			// isn't much anything we can do to try and self-recover from this.
@@ -313,9 +309,10 @@ func (ip *InstallationProcess) pullInstallationImage() error {
 	return nil
 }
 
-// Runs before the container is executed. This pulls down the required docker container image
-// as well as writes the installation script to the disk. This process is executed in an async
-// manner, if either one fails the error is returned.
+// BeforeExecute runs before the container is executed. This pulls down the
+// required docker container image as well as writes the installation script to
+// the disk. This process is executed in an async manner, if either one fails
+// the error is returned.
 func (ip *InstallationProcess) BeforeExecute() error {
 	if err := ip.writeScriptToDisk(); err != nil {
 		return errors.WithMessage(err, "failed to write installation script to disk")
@@ -341,7 +338,7 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 	defer ip.RemoveContainer()
 
 	ip.Server.Log().WithField("container_id", containerId).Debug("pulling installation logs for server")
-	reader, err := ip.client.ContainerLogs(ip.context, containerId, types.ContainerLogsOptions{
+	reader, err := ip.client.ContainerLogs(ip.Server.Context(), containerId, types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     false,
@@ -396,12 +393,13 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 	return nil
 }
 
-// Executes the installation process inside a specially created docker container.
+// Execute executes the installation process inside a specially created docker
+// container.
 func (ip *InstallationProcess) Execute() (string, error) {
 	// Create a child context that is canceled once this function is done running. This
 	// will also be canceled if the parent context (from the Server struct) is canceled
 	// which occurs if the server is deleted.
-	ctx, cancel := context.WithCancel(ip.context)
+	ctx, cancel := context.WithCancel(ip.Server.Context())
 	defer cancel()
 
 	conf := &container.Config{
@@ -512,18 +510,15 @@ func (ip *InstallationProcess) Execute() (string, error) {
 // the server configuration directory, as well as to a websocket listener so
 // that the process can be viewed in the panel by administrators.
 func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) error {
-	reader, err := ip.client.ContainerLogs(ctx, id, types.ContainerLogsOptions{
-		ShowStdout: true,
-		ShowStderr: true,
-		Follow:     true,
-	})
+	opts := types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true, Follow: true}
+	reader, err := ip.client.ContainerLogs(ctx, id, opts)
 	if err != nil {
 		return err
 	}
 	defer reader.Close()
 
 	err = system.ScanReader(reader, ip.Server.Sink(system.InstallSink).Push)
-	if err != nil {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		ip.Server.Log().WithFields(log.Fields{"container_id": id, "error": err}).Warn("error processing install output lines")
 	}
 	return nil

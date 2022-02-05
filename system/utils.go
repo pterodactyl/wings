@@ -88,15 +88,15 @@ func ScanReader(r io.Reader, callback func(line []byte)) error {
 			} else {
 				buf.Write(line)
 			}
+			// If we encountered an error with something in ReadLine that was not an
+			// EOF just abort the entire process here.
+			if err != nil && err != io.EOF {
+				return err
+			}
 			// Finish this loop and begin outputting the line if there is no prefix
 			// (the line fit into the default buffer), or if we hit the end of the line.
 			if !isPrefix || err == io.EOF {
 				break
-			}
-			// If we encountered an error with something in ReadLine that was not an
-			// EOF just abort the entire process here.
-			if err != nil {
-				return err
 			}
 		}
 
