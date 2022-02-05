@@ -90,8 +90,8 @@ type ApiConfiguration struct {
 	// servers.
 	DisableRemoteDownload bool `json:"disable_remote_download" yaml:"disable_remote_download"`
 
-	// The maximum size for files uploaded through the Panel in bytes.
-	UploadLimit int `default:"100" json:"upload_limit" yaml:"upload_limit"`
+	// The maximum size for files uploaded through the Panel in MB.
+	UploadLimit int64 `default:"100" json:"upload_limit" yaml:"upload_limit"`
 }
 
 // RemoteQueryConfiguration defines the configuration settings for remote requests
