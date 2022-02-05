@@ -3,12 +3,10 @@ package system
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"strconv"
 	"sync"
-	"time"
 
 	"emperror.dev/errors"
 	"github.com/goccy/go-json"
@@ -120,22 +118,6 @@ func ScanReader(r io.Reader, callback func(line []byte)) error {
 		}
 	}
 	return nil
-}
-
-// Runs a given work function every "d" duration until the provided context is canceled.
-func Every(ctx context.Context, d time.Duration, work func(t time.Time)) {
-	ticker := time.NewTicker(d)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				ticker.Stop()
-				return
-			case t := <-ticker.C:
-				work(t)
-			}
-		}
-	}()
 }
 
 func FormatBytes(b int64) string {
