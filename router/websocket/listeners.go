@@ -125,7 +125,10 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 			}
 			onError(server.InstallOutputEvent, sendErr)
 		case b := <-eventChan:
-			e := events.MustDecode(b)
+			var e events.Event
+			if err := events.DecodeTo(b, &e); err != nil {
+				continue
+			}
 			var sendErr error
 			message := Message{Event: e.Topic}
 			if str, ok := e.Data.(string); ok {

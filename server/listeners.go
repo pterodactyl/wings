@@ -93,7 +93,10 @@ func (s *Server) StartEventListeners() {
 			select {
 			case v := <-c:
 				go func(v []byte, limit *diskSpaceLimiter) {
-					e := events.MustDecode(v)
+					var e events.Event
+					if err := events.DecodeTo(v, &e); err != nil {
+						return
+					}
 					switch e.Topic {
 					case environment.ResourceEvent:
 						{
