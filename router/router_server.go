@@ -180,7 +180,7 @@ func postServerReinstall(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
-// Deletes a server from the wings daemon and dissociate it's objects.
+// Deletes a server from the wings daemon and dissociate its objects.
 func deleteServer(c *gin.Context) {
 	s := middleware.ExtractServer(c)
 
