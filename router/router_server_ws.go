@@ -2,11 +2,11 @@ package router
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	ws "github.com/gorilla/websocket"
+	"github.com/goccy/go-json"
 
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/websocket"

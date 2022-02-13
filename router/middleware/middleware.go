@@ -218,19 +218,29 @@ func CaptureErrors() gin.HandlerFunc {
 // SetAccessControlHeaders sets the access request control headers on all of
 // the requests.
 func SetAccessControlHeaders() gin.HandlerFunc {
-	origins := config.Get().AllowedOrigins
-	location := config.Get().PanelLocation
+	cfg := config.Get()
+	origins := cfg.AllowedOrigins
+	location := cfg.PanelLocation
+	allowPrivateNetwork := cfg.AllowCORSPrivateNetwork
 
 	return func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", location)
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Accept, Accept-Encoding, Authorization, Cache-Control, Content-Type, Content-Length, Origin, X-Real-IP, X-CSRF-Token")
+
+		// CORS for Private Networks (RFC1918)
+		// @see https://developer.chrome.com/blog/private-network-access-update/?utm_source=devtools
+		if allowPrivateNetwork {
+			c.Header("Access-Control-Request-Private-Network", "true")
+		}
+
 		// Maximum age allowable under Chromium v76 is 2 hours, so just use that since
 		// anything higher will be ignored (even if other browsers do allow higher values).
 		//
 		// @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Max-Age#Directives
 		c.Header("Access-Control-Max-Age", "7200")
-		c.Header("Access-Control-Allow-Origin", location)
-		c.Header("Access-Control-Allow-Headers", "Accept, Accept-Encoding, Authorization, Cache-Control, Content-Type, Content-Length, Origin, X-Real-IP, X-CSRF-Token")
+
 		// Validate that the request origin is coming from an allowed origin. Because you
 		// cannot set multiple values here we need to see if the origin is one of the ones
 		// that we allow, and if so return it explicitly. Otherwise, just return the default

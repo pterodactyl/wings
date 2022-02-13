@@ -3,7 +3,6 @@ package docker
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
@@ -12,11 +11,12 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/buger/jsonparser"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/daemon/logger/jsonfilelog"
+	"github.com/docker/docker/daemon/logger/local"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -38,13 +38,13 @@ func (nw noopWriter) Write(b []byte) (int, error) {
 }
 
 // Attach attaches to the docker container itself and ensures that we can pipe
-// data in and out of the process stream. This should not be used for reading
-// console data as you *will* miss important output at the beginning because of
-// the time delay with attaching to the output.
+// data in and out of the process stream. This should always be called before
+// you have started the container, but after you've ensured it exists.
 //
 // Calling this function will poll resources for the container in the background
-// until the provided context is canceled by the caller. Failure to cancel said
-// context will cause background memory leaks as the goroutine will not exit.
+// until the container is stopped. The context provided to this function is used
+// for the purposes of attaching to the container, a seecond context is created
+// within the function for managing polling.
 func (e *Environment) Attach(ctx context.Context) error {
 	if e.IsAttached() {
 		return nil
@@ -118,7 +118,7 @@ func (e *Environment) InSituUpdate() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	if _, err := e.client.ContainerInspect(ctx, e.Id); err != nil {
+	if _, err := e.ContainerInspect(ctx); err != nil {
 		// If the container doesn't exist for some reason there really isn't anything
 		// we can do to fix that in this process (it doesn't make sense at least). In those
 		// cases just return without doing anything since we still want to save the configuration
@@ -150,7 +150,7 @@ func (e *Environment) Create() error {
 	// If the container already exists don't hit the user with an error, just return
 	// the current information about it which is what we would do when creating the
 	// container anyways.
-	if _, err := e.client.ContainerInspect(context.Background(), e.Id); err == nil {
+	if _, err := e.ContainerInspect(context.Background()); err == nil {
 		return nil
 	} else if !client.IsErrNotFound(err) {
 		return errors.Wrap(err, "environment/docker: failed to inspect container")
@@ -175,7 +175,7 @@ func (e *Environment) Create() error {
 	conf := &container.Config{
 		Hostname:     e.Id,
 		Domainname:   config.Get().Docker.Domainname,
-		User:         strconv.Itoa(config.Get().System.User.Uid),
+		User:         strconv.Itoa(config.Get().System.User.Uid) + ":" + strconv.Itoa(config.Get().System.User.Gid),
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -216,11 +216,12 @@ func (e *Environment) Create() error {
 		// since we only need it for the last few hundred lines of output and don't care
 		// about anything else in it.
 		LogConfig: container.LogConfig{
-			Type: jsonfilelog.Name,
+			Type: local.Name,
 			Config: map[string]string{
 				"max-size": "5m",
 				"max-file": "1",
 				"compress": "false",
+				"mode":     "non-blocking",
 			},
 		},
 
@@ -364,11 +365,6 @@ func (e *Environment) scanOutput(reader io.ReadCloser) {
 	go e.followOutput()
 }
 
-type imagePullStatus struct {
-	Status   string `json:"status"`
-	Progress string `json:"progress"`
-}
-
 // Pulls the image from Docker. If there is an error while pulling the image
 // from the source but the image already exists locally, we will report that
 // error to the logger but continue with the process.
@@ -454,12 +450,11 @@ func (e *Environment) ensureImageExists(image string) error {
 	scanner := bufio.NewScanner(out)
 
 	for scanner.Scan() {
-		s := imagePullStatus{}
-		fmt.Println(scanner.Text())
+		b := scanner.Bytes()
+		status, _ := jsonparser.GetString(b, "status")
+		progress, _ := jsonparser.GetString(b, "progress")
 
-		if err := json.Unmarshal(scanner.Bytes(), &s); err == nil {
-			e.Events().Publish(environment.DockerImagePullStatus, s.Status+" "+s.Progress)
-		}
+		e.Events().Publish(environment.DockerImagePullStatus, status+" "+progress)
 	}
 
 	if err := scanner.Err(); err != nil {

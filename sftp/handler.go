@@ -119,6 +119,9 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 		l.WithField("flags", request.Flags).WithField("error", err).Error("failed to open existing file on system")
 		return nil, sftp.ErrSSHFxFailure
 	}
+	// Chown may or may not have been called in the touch function, so always do
+	// it at this point to avoid the file being improperly owned.
+	_ = h.server.Filesystem().Chown(request.Filepath)
 	return f, nil
 }
 

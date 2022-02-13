@@ -1,5 +1,52 @@
 # Changelog
 
+## v1.6.1
+### Fixed
+* Fixes error that would sometimes occur when starting a server that would cause the temporary power action lock to never be released due to a blocked channel.
+* Fixes a bug causing the CPU usage of Wings to get stuck at 100% when a server is deleted while the installation process is running.
+
+### Changed
+* Cleans up a lot of the logic for handling events between the server and environment process to make it easier to make modifications to down the road.
+* Cleans up logic handling the `StopAndWait` logic for stopping a server gracefully before terminating the process if it does not respond.
+
+## v1.6.0
+### Fixed
+* Internal logic for processing a server start event has been adjusted to attach to the Docker container before attempting to start the container. This should fix issues where a server would get stuck after pulling the container image.
+* Fixes a bug in the console output that was dropping console lines when a large number of lines were sent at once.
+
+### Changed
+* Removed the console throttle logic that would terminate a server instance that was sending too much data. This logic has been replaced with simpler logic that only throttles the console, it does not try to terminate the server. In addition, this change has reduced the number of go-routines needed by the application and dramatically simplified internal logic.
+* Removed the `--profiler` flag and replaced it with `--pprof` which will start an internal server listening on `localhost:6060` allowing you to use Go's standard `pprof` tooling.
+* Replaced the `json` log driver for Docker containers with `local` to reduce the amount of overhead when it comes to streaming logs from instances.
+
+## v1.5.6
+### Fixed
+* Rewrote handler logic for the power actions lock to hopefully address issues people have been having when a server crashes and they're unable to start it again until restarting Wings.
+* Fixes files uploaded with SFTP not being owned by the Pterodactyl user.
+* Fixes excessive memory usage when large lines are sent through the console event handler.
+
+### Changed
+* Replaced usage of `encoding/json` throughout the codebase with a more performant encoder (`goccy/go-json`) to hopefully improve overall performance for JSON operations.
+* Added custom `ContainerInspect` function to handle direct calls to Docker's CLI and make use of the new JSON encoder logic. This should reduce the total number of memory allocations and be more performant overall in a hot pathway.
+
+## v1.5.5
+### Fixed
+* Fixes sending to a closed channel when sending server logs over the websocket
+* Fixes `wings diagnostics` uploading no content
+* Fixes a panic caused by the event bus closing channels multiple times when a server is deleted
+
+## v1.5.4
+### Fixed
+* Fixes SSL paths being improperly converted to lowercase in environments where the path is case-sensitive.
+* Fixes a memory leak due to the implemention of server event processing.
+
+### Changed
+* Selecting to redact information now redacts URLs from the log output when running the diagnostic command.
+
+### Added
+* Adds support for modifying the default memory overhead percentages in environments where the shipped values are not adequate.
+* Adds support for sending the `Access-Control-Request-Private-Network` header in environments where Wings will be accessed over a private network. This is defaulted to `off`.
+
 ## v1.5.3
 ### Fixed
 * Fixes improper event registration and error handling during socket authentication that would cause the incorrect error message to be returned to the client, or no error in some scenarios. Event registration is now delayed until the socket is fully authenticated to ensure needless listeners are not registed.

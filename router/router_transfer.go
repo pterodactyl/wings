@@ -178,7 +178,7 @@ func postServerArchive(c *gin.Context) {
 
 		// Ensure the server is offline. Sometimes a "No such container" error gets through
 		// which means the server is already stopped. We can ignore that.
-		if err := s.Environment.WaitForStop(60, false); err != nil && !strings.Contains(strings.ToLower(err.Error()), "no such container") {
+		if err := s.Environment.WaitForStop(s.Context(), time.Minute, false); err != nil && !strings.Contains(strings.ToLower(err.Error()), "no such container") {
 			sendTransferLog("Failed to stop server, aborting transfer..")
 			l.WithField("error", err).Error("failed to stop server")
 			return

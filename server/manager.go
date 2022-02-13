@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gammazero/workerpool"
+	"github.com/goccy/go-json"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -199,7 +199,6 @@ func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, 
 	} else {
 		s.Environment = env
 		s.StartEventListeners()
-		s.Throttler().StartTimer(s.Context())
 	}
 
 	// If the server's data directory exists, force disk usage calculation.

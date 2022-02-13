@@ -32,17 +32,20 @@ jobs:
           go env
           printf "\n\nSystem Environment:\n\n"
           env
-
+          printf "Git Version: $(git version)\n\n"
           echo "::set-output name=version_tag::${GITHUB_REF/refs\/tags\//}"
           echo "::set-output name=short_sha::$(git rev-parse --short HEAD)"
           echo "::set-output name=go_cache::$(go env GOCACHE)"
+          echo "::set-output name=go_mod_cache::$(go env GOMODCACHE)"
       - name: Build Cache
         uses: actions/cache@v2
         with:
-          path: ${{ steps.env.outputs.go_cache }}
-          key: ${{ runner.os }}-${{ matrix.go }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go${{ matrix.go }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.go }}-go
+            ${{ runner.os }}-go${{ matrix.go }}-
+          path: |
+            ${{ steps.env.outputs.go_cache }}
+            ${{ steps.env.outputs.go_mod_cache }}
       - name: Get Dependencies
         run: |
           go get -v -t -d ./...
@@ -53,14 +56,21 @@ jobs:
           CGO_ENABLED: 0
           SRC_PATH: github.com/pterodactyl/wings
         run: |
-          go build -v -trimpath -ldflags="-s -w -X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_${{ matrix.goos }}_${{ matrix.goarch }} wings.go
-          upx build/wings_${{ matrix.goos }}_${{ matrix.goarch }}
-          chmod +x build/wings_${{ matrix.goos }}_${{ matrix.goarch }}
-      - name: Test
-        run: go test ./...
-      - name: Upload Artifact
+          go build -v -trimpath -ldflags="-s -w -X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_${GOOS}_${GOARCH} wings.go
+          go build -v -trimpath -ldflags="-X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_${GOOS}_${GOARCH}_debug wings.go
+          upx build/wings_${GOOS}_${{ matrix.goarch }}
+          chmod +x build/*
+      - name: Tests
+        run: go test -race ./...
+      - name: Upload Release Artifact
         uses: actions/upload-artifact@v2
         if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
         with:
-          name: wings_${{ matrix.goos }}_${{ matrix.goarch }}
-          path: build/wings_${{ matrix.goos }}_${{ matrix.goarch }}
+          name: wings_linux_${{ matrix.goarch }}
+          path: build/wings_linux_${{ matrix.goarch }}
+      - name: Upload Debug Artifact
+        uses: actions/upload-artifact@v2
+        if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
+        with:
+          name: wings_linux_${{ matrix.goarch }}_debug
+          path: build/wings_linux_${{ matrix.goarch }}_debug

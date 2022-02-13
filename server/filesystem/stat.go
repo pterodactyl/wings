@@ -1,12 +1,12 @@
 package filesystem
 
 import (
-	"encoding/json"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/goccy/go-json"
 )
 
 type Stat struct {

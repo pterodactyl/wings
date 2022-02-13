@@ -2,12 +2,14 @@ package websocket
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 	"time"
 
 	"emperror.dev/errors"
+	"github.com/goccy/go-json"
 	"github.com/pterodactyl/wings/events"
+	"github.com/pterodactyl/wings/system"
+
 	"github.com/pterodactyl/wings/server"
 )
 
@@ -87,12 +89,13 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	eventChan := make(chan events.Event)
-	logOutput := make(chan []byte)
-	installOutput := make(chan []byte)
-	h.server.Events().On(eventChan, e...)
-	h.server.LogSink().On(logOutput)
-	h.server.InstallSink().On(installOutput)
+	eventChan := make(chan []byte)
+	logOutput := make(chan []byte, 8)
+	installOutput := make(chan []byte, 4)
+
+	h.server.Events().On(eventChan) // TODO: make a sinky
+	h.server.Sink(system.LogSink).On(logOutput)
+	h.server.Sink(system.InstallSink).On(installOutput)
 
 	onError := func(evt string, err2 error) {
 		h.Logger().WithField("event", evt).WithField("error", err2).Error("failed to send event over server websocket")
@@ -109,19 +112,23 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			break
-		case e := <-logOutput:
-			sendErr := h.SendJson(Message{Event: server.ConsoleOutputEvent, Args: []string{string(e)}})
+		case b := <-logOutput:
+			sendErr := h.SendJson(Message{Event: server.ConsoleOutputEvent, Args: []string{string(b)}})
 			if sendErr == nil {
 				continue
 			}
 			onError(server.ConsoleOutputEvent, sendErr)
-		case e := <-installOutput:
-			sendErr := h.SendJson(Message{Event: server.InstallOutputEvent, Args: []string{string(e)}})
+		case b := <-installOutput:
+			sendErr := h.SendJson(Message{Event: server.InstallOutputEvent, Args: []string{string(b)}})
 			if sendErr == nil {
 				continue
 			}
 			onError(server.InstallOutputEvent, sendErr)
-		case e := <-eventChan:
+		case b := <-eventChan:
+			var e events.Event
+			if err := events.DecodeTo(b, &e); err != nil {
+				continue
+			}
 			var sendErr error
 			message := Message{Event: e.Topic}
 			if str, ok := e.Data.(string); ok {
@@ -146,12 +153,10 @@ func (h *Handler) listenForServerEvents(ctx context.Context) error {
 		break
 	}
 
-	h.server.Events().Off(eventChan, e...)
-	h.server.InstallSink().Off(logOutput)
-	h.server.InstallSink().Off(installOutput)
-	close(eventChan)
-	close(logOutput)
-	close(installOutput)
+	// These functions will automatically close the channel if it hasn't been already.
+	h.server.Events().Off(eventChan)
+	h.server.Sink(system.LogSink).Off(logOutput)
+	h.server.Sink(system.InstallSink).Off(installOutput)
 
 	// If the internal context is stopped it is either because the parent context
 	// got canceled or because we ran into an error. If the "err" variable is nil

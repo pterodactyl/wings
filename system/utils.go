@@ -3,21 +3,24 @@ package system
 import (
 	"bufio"
 	"bytes"
-	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
 	"sync"
-	"time"
 
 	"emperror.dev/errors"
+	"github.com/goccy/go-json"
 )
 
 var (
 	cr  = []byte(" \r")
 	crr = []byte("\r\n")
 )
+
+// The maximum size of the buffer used to send output over the console to
+// clients. Once this length is reached, the line will be truncated and sent
+// as is.
+var maxBufferSize = 64 * 1024
 
 // FirstNotEmpty returns the first string passed in that is not an empty value.
 func FirstNotEmpty(v ...string) string {
@@ -37,12 +40,22 @@ func MustInt(v string) int {
 	return i
 }
 
+// ScanReader reads up to 64KB of line from the reader and emits that value
+// over the websocket. If a line exceeds that size, it is truncated and only that
+// amount is sent over.
 func ScanReader(r io.Reader, callback func(line []byte)) error {
-	br := bufio.NewReader(r)
+	// Based on benchmarking this seems to be the best size for the reader buffer
+	// to maintain fast enough workflows without hammering the CPU for allocations.
+	//
+	// Additionally, most games are outputting a high-frequency of smaller lines,
+	// rather than a bunch of massive lines. This allocation amount is the total
+	// number of bytes being output for each call to ReadLine() before it moves on
+	// to the next data pull.
+	br := bufio.NewReaderSize(r, 256)
 	// Avoid constantly re-allocating memory when we're flooding lines through this
 	// function by using the same buffer for the duration of the call and just truncating
 	// the value back to 0 every loop.
-	buf := &bytes.Buffer{}
+	var buf bytes.Buffer
 	for {
 		buf.Reset()
 		var err error
@@ -52,51 +65,59 @@ func ScanReader(r io.Reader, callback func(line []byte)) error {
 		for {
 			// Read the line and write it to the buffer.
 			line, isPrefix, err = br.ReadLine()
+
 			// Certain games like Minecraft output absolutely random carriage returns in the output seemingly
 			// in line with that it thinks is the terminal size. Those returns break a lot of output handling,
 			// so we'll just replace them with proper new-lines and then split it later and send each line as
 			// its own event in the response.
-			buf.Write(bytes.Replace(line, cr, crr, -1))
-			// Finish this loop and begin outputting the line if there is no prefix (the line fit into
-			// the default buffer), or if we hit the end of the line.
+			line = bytes.Replace(line, cr, crr, -1)
+			ns := buf.Len() + len(line)
+
+			// If the length of the line value and the current value in the buffer will
+			// exceed the maximum buffer size, chop it down to hit the maximum size and
+			// then send that data over the socket before ending this loop.
+			//
+			// This ensures that we send as much data as possible, without allowing very
+			// long lines to grow the buffer size excessively and potentially DOS the Wings
+			// instance. If the line is not too long, just store the whole value into the
+			// buffer. This is kind of a re-implementation of the bufio.Scanner.Scan() logic
+			// without triggering an error when you exceed this buffer size.
+			if ns > maxBufferSize {
+				buf.Write(line[:len(line)-(ns-maxBufferSize)])
+				break
+			} else {
+				buf.Write(line)
+			}
+			// If we encountered an error with something in ReadLine that was not an
+			// EOF just abort the entire process here.
+			if err != nil && err != io.EOF {
+				return err
+			}
+			// Finish this loop and begin outputting the line if there is no prefix
+			// (the line fit into the default buffer), or if we hit the end of the line.
 			if !isPrefix || err == io.EOF {
 				break
 			}
-			// If we encountered an error with something in ReadLine that was not an EOF just abort
-			// the entire process here.
-			if err != nil {
-				return err
-			}
 		}
-		// Publish the line for this loop. Break on new-line characters so every line is sent as a single
-		// output event, otherwise you get funky handling in the browser console.
-		s := bufio.NewScanner(buf)
-		for s.Scan() {
-			callback(s.Bytes())
+
+		// Send the full buffer length over to the event handler to be emitted in
+		// the websocket. The front-end can handle the linebreaks in the middle of
+		// the output, it simply expects that the end of the event emit is a newline.
+		if buf.Len() > 0 {
+			// You need to make a copy of the buffer here because the callback will encounter
+			// a race condition since "buf.Bytes()" is going to be by-reference if passed directly.
+			c := make([]byte, buf.Len())
+			copy(c, buf.Bytes())
+			callback(c)
 		}
-		// If the error we got previously that lead to the line being output is an io.EOF we want to
-		// exit the entire looping process.
+
+		// If the error we got previously that lead to the line being output is
+		// an io.EOF we want to exit the entire looping process.
 		if err == io.EOF {
 			break
 		}
 	}
 	return nil
-}
-
-// Runs a given work function every "d" duration until the provided context is canceled.
-func Every(ctx context.Context, d time.Duration, work func(t time.Time)) {
-	ticker := time.NewTicker(d)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				ticker.Stop()
-				return
-			case t := <-ticker.C:
-				work(t)
-			}
-		}
-	}()
 }
 
 func FormatBytes(b int64) string {
@@ -126,9 +147,9 @@ func (ab *AtomicBool) Store(v bool) {
 	ab.mu.Unlock()
 }
 
-// Stores the value "v" if the current value stored in the AtomicBool is the opposite
-// boolean value. If successfully swapped, the response is "true", otherwise "false"
-// is returned.
+// SwapIf stores the value "v" if the current value stored in the AtomicBool is
+// the opposite boolean value. If successfully swapped, the response is "true",
+// otherwise "false" is returned.
 func (ab *AtomicBool) SwapIf(v bool) bool {
 	ab.mu.Lock()
 	defer ab.mu.Unlock()

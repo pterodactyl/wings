@@ -2,7 +2,6 @@ package parser
 
 import (
 	"bufio"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 	"github.com/apex/log"
 	"github.com/beevik/etree"
 	"github.com/buger/jsonparser"
+	"github.com/goccy/go-json"
 	"github.com/icza/dyno"
 	"github.com/magiconair/properties"
 	"gopkg.in/ini.v1"
@@ -80,8 +80,8 @@ func (cp ConfigurationParser) String() string {
 	return string(cp)
 }
 
-// Defines a configuration file for the server startup. These will be looped over
-// and modified before the server finishes booting.
+// ConfigurationFile defines a configuration file for the server startup. These
+// will be looped over and modified before the server finishes booting.
 type ConfigurationFile struct {
 	FileName string                         `json:"file"`
 	Parser   ConfigurationParser            `json:"parser"`
@@ -92,12 +92,10 @@ type ConfigurationFile struct {
 	configuration []byte
 }
 
-// Custom unmarshaler for configuration files. If there is an error while parsing out the
-// replacements, don't fail the entire operation, just log a global warning so someone can
-// find the issue, and return an empty array of replacements.
-//
-// I imagine people will notice configuration replacement isn't working correctly and then
-// the logs should help better expose that issue.
+// UnmarshalJSON is a custom unmarshaler for configuration files. If there is an
+// error while parsing out the replacements, don't fail the entire operation,
+// just log a global warning so someone can find the issue, and return an empty
+// array of replacements.
 func (f *ConfigurationFile) UnmarshalJSON(data []byte) error {
 	var m map[string]*json.RawMessage
 	if err := json.Unmarshal(data, &m); err != nil {
