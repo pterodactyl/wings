@@ -132,6 +132,10 @@ type SystemConfiguration struct {
 	// Directory where local backups will be stored on the machine.
 	BackupDirectory string `default:"/var/lib/pterodactyl/backups" yaml:"backup_directory"`
 
+	// TmpDirectory specifies where temporary files for Pterodactyl installation processes
+	// should be created. This supports environments running docker-in-docker.
+	TmpDirectory string `default:"/tmp/pterodactyl" yaml:"tmp_directory"`
+
 	// The user that should own all of the server files, and be used for containers.
 	Username string `default:"pterodactyl" yaml:"username"`
 

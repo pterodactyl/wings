@@ -34,7 +34,7 @@ func (s *Server) Install(sync bool) error {
 	if sync {
 		s.Log().Info("syncing server state with remote source before executing installation process")
 		if err := s.Sync(); err != nil {
-			return err
+			return errors.WrapIf(err, "install: failed to sync server state with Panel")
 		}
 	}
 
@@ -58,7 +58,7 @@ func (s *Server) Install(sync bool) error {
 		// error to this log entry. Otherwise ignore it in this log since whatever is calling
 		// this function should handle the error and will end up logging the same one.
 		if err == nil {
-			l.WithField("error", serr)
+			l.WithField("error", err)
 		}
 
 		l.Warn("failed to notify panel of server install state")
@@ -72,7 +72,7 @@ func (s *Server) Install(sync bool) error {
 	// the install is completed.
 	s.Events().Publish(InstallCompletedEvent, "")
 
-	return err
+	return errors.WithStackIf(err)
 }
 
 // Reinstalls a server's software by utilizing the install script for the server egg. This
@@ -81,7 +81,7 @@ func (s *Server) Reinstall() error {
 	if s.Environment.State() != environment.ProcessOfflineState {
 		s.Log().Debug("waiting for server instance to enter a stopped state")
 		if err := s.Environment.WaitForStop(s.Context(), time.Second*10, true); err != nil {
-			return err
+			return errors.WrapIf(err, "install: failed to stop running environment")
 		}
 	}
 
@@ -204,7 +204,7 @@ func (ip *InstallationProcess) Run() error {
 
 // Returns the location of the temporary data for the installation process.
 func (ip *InstallationProcess) tempDir() string {
-	return filepath.Join(os.TempDir(), "pterodactyl/", ip.Server.ID())
+	return filepath.Join(config.Get().System.TmpDirectory, ip.Server.ID())
 }
 
 // Writes the installation script to a temporary file on the host machine so that it
