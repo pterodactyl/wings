@@ -3,6 +3,7 @@ package router
 import (
 	"bufio"
 	"context"
+	"github.com/pterodactyl/wings/config"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -537,8 +538,16 @@ func postServerUploadFiles(c *gin.Context) {
 
 	directory := c.Query("directory")
 
+	maxFileSize := config.Get().Api.UploadLimit
+	maxFileSizeBytes := maxFileSize * 1024 * 1024
 	var totalSize int64
 	for _, header := range headers {
+		if header.Size > maxFileSizeBytes {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "File " + header.Filename + " is larger than the maximum file upload size of " + strconv.FormatInt(maxFileSize, 10) + " MB.",
+			})
+			return
+		}
 		totalSize += header.Size
 	}
 
