@@ -257,9 +257,12 @@ func postServerPullRemoteFile(c *gin.Context) {
 	s := ExtractServer(c)
 	var data struct {
 		// Deprecated
-		Directory string `binding:"required_without=RootPath,omitempty" json:"directory"`
-		RootPath  string `binding:"required_without=Directory,omitempty" json:"root"`
-		URL       string `binding:"required" json:"url"`
+		Directory  string `binding:"required_without=RootPath,omitempty" json:"directory"`
+		RootPath   string `binding:"required_without=Directory,omitempty" json:"root"`
+		URL        string `binding:"required" json:"url"`
+		FileName   string `json:"file_name"`
+		UseHeader  bool   `json:"use_header"`
+		Foreground bool   `json:"foreground"`
 	}
 	if err := c.BindJSON(&data); err != nil {
 		return
@@ -297,21 +300,41 @@ func postServerPullRemoteFile(c *gin.Context) {
 	dl := downloader.New(s, downloader.DownloadRequest{
 		Directory: data.RootPath,
 		URL:       u,
+		FileName:  data.FileName,
+		UseHeader: data.UseHeader,
 	})
 
-	// Execute this pull in a separate thread since it may take a long time to complete.
-	go func() {
+	download := func() error {
 		s.Log().WithField("download_id", dl.Identifier).WithField("url", u.String()).Info("starting pull of remote file to disk")
 		if err := dl.Execute(); err != nil {
 			s.Log().WithField("download_id", dl.Identifier).WithField("error", err).Error("failed to pull remote file")
+			return err
 		} else {
 			s.Log().WithField("download_id", dl.Identifier).Info("completed pull of remote file")
 		}
-	}()
+		return nil
+	}
+	if !data.Foreground {
+		go func() {
+			_ = download()
+		}()
+		c.JSON(http.StatusAccepted, gin.H{
+			"identifier": dl.Identifier,
+		})
+		return
+	}
 
-	c.JSON(http.StatusAccepted, gin.H{
-		"identifier": dl.Identifier,
-	})
+	if err := download(); err != nil {
+		NewServerError(err, s).Abort(c)
+		return
+	}
+
+	st, err := s.Filesystem().Stat(dl.Path())
+	if err != nil {
+		NewServerError(err, s).AbortFilesystemError(c)
+		return
+	}
+	c.JSON(http.StatusOK, &st)
 }
 
 // Stops a remote file download if it exists and belongs to this server.
