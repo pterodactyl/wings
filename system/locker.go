@@ -42,7 +42,6 @@ func (l *Locker) Acquire() error {
 	return nil
 }
 
-
 // TryAcquire will attempt to acquire a power-lock until the context provided
 // is canceled.
 func (l *Locker) TryAcquire(ctx context.Context) error {

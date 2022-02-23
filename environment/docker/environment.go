@@ -26,7 +26,7 @@ type Metadata struct {
 var _ environment.ProcessEnvironment = (*Environment)(nil)
 
 type Environment struct {
-	mu      sync.RWMutex
+	mu sync.RWMutex
 
 	// The public identifier for this environment. In this case it is the Docker container
 	// name that will be used for all instances created under it.

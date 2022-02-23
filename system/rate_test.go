@@ -47,7 +47,7 @@ func TestRate(t *testing.T) {
 		g.It("resets back to zero when called", func() {
 			r := NewRate(10, time.Second)
 			for i := 0; i < 100; i++ {
-				if i % 10 == 0 {
+				if i%10 == 0 {
 					r.Reset()
 				}
 				g.Assert(r.Try()).IsTrue()
