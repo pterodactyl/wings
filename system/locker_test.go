@@ -95,7 +95,7 @@ func TestPower(t *testing.T) {
 
 				l.Acquire()
 				go func() {
-					time.AfterFunc(time.Millisecond * 50, func() {
+					time.AfterFunc(time.Millisecond*50, func() {
 						l.Release()
 					})
 				}()

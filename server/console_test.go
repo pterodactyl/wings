@@ -19,7 +19,7 @@ func TestName(t *testing.T) {
 		})
 
 		g.It("calls strike once per time period", func() {
-			t := newConsoleThrottle(1, time.Millisecond * 20)
+			t := newConsoleThrottle(1, time.Millisecond*20)
 
 			var times int
 			t.strike = func() {
@@ -53,10 +53,10 @@ func TestName(t *testing.T) {
 }
 
 func BenchmarkConsoleThrottle(b *testing.B) {
-	t := newConsoleThrottle(10, time.Millisecond * 10)
+	t := newConsoleThrottle(10, time.Millisecond*10)
 
 	b.ReportAllocs()
-    for i := 0; i < b.N; i++ {
-        t.Allow()
-    }
+	for i := 0; i < b.N; i++ {
+		t.Allow()
+	}
 }

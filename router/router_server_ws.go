@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	ws "github.com/gorilla/websocket"
 	"github.com/goccy/go-json"
+	ws "github.com/gorilla/websocket"
 
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/websocket"

@@ -218,7 +218,7 @@ func (e *Environment) WaitForStop(ctx context.Context, duration time.Duration, t
 		}
 	}()
 
-	doTermination := func (s string) error {
+	doTermination := func(s string) error {
 		e.log().WithField("step", s).WithField("duration", duration).Warn("container stop did not complete in time, terminating process...")
 		return e.Terminate(ctx, os.Kill)
 	}

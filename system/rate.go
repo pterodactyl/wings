@@ -44,7 +44,7 @@ func (r *Rate) Try() bool {
 // Reset resets the internal state of the rate limiter back to zero.
 func (r *Rate) Reset() {
 	r.mu.Lock()
-    r.count = 0
-    r.last = time.Now()
+	r.count = 0
+	r.last = time.Now()
 	r.mu.Unlock()
 }
