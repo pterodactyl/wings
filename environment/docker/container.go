@@ -480,21 +480,3 @@ func (e *Environment) convertMounts() []mount.Mount {
 
 	return out
 }
-
-func (e *Environment) resources() container.Resources {
-	l := e.Configuration.Limits()
-	pids := l.ProcessLimit()
-
-	return container.Resources{
-		Memory:            l.BoundedMemoryLimit(),
-		MemoryReservation: l.MemoryLimit * 1_000_000,
-		MemorySwap:        l.ConvertedSwap(),
-		CPUQuota:          l.ConvertedCpuLimit(),
-		CPUPeriod:         100_000,
-		CPUShares:         1024,
-		BlkioWeight:       l.IoWeight,
-		OomKillDisable:    &l.OOMDisabled,
-		CpusetCpus:        l.Threads,
-		PidsLimit:         &pids,
-	}
-}
