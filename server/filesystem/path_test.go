@@ -119,16 +119,6 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 		panic(err)
 	}
 
-	g.Describe("Readfile", func() {
-		g.It("cannot read a file symlinked outside the root", func() {
-			b := bytes.Buffer{}
-
-			err := fs.Readfile("symlinked.txt", &b)
-			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
-		})
-	})
-
 	g.Describe("Writefile", func() {
 		g.It("cannot write to a file symlinked outside the root", func() {
 			r := bytes.NewReader([]byte("testing"))

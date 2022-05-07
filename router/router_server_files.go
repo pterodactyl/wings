@@ -37,6 +37,15 @@ func getServerFileContents(c *gin.Context) {
 		return
 	}
 	defer f.Close()
+	// Don't allow a named pipe to be opened.
+	//
+	// @see https://github.com/pterodactyl/panel/issues/4059
+	if st.Mode()&os.ModeNamedPipe != 0 {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Cannot open files of this type.",
+		})
+		return
+	}
 
 	c.Header("X-Mime-Type", st.Mimetype)
 	c.Header("Content-Length", strconv.Itoa(int(st.Size())))

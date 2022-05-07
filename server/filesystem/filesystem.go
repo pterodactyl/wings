@@ -115,19 +115,6 @@ func (fs *Filesystem) Touch(p string, flag int) (*os.File, error) {
 	return f, nil
 }
 
-// Reads a file on the system and returns it as a byte representation in a file
-// reader. This is not the most memory efficient usage since it will be reading the
-// entirety of the file into memory.
-func (fs *Filesystem) Readfile(p string, w io.Writer) error {
-	file, _, err := fs.File(p)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	_, err = bufio.NewReader(file).WriteTo(w)
-	return err
-}
-
 // Writefile writes a file to the system. If the file does not already exist one
 // will be created. This will also properly recalculate the disk space used by
 // the server when writing new files or modifying existing ones.
@@ -492,7 +479,11 @@ func (fs *Filesystem) ListDirectory(p string) ([]Stat, error) {
 					cleanedp, _ = fs.SafePath(filepath.Join(cleaned, f.Name()))
 				}
 
-				if cleanedp != "" {
+				// Don't try to detect the type on a pipe — this will just hang the application and
+				// you'll never get a response back.
+				//
+				// @see https://github.com/pterodactyl/panel/issues/4059
+				if cleanedp != "" && f.Mode()&os.ModeNamedPipe == 0 {
 					m, _ = mimetype.DetectFile(filepath.Join(cleaned, f.Name()))
 				} else {
 					// Just pass this for an unknown type because the file could not safely be resolved within
