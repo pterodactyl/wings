@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.6.2
+### Fixed
+* Fixes file upload size not being properly enforced.
+* Fixes a bug that prevented listing a directory when it contained a named pipe. Also added a check to prevent attempting to read a named pipe directly.
+
+### Changed
+* CPU limit fields are only set on the Docker container if they have been specified for the server — otherwise they are left empty.
+
+### Added
+* Added the ability to define the location of the temporary folder used by Wings — defaults to `/tmp/pterodactyl`.
+
 ## v1.6.1
 ### Fixed
 * Fixes error that would sometimes occur when starting a server that would cause the temporary power action lock to never be released due to a blocked channel.
