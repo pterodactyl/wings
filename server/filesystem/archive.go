@@ -130,7 +130,7 @@ func (a *Archive) withFilesCallback(tw *tar.Writer) func(path string, de *godirw
 		for _, f := range a.Files {
 			// If the given doesn't match, or doesn't have the same prefix continue
 			// to the next item in the loop.
-			if p != f && !strings.HasPrefix(p, f) {
+			if p != f && !strings.HasPrefix(strings.TrimSuffix(p, "/")+"/", f) {
 				continue
 			}
 

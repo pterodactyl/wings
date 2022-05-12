@@ -4,6 +4,7 @@
 ### Fixed
 * Fixes file upload size not being properly enforced.
 * Fixes a bug that prevented listing a directory when it contained a named pipe. Also added a check to prevent attempting to read a named pipe directly.
+* Fixes a bug with the archiver logic that would include folders that had the same name prefix. (for example, requesting only `map` would also include `map2` and `map3`)
 
 ### Changed
 * CPU limit fields are only set on the Docker container if they have been specified for the server — otherwise they are left empty.
