@@ -87,7 +87,6 @@ type SftpAuthRequest struct {
 // user for the SFTP subsystem.
 type SftpAuthResponse struct {
 	Server      string   `json:"server"`
-	PublicKeys  []string `json:"public_keys"`
 	Permissions []string `json:"permissions"`
 }
 
