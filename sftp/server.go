@@ -74,7 +74,7 @@ func (c *SFTPServer) Run() error {
 			return c.makeCredentialsRequest(conn, remote.SftpAuthPassword, string(password))
 		},
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			return c.makeCredentialsRequest(conn, remote.SftpAuthPublicKey, string(key.Marshal()))
+			return c.makeCredentialsRequest(conn, remote.SftpAuthPublicKey, string(ssh.MarshalAuthorizedKey(key)))
 		},
 	}
 	conf.AddHostKey(private)
