@@ -11,6 +11,11 @@ import (
 	"github.com/pterodactyl/wings/parser"
 )
 
+const (
+	SftpAuthPassword  = SftpAuthRequestType("password")
+	SftpAuthPublicKey = SftpAuthRequestType("public_key")
+)
+
 // A generic type allowing for easy binding use when making requests to API
 // endpoints that only expect a singular argument or something that would not
 // benefit from being a typed struct.
@@ -63,14 +68,17 @@ type RawServerData struct {
 	ProcessConfiguration json.RawMessage `json:"process_configuration"`
 }
 
+type SftpAuthRequestType string
+
 // SftpAuthRequest defines the request details that are passed along to the Panel
 // when determining if the credentials provided to Wings are valid.
 type SftpAuthRequest struct {
-	User          string `json:"username"`
-	Pass          string `json:"password"`
-	IP            string `json:"ip"`
-	SessionID     []byte `json:"session_id"`
-	ClientVersion []byte `json:"client_version"`
+	Type          SftpAuthRequestType `json:"type"`
+	User          string              `json:"username"`
+	Pass          string              `json:"password"`
+	IP            string              `json:"ip"`
+	SessionID     []byte              `json:"session_id"`
+	ClientVersion []byte              `json:"client_version"`
 }
 
 // SftpAuthResponse is returned by the Panel when a pair of SFTP credentials
@@ -79,7 +87,7 @@ type SftpAuthRequest struct {
 // user for the SFTP subsystem.
 type SftpAuthResponse struct {
 	Server      string   `json:"server"`
-	Token       string   `json:"token"`
+	PublicKeys  []string `json:"public_keys"`
 	Permissions []string `json:"permissions"`
 }
 
