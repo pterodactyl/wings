@@ -171,16 +171,16 @@ func (fs *Filesystem) CreateDirectory(name string, p string) error {
 	return os.MkdirAll(cleaned, 0o755)
 }
 
-// Moves (or renames) a file or directory.
+// Rename moves (or renames) a file or directory.
 func (fs *Filesystem) Rename(from string, to string) error {
 	cleanedFrom, err := fs.SafePath(from)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	cleanedTo, err := fs.SafePath(to)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// If the target file or directory already exists the rename function will fail, so just
@@ -202,7 +202,10 @@ func (fs *Filesystem) Rename(from string, to string) error {
 		}
 	}
 
-	return os.Rename(cleanedFrom, cleanedTo)
+	if err := os.Rename(cleanedFrom, cleanedTo); err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 // Recursively iterates over a file or directory and sets the permissions on all of the

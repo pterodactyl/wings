@@ -5,12 +5,14 @@
 * Fixes file upload size not being properly enforced.
 * Fixes a bug that prevented listing a directory when it contained a named pipe. Also added a check to prevent attempting to read a named pipe directly.
 * Fixes a bug with the archiver logic that would include folders that had the same name prefix. (for example, requesting only `map` would also include `map2` and `map3`)
+* Requests to the Panel that return a client error (4xx response code) no longer trigger an exponential backoff, they immediately stop the request.
 
 ### Changed
 * CPU limit fields are only set on the Docker container if they have been specified for the server — otherwise they are left empty.
 
 ### Added
 * Added the ability to define the location of the temporary folder used by Wings — defaults to `/tmp/pterodactyl`.
+* Adds the ability to authenticate for SFTP using public keys (requires `Panel@1.8.0`).
 
 ## v1.6.1
 ### Fixed

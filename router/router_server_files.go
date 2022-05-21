@@ -131,6 +131,10 @@ func putServerRenameFiles(c *gin.Context) {
 					// Return nil if the error is an is not exists.
 					// NOTE: os.IsNotExist() does not work if the error is wrapped.
 					if errors.Is(err, os.ErrNotExist) {
+						s.Log().WithField("error", err).
+							WithField("from_path", pf).
+							WithField("to_path", pt).
+							Warn("failed to rename: source or target does not exist")
 						return nil
 					}
 					return err
