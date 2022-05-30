@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.6.3
+### Fixed
+* Fixes SFTP authentication failing for administrative users due to a permissions adjustment on the Panel.
+
 ## v1.6.2
 ### Fixed
 * Fixes file upload size not being properly enforced.

@@ -288,14 +288,10 @@ func (h *Handler) can(permission string) bool {
 		return false
 	}
 
-	// SFTPServer owners and super admins have their permissions returned as '[*]' via the Panel
-	// API, so for the sake of speed do an initial check for that before iterating over the
-	// entire array of permissions.
-	if len(h.permissions) == 1 && h.permissions[0] == "*" {
-		return true
-	}
 	for _, p := range h.permissions {
-		if p == permission {
+		// If we match the permission specifically, or the user has been granted the "*"
+		// permission because they're an admin, let them through.
+		if p == permission || p == "*" {
 			return true
 		}
 	}
