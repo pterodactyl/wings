@@ -5,9 +5,12 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"fmt"
+	gzip2 "github.com/klauspost/compress/gzip"
+	zip2 "github.com/klauspost/compress/zip"
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -172,13 +175,26 @@ func ExtractNameFromArchive(f archiver.File) string {
 		return f.Name()
 	}
 	switch s := sys.(type) {
+	case *zip.FileHeader:
+		return s.Name
+	case *zip2.FileHeader:
+		return s.Name
 	case *tar.Header:
 		return s.Name
 	case *gzip.Header:
 		return s.Name
-	case *zip.FileHeader:
+	case *gzip2.Header:
 		return s.Name
 	default:
+		// At this point we cannot figure out what type of archive this might be so
+		// just try to find the name field in the struct. If it is found return it.
+		field := reflect.Indirect(reflect.ValueOf(sys)).FieldByName("Name")
+		if field.IsValid() {
+			return field.String()
+		}
+		// Fallback to the basename of the file at this point. There is nothing we can really
+		// do to try and figure out what the underlying directory of the file is supposed to
+		// be since it didn't implement a name field.
 		return f.Name()
 	}
 }
