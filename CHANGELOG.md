@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.6.4
+### Fixed
+* Fixes a bug causing CPU limiting to not be properly applied to servers.
+* Fixes a bug causing zip archives to decompress without taking into account nested folder structures.
+
 ## v1.6.3
 ### Fixed
 * Fixes SFTP authentication failing for administrative users due to a permissions adjustment on the Panel.
