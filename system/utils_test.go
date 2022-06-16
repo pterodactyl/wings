@@ -3,10 +3,12 @@ package system
 import (
 	"math/rand"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	. "github.com/franela/goblin"
+	"github.com/goccy/go-json"
 )
 
 func Test_Utils(t *testing.T) {
@@ -38,6 +40,80 @@ func Test_Utils(t *testing.T) {
 
 			g.Assert(err).IsNil()
 			g.Assert(lines).Equal([]string{"test\rstrin", "another\rli", "hodor\r\r\rhe", "material g"})
+		})
+	})
+
+	g.Describe("AtomicBool", func() {
+		var b *AtomicBool
+		g.BeforeEach(func() {
+			b = NewAtomicBool(false)
+		})
+
+		g.It("initalizes with the provided start value", func() {
+			b = NewAtomicBool(true)
+			g.Assert(b.Load()).IsTrue()
+
+			b = NewAtomicBool(false)
+			g.Assert(b.Load()).IsFalse()
+		})
+
+		g.Describe("AtomicBool#Store", func() {
+			g.It("stores the provided value", func() {
+				g.Assert(b.Load()).IsFalse()
+				b.Store(true)
+				g.Assert(b.Load()).IsTrue()
+			})
+
+			// This test makes no assertions, it just expects to not hit a race condition
+			// by having multiple things writing at the same time.
+			g.It("handles contention from multiple routines", func() {
+				var wg sync.WaitGroup
+
+				wg.Add(100)
+				for i := 0; i < 100; i++ {
+					go func(i int) {
+						b.Store(i%2 == 0)
+						wg.Done()
+					}(i)
+				}
+				wg.Wait()
+			})
+		})
+
+		g.Describe("AtomicBool#SwapIf", func() {
+			g.It("swaps the value out if different than what is stored", func() {
+				o := b.SwapIf(false)
+				g.Assert(o).IsFalse()
+				g.Assert(b.Load()).IsFalse()
+
+				o = b.SwapIf(true)
+				g.Assert(o).IsTrue()
+				g.Assert(b.Load()).IsTrue()
+
+				o = b.SwapIf(true)
+				g.Assert(o).IsFalse()
+				g.Assert(b.Load()).IsTrue()
+
+				o = b.SwapIf(false)
+				g.Assert(o).IsTrue()
+				g.Assert(b.Load()).IsFalse()
+			})
+		})
+
+		g.Describe("can be marshaled with JSON", func() {
+			type testStruct struct {
+				Value AtomicBool `json:"value"`
+			}
+
+			var o testStruct
+			err := json.Unmarshal([]byte(`{"value":true}`), &o)
+
+			g.Assert(err).IsNil()
+			g.Assert(o.Value.Load()).IsTrue()
+
+			b, err2 := json.Marshal(&o)
+			g.Assert(err2).IsNil()
+			g.Assert(b).Equal([]byte(`{"value":true}`))
 		})
 	})
 }

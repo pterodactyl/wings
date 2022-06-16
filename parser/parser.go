@@ -11,9 +11,9 @@ import (
 	"github.com/apex/log"
 	"github.com/beevik/etree"
 	"github.com/buger/jsonparser"
+	"github.com/goccy/go-json"
 	"github.com/icza/dyno"
 	"github.com/magiconair/properties"
-	"github.com/goccy/go-json"
 	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v2"
 

@@ -73,6 +73,9 @@ func (e *Environment) ContainerInspect(ctx context.Context) (types.ContainerJSON
 
 	res, err := e.client.HTTPClient().Do(req)
 	if err != nil {
+		if res == nil {
+			return st, errdefs.Unknown(err)
+		}
 		return st, errdefs.FromStatusCode(err, res.StatusCode)
 	}
 

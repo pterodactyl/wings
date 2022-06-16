@@ -142,12 +142,10 @@ func (c *client) request(ctx context.Context, method, path string, body io.Reade
 		if r.HasError() {
 			// Close the request body after returning the error to free up resources.
 			defer r.Body.Close()
-			// Don't keep spamming the endpoint if we've already made too many requests or
-			// if we're not even authenticated correctly. Retrying generally won't fix either
-			// of these issues.
-			if r.StatusCode == http.StatusForbidden ||
-				r.StatusCode == http.StatusTooManyRequests ||
-				r.StatusCode == http.StatusUnauthorized {
+			// Don't keep attempting to access this endpoint if the response is a 4XX
+			// level error which indicates a client mistake. Only retry when the error
+			// is due to a server issue (5XX error).
+			if r.StatusCode >= 400 && r.StatusCode < 500 {
 				return backoff.Permanent(r.Error())
 			}
 			return r.Error()

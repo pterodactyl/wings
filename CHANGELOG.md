@@ -1,5 +1,47 @@
 # Changelog
 
+## v1.6.4
+### Fixed
+* Fixes a bug causing CPU limiting to not be properly applied to servers.
+* Fixes a bug causing zip archives to decompress without taking into account nested folder structures.
+
+## v1.6.3
+### Fixed
+* Fixes SFTP authentication failing for administrative users due to a permissions adjustment on the Panel.
+
+## v1.6.2
+### Fixed
+* Fixes file upload size not being properly enforced.
+* Fixes a bug that prevented listing a directory when it contained a named pipe. Also added a check to prevent attempting to read a named pipe directly.
+* Fixes a bug with the archiver logic that would include folders that had the same name prefix. (for example, requesting only `map` would also include `map2` and `map3`)
+* Requests to the Panel that return a client error (4xx response code) no longer trigger an exponential backoff, they immediately stop the request.
+
+### Changed
+* CPU limit fields are only set on the Docker container if they have been specified for the server — otherwise they are left empty.
+
+### Added
+* Added the ability to define the location of the temporary folder used by Wings — defaults to `/tmp/pterodactyl`.
+* Adds the ability to authenticate for SFTP using public keys (requires `Panel@1.8.0`).
+
+## v1.6.1
+### Fixed
+* Fixes error that would sometimes occur when starting a server that would cause the temporary power action lock to never be released due to a blocked channel.
+* Fixes a bug causing the CPU usage of Wings to get stuck at 100% when a server is deleted while the installation process is running.
+
+### Changed
+* Cleans up a lot of the logic for handling events between the server and environment process to make it easier to make modifications to down the road.
+* Cleans up logic handling the `StopAndWait` logic for stopping a server gracefully before terminating the process if it does not respond.
+
+## v1.6.0
+### Fixed
+* Internal logic for processing a server start event has been adjusted to attach to the Docker container before attempting to start the container. This should fix issues where a server would get stuck after pulling the container image.
+* Fixes a bug in the console output that was dropping console lines when a large number of lines were sent at once.
+
+### Changed
+* Removed the console throttle logic that would terminate a server instance that was sending too much data. This logic has been replaced with simpler logic that only throttles the console, it does not try to terminate the server. In addition, this change has reduced the number of go-routines needed by the application and dramatically simplified internal logic.
+* Removed the `--profiler` flag and replaced it with `--pprof` which will start an internal server listening on `localhost:6060` allowing you to use Go's standard `pprof` tooling.
+* Replaced the `json` log driver for Docker containers with `local` to reduce the amount of overhead when it comes to streaming logs from instances.
+
 ## v1.5.6
 ### Fixed
 * Rewrote handler logic for the power actions lock to hopefully address issues people have been having when a server crashes and they're unable to start it again until restarting Wings.

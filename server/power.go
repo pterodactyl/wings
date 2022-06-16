@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"emperror.dev/errors"
@@ -39,81 +38,6 @@ func (pa PowerAction) IsValid() bool {
 
 func (pa PowerAction) IsStart() bool {
 	return pa == PowerActionStart || pa == PowerActionRestart
-}
-
-type powerLocker struct {
-	mu sync.RWMutex
-	ch chan bool
-}
-
-func newPowerLocker() *powerLocker {
-	return &powerLocker{
-		ch: make(chan bool, 1),
-	}
-}
-
-type errPowerLockerLocked struct{}
-
-func (e errPowerLockerLocked) Error() string {
-	return "cannot acquire a lock on the power state: already locked"
-}
-
-var ErrPowerLockerLocked error = errPowerLockerLocked{}
-
-// IsLocked returns the current state of the locker channel. If there is
-// currently a value in the channel, it is assumed to be locked.
-func (pl *powerLocker) IsLocked() bool {
-	pl.mu.RLock()
-	defer pl.mu.RUnlock()
-	return len(pl.ch) == 1
-}
-
-// Acquire will acquire the power lock if it is not currently locked. If it is
-// already locked, acquire will fail to acquire the lock, and will return false.
-func (pl *powerLocker) Acquire() error {
-	pl.mu.Lock()
-	defer pl.mu.Unlock()
-	if len(pl.ch) == 1 {
-		return errors.WithStack(ErrPowerLockerLocked)
-	}
-	pl.ch <- true
-	return nil
-}
-
-// TryAcquire will attempt to acquire a power-lock until the context provided
-// is canceled.
-func (pl *powerLocker) TryAcquire(ctx context.Context) error {
-	select {
-	case pl.ch <- true:
-		return nil
-	case <-ctx.Done():
-		if err := ctx.Err(); err != nil {
-			return errors.WithStack(err)
-		}
-		return nil
-	}
-}
-
-// Release will drain the locker channel so that we can properly re-acquire it
-// at a later time.
-func (pl *powerLocker) Release() {
-	pl.mu.Lock()
-	if len(pl.ch) == 1 {
-		<-pl.ch
-	}
-	pl.mu.Unlock()
-}
-
-// Destroy cleans up the power locker by closing the channel.
-func (pl *powerLocker) Destroy() {
-	pl.mu.Lock()
-	if pl.ch != nil {
-		if len(pl.ch) == 1 {
-			<-pl.ch
-		}
-		close(pl.ch)
-	}
-	pl.mu.Unlock()
 }
 
 // ExecutingPowerAction checks if there is currently a power action being
@@ -209,11 +133,11 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 
 		return s.Environment.Start(s.Context())
 	case PowerActionStop:
-		// We're specifically waiting for the process to be stopped here, otherwise the lock is released
-		// too soon, and you can rack up all sorts of issues.
-		return s.Environment.WaitForStop(10*60, true)
+		fallthrough
 	case PowerActionRestart:
-		if err := s.Environment.WaitForStop(10*60, true); err != nil {
+		// We're specifically waiting for the process to be stopped here, otherwise the lock is
+		// released too soon, and you can rack up all sorts of issues.
+		if err := s.Environment.WaitForStop(s.Context(), time.Minute*10, true); err != nil {
 			// Even timeout errors should be bubbled back up the stack. If the process didn't stop
 			// nicely, but the terminate argument was passed then the server is stopped without an
 			// error being returned.
@@ -225,6 +149,10 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 			return err
 		}
 
+		if action == PowerActionStop {
+			return nil
+		}
+
 		// Now actually try to start the process by executing the normal pre-boot logic.
 		if err := s.onBeforeStart(); err != nil {
 			return err
@@ -232,7 +160,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 
 		return s.Environment.Start(s.Context())
 	case PowerActionTerminate:
-		return s.Environment.Terminate(os.Kill)
+		return s.Environment.Terminate(s.Context(), os.Kill)
 	}
 
 	return errors.New("attempting to handle unknown power action")
@@ -273,15 +201,19 @@ func (s *Server) onBeforeStart() error {
 	// we don't need to actively do anything about it at this point, worse comes to worst the
 	// server starts in a weird state and the user can manually adjust.
 	s.PublishConsoleOutputFromDaemon("Updating process configuration files...")
+	s.Log().Debug("updating server configuration files...")
 	s.UpdateConfigurationFiles()
+	s.Log().Debug("updated server configuration files")
 
 	if config.Get().System.CheckPermissionsOnBoot {
 		s.PublishConsoleOutputFromDaemon("Ensuring file permissions are set correctly, this could take a few seconds...")
 		// Ensure all the server file permissions are set correctly before booting the process.
+		s.Log().Debug("chowning server root directory...")
 		if err := s.Filesystem().Chown("/"); err != nil {
 			return errors.WithMessage(err, "failed to chown root server directory during pre-boot process")
 		}
 	}
 
+	s.Log().Info("completed server preflight, starting boot process...")
 	return nil
 }

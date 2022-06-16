@@ -7,9 +7,11 @@ import (
 	"fmt"
 	log2 "log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -20,7 +22,6 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/gammazero/workerpool"
 	"github.com/mitchellh/colorstring"
-	"github.com/pkg/profile"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
@@ -75,7 +76,9 @@ func init() {
 	rootCommand.PersistentFlags().BoolVar(&debug, "debug", false, "pass in order to run wings in debug mode")
 
 	// Flags specifically used when running the API.
-	rootCommand.Flags().String("profiler", "", "the profiler to run for this instance")
+	rootCommand.Flags().Bool("pprof", false, "if the pprof profiler should be enabled. The profiler will bind to localhost:6060 by default")
+	rootCommand.Flags().Int("pprof-block-rate", 0, "enables block profile support, may have performance impacts")
+	rootCommand.Flags().Int("pprof-port", 6060, "If provided with --pprof, the port it will run on")
 	rootCommand.Flags().Bool("auto-tls", false, "pass in order to have wings generate and manage it's own SSL certificates using Let's Encrypt")
 	rootCommand.Flags().String("tls-hostname", "", "required with --auto-tls, the FQDN for the generated SSL certificate")
 	rootCommand.Flags().Bool("ignore-certificate-errors", false, "ignore certificate verification errors when executing API calls")
@@ -86,25 +89,6 @@ func init() {
 }
 
 func rootCmdRun(cmd *cobra.Command, _ []string) {
-	switch cmd.Flag("profiler").Value.String() {
-	case "cpu":
-		defer profile.Start(profile.CPUProfile).Stop()
-	case "mem":
-		defer profile.Start(profile.MemProfile).Stop()
-	case "alloc":
-		defer profile.Start(profile.MemProfile, profile.MemProfileAllocs).Stop()
-	case "heap":
-		defer profile.Start(profile.MemProfile, profile.MemProfileHeap).Stop()
-	case "routines":
-		defer profile.Start(profile.GoroutineProfile).Stop()
-	case "mutex":
-		defer profile.Start(profile.MutexProfile).Stop()
-	case "threads":
-		defer profile.Start(profile.ThreadcreationProfile).Stop()
-	case "block":
-		defer profile.Start(profile.BlockProfile).Stop()
-	}
-
 	printLogo()
 	log.Debug("running in debug mode")
 	log.WithField("config_file", configPath).Info("loading configuration from file")
@@ -323,6 +307,20 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		Addr:      api.Host + ":" + strconv.Itoa(api.Port),
 		Handler:   router.Configure(manager, pclient),
 		TLSConfig: config.DefaultTLSConfig,
+	}
+
+	profile, _ := cmd.Flags().GetBool("pprof")
+	if profile {
+		if r, _ := cmd.Flags().GetInt("pprof-block-rate"); r > 0 {
+			runtime.SetBlockProfileRate(r)
+		}
+		// Catch at least 1% of mutex contention issues.
+		runtime.SetMutexProfileFraction(100)
+
+		profilePort, _ := cmd.Flags().GetInt("pprof-port")
+		go func() {
+			http.ListenAndServe(fmt.Sprintf("localhost:%d", profilePort), nil)
+		}()
 	}
 
 	// Check if the server should run with TLS but using autocert.

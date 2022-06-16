@@ -142,7 +142,7 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	// instance, otherwise you'll likely hit all types of write errors due to the
 	// server being suspended.
 	if s.Environment.State() != environment.ProcessOfflineState {
-		if err = s.Environment.WaitForStop(120, false); err != nil {
+		if err = s.Environment.WaitForStop(s.Context(), time.Minute*2, false); err != nil {
 			if !client.IsErrNotFound(err) {
 				return errors.WrapIf(err, "server/backup: restore: failed to wait for container stop")
 			}

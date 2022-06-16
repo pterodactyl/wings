@@ -111,6 +111,13 @@ func (e *Environment) Start(ctx context.Context) error {
 	actx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
+	// You must attach to the instance _before_ you start the container. If you do this
+	// in the opposite order you'll enter a deadlock condition where we're attached to
+	// the instance successfully, but the container has already stopped and you'll get
+	// the entire program into a very confusing state.
+	//
+	// By explicitly attaching to the instance before we start it, we can immediately
+	// react to errors/output stopping/etc. when starting.
 	if err := e.Attach(actx); err != nil {
 		return err
 	}
@@ -131,9 +138,7 @@ func (e *Environment) Start(ctx context.Context) error {
 // You most likely want to be using WaitForStop() rather than this function,
 // since this will return as soon as the command is sent, rather than waiting
 // for the process to be completed stopped.
-//
-// TODO: pass context through from the server instance.
-func (e *Environment) Stop() error {
+func (e *Environment) Stop(ctx context.Context) error {
 	e.mu.RLock()
 	s := e.meta.Stop
 	e.mu.RUnlock()
@@ -157,7 +162,7 @@ func (e *Environment) Stop() error {
 		case "SIGTERM":
 			signal = syscall.SIGTERM
 		}
-		return e.Terminate(signal)
+		return e.Terminate(ctx, signal)
 	}
 
 	// If the process is already offline don't switch it back to stopping. Just leave it how
@@ -172,8 +177,10 @@ func (e *Environment) Stop() error {
 		return e.SendCommand(s.Value)
 	}
 
-	t := time.Second * 30
-	if err := e.client.ContainerStop(context.Background(), e.Id, &t); err != nil {
+	// Allow the stop action to run for however long it takes, similar to executing a command
+	// and using a different logic pathway to wait for the container to stop successfully.
+	t := time.Duration(-1)
+	if err := e.client.ContainerStop(ctx, e.Id, &t); err != nil {
 		// If the container does not exist just mark the process as stopped and return without
 		// an error.
 		if client.IsErrNotFound(err) {
@@ -191,45 +198,66 @@ func (e *Environment) Stop() error {
 // command. If the server does not stop after seconds have passed, an error will
 // be returned, or the instance will be terminated forcefully depending on the
 // value of the second argument.
-func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
-	if err := e.Stop(); err != nil {
-		return err
+//
+// Calls to Environment.Terminate() in this function use the context passed
+// through since we don't want to prevent termination of the server instance
+// just because the context.WithTimeout() has expired.
+func (e *Environment) WaitForStop(ctx context.Context, duration time.Duration, terminate bool) error {
+	tctx, cancel := context.WithTimeout(context.Background(), duration)
+	defer cancel()
+
+	// If the parent context is canceled, abort the timed context for termination.
+	go func() {
+		select {
+		case <-ctx.Done():
+			cancel()
+		case <-tctx.Done():
+			// When the timed context is canceled, terminate this routine since we no longer
+			// need to worry about the parent routine being canceled.
+			break
+		}
+	}()
+
+	doTermination := func(s string) error {
+		e.log().WithField("step", s).WithField("duration", duration).Warn("container stop did not complete in time, terminating process...")
+		return e.Terminate(ctx, os.Kill)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(seconds)*time.Second)
-	defer cancel()
+	// We pass through the timed context for this stop action so that if one of the
+	// internal docker calls fails to ever finish before we've exhausted the time limit
+	// the resources get cleaned up, and the exection is stopped.
+	if err := e.Stop(tctx); err != nil {
+		if terminate && errors.Is(err, context.DeadlineExceeded) {
+			return doTermination("stop")
+		}
+		return err
+	}
 
 	// Block the return of this function until the container as been marked as no
 	// longer running. If this wait does not end by the time seconds have passed,
 	// attempt to terminate the container, or return an error.
-	ok, errChan := e.client.ContainerWait(ctx, e.Id, container.WaitConditionNotRunning)
+	ok, errChan := e.client.ContainerWait(tctx, e.Id, container.WaitConditionNotRunning)
 	select {
 	case <-ctx.Done():
-		if ctxErr := ctx.Err(); ctxErr != nil {
+		if err := ctx.Err(); err != nil {
 			if terminate {
-				log.WithField("container_id", e.Id).Info("server did not stop in time, executing process termination")
-
-				return e.Terminate(os.Kill)
+				return doTermination("parent-context")
 			}
-
-			return ctxErr
+			return err
 		}
 	case err := <-errChan:
 		// If the error stems from the container not existing there is no point in wasting
 		// CPU time to then try and terminate it.
-		if err != nil && !client.IsErrNotFound(err) {
-			if terminate {
-				l := log.WithField("container_id", e.Id)
-				if errors.Is(err, context.DeadlineExceeded) {
-					l.Warn("deadline exceeded for container stop; terminating process")
-				} else {
-					l.WithField("error", err).Warn("error while waiting for container stop; terminating process")
-				}
-
-				return e.Terminate(os.Kill)
-			}
-			return errors.WrapIf(err, "environment/docker: error waiting on container to enter \"not-running\" state")
+		if err == nil || client.IsErrNotFound(err) {
+			return nil
 		}
+		if terminate {
+			if !errors.Is(err, context.DeadlineExceeded) {
+				e.log().WithField("error", err).Warn("error while waiting for container stop; terminating process")
+			}
+			return doTermination("wait")
+		}
+		return errors.WrapIf(err, "environment/docker: error waiting on container to enter \"not-running\" state")
 	case <-ok:
 	}
 
@@ -237,8 +265,8 @@ func (e *Environment) WaitForStop(seconds uint, terminate bool) error {
 }
 
 // Terminate forcefully terminates the container using the signal provided.
-func (e *Environment) Terminate(signal os.Signal) error {
-	c, err := e.ContainerInspect(context.Background())
+func (e *Environment) Terminate(ctx context.Context, signal os.Signal) error {
+	c, err := e.ContainerInspect(ctx)
 	if err != nil {
 		// Treat missing containers as an okay error state, means it is obviously
 		// already terminated at this point.
@@ -263,7 +291,7 @@ func (e *Environment) Terminate(signal os.Signal) error {
 	// We set it to stopping than offline to prevent crash detection from being triggered.
 	e.SetState(environment.ProcessStoppingState)
 	sig := strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed")
-	if err := e.client.ContainerKill(context.Background(), e.Id, sig); err != nil && !client.IsErrNotFound(err) {
+	if err := e.client.ContainerKill(ctx, e.Id, sig); err != nil && !client.IsErrNotFound(err) {
 		return errors.WithStack(err)
 	}
 	e.SetState(environment.ProcessOfflineState)

@@ -30,9 +30,8 @@ type Server struct {
 	ctx       context.Context
 	ctxCancel *context.CancelFunc
 
-	emitterLock  sync.Mutex
-	powerLock    *powerLocker
-	throttleOnce sync.Once
+	emitterLock sync.Mutex
+	powerLock   *system.Locker
 
 	// Maintains the configuration for the server. This is the data that gets returned by the Panel
 	// such as build settings and container images.
@@ -64,16 +63,17 @@ type Server struct {
 	restoring    *system.AtomicBool
 
 	// The console throttler instance used to control outputs.
-	throttler *ConsoleThrottler
+	throttler    *ConsoleThrottle
+	throttleOnce sync.Once
 
 	// Tracks open websocket connections for the server.
 	wsBag       *WebsocketBag
 	wsBagLocker sync.Mutex
 
-	sinks map[SinkName]*sinkPool
+	sinks map[system.SinkName]*system.SinkPool
 
-	logSink     *sinkPool
-	installSink *sinkPool
+	logSink     *system.SinkPool
+	installSink *system.SinkPool
 }
 
 // New returns a new server instance with a context and all of the default
@@ -87,10 +87,10 @@ func New(client remote.Client) (*Server, error) {
 		installing:   system.NewAtomicBool(false),
 		transferring: system.NewAtomicBool(false),
 		restoring:    system.NewAtomicBool(false),
-		powerLock:    newPowerLocker(),
-		sinks: map[SinkName]*sinkPool{
-			LogSink:     newSinkPool(),
-			InstallSink: newSinkPool(),
+		powerLock:    system.NewLocker(),
+		sinks: map[system.SinkName]*system.SinkPool{
+			system.LogSink:     system.NewSinkPool(),
+			system.InstallSink: system.NewSinkPool(),
 		},
 	}
 	if err := defaults.Set(&s); err != nil {
@@ -237,14 +237,6 @@ func (s *Server) SyncWithConfiguration(cfg remote.ServerConfigurationResponse) e
 // Reads the log file for a server up to a specified number of bytes.
 func (s *Server) ReadLogfile(len int) ([]string, error) {
 	return s.Environment.Readlog(len)
-}
-
-// Determine if the server is bootable in it's current state or not. This will not
-// indicate why a server is not bootable, only if it is.
-func (s *Server) IsBootable() bool {
-	exists, _ := s.Environment.Exists()
-
-	return exists
 }
 
 // Initializes a server instance. This will run through and ensure that the environment

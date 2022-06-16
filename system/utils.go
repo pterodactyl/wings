@@ -3,12 +3,10 @@ package system
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"strconv"
 	"sync"
-	"time"
 
 	"emperror.dev/errors"
 	"github.com/goccy/go-json"
@@ -90,15 +88,15 @@ func ScanReader(r io.Reader, callback func(line []byte)) error {
 			} else {
 				buf.Write(line)
 			}
+			// If we encountered an error with something in ReadLine that was not an
+			// EOF just abort the entire process here.
+			if err != nil && err != io.EOF {
+				return err
+			}
 			// Finish this loop and begin outputting the line if there is no prefix
 			// (the line fit into the default buffer), or if we hit the end of the line.
 			if !isPrefix || err == io.EOF {
 				break
-			}
-			// If we encountered an error with something in ReadLine that was not an
-			// EOF just abort the entire process here.
-			if err != nil {
-				return err
 			}
 		}
 
@@ -120,22 +118,6 @@ func ScanReader(r io.Reader, callback func(line []byte)) error {
 		}
 	}
 	return nil
-}
-
-// Runs a given work function every "d" duration until the provided context is canceled.
-func Every(ctx context.Context, d time.Duration, work func(t time.Time)) {
-	ticker := time.NewTicker(d)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				ticker.Stop()
-				return
-			case t := <-ticker.C:
-				work(t)
-			}
-		}
-	}()
 }
 
 func FormatBytes(b int64) string {
@@ -165,9 +147,9 @@ func (ab *AtomicBool) Store(v bool) {
 	ab.mu.Unlock()
 }
 
-// Stores the value "v" if the current value stored in the AtomicBool is the opposite
-// boolean value. If successfully swapped, the response is "true", otherwise "false"
-// is returned.
+// SwapIf stores the value "v" if the current value stored in the AtomicBool is
+// the opposite boolean value. If successfully swapped, the response is "true",
+// otherwise "false" is returned.
 func (ab *AtomicBool) SwapIf(v bool) bool {
 	ab.mu.Lock()
 	defer ab.mu.Unlock()

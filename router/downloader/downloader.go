@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,8 +14,8 @@ import (
 	"time"
 
 	"emperror.dev/errors"
-	"github.com/google/uuid"
 	"github.com/goccy/go-json"
+	"github.com/google/uuid"
 
 	"github.com/pterodactyl/wings/server"
 )
@@ -77,10 +78,13 @@ func (c *Counter) Write(p []byte) (int, error) {
 type DownloadRequest struct {
 	Directory string
 	URL       *url.URL
+	FileName  string
+	UseHeader bool
 }
 
 type Download struct {
 	Identifier string
+	path       string
 	mu         sync.RWMutex
 	req        DownloadRequest
 	server     *server.Server
@@ -172,8 +176,28 @@ func (dl *Download) Execute() error {
 		}
 	}
 
-	fnameparts := strings.Split(dl.req.URL.Path, "/")
-	p := filepath.Join(dl.req.Directory, fnameparts[len(fnameparts)-1])
+	if dl.req.UseHeader {
+		if contentDisposition := res.Header.Get("Content-Disposition"); contentDisposition != "" {
+			_, params, err := mime.ParseMediaType(contentDisposition)
+			if err != nil {
+				return errors.WrapIf(err, "downloader: invalid \"Content-Disposition\" header")
+			}
+
+			if v, ok := params["filename"]; ok {
+				dl.path = v
+			}
+		}
+	}
+	if dl.path == "" {
+		if dl.req.FileName != "" {
+			dl.path = dl.req.FileName
+		} else {
+			parts := strings.Split(dl.req.URL.Path, "/")
+			dl.path = parts[len(parts)-1]
+		}
+	}
+
+	p := dl.Path()
 	dl.server.Log().WithField("path", p).Debug("writing remote file to disk")
 
 	r := io.TeeReader(res.Body, dl.counter(res.ContentLength))
@@ -203,6 +227,10 @@ func (dl *Download) Progress() float64 {
 	dl.mu.RLock()
 	defer dl.mu.RUnlock()
 	return dl.progress
+}
+
+func (dl *Download) Path() string {
+	return filepath.Join(dl.req.Directory, dl.path)
 }
 
 // Handles a write event by updating the progress completed percentage and firing off

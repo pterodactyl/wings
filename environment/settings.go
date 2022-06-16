@@ -99,21 +99,36 @@ func (l Limits) ProcessLimit() int64 {
 	return config.Get().Docker.ContainerPidLimit
 }
 
+// AsContainerResources returns the available resources for a container in a format
+// that Docker understands.
 func (l Limits) AsContainerResources() container.Resources {
 	pids := l.ProcessLimit()
-
-	return container.Resources{
+	resources := container.Resources{
 		Memory:            l.BoundedMemoryLimit(),
 		MemoryReservation: l.MemoryLimit * 1_000_000,
 		MemorySwap:        l.ConvertedSwap(),
-		CPUQuota:          l.ConvertedCpuLimit(),
-		CPUPeriod:         100_000,
-		CPUShares:         1024,
 		BlkioWeight:       l.IoWeight,
 		OomKillDisable:    &l.OOMDisabled,
-		CpusetCpus:        l.Threads,
 		PidsLimit:         &pids,
 	}
+
+	// If the CPU Limit is not set, don't send any of these fields through. Providing
+	// them seems to break some Java services that try to read the available processors.
+	//
+	// @see https://github.com/pterodactyl/panel/issues/3988
+	if l.CpuLimit > 0 {
+		resources.CPUQuota = l.CpuLimit * 1_000
+		resources.CPUPeriod = 100_000
+		resources.CPUShares = 1024
+	}
+
+	// Similar to above, don't set the specific assigned CPUs if we didn't actually limit
+	// the server to any of them.
+	if l.Threads != "" {
+		resources.CpusetCpus = l.Threads
+	}
+
+	return resources
 }
 
 type Variables map[string]interface{}

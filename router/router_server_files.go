@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pterodactyl/wings/config"
+
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
@@ -35,6 +37,15 @@ func getServerFileContents(c *gin.Context) {
 		return
 	}
 	defer f.Close()
+	// Don't allow a named pipe to be opened.
+	//
+	// @see https://github.com/pterodactyl/panel/issues/4059
+	if st.Mode()&os.ModeNamedPipe != 0 {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Cannot open files of this type.",
+		})
+		return
+	}
 
 	c.Header("X-Mime-Type", st.Mimetype)
 	c.Header("Content-Length", strconv.Itoa(int(st.Size())))
@@ -120,6 +131,10 @@ func putServerRenameFiles(c *gin.Context) {
 					// Return nil if the error is an is not exists.
 					// NOTE: os.IsNotExist() does not work if the error is wrapped.
 					if errors.Is(err, os.ErrNotExist) {
+						s.Log().WithField("error", err).
+							WithField("from_path", pf).
+							WithField("to_path", pt).
+							Warn("failed to rename: source or target does not exist")
 						return nil
 					}
 					return err
@@ -255,9 +270,12 @@ func postServerPullRemoteFile(c *gin.Context) {
 	s := ExtractServer(c)
 	var data struct {
 		// Deprecated
-		Directory string `binding:"required_without=RootPath,omitempty" json:"directory"`
-		RootPath  string `binding:"required_without=Directory,omitempty" json:"root"`
-		URL       string `binding:"required" json:"url"`
+		Directory  string `binding:"required_without=RootPath,omitempty" json:"directory"`
+		RootPath   string `binding:"required_without=Directory,omitempty" json:"root"`
+		URL        string `binding:"required" json:"url"`
+		FileName   string `json:"file_name"`
+		UseHeader  bool   `json:"use_header"`
+		Foreground bool   `json:"foreground"`
 	}
 	if err := c.BindJSON(&data); err != nil {
 		return
@@ -295,21 +313,41 @@ func postServerPullRemoteFile(c *gin.Context) {
 	dl := downloader.New(s, downloader.DownloadRequest{
 		Directory: data.RootPath,
 		URL:       u,
+		FileName:  data.FileName,
+		UseHeader: data.UseHeader,
 	})
 
-	// Execute this pull in a separate thread since it may take a long time to complete.
-	go func() {
+	download := func() error {
 		s.Log().WithField("download_id", dl.Identifier).WithField("url", u.String()).Info("starting pull of remote file to disk")
 		if err := dl.Execute(); err != nil {
 			s.Log().WithField("download_id", dl.Identifier).WithField("error", err).Error("failed to pull remote file")
+			return err
 		} else {
 			s.Log().WithField("download_id", dl.Identifier).Info("completed pull of remote file")
 		}
-	}()
+		return nil
+	}
+	if !data.Foreground {
+		go func() {
+			_ = download()
+		}()
+		c.JSON(http.StatusAccepted, gin.H{
+			"identifier": dl.Identifier,
+		})
+		return
+	}
 
-	c.JSON(http.StatusAccepted, gin.H{
-		"identifier": dl.Identifier,
-	})
+	if err := download(); err != nil {
+		NewServerError(err, s).Abort(c)
+		return
+	}
+
+	st, err := s.Filesystem().Stat(dl.Path())
+	if err != nil {
+		NewServerError(err, s).AbortFilesystemError(c)
+		return
+	}
+	c.JSON(http.StatusOK, &st)
 }
 
 // Stops a remote file download if it exists and belongs to this server.
@@ -537,8 +575,16 @@ func postServerUploadFiles(c *gin.Context) {
 
 	directory := c.Query("directory")
 
+	maxFileSize := config.Get().Api.UploadLimit
+	maxFileSizeBytes := maxFileSize * 1024 * 1024
 	var totalSize int64
 	for _, header := range headers {
+		if header.Size > maxFileSizeBytes {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"error": "File " + header.Filename + " is larger than the maximum file upload size of " + strconv.FormatInt(maxFileSize, 10) + " MB.",
+			})
+			return
+		}
 		totalSize += header.Size
 	}
 

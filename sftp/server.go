@@ -68,9 +68,14 @@ func (c *SFTPServer) Run() error {
 	}
 
 	conf := &ssh.ServerConfig{
-		NoClientAuth:     false,
-		MaxAuthTries:     6,
-		PasswordCallback: c.passwordCallback,
+		NoClientAuth: false,
+		MaxAuthTries: 6,
+		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			return c.makeCredentialsRequest(conn, remote.SftpAuthPassword, string(password))
+		},
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			return c.makeCredentialsRequest(conn, remote.SftpAuthPublicKey, string(ssh.MarshalAuthorizedKey(key)))
+		},
 	}
 	conf.AddHostKey(private)
 
@@ -177,17 +182,17 @@ func (c *SFTPServer) generateED25519PrivateKey() error {
 	return nil
 }
 
-// A function capable of validating user credentials with the Panel API.
-func (c *SFTPServer) passwordCallback(conn ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
+func (c *SFTPServer) makeCredentialsRequest(conn ssh.ConnMetadata, t remote.SftpAuthRequestType, p string) (*ssh.Permissions, error) {
 	request := remote.SftpAuthRequest{
+		Type:          t,
 		User:          conn.User(),
-		Pass:          string(pass),
+		Pass:          p,
 		IP:            conn.RemoteAddr().String(),
 		SessionID:     conn.SessionID(),
 		ClientVersion: conn.ClientVersion(),
 	}
 
-	logger := log.WithFields(log.Fields{"subsystem": "sftp", "username": conn.User(), "ip": conn.RemoteAddr().String()})
+	logger := log.WithFields(log.Fields{"subsystem": "sftp", "method": request.Type, "username": request.User, "ip": request.IP})
 	logger.Debug("validating credentials for SFTP connection")
 
 	if !validUsernameRegexp.MatchString(request.User) {
@@ -206,7 +211,7 @@ func (c *SFTPServer) passwordCallback(conn ssh.ConnMetadata, pass []byte) (*ssh.
 	}
 
 	logger.WithField("server", resp.Server).Debug("credentials validated and matched to server instance")
-	sshPerm := &ssh.Permissions{
+	permissions := ssh.Permissions{
 		Extensions: map[string]string{
 			"uuid":        resp.Server,
 			"user":        conn.User(),
@@ -214,7 +219,7 @@ func (c *SFTPServer) passwordCallback(conn ssh.ConnMetadata, pass []byte) (*ssh.
 		},
 	}
 
-	return sshPerm, nil
+	return &permissions, nil
 }
 
 // PrivateKeyPath returns the path the host private key for this server instance.

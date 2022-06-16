@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"bytes"
 	"regexp"
 	"strings"
 
@@ -8,6 +9,11 @@ import (
 	"github.com/goccy/go-json"
 
 	"github.com/pterodactyl/wings/parser"
+)
+
+const (
+	SftpAuthPassword  = SftpAuthRequestType("password")
+	SftpAuthPublicKey = SftpAuthRequestType("public_key")
 )
 
 // A generic type allowing for easy binding use when making requests to API
@@ -62,14 +68,17 @@ type RawServerData struct {
 	ProcessConfiguration json.RawMessage `json:"process_configuration"`
 }
 
+type SftpAuthRequestType string
+
 // SftpAuthRequest defines the request details that are passed along to the Panel
 // when determining if the credentials provided to Wings are valid.
 type SftpAuthRequest struct {
-	User          string `json:"username"`
-	Pass          string `json:"password"`
-	IP            string `json:"ip"`
-	SessionID     []byte `json:"session_id"`
-	ClientVersion []byte `json:"client_version"`
+	Type          SftpAuthRequestType `json:"type"`
+	User          string              `json:"username"`
+	Pass          string              `json:"password"`
+	IP            string              `json:"ip"`
+	SessionID     []byte              `json:"session_id"`
+	ClientVersion []byte              `json:"client_version"`
 }
 
 // SftpAuthResponse is returned by the Panel when a pair of SFTP credentials
@@ -78,44 +87,44 @@ type SftpAuthRequest struct {
 // user for the SFTP subsystem.
 type SftpAuthResponse struct {
 	Server      string   `json:"server"`
-	Token       string   `json:"token"`
 	Permissions []string `json:"permissions"`
 }
 
 type OutputLineMatcher struct {
 	// The raw string to match against. This may or may not be prefixed with
 	// regex: which indicates we want to match against the regex expression.
-	raw string
+	raw []byte
 	reg *regexp.Regexp
 }
 
-// Matches determines if a given string "s" matches the given line.
-func (olm *OutputLineMatcher) Matches(s string) bool {
+// Matches determines if the provided byte string matches the given regex or
+// raw string provided to the matcher.
+func (olm *OutputLineMatcher) Matches(s []byte) bool {
 	if olm.reg == nil {
-		return strings.Contains(s, olm.raw)
+		return bytes.Contains(s, olm.raw)
 	}
-
-	return olm.reg.MatchString(s)
+	return olm.reg.Match(s)
 }
 
 // String returns the matcher's raw comparison string.
 func (olm *OutputLineMatcher) String() string {
-	return olm.raw
+	return string(olm.raw)
 }
 
 // UnmarshalJSON unmarshals the startup lines into individual structs for easier
 // matching abilities.
 func (olm *OutputLineMatcher) UnmarshalJSON(data []byte) error {
-	if err := json.Unmarshal(data, &olm.raw); err != nil {
+	var r string
+	if err := json.Unmarshal(data, &r); err != nil {
 		return err
 	}
 
-	if strings.HasPrefix(olm.raw, "regex:") && len(olm.raw) > 6 {
-		r, err := regexp.Compile(strings.TrimPrefix(olm.raw, "regex:"))
+	olm.raw = []byte(r)
+	if bytes.HasPrefix(olm.raw, []byte("regex:")) && len(olm.raw) > 6 {
+		r, err := regexp.Compile(strings.TrimPrefix(string(olm.raw), "regex:"))
 		if err != nil {
-			log.WithField("error", err).WithField("raw", olm.raw).Warn("failed to compile output line marked as being regex")
+			log.WithField("error", err).WithField("raw", string(olm.raw)).Warn("failed to compile output line marked as being regex")
 		}
-
 		olm.reg = r
 	}
 

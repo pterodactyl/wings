@@ -16,7 +16,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/daemon/logger/jsonfilelog"
+	"github.com/docker/docker/daemon/logger/local"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -38,13 +38,13 @@ func (nw noopWriter) Write(b []byte) (int, error) {
 }
 
 // Attach attaches to the docker container itself and ensures that we can pipe
-// data in and out of the process stream. This should not be used for reading
-// console data as you *will* miss important output at the beginning because of
-// the time delay with attaching to the output.
+// data in and out of the process stream. This should always be called before
+// you have started the container, but after you've ensured it exists.
 //
 // Calling this function will poll resources for the container in the background
-// until the provided context is canceled by the caller. Failure to cancel said
-// context will cause background memory leaks as the goroutine will not exit.
+// until the container is stopped. The context provided to this function is used
+// for the purposes of attaching to the container, a seecond context is created
+// within the function for managing polling.
 func (e *Environment) Attach(ctx context.Context) error {
 	if e.IsAttached() {
 		return nil
@@ -216,11 +216,12 @@ func (e *Environment) Create() error {
 		// since we only need it for the last few hundred lines of output and don't care
 		// about anything else in it.
 		LogConfig: container.LogConfig{
-			Type: jsonfilelog.Name,
+			Type: local.Name,
 			Config: map[string]string{
 				"max-size": "5m",
 				"max-file": "1",
 				"compress": "false",
+				"mode":     "non-blocking",
 			},
 		},
 
@@ -479,22 +480,4 @@ func (e *Environment) convertMounts() []mount.Mount {
 	}
 
 	return out
-}
-
-func (e *Environment) resources() container.Resources {
-	l := e.Configuration.Limits()
-	pids := l.ProcessLimit()
-
-	return container.Resources{
-		Memory:            l.BoundedMemoryLimit(),
-		MemoryReservation: l.MemoryLimit * 1_000_000,
-		MemorySwap:        l.ConvertedSwap(),
-		CPUQuota:          l.ConvertedCpuLimit(),
-		CPUPeriod:         100_000,
-		CPUShares:         1024,
-		BlkioWeight:       l.IoWeight,
-		OomKillDisable:    &l.OOMDisabled,
-		CpusetCpus:        l.Threads,
-		PidsLimit:         &pids,
-	}
 }

@@ -49,3 +49,4 @@ debug
 .DS_Store
 *.pprof
 *.pdf
+pprof.*
