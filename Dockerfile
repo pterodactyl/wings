@@ -7,7 +7,7 @@ WORKDIR /app/
 COPY go.mod go.sum /app/
 RUN go mod download
 COPY . /app/
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=$VERSION" \
     -v \
     -trimpath \
