@@ -210,6 +210,15 @@ type Backups struct {
 	//
 	// Defaults to 0 (unlimited)
 	WriteLimit int `default:"0" yaml:"write_limit"`
+
+	// CompressionLevel determines how much backups created by wings should be compressed.
+	//
+	// "none" -> no compression will be applied
+	// "best_speed" -> uses gzip level 1 for fast speed
+	// "best_compression" -> uses gzip level 9 for minimal disk space useage
+	//
+	// Defaults to "best_speed" (level 1)
+	CompressionLevel string `default:"best_speed" yaml:"compression_level"`
 }
 
 type Transfers struct {
