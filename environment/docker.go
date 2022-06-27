@@ -92,7 +92,7 @@ func createDockerNetwork(ctx context.Context, cli *client.Client) error {
 			"com.docker.network.bridge.enable_ip_masquerade": "true",
 			"com.docker.network.bridge.host_binding_ipv4":    "0.0.0.0",
 			"com.docker.network.bridge.name":                 "pterodactyl0",
-			"com.docker.network.driver.mtu":                  "1500",
+			"com.docker.network.driver.mtu":                  strconv.FormatInt(nw.NetworkMTU, 10),
 		},
 	})
 	if err != nil {
