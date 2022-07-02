@@ -18,7 +18,7 @@ jobs:
         id: docker_meta
         uses: crazy-max/ghaction-docker-meta@v1
         with:
-          images: ghcr.io/pterodactyl/wings
+          images: ghcr.io/parkervcp/wings
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Install buildx
