@@ -1,5 +1,5 @@
 # Stage 1 (Build)
-FROM --platform=$BUILDPLATFORM golang:1.17-alpine AS builder
+FROM golang:1.17-alpine AS builder
 
 ARG VERSION
 RUN apk add --update --no-cache git make upx
@@ -7,7 +7,7 @@ WORKDIR /app/
 COPY go.mod go.sum /app/
 RUN go mod download
 COPY . /app/
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$BUILDPLATFORM go build \
     -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=$VERSION" \
     -v \
     -trimpath \
@@ -17,7 +17,7 @@ RUN upx wings
 RUN echo "ID=\"distroless\"" > /etc/os-release
 
 # Stage 2 (Final)
-FROM gcr.io/distroless/static:latest
+FROM --platform=$BUILDPLATFORM gcr.io/distroless/static:latest
 COPY --from=builder /etc/os-release /etc/os-release
 
 COPY --from=builder /app/wings /usr/bin/
