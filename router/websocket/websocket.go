@@ -368,6 +368,10 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 				return nil
 			}
 
+			_ = h.ra.Save(h.server, server.ActivityPower, server.ActivityMeta{
+				"signal": string(action),
+			})
+
 			return err
 		}
 	case SendServerLogsEvent:
@@ -424,14 +428,9 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 				}
 			}
 
-			// Track this command sending event in the local database.
-			e := h.ra.Event(server.ActivityCommandSent, server.ActivityMeta{
+			_ = h.ra.Save(h.server, server.ActivityConsoleCommand, server.ActivityMeta{
 				"command": strings.Join(m.Args, ""),
 			})
-
-			if err := e.Save(); err != nil {
-				h.server.Log().WithField("error", err).Error("activity: failed to persist event to database")
-			}
 
 			return h.server.Environment.SendCommand(strings.Join(m.Args, ""))
 		}

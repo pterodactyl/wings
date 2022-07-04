@@ -13,7 +13,8 @@ type Event string
 type ActivityMeta map[string]interface{}
 
 const (
-	ActivityCommandSent = Event("command.sent")
+	ActivityPower          = Event("power")
+	ActivityConsoleCommand = Event("console_command")
 )
 
 type Activity struct {
@@ -54,6 +55,17 @@ func (ra RequestActivity) Event(event Event, metadata ActivityMeta) Activity {
 		Event:    event,
 		Metadata: metadata,
 	}
+}
+
+// Save creates a new event instance and saves it. If an error is encountered it is automatically
+// logged to the provided server's error logging output. The error is also returned to the caller
+// but can be ignored.
+func (ra RequestActivity) Save(s *Server, event Event, metadata ActivityMeta) error {
+	if err := ra.Event(event, metadata).Save(); err != nil {
+		s.Log().WithField("error", err).WithField("event", event).Error("activity: failed to save event")
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 // IP returns the IP address associated with this entry.
