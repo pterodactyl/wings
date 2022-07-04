@@ -40,6 +40,7 @@ type Handler struct {
 	Connection   *websocket.Conn `json:"-"`
 	jwt          *tokens.WebsocketPayload
 	server       *server.Server
+	ra           server.RequestActivity
 	uuid         uuid.UUID
 }
 
@@ -109,6 +110,7 @@ func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request) (*Hand
 		Connection: conn,
 		jwt:        nil,
 		server:     s,
+		ra:         s.NewRequestActivity("", r.RemoteAddr),
 		uuid:       u,
 	}, nil
 }
@@ -264,6 +266,7 @@ func (h *Handler) GetJwt() *tokens.WebsocketPayload {
 // setJwt sets the JWT for the websocket in a race-safe manner.
 func (h *Handler) setJwt(token *tokens.WebsocketPayload) {
 	h.Lock()
+	h.ra = h.ra.SetUser(token.UserUUID)
 	h.jwt = token
 	h.Unlock()
 }
@@ -419,6 +422,15 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 						return nil
 					}
 				}
+			}
+
+			// Track this command sending event in the local database.
+			e := h.ra.Event(server.ActivityCommandSent, server.ActivityMeta{
+				"command": strings.Join(m.Args, ""),
+			})
+
+			if err := e.Save(); err != nil {
+				h.server.Log().WithField("error", err).Error("activity: failed to persist event to database")
 			}
 
 			return h.server.Environment.SendCommand(strings.Join(m.Args, ""))
