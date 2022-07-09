@@ -18,6 +18,7 @@ func processActivityLogs(m *server.Manager, c int64) error {
 	// Don't execute this cron if there is currently one running. Once this task is completed
 	// go ahead and mark it as no longer running.
 	if !processing.SwapIf(true) {
+		log.WithField("subsystem", "cron").Warn("cron: process overlap detected, skipping this run")
 		return nil
 	}
 	defer processing.Store(false)

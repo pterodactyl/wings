@@ -26,30 +26,38 @@ const (
 	PermissionFileDelete      = "file.delete"
 )
 
-type Handler struct {
-	mu sync.Mutex
+type handlerMeta struct {
+	ra     server.RequestActivity
+	server *server.Server
+}
 
+type Handler struct {
+	mu          sync.Mutex
+	meta        handlerMeta
 	permissions []string
-	server      *server.Server
 	fs          *filesystem.Filesystem
 	logger      *log.Entry
 	ro          bool
 }
 
-// Returns a new connection handler for the SFTP server. This allows a given user
+// NewHandler returns a new connection handler for the SFTP server. This allows a given user
 // to access the underlying filesystem.
-func NewHandler(sc *ssh.ServerConn, srv *server.Server) *Handler {
+func NewHandler(sc *ssh.ServerConn, srv *server.Server) (*Handler, error) {
+	uuid, ok := sc.Permissions.Extensions["user"]
+	if !ok {
+		return nil, errors.New("sftp: mismatched Wings and Panel versions — Panel 1.10 is required for this version of Wings.")
+	}
+
 	return &Handler{
 		permissions: strings.Split(sc.Permissions.Extensions["permissions"], ","),
-		server:      srv,
-		fs:          srv.Filesystem(),
-		ro:          config.Get().System.Sftp.ReadOnly,
-		logger: log.WithFields(log.Fields{
-			"subsystem": "sftp",
-			"username":  sc.User(),
-			"ip":        sc.RemoteAddr(),
-		}),
-	}
+		meta: handlerMeta{
+			server: srv,
+			ra:     srv.NewRequestActivity(uuid, sc.RemoteAddr().String()),
+		},
+		fs:     srv.Filesystem(),
+		ro:     config.Get().System.Sftp.ReadOnly,
+		logger: log.WithFields(log.Fields{"subsystem": "sftp", "user": uuid, "ip": sc.RemoteAddr()}),
+	}, nil
 }
 
 // Returns the sftp.Handlers for this struct.
@@ -80,6 +88,7 @@ func (h *Handler) Fileread(request *sftp.Request) (io.ReaderAt, error) {
 		}
 		return nil, sftp.ErrSSHFxNoSuchFile
 	}
+	h.event(server.ActivityFileRead, server.ActivityMeta{"file": filepath.Clean(request.Filepath)})
 	return f, nil
 }
 
@@ -121,7 +130,8 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 	}
 	// Chown may or may not have been called in the touch function, so always do
 	// it at this point to avoid the file being improperly owned.
-	_ = h.server.Filesystem().Chown(request.Filepath)
+	_ = h.fs.Chown(request.Filepath)
+	h.event(server.ActivityFileWrite, server.ActivityMeta{"file": filepath.Clean(request.Filepath)})
 	return f, nil
 }
 
@@ -165,13 +175,21 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 		if !h.can(PermissionFileUpdate) {
 			return sftp.ErrSSHFxPermissionDenied
 		}
-		if err := h.fs.Rename(request.Filepath, request.Target); err != nil {
+		p := filepath.Clean(request.Filepath)
+		t := filepath.Clean(request.Target)
+		if err := h.fs.Rename(p, t); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return sftp.ErrSSHFxNoSuchFile
 			}
 			l.WithField("error", err).Error("failed to rename file")
 			return sftp.ErrSSHFxFailure
 		}
+		h.event(server.ActivityFileRename, server.ActivityMeta{
+			"directory": filepath.Dir(p),
+			"files": []map[string]string{
+				{"from": filepath.Base(p), "to": t},
+			},
+		})
 		break
 	// Handle deletion of a directory. This will properly delete all of the files and
 	// folders within that directory if it is not already empty (unlike a lot of SFTP
@@ -180,10 +198,15 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 		if !h.can(PermissionFileDelete) {
 			return sftp.ErrSSHFxPermissionDenied
 		}
-		if err := h.fs.Delete(request.Filepath); err != nil {
+		p := filepath.Clean(request.Filepath)
+		if err := h.fs.Delete(p); err != nil {
 			l.WithField("error", err).Error("failed to remove directory")
 			return sftp.ErrSSHFxFailure
 		}
+		h.event(server.ActivityFileDeleted, server.ActivityMeta{
+			"directory": filepath.Dir(p),
+			"files":     []string{filepath.Base(p)},
+		})
 		return sftp.ErrSSHFxOk
 	// Handle requests to create a new Directory.
 	case "Mkdir":
@@ -191,11 +214,15 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 			return sftp.ErrSSHFxPermissionDenied
 		}
 		name := strings.Split(filepath.Clean(request.Filepath), "/")
-		err := h.fs.CreateDirectory(name[len(name)-1], strings.Join(name[0:len(name)-1], "/"))
-		if err != nil {
+		p := strings.Join(name[0:len(name)-1], "/")
+		if err := h.fs.CreateDirectory(name[len(name)-1], p); err != nil {
 			l.WithField("error", err).Error("failed to create directory")
 			return sftp.ErrSSHFxFailure
 		}
+		h.event(server.ActivityFileCreateDirectory, server.ActivityMeta{
+			"directory": p,
+			"name":      name[len(name)-1],
+		})
 		break
 	// Support creating symlinks between files. The source and target must resolve within
 	// the server home directory.
@@ -221,13 +248,18 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 		if !h.can(PermissionFileDelete) {
 			return sftp.ErrSSHFxPermissionDenied
 		}
-		if err := h.fs.Delete(request.Filepath); err != nil {
+		p := filepath.Clean(request.Filepath)
+		if err := h.fs.Delete(p); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return sftp.ErrSSHFxNoSuchFile
 			}
 			l.WithField("error", err).Error("failed to remove a file")
 			return sftp.ErrSSHFxFailure
 		}
+		h.event(server.ActivityFileDeleted, server.ActivityMeta{
+			"directory": filepath.Dir(p),
+			"files":     []string{filepath.Base(p)},
+		})
 		return sftp.ErrSSHFxOk
 	default:
 		return sftp.ErrSSHFxOpUnsupported
@@ -284,10 +316,9 @@ func (h *Handler) Filelist(request *sftp.Request) (sftp.ListerAt, error) {
 // Determines if a user has permission to perform a specific action on the SFTP server. These
 // permissions are defined and returned by the Panel API.
 func (h *Handler) can(permission string) bool {
-	if h.server.IsSuspended() {
+	if h.meta.server.IsSuspended() {
 		return false
 	}
-
 	for _, p := range h.permissions {
 		// If we match the permission specifically, or the user has been granted the "*"
 		// permission because they're an admin, let them through.
@@ -296,4 +327,17 @@ func (h *Handler) can(permission string) bool {
 		}
 	}
 	return false
+}
+
+// event is a wrapper around the server.RequestActivity struct for this handler to
+// make logging events a little less noisy for SFTP. This also tags every event logged
+// using it with a "{using_sftp: true}" metadata field to make this easier to understand
+// in the Panel's activity logs.
+func (h *Handler) event(event server.Event, metadata server.ActivityMeta) {
+	m := metadata
+	if m == nil {
+		m = make(map[string]interface{})
+	}
+	m["using_sftp"] = true
+	_ = h.meta.ra.Save(h.meta.server, event, m)
 }

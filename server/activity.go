@@ -16,7 +16,12 @@ type ActivityMeta map[string]interface{}
 const ActivityPowerPrefix = "server:power."
 
 const (
-	ActivityConsoleCommand = Event("server:console.command")
+	ActivityConsoleCommand      = Event("server:console.command")
+	ActivityFileDeleted         = Event("server:file.delete")
+	ActivityFileRename          = Event("server:file.rename")
+	ActivityFileCreateDirectory = Event("server:file.create-directory")
+	ActivityFileWrite           = Event("server:file.write")
+	ActivityFileRead            = Event("server:file.read")
 )
 
 var ipTrimRegex = regexp.MustCompile(`(:\d*)?$`)
