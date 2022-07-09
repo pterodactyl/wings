@@ -30,7 +30,7 @@ type Client interface {
 	SetInstallationStatus(ctx context.Context, uuid string, successful bool) error
 	SetTransferStatus(ctx context.Context, uuid string, successful bool) error
 	ValidateSftpCredentials(ctx context.Context, request SftpAuthRequest) (SftpAuthResponse, error)
-	SendActivityLogs(ctx context.Context, activity [][]byte) error
+	SendActivityLogs(ctx context.Context, activity []json.RawMessage) error
 }
 
 type client struct {
@@ -134,6 +134,9 @@ func (c *client) request(ctx context.Context, method, path string, body *bytes.B
 	err := backoff.Retry(func() error {
 		var b bytes.Buffer
 		if body != nil {
+			// We have to create a copy of the body, otherwise attempting this request again will
+			// send no data if there was initially a body since the "requestOnce" method will read
+			// the whole buffer, thus leaving it empty at the end.
 			if _, err := b.Write(body.Bytes()); err != nil {
 				return backoff.Permanent(errors.Wrap(err, "http: failed to copy body buffer"))
 			}

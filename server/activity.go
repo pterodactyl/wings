@@ -6,6 +6,7 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/pterodactyl/wings/internal/database"
 	"github.com/xujiajun/nutsdb"
+	"regexp"
 	"time"
 )
 
@@ -16,6 +17,8 @@ const (
 	ActivityPower          = Event("power")
 	ActivityConsoleCommand = Event("console_command")
 )
+
+var ipTrimRegex = regexp.MustCompile(`(:\d*)?$`)
 
 type Activity struct {
 	// User is UUID of the user that triggered this event, or an empty string if the event
@@ -88,6 +91,10 @@ func (a Activity) Save() error {
 	if a.Timestamp.IsZero() {
 		a.Timestamp = time.Now().UTC()
 	}
+
+	// Since the "RemoteAddr" field can often include a port on the end we need to
+	// trim that off, otherwise it'll fail validation when sent to the Panel.
+	a.IP = ipTrimRegex.ReplaceAllString(a.IP, "")
 
 	value, err := json.Marshal(a)
 	if err != nil {

@@ -3,6 +3,7 @@ package remote
 import (
 	"context"
 	"fmt"
+	"github.com/goccy/go-json"
 	"strconv"
 	"sync"
 
@@ -179,8 +180,8 @@ func (c *client) SendRestorationStatus(ctx context.Context, backup string, succe
 }
 
 // SendActivityLogs sends activity logs back to the Panel for processing.
-func (c *client) SendActivityLogs(ctx context.Context, activity [][]byte) error {
-	resp, err := c.Post(ctx, "/activty", d{"data": activity})
+func (c *client) SendActivityLogs(ctx context.Context, activity []json.RawMessage) error {
+	resp, err := c.Post(ctx, "/activity", d{"data": activity})
 	if err != nil {
 		return errors.WithStackIf(err)
 	}
