@@ -13,10 +13,10 @@ import (
 type Event string
 type ActivityMeta map[string]interface{}
 
-const ActivityPowerPrefix = "power_"
+const ActivityPowerPrefix = "server:power."
 
 const (
-	ActivityConsoleCommand = Event("console_command")
+	ActivityConsoleCommand = Event("server:console.command")
 )
 
 var ipTrimRegex = regexp.MustCompile(`(:\d*)?$`)
