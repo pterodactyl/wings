@@ -13,8 +13,9 @@ import (
 type Event string
 type ActivityMeta map[string]interface{}
 
+const ActivityPowerPrefix = "power_"
+
 const (
-	ActivityPower          = Event("power")
 	ActivityConsoleCommand = Event("console_command")
 )
 

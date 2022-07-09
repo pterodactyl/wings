@@ -368,9 +368,9 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 				return nil
 			}
 
-			_ = h.ra.Save(h.server, server.ActivityPower, server.ActivityMeta{
-				"signal": string(action),
-			})
+			if err == nil {
+				_ = h.ra.Save(h.server, server.Event(server.ActivityPowerPrefix+action), nil)
+			}
 
 			return err
 		}
