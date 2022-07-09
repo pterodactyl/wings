@@ -2,6 +2,9 @@ package router
 
 import (
 	"context"
+	"github.com/goccy/go-json"
+	"github.com/pterodactyl/wings/internal/database"
+	"github.com/xujiajun/nutsdb"
 	"net/http"
 	"os"
 	"strconv"
@@ -38,6 +41,44 @@ func getServerLogs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": out})
+}
+
+// Returns the activity logs tracked internally for the server instance. Note that these
+// logs are routinely cleared out as Wings communicates directly with the Panel to pass
+// along all of the logs for servers it monitors. As activities are passed to the panel
+// they are deleted from Wings.
+//
+// As a result, this endpoint may or may not return data, and the data returned can change
+// between requests.
+func getServerActivityLogs(c *gin.Context) {
+	s := ExtractServer(c)
+
+	var out [][]byte
+	err := database.DB().View(func(tx *nutsdb.Tx) error {
+		items, err := tx.LRange(database.ServerActivityBucket, []byte(s.ID()), 0, 10)
+		if err != nil {
+			return err
+		}
+		out = items
+		return nil
+	})
+
+	if err != nil {
+		middleware.CaptureAndAbort(c, err)
+		return
+	}
+
+	var activity []*server.Activity
+	for _, b := range out {
+		var a server.Activity
+		if err := json.Unmarshal(b, &a); err != nil {
+			middleware.CaptureAndAbort(c, err)
+			return
+		}
+		activity = append(activity, &a)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": activity})
 }
 
 // Handles a request to control the power state of a server. If the action being passed

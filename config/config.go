@@ -163,6 +163,15 @@ type SystemConfiguration struct {
 	// disk usage is not a concern.
 	DiskCheckInterval int64 `default:"150" yaml:"disk_check_interval"`
 
+	// ActivitySendInterval is the amount of time that should ellapse between aggregated server activity
+	// being sent to the Panel. By default this will send activity collected over the last minute. Keep
+	// in mind that only a fixed number of activity log entries, defined by ActivitySendCount, will be sent
+	// in each run.
+	ActivitySendInterval int64 `default:"60" yaml:"activity_send_interval"`
+
+	// ActivitySendCount is the number of activity events to send per batch.
+	ActivitySendCount int64 `default:"100" yaml:"activity_send_count"`
+
 	// If set to true, file permissions for a server will be checked when the process is
 	// booted. This can cause boot delays if the server has a large amount of files. In most
 	// cases disabling this should not have any major impact unless external processes are
