@@ -129,10 +129,16 @@ func (c *client) requestOnce(ctx context.Context, method, path string, body io.R
 // and adds the required authentication headers to the request that is being
 // created. Errors returned will be of the RequestError type if there was some
 // type of response from the API that can be parsed.
-func (c *client) request(ctx context.Context, method, path string, body io.Reader, opts ...func(r *http.Request)) (*Response, error) {
+func (c *client) request(ctx context.Context, method, path string, body *bytes.Buffer, opts ...func(r *http.Request)) (*Response, error) {
 	var res *Response
 	err := backoff.Retry(func() error {
-		r, err := c.requestOnce(ctx, method, path, body, opts...)
+		var b bytes.Buffer
+		if body != nil {
+			if _, err := b.Write(body.Bytes()); err != nil {
+				return backoff.Permanent(errors.Wrap(err, "http: failed to copy body buffer"))
+			}
+		}
+		r, err := c.requestOnce(ctx, method, path, &b, opts...)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return backoff.Permanent(err)
