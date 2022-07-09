@@ -4,7 +4,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/goccy/go-json"
-	"github.com/pterodactyl/wings/database"
+	"github.com/pterodactyl/wings/internal/database"
 	"github.com/xujiajun/nutsdb"
 	"time"
 )
@@ -99,7 +99,7 @@ func (a Activity) Save() error {
 			WithFields(log.Fields{"server": a.Server, "user": a.User, "event": a.Event, "ip": a.IP}).
 			Debug("saving activity to database")
 
-		if err := tx.RPush(database.ServerEventsBucket, []byte(a.Server), value); err != nil {
+		if err := tx.RPush(database.ServerActivityBucket, []byte("events"), value); err != nil {
 			return errors.WithStack(err)
 		}
 		return nil

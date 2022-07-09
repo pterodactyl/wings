@@ -178,6 +178,16 @@ func (c *client) SendRestorationStatus(ctx context.Context, backup string, succe
 	return nil
 }
 
+// SendActivityLogs sends activity logs back to the Panel for processing.
+func (c *client) SendActivityLogs(ctx context.Context, activity [][]byte) error {
+	resp, err := c.Post(ctx, "/activty", d{"data": activity})
+	if err != nil {
+		return errors.WithStackIf(err)
+	}
+	_ = resp.Body.Close()
+	return nil
+}
+
 // getServersPaged returns a subset of servers from the Panel API using the
 // pagination query parameters.
 func (c *client) getServersPaged(ctx context.Context, page, limit int) ([]RawServerData, Pagination, error) {

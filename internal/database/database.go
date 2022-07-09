@@ -12,8 +12,8 @@ import (
 var db *nutsdb.DB
 var syncer sync.Once
 
-var (
-	ServerEventsBucket = "server_events"
+const (
+	ServerActivityBucket = "server_activity"
 )
 
 func initialize() error {

@@ -3,7 +3,7 @@ package router
 import (
 	"context"
 	"github.com/goccy/go-json"
-	"github.com/pterodactyl/wings/database"
+	"github.com/pterodactyl/wings/internal/database"
 	"github.com/xujiajun/nutsdb"
 	"net/http"
 	"os"
@@ -55,7 +55,7 @@ func getServerActivityLogs(c *gin.Context) {
 
 	var out [][]byte
 	err := database.DB().View(func(tx *nutsdb.Tx) error {
-		items, err := tx.LRange(database.ServerEventsBucket, []byte(s.ID()), 0, 10)
+		items, err := tx.LRange(database.ServerActivityBucket, []byte(s.ID()), 0, 10)
 		if err != nil {
 			return err
 		}
