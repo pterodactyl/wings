@@ -26,8 +26,8 @@ func Scheduler(m *server.Manager) (*gocron.Scheduler, error) {
 	}
 
 	s := gocron.NewScheduler(l)
-	_, _ = s.Every(5).Seconds().Do(func() {
-		if err := processActivityLogs(m); err != nil {
+	_, _ = s.Tag("activity").Every(config.Get().System.ActivitySendInterval).Seconds().Do(func() {
+		if err := processActivityLogs(m, config.Get().System.ActivitySendCount); err != nil {
 			log.WithField("error", err).Error("cron: failed to process activity events")
 		}
 	})
