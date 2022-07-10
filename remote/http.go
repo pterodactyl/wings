@@ -30,7 +30,7 @@ type Client interface {
 	SetInstallationStatus(ctx context.Context, uuid string, successful bool) error
 	SetTransferStatus(ctx context.Context, uuid string, successful bool) error
 	ValidateSftpCredentials(ctx context.Context, request SftpAuthRequest) (SftpAuthResponse, error)
-	SendActivityLogs(ctx context.Context, activity []json.RawMessage) error
+	SendActivityLogs(ctx context.Context, activity interface{}) error
 }
 
 type client struct {

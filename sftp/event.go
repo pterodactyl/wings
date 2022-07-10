@@ -1,13 +1,9 @@
 package sftp
 
 import (
-	"bytes"
 	"emperror.dev/errors"
-	"encoding/gob"
 	"github.com/apex/log"
-	"github.com/pterodactyl/wings/internal/database"
-	"github.com/xujiajun/nutsdb"
-	"regexp"
+	"github.com/pterodactyl/wings/server"
 	"time"
 )
 
@@ -17,7 +13,6 @@ type eventHandler struct {
 	server string
 }
 
-type Event string
 type FileAction struct {
 	// Entity is the targeted file or directory (depending on the event) that the action
 	// is being performed _against_, such as "/foo/test.txt". This will always be the full
@@ -29,53 +24,33 @@ type FileAction struct {
 	Target string
 }
 
-type EventRecord struct {
-	Event     Event
-	Action    FileAction
-	IP        string
-	User      string
-	Timestamp time.Time
-}
+// Log parses a SFTP specific file activity event and then passes it off to be stored
+// in the normal activity database.
+func (eh *eventHandler) Log(e server.Event, fa FileAction) error {
+	metadata := map[string]interface{}{
+		"files": []string{fa.Entity},
+	}
+	if fa.Target != "" {
+		metadata["files"] = []map[string]string{
+			{"from": fa.Entity, "to": fa.Target},
+		}
+	}
 
-const (
-	EventWrite           = Event("write")
-	EventCreate          = Event("create")
-	EventCreateDirectory = Event("create-directory")
-	EventRename          = Event("rename")
-	EventDelete          = Event("delete")
-)
-
-var ipTrimRegex = regexp.MustCompile(`(:\d*)?$`)
-
-// Log logs an event into the Wings bucket for SFTP activity which then allows a seperate
-// cron to run and parse the events into a more manageable stream of event data to send
-// back to the Panel instance.
-func (eh *eventHandler) Log(e Event, fa FileAction) error {
-	r := EventRecord{
-		Event:     e,
-		Action:    fa,
-		IP:        ipTrimRegex.ReplaceAllString(eh.ip, ""),
+	r := server.Activity{
 		User:      eh.user,
+		Server:    eh.server,
+		Event:     e,
+		Metadata:  metadata,
+		IP:        eh.ip,
 		Timestamp: time.Now().UTC(),
 	}
 
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(r); err != nil {
-		return errors.Wrap(err, "sftp: failed to encode event")
-	}
-
-	return database.DB().Update(func(tx *nutsdb.Tx) error {
-		if err := tx.RPush(database.SftpActivityBucket, []byte(eh.server), buf.Bytes()); err != nil {
-			return errors.Wrap(err, "sftp: failed to push event to stack")
-		}
-		return nil
-	})
+	return errors.Wrap(r.Save(), "sftp: failed to store file event")
 }
 
 // MustLog is a wrapper around log that will trigger a fatal error and exit the application
 // if an error is encountered during the logging of the event.
-func (eh *eventHandler) MustLog(e Event, fa FileAction) {
+func (eh *eventHandler) MustLog(e server.Event, fa FileAction) {
 	if err := eh.Log(e, fa); err != nil {
 		log.WithField("error", err).Fatal("sftp: failed to log event")
 	}

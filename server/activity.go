@@ -1,11 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"emperror.dev/errors"
+	"encoding/gob"
 	"github.com/apex/log"
-	"github.com/goccy/go-json"
-	"github.com/pterodactyl/wings/internal/database"
-	"github.com/xujiajun/nutsdb"
+	"github.com/pterodactyl/wings/internal/sqlite"
 	"regexp"
 	"time"
 )
@@ -17,11 +17,11 @@ const ActivityPowerPrefix = "server:power."
 
 const (
 	ActivityConsoleCommand      = Event("server:console.command")
-	ActivityFileDeleted         = Event("server:file.delete")
-	ActivityFileRename          = Event("server:file.rename")
-	ActivityFileCreateDirectory = Event("server:file.create-directory")
-	ActivityFileWrite           = Event("server:file.write")
-	ActivityFileRead            = Event("server:file.read")
+	ActivitySftpWrite           = Event("server:sftp.write")
+	ActivitySftpCreate          = Event("server:sftp.create")
+	ActivitySftpCreateDirectory = Event("server:sftp.create-directory")
+	ActivitySftpRename          = Event("server:sftp.rename")
+	ActivitySftpDelete          = Event("server:sftp.delete")
 )
 
 var ipTrimRegex = regexp.MustCompile(`(:\d*)?$`)
@@ -106,21 +106,21 @@ func (a Activity) Save() error {
 	// trim that off, otherwise it'll fail validation when sent to the Panel.
 	a.IP = ipTrimRegex.ReplaceAllString(a.IP, "")
 
-	value, err := json.Marshal(a)
-	if err != nil {
-		return errors.Wrap(err, "database: failed to marshal activity into json bytes")
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	if err := enc.Encode(&a.Metadata); err != nil {
+		return errors.Wrap(err, "activity: error encoding metadata")
 	}
 
-	return database.DB().Update(func(tx *nutsdb.Tx) error {
-		log.WithField("subsystem", "activity").
-			WithFields(log.Fields{"server": a.Server, "user": a.User, "event": a.Event, "ip": a.IP}).
-			Debug("saving activity to database")
+	log.WithField("subsystem", "activity").
+		WithFields(log.Fields{"server": a.Server, "user": a.User, "event": a.Event, "ip": a.IP}).
+		Debug("saving activity to database")
 
-		if err := tx.RPush(database.ServerActivityBucket, []byte("events"), value); err != nil {
-			return errors.WithStack(err)
-		}
-		return nil
-	})
+	stmt := `INSERT INTO activity_logs(event, user_uuid, server_uuid, metadata, ip, timestamp) VALUES(?, ?, ?, ?, ?, ?)`
+	if _, err := sqlite.Instance().Exec(stmt, a.Event, a.User, a.Server, buf.Bytes(), a.IP, a.Timestamp); err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 func (s *Server) NewRequestActivity(user string, ip string) RequestActivity {

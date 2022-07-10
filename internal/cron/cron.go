@@ -1,6 +1,7 @@
 package cron
 
 import (
+	"context"
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/go-co-op/gocron"
@@ -17,7 +18,7 @@ var o system.AtomicBool
 // Scheduler configures the internal cronjob system for Wings and returns the scheduler
 // instance to the caller. This should only be called once per application lifecycle, additional
 // calls will result in an error being returned.
-func Scheduler(m *server.Manager) (*gocron.Scheduler, error) {
+func Scheduler(ctx context.Context, m *server.Manager) (*gocron.Scheduler, error) {
 	if !o.SwapIf(true) {
 		return nil, errors.New("cron: cannot call scheduler more than once in application lifecycle")
 	}
@@ -26,20 +27,20 @@ func Scheduler(m *server.Manager) (*gocron.Scheduler, error) {
 		return nil, errors.Wrap(err, "cron: failed to parse configured system timezone")
 	}
 
-	s := gocron.NewScheduler(l)
-	_, _ = s.Tag("activity").Every(int(config.Get().System.ActivitySendInterval)).Seconds().Do(func() {
-		if err := processActivityLogs(m, config.Get().System.ActivitySendCount); err != nil {
-			log.WithField("error", err).Error("cron: failed to process activity events")
-		}
-	})
+	activity := activityCron{
+		mu:      system.NewAtomicBool(false),
+		manager: m,
+		max:     config.Get().System.ActivitySendCount,
+	}
 
-	_, _ = s.Tag("sftp").Every(20).Seconds().Do(func() {
-		runner := sftpEventProcessor{mu: system.NewAtomicBool(false), manager: m}
-		if err := runner.Run(); err != nil {
+	s := gocron.NewScheduler(l)
+	// int(config.Get().System.ActivitySendInterval)
+	_, _ = s.Tag("activity").Every(5).Seconds().Do(func() {
+		if err := activity.Run(ctx); err != nil {
 			if errors.Is(err, ErrCronRunning) {
-				log.WithField("cron", "sftp_events").Warn("cron: job already running, skipping...")
+				log.WithField("cron", "activity").Warn("cron: process is already running, skipping...")
 			} else {
-				log.WithField("error", err).Error("cron: failed to process sftp events")
+				log.WithField("error", err).Error("cron: failed to process activity events")
 			}
 		}
 	})

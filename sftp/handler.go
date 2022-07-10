@@ -130,9 +130,9 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 	// Chown may or may not have been called in the touch function, so always do
 	// it at this point to avoid the file being improperly owned.
 	_ = h.fs.Chown(request.Filepath)
-	event := EventWrite
+	event := server.ActivitySftpWrite
 	if permission == PermissionFileCreate {
-		event = EventCreate
+		event = server.ActivitySftpCreate
 	}
 	h.events.MustLog(event, FileAction{Entity: request.Filepath})
 	return f, nil
@@ -185,7 +185,7 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 			l.WithField("error", err).Error("failed to rename file")
 			return sftp.ErrSSHFxFailure
 		}
-		h.events.MustLog(EventRename, FileAction{Entity: request.Filepath, Target: request.Target})
+		h.events.MustLog(server.ActivitySftpRename, FileAction{Entity: request.Filepath, Target: request.Target})
 		break
 	// Handle deletion of a directory. This will properly delete all of the files and
 	// folders within that directory if it is not already empty (unlike a lot of SFTP
@@ -199,7 +199,7 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 			l.WithField("error", err).Error("failed to remove directory")
 			return sftp.ErrSSHFxFailure
 		}
-		h.events.MustLog(EventDelete, FileAction{Entity: request.Filepath})
+		h.events.MustLog(server.ActivitySftpDelete, FileAction{Entity: request.Filepath})
 		return sftp.ErrSSHFxOk
 	// Handle requests to create a new Directory.
 	case "Mkdir":
@@ -212,7 +212,7 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 			l.WithField("error", err).Error("failed to create directory")
 			return sftp.ErrSSHFxFailure
 		}
-		h.events.MustLog(EventCreateDirectory, FileAction{Entity: request.Filepath})
+		h.events.MustLog(server.ActivitySftpCreateDirectory, FileAction{Entity: request.Filepath})
 		break
 	// Support creating symlinks between files. The source and target must resolve within
 	// the server home directory.
@@ -245,7 +245,7 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 			l.WithField("error", err).Error("failed to remove a file")
 			return sftp.ErrSSHFxFailure
 		}
-		h.events.MustLog(EventDelete, FileAction{Entity: request.Filepath})
+		h.events.MustLog(server.ActivitySftpDelete, FileAction{Entity: request.Filepath})
 		return sftp.ErrSSHFxOk
 	default:
 		return sftp.ErrSSHFxOpUnsupported
