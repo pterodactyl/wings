@@ -10,16 +10,17 @@ import (
 	"time"
 )
 
+const ErrCronRunning = errors.Sentinel("cron: job already running")
+
 var o system.AtomicBool
 
 // Scheduler configures the internal cronjob system for Wings and returns the scheduler
 // instance to the caller. This should only be called once per application lifecycle, additional
 // calls will result in an error being returned.
 func Scheduler(m *server.Manager) (*gocron.Scheduler, error) {
-	if o.Load() {
+	if !o.SwapIf(true) {
 		return nil, errors.New("cron: cannot call scheduler more than once in application lifecycle")
 	}
-	o.Store(true)
 	l, err := time.LoadLocation(config.Get().System.Timezone)
 	if err != nil {
 		return nil, errors.Wrap(err, "cron: failed to parse configured system timezone")
@@ -29,6 +30,17 @@ func Scheduler(m *server.Manager) (*gocron.Scheduler, error) {
 	_, _ = s.Tag("activity").Every(int(config.Get().System.ActivitySendInterval)).Seconds().Do(func() {
 		if err := processActivityLogs(m, config.Get().System.ActivitySendCount); err != nil {
 			log.WithField("error", err).Error("cron: failed to process activity events")
+		}
+	})
+
+	_, _ = s.Tag("sftp").Every(20).Seconds().Do(func() {
+		runner := sftpEventProcessor{mu: system.NewAtomicBool(false), manager: m}
+		if err := runner.Run(); err != nil {
+			if errors.Is(err, ErrCronRunning) {
+				log.WithField("cron", "sftp_events").Warn("cron: job already running, skipping...")
+			} else {
+				log.WithField("error", err).Error("cron: failed to process sftp events")
+			}
 		}
 	})
 

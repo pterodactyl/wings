@@ -82,6 +82,10 @@ func (ra RequestActivity) IP() string {
 	return ra.ip
 }
 
+func (ra *RequestActivity) User() string {
+	return ra.user
+}
+
 // SetUser clones the RequestActivity struct and sets a new user value on the copy
 // before returning it.
 func (ra RequestActivity) SetUser(u string) RequestActivity {

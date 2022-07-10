@@ -14,6 +14,7 @@ var syncer sync.Once
 
 const (
 	ServerActivityBucket = "server_activity"
+	SftpActivityBucket   = "sftp_activity"
 )
 
 func initialize() error {

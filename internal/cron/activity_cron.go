@@ -12,16 +12,16 @@ import (
 )
 
 var key = []byte("events")
-var processing system.AtomicBool
+var activityCron system.AtomicBool
 
 func processActivityLogs(m *server.Manager, c int64) error {
 	// Don't execute this cron if there is currently one running. Once this task is completed
 	// go ahead and mark it as no longer running.
-	if !processing.SwapIf(true) {
-		log.WithField("subsystem", "cron").Warn("cron: process overlap detected, skipping this run")
+	if !activityCron.SwapIf(true) {
+		log.WithField("subsystem", "cron").WithField("cron", "activity_logs").Warn("cron: process overlap detected, skipping this run")
 		return nil
 	}
-	defer processing.Store(false)
+	defer activityCron.Store(false)
 
 	var list [][]byte
 	err := database.DB().View(func(tx *nutsdb.Tx) error {
@@ -30,6 +30,9 @@ func processActivityLogs(m *server.Manager, c int64) error {
 		// release the lock on this process.
 		end := int(c)
 		if s, err := tx.LSize(database.ServerActivityBucket, key); err != nil {
+			if errors.Is(err, nutsdb.ErrBucket) {
+				return nil
+			}
 			return errors.WithStackIf(err)
 		} else if s < end || s == 0 {
 			if s == 0 {
