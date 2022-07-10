@@ -99,7 +99,7 @@ func (sep *sftpEventProcessor) Run() error {
 // Cleanup runs through all of the events we have currently tracked in the bucket and removes
 // them once we've managed to process them and created the associated server activity events.
 func (sep *sftpEventProcessor) Cleanup(key []byte) error {
-	return database.DB().Update(func(tx *nutsdb.Tx) error {
+	err := database.DB().Update(func(tx *nutsdb.Tx) error {
 		s, err := sep.sizeOf(tx, key)
 		if err != nil {
 			return err
@@ -119,6 +119,15 @@ func (sep *sftpEventProcessor) Cleanup(key []byte) error {
 		}
 		return nil
 	})
+
+	// Sometimes the key will end up not being found depending on the order of operations for
+	// different events that are happening on the system. Make sure to account for that here,
+	// if the key isn't found we can just safely assume it is a non issue and move on with our
+	// day since there is nothing to clean up.
+	if err != nil && errors.Is(err, nutsdb.ErrKeyNotFound) {
+		return nil
+	}
+	return err
 }
 
 // Events pulls all of the events in the SFTP event bucket and parses them into an iterable
@@ -129,6 +138,11 @@ func (sep *sftpEventProcessor) Events() (map[string][]sftp.EventRecord, error) {
 		for _, k := range sep.manager.Keys() {
 			lim := sep.limit()
 			if s, err := sep.sizeOf(tx, []byte(k)); err != nil {
+				// Not every server instance will have events tracked, so don't treat this
+				// as a true error.
+				if errors.Is(err, nutsdb.ErrKeyNotFound) {
+					continue
+				}
 				return err
 			} else if s == 0 {
 				continue
