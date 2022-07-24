@@ -16,6 +16,11 @@ type EggConfiguration struct {
 	FileDenylist []string `json:"file_denylist"`
 }
 
+type ConfigurationMeta struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
 type Configuration struct {
 	mu sync.RWMutex
 
@@ -23,6 +28,8 @@ type Configuration struct {
 	// it against the Panel API (and internally). This will be used when naming
 	// docker containers as well as in log output.
 	Uuid string `json:"uuid"`
+
+	Meta ConfigurationMeta `json:"meta"`
 
 	// Whether or not the server is in a suspended state. Suspended servers cannot
 	// be started or modified except in certain scenarios by an admin user.
