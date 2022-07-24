@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.7.0
+### Fixed
+* Fixes multi-platform support for Wings' Docker image.
+
+### Added
+* Adds support for tracking of SFTP actions, power actions, server commands, and file uploads by utilizing a local SQLite database and processing events before sending them to the Panel.
+* Adds support for configuring the MTU on the `pterodactyl0` network.
+
 ## v1.6.4
 ### Fixed
 * Fixes a bug causing CPU limiting to not be properly applied to servers.
