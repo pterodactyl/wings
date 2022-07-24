@@ -7,7 +7,6 @@ import (
 	"github.com/pterodactyl/wings/internal/models"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/system"
-	"gorm.io/gorm"
 	"reflect"
 )
 
@@ -79,17 +78,13 @@ func (sc *sftpCron) Run(ctx context.Context) error {
 	if len(events.m) == 0 {
 		return nil
 	}
-
-	err = database.Instance().Transaction(func(tx *gorm.DB) error {
-		tx.Where("id IN ?", events.ids).Delete(&models.Activity{})
-		if tx.Error != nil {
-			return tx.Error
-		}
-
-		return sc.manager.Client().SendActivityLogs(ctx, events.Elements())
-	})
-
-	return errors.WithStack(err)
+	if err := sc.manager.Client().SendActivityLogs(ctx, events.Elements()); err != nil {
+		return errors.Wrap(err, "failed to send sftp activity logs to Panel")
+	}
+	if tx := database.Instance().Where("id IN ?", events.ids).Delete(&models.Activity{}); tx.Error != nil {
+		return errors.WithStack(tx.Error)
+	}
+	return nil
 }
 
 // fetchRecords returns a group of activity events starting at the given offset. This is used

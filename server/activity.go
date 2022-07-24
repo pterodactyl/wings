@@ -1,9 +1,11 @@
 package server
 
 import (
+	"context"
 	"emperror.dev/errors"
 	"github.com/pterodactyl/wings/internal/database"
 	"github.com/pterodactyl/wings/internal/models"
+	"time"
 )
 
 const ActivityPowerPrefix = "server:power."
@@ -34,29 +36,6 @@ func (ra RequestActivity) Event(event models.Event, metadata models.ActivityMeta
 	return a.SetUser(ra.user)
 }
 
-// Save creates a new event instance and saves it. If an error is encountered it is automatically
-// logged to the provided server's error logging output. The error is also returned to the caller
-// but can be ignored.
-func (ra RequestActivity) Save(s *Server, event models.Event, metadata models.ActivityMeta) error {
-	if tx := database.Instance().Create(ra.Event(event, metadata)); tx.Error != nil {
-		err := errors.WithStackIf(tx.Error)
-
-		s.Log().WithField("error", err).WithField("event", event).Error("activity: failed to save event")
-
-		return err
-	}
-	return nil
-}
-
-// IP returns the IP address associated with this entry.
-func (ra RequestActivity) IP() string {
-	return ra.ip
-}
-
-func (ra *RequestActivity) User() string {
-	return ra.user
-}
-
 // SetUser clones the RequestActivity struct and sets a new user value on the copy
 // before returning it.
 func (ra RequestActivity) SetUser(u string) RequestActivity {
@@ -67,4 +46,18 @@ func (ra RequestActivity) SetUser(u string) RequestActivity {
 
 func (s *Server) NewRequestActivity(user string, ip string) RequestActivity {
 	return RequestActivity{server: s.ID(), user: user, ip: ip}
+}
+
+// SaveActivity saves an activity entry to the database in a background routine. If an error is
+// encountered it is logged but not returned to the caller.
+func (s *Server) SaveActivity(a RequestActivity, event models.Event, metadata models.ActivityMeta) {
+	ctx, cancel := context.WithTimeout(s.Context(), time.Second*3)
+	go func() {
+		defer cancel()
+		if tx := database.Instance().WithContext(ctx).Create(a.Event(event, metadata)); tx.Error != nil {
+			s.Log().WithField("error", errors.WithStack(tx.Error)).
+				WithField("event", event).
+				Error("activity: failed to save event")
+		}
+	}()
 }
