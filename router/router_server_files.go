@@ -3,6 +3,7 @@ package router
 import (
 	"bufio"
 	"context"
+	"github.com/pterodactyl/wings/internal/models"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -600,6 +601,11 @@ func postServerUploadFiles(c *gin.Context) {
 		if err := handleFileUpload(p, s, header); err != nil {
 			NewServerError(err, s).Abort(c)
 			return
+		} else {
+			s.SaveActivity(s.NewRequestActivity(token.UserUuid, c.Request.RemoteAddr), server.ActivityFileUploaded, models.ActivityMeta{
+				"file":      header.Filename,
+				"directory": filepath.Clean(directory),
+			})
 		}
 	}
 }
@@ -617,6 +623,5 @@ func handleFileUpload(p string, s *server.Server, header *multipart.FileHeader) 
 	if err := s.Filesystem().Writefile(p, file); err != nil {
 		return err
 	}
-
 	return nil
 }

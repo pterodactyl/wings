@@ -8,6 +8,7 @@ type UploadPayload struct {
 	jwt.Payload
 
 	ServerUuid string `json:"server_uuid"`
+	UserUuid   string `json:"user_uuid"`
 	UniqueId   string `json:"unique_id"`
 }
 

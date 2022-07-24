@@ -17,6 +17,7 @@ const (
 	ActivitySftpCreateDirectory = models.Event("server:sftp.create-directory")
 	ActivitySftpRename          = models.Event("server:sftp.rename")
 	ActivitySftpDelete          = models.Event("server:sftp.delete")
+	ActivityFileUploaded        = models.Event("server:file.uploaded")
 )
 
 // RequestActivity is a wrapper around a LoggedEvent that is able to track additional request
