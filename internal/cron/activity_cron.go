@@ -12,7 +12,7 @@ import (
 type activityCron struct {
 	mu      *system.AtomicBool
 	manager *server.Manager
-	max     int64
+	max     int
 }
 
 // Run executes the cronjob and ensures we fetch and send all of the stored activity to the
@@ -30,7 +30,7 @@ func (ac *activityCron) Run(ctx context.Context) error {
 	var activity []models.Activity
 	tx := database.Instance().WithContext(ctx).
 		Where("event NOT LIKE ?", "server:sftp.%").
-		Limit(int(ac.max)).
+		Limit(ac.max).
 		Find(&activity)
 
 	if tx.Error != nil {

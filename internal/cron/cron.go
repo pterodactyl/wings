@@ -3,7 +3,7 @@ package cron
 import (
 	"context"
 	"emperror.dev/errors"
-	"github.com/apex/log"
+	log2 "github.com/apex/log"
 	"github.com/go-co-op/gocron"
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
@@ -40,7 +40,13 @@ func Scheduler(ctx context.Context, m *server.Manager) (*gocron.Scheduler, error
 	}
 
 	s := gocron.NewScheduler(l)
-	_, _ = s.Tag("activity").Every(config.Get().System.ActivitySendInterval).Seconds().Do(func() {
+	log := log2.WithField("subsystem", "cron")
+
+	interval := time.Duration(config.Get().System.ActivitySendInterval) * time.Second
+	log.WithField("interval", interval).Info("configuring system crons")
+
+	_, _ = s.Tag("activity").Every(interval).Do(func() {
+		log.WithField("cron", "activity").Debug("sending internal activity events to Panel")
 		if err := activity.Run(ctx); err != nil {
 			if errors.Is(err, ErrCronRunning) {
 				log.WithField("cron", "activity").Warn("activity process is already running, skipping...")
@@ -50,7 +56,8 @@ func Scheduler(ctx context.Context, m *server.Manager) (*gocron.Scheduler, error
 		}
 	})
 
-	_, _ = s.Tag("sftp").Every(config.Get().System.ActivitySendInterval).Seconds().Do(func() {
+	_, _ = s.Tag("sftp").Every(interval).Do(func() {
+		log.WithField("cron", "sftp").Debug("sending sftp events to Panel")
 		if err := sftp.Run(ctx); err != nil {
 			if errors.Is(err, ErrCronRunning) {
 				log.WithField("cron", "sftp").Warn("sftp events process already running, skipping...")

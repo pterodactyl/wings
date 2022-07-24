@@ -14,7 +14,7 @@ import (
 type sftpCron struct {
 	mu      *system.AtomicBool
 	manager *server.Manager
-	max     int64
+	max     int
 }
 
 type mapKey struct {
@@ -52,7 +52,7 @@ func (sc *sftpCron) Run(ctx context.Context) error {
 	events := &eventMap{
 		m:   map[mapKey]*models.Activity{},
 		ids: []int{},
-		max: int(sc.max),
+		max: sc.max,
 	}
 
 	for {
@@ -102,7 +102,7 @@ func (sc *sftpCron) fetchRecords(ctx context.Context, offset int) (activity []mo
 		Where("event LIKE ?", "server:sftp.%").
 		Order("event DESC").
 		Offset(offset).
-		Limit(int(sc.max)).
+		Limit(sc.max).
 		Find(&activity)
 	if tx.Error != nil {
 		err = errors.WithStack(tx.Error)
