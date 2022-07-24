@@ -1,49 +1,21 @@
 package server
 
 import (
-	"bytes"
 	"emperror.dev/errors"
-	"encoding/gob"
-	"github.com/apex/log"
-	"github.com/pterodactyl/wings/internal/sqlite"
-	"regexp"
-	"time"
+	"github.com/pterodactyl/wings/internal/database"
+	"github.com/pterodactyl/wings/internal/models"
 )
-
-type Event string
-type ActivityMeta map[string]interface{}
 
 const ActivityPowerPrefix = "server:power."
 
 const (
-	ActivityConsoleCommand      = Event("server:console.command")
-	ActivitySftpWrite           = Event("server:sftp.write")
-	ActivitySftpCreate          = Event("server:sftp.create")
-	ActivitySftpCreateDirectory = Event("server:sftp.create-directory")
-	ActivitySftpRename          = Event("server:sftp.rename")
-	ActivitySftpDelete          = Event("server:sftp.delete")
+	ActivityConsoleCommand      = models.Event("server:console.command")
+	ActivitySftpWrite           = models.Event("server:sftp.write")
+	ActivitySftpCreate          = models.Event("server:sftp.create")
+	ActivitySftpCreateDirectory = models.Event("server:sftp.create-directory")
+	ActivitySftpRename          = models.Event("server:sftp.rename")
+	ActivitySftpDelete          = models.Event("server:sftp.delete")
 )
-
-var ipTrimRegex = regexp.MustCompile(`(:\d*)?$`)
-
-type Activity struct {
-	// User is UUID of the user that triggered this event, or an empty string if the event
-	// cannot be tied to a specific user, in which case we will assume it was the system
-	// user.
-	User string `json:"user"`
-	// Server is the UUID of the server this event is associated with.
-	Server string `json:"server"`
-	// Event is a string that describes what occurred, and is used by the Panel instance to
-	// properly associate this event in the activity logs.
-	Event Event `json:"event"`
-	// Metadata is either a null value, string, or a JSON blob with additional event specific
-	// metadata that can be provided.
-	Metadata ActivityMeta `json:"metadata"`
-	// IP is the IP address that triggered this event, or an empty string if it cannot be
-	// determined properly.
-	IP        string    `json:"ip"`
-	Timestamp time.Time `json:"timestamp"`
-}
 
 // RequestActivity is a wrapper around a LoggedEvent that is able to track additional request
 // specific metadata including the specific user and IP address associated with all subsequent
@@ -56,23 +28,22 @@ type RequestActivity struct {
 
 // Event returns the underlying logged event from the RequestEvent instance and sets the
 // specific event and metadata on it.
-func (ra RequestActivity) Event(event Event, metadata ActivityMeta) Activity {
-	return Activity{
-		User:     ra.user,
-		Server:   ra.server,
-		IP:       ra.ip,
-		Event:    event,
-		Metadata: metadata,
-	}
+func (ra RequestActivity) Event(event models.Event, metadata models.ActivityMeta) *models.Activity {
+	a := models.Activity{Server: ra.server, IP: ra.ip, Event: event, Metadata: metadata}
+
+	return a.SetUser(ra.user)
 }
 
 // Save creates a new event instance and saves it. If an error is encountered it is automatically
 // logged to the provided server's error logging output. The error is also returned to the caller
 // but can be ignored.
-func (ra RequestActivity) Save(s *Server, event Event, metadata ActivityMeta) error {
-	if err := ra.Event(event, metadata).Save(); err != nil {
+func (ra RequestActivity) Save(s *Server, event models.Event, metadata models.ActivityMeta) error {
+	if tx := database.Instance().Create(ra.Event(event, metadata)); tx.Error != nil {
+		err := errors.WithStackIf(tx.Error)
+
 		s.Log().WithField("error", err).WithField("event", event).Error("activity: failed to save event")
-		return errors.WithStack(err)
+
+		return err
 	}
 	return nil
 }
@@ -94,46 +65,6 @@ func (ra RequestActivity) SetUser(u string) RequestActivity {
 	return c
 }
 
-// Save logs the provided event using Wings' internal K/V store so that we can then
-// pass it along to the Panel at set intervals. In addition, this will ensure that the events
-// are persisted to the disk, even between instance restarts.
-func (a Activity) Save() error {
-	if a.Timestamp.IsZero() {
-		a.Timestamp = time.Now().UTC()
-	}
-
-	// Since the "RemoteAddr" field can often include a port on the end we need to
-	// trim that off, otherwise it'll fail validation when sent to the Panel.
-	a.IP = ipTrimRegex.ReplaceAllString(a.IP, "")
-
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(&a.Metadata); err != nil {
-		return errors.Wrap(err, "activity: error encoding metadata")
-	}
-
-	log.WithField("subsystem", "activity").
-		WithFields(log.Fields{"server": a.Server, "user": a.User, "event": a.Event, "ip": a.IP}).
-		Debug("saving activity to database")
-
-	stmt := `INSERT INTO activity_logs(event, user_uuid, server_uuid, metadata, ip, timestamp) VALUES(?, ?, ?, ?, ?, ?)`
-	if _, err := sqlite.Instance().Exec(stmt, a.Event, a.User, a.Server, buf.Bytes(), a.IP, a.Timestamp.UTC().Unix()); err != nil {
-		return errors.WithStack(err)
-	}
-	return nil
-}
-
 func (s *Server) NewRequestActivity(user string, ip string) RequestActivity {
 	return RequestActivity{server: s.ID(), user: user, ip: ip}
-}
-
-// NewActivity creates a new event instance for the server in question.
-func (s *Server) NewActivity(user string, event Event, metadata ActivityMeta, ip string) Activity {
-	return Activity{
-		User:     user,
-		Server:   s.ID(),
-		Event:    event,
-		Metadata: metadata,
-		IP:       ip,
-	}
 }

@@ -3,8 +3,8 @@ package sftp
 import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
-	"github.com/pterodactyl/wings/server"
-	"time"
+	"github.com/pterodactyl/wings/internal/database"
+	"github.com/pterodactyl/wings/internal/models"
 )
 
 type eventHandler struct {
@@ -26,7 +26,7 @@ type FileAction struct {
 
 // Log parses a SFTP specific file activity event and then passes it off to be stored
 // in the normal activity database.
-func (eh *eventHandler) Log(e server.Event, fa FileAction) error {
+func (eh *eventHandler) Log(e models.Event, fa FileAction) error {
 	metadata := map[string]interface{}{
 		"files": []string{fa.Entity},
 	}
@@ -36,21 +36,22 @@ func (eh *eventHandler) Log(e server.Event, fa FileAction) error {
 		}
 	}
 
-	r := server.Activity{
-		User:      eh.user,
-		Server:    eh.server,
-		Event:     e,
-		Metadata:  metadata,
-		IP:        eh.ip,
-		Timestamp: time.Now().UTC(),
+	a := models.Activity{
+		Server:   eh.server,
+		Event:    e,
+		Metadata: metadata,
+		IP:       eh.ip,
 	}
 
-	return errors.Wrap(r.Save(), "sftp: failed to store file event")
+	if tx := database.Instance().Create(a.SetUser(eh.user)); tx.Error != nil {
+		return errors.Wrap(tx.Error, "sftp: failed to save event to database")
+	}
+	return nil
 }
 
 // MustLog is a wrapper around log that will trigger a fatal error and exit the application
 // if an error is encountered during the logging of the event.
-func (eh *eventHandler) MustLog(e server.Event, fa FileAction) {
+func (eh *eventHandler) MustLog(e models.Event, fa FileAction) {
 	if err := eh.Log(e, fa); err != nil {
 		log.WithField("error", err).Fatal("sftp: failed to log event")
 	}

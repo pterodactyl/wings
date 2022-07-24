@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/pterodactyl/wings/internal/cron"
-	"github.com/pterodactyl/wings/internal/sqlite"
+	"github.com/pterodactyl/wings/internal/database"
 	log2 "log"
 	"net/http"
 	_ "net/http/pprof"
@@ -132,7 +132,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		}),
 	)
 
-	if err := sqlite.Initialize(cmd.Context()); err != nil {
+	if err := database.Initialize(); err != nil {
 		log.WithField("error", err).Fatal("failed to initialize database")
 	}
 

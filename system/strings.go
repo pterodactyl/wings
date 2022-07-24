@@ -2,8 +2,11 @@ package system
 
 import (
 	"math/rand"
+	"regexp"
 	"strings"
 )
+
+var ipTrimRegex = regexp.MustCompile(`(:\d*)?$`)
 
 const characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 
@@ -17,4 +20,10 @@ func RandomString(n int) string {
 		b.WriteByte(characters[rand.Intn(len(characters))])
 	}
 	return b.String()
+}
+
+// TrimIPSuffix removes the internal port value from an IP address to ensure we're only
+// ever working directly with the IP address.
+func TrimIPSuffix(s string) string {
+	return ipTrimRegex.ReplaceAllString(s, "")
 }

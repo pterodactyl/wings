@@ -33,29 +33,13 @@ func Scheduler(ctx context.Context, m *server.Manager) (*gocron.Scheduler, error
 		max:     config.Get().System.ActivitySendCount,
 	}
 
-	sftp := sftpActivityCron{
-		mu:      system.NewAtomicBool(false),
-		manager: m,
-		max:     config.Get().System.ActivitySendCount,
-	}
-
 	s := gocron.NewScheduler(l)
-	_, _ = s.Tag("activity").Every(config.Get().System.ActivitySendInterval).Seconds().Do(func() {
+	_, _ = s.Tag("activity").Every(5).Seconds().Do(func() {
 		if err := activity.Run(ctx); err != nil {
 			if errors.Is(err, ErrCronRunning) {
 				log.WithField("cron", "activity").Warn("cron: process is already running, skipping...")
 			} else {
 				log.WithField("error", err).Error("cron: failed to process activity events")
-			}
-		}
-	})
-
-	_, _ = s.Tag("sftp_activity").Every(5).Seconds().Do(func() {
-		if err := sftp.Run(ctx); err != nil {
-			if errors.Is(err, ErrCronRunning) {
-				log.WithField("cron", "sftp").Warn("cron: process is already running, skipping...")
-			} else {
-				log.WithField("error", err).Error("cron: failed to process sftp events")
 			}
 		}
 	})

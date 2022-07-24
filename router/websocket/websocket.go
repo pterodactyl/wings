@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"fmt"
+	"github.com/pterodactyl/wings/internal/models"
 	"net/http"
 	"strings"
 	"sync"
@@ -369,7 +370,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 			}
 
 			if err == nil {
-				_ = h.ra.Save(h.server, server.Event(server.ActivityPowerPrefix+action), nil)
+				_ = h.ra.Save(h.server, models.Event(server.ActivityPowerPrefix+action), nil)
 			}
 
 			return err
@@ -428,7 +429,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 				}
 			}
 
-			_ = h.ra.Save(h.server, server.ActivityConsoleCommand, server.ActivityMeta{
+			_ = h.ra.Save(h.server, server.ActivityConsoleCommand, models.ActivityMeta{
 				"command": strings.Join(m.Args, ""),
 			})
 

@@ -3,6 +3,7 @@ package remote
 import (
 	"context"
 	"fmt"
+	"github.com/pterodactyl/wings/internal/models"
 	"strconv"
 	"sync"
 
@@ -179,7 +180,7 @@ func (c *client) SendRestorationStatus(ctx context.Context, backup string, succe
 }
 
 // SendActivityLogs sends activity logs back to the Panel for processing.
-func (c *client) SendActivityLogs(ctx context.Context, activity interface{}) error {
+func (c *client) SendActivityLogs(ctx context.Context, activity []models.Activity) error {
 	resp, err := c.Post(ctx, "/activity", d{"data": activity})
 	if err != nil {
 		return errors.WithStackIf(err)

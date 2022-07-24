@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/pterodactyl/wings/internal/models"
 	"io"
 	"net/http"
 	"strconv"
@@ -30,7 +31,7 @@ type Client interface {
 	SetInstallationStatus(ctx context.Context, uuid string, successful bool) error
 	SetTransferStatus(ctx context.Context, uuid string, successful bool) error
 	ValidateSftpCredentials(ctx context.Context, request SftpAuthRequest) (SftpAuthResponse, error)
-	SendActivityLogs(ctx context.Context, activity interface{}) error
+	SendActivityLogs(ctx context.Context, activity []models.Activity) error
 }
 
 type client struct {
