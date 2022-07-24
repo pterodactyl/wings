@@ -33,13 +33,29 @@ func Scheduler(ctx context.Context, m *server.Manager) (*gocron.Scheduler, error
 		max:     config.Get().System.ActivitySendCount,
 	}
 
+	sftp := sftpCron{
+		mu:      system.NewAtomicBool(false),
+		manager: m,
+		max:     config.Get().System.ActivitySendCount,
+	}
+
 	s := gocron.NewScheduler(l)
-	_, _ = s.Tag("activity").Every(5).Seconds().Do(func() {
+	_, _ = s.Tag("activity").Every(config.Get().System.ActivitySendInterval).Seconds().Do(func() {
 		if err := activity.Run(ctx); err != nil {
 			if errors.Is(err, ErrCronRunning) {
-				log.WithField("cron", "activity").Warn("cron: process is already running, skipping...")
+				log.WithField("cron", "activity").Warn("activity process is already running, skipping...")
 			} else {
-				log.WithField("error", err).Error("cron: failed to process activity events")
+				log.WithField("cron", "activity").WithField("error", err).Error("activity process failed to execute")
+			}
+		}
+	})
+
+	_, _ = s.Tag("sftp").Every(config.Get().System.ActivitySendInterval).Seconds().Do(func() {
+		if err := sftp.Run(ctx); err != nil {
+			if errors.Is(err, ErrCronRunning) {
+				log.WithField("cron", "sftp").Warn("sftp events process already running, skipping...")
+			} else {
+				log.WithField("cron", "sftp").WithField("error", err).Error("sftp events process failed to execute")
 			}
 		}
 	})
