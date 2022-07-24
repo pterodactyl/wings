@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS "activity_logs" (
 	"server_uuid" varchar NOT NULL,
 	"metadata" blob,
 	"ip" varchar,
-	"timestamp" datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	"timestamp" integer NOT NULL,
 	PRIMARY KEY (id)
 );
 

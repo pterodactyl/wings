@@ -117,7 +117,7 @@ func (a Activity) Save() error {
 		Debug("saving activity to database")
 
 	stmt := `INSERT INTO activity_logs(event, user_uuid, server_uuid, metadata, ip, timestamp) VALUES(?, ?, ?, ?, ?, ?)`
-	if _, err := sqlite.Instance().Exec(stmt, a.Event, a.User, a.Server, buf.Bytes(), a.IP, a.Timestamp); err != nil {
+	if _, err := sqlite.Instance().Exec(stmt, a.Event, a.User, a.Server, buf.Bytes(), a.IP, a.Timestamp.UTC().Unix()); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil

@@ -79,7 +79,7 @@ func (ac *activityCron) Run(ctx context.Context) error {
 	if len(logs) == 0 {
 		return nil
 	}
-	if err := ac.manager.Client().SendActivityLogs(context.Background(), logs); err != nil {
+	if err := ac.manager.Client().SendActivityLogs(ctx, logs); err != nil {
 		return errors.WrapIf(err, "cron: failed to send activity events to Panel")
 	}
 
