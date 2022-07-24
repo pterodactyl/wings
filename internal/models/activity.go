@@ -60,5 +60,8 @@ func (a *Activity) BeforeCreate(_ *gorm.DB) error {
 		a.Timestamp = time.Now()
 	}
 	a.Timestamp = a.Timestamp.UTC()
+	if a.Metadata == nil {
+		a.Metadata = ActivityMeta{}
+	}
 	return nil
 }
