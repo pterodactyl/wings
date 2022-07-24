@@ -35,6 +35,12 @@ func Initialize() error {
 		sql.SetMaxOpenConns(1)
 		sql.SetConnMaxLifetime(time.Hour)
 	}
+	if tx := db.Exec("PRAGMA synchronous = OFF"); tx.Error != nil {
+		return errors.WithStack(tx.Error)
+	}
+	if tx := db.Exec("PRAGMA journal_mode = MEMORY"); tx.Error != nil {
+		return errors.WithStack(tx.Error)
+	}
 	if err := db.AutoMigrate(&models.Activity{}); err != nil {
 		return errors.WithStack(err)
 	}

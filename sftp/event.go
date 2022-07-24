@@ -44,7 +44,7 @@ func (eh *eventHandler) Log(e models.Event, fa FileAction) error {
 	}
 
 	if tx := database.Instance().Create(a.SetUser(eh.user)); tx.Error != nil {
-		return errors.Wrap(tx.Error, "sftp: failed to save event to database")
+		return errors.WithStack(tx.Error)
 	}
 	return nil
 }
@@ -53,6 +53,6 @@ func (eh *eventHandler) Log(e models.Event, fa FileAction) error {
 // if an error is encountered during the logging of the event.
 func (eh *eventHandler) MustLog(e models.Event, fa FileAction) {
 	if err := eh.Log(e, fa); err != nil {
-		log.WithField("error", err).Fatal("sftp: failed to log event")
+		log.WithField("error", errors.WithStack(err)).WithField("event", e).Error("sftp: failed to log event")
 	}
 }
