@@ -7,7 +7,9 @@ import (
 	"github.com/pterodactyl/wings/internal/models"
 	"github.com/pterodactyl/wings/system"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"path/filepath"
+	"time"
 )
 
 var o system.AtomicBool
@@ -20,11 +22,19 @@ func Initialize() error {
 		panic("database: attempt to initialize more than once during application lifecycle")
 	}
 	p := filepath.Join(config.Get().System.RootDirectory, "wings.db")
-	instance, err := gorm.Open(sqlite.Open(p), &gorm.Config{})
+	instance, err := gorm.Open(sqlite.Open(p), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		return errors.Wrap(err, "database: could not open database file")
 	}
 	db = instance
+	if sql, err := db.DB(); err != nil {
+		return errors.WithStack(err)
+	} else {
+		sql.SetMaxOpenConns(1)
+		sql.SetConnMaxLifetime(time.Hour)
+	}
 	if err := db.AutoMigrate(&models.Activity{}); err != nil {
 		return errors.WithStack(err)
 	}
