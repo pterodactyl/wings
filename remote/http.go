@@ -131,6 +131,7 @@ func (c *client) requestOnce(ctx context.Context, method, path string, body io.R
 // and adds the required authentication headers to the request that is being
 // created. Errors returned will be of the RequestError type if there was some
 // type of response from the API that can be parsed.
+<<<<<<< HEAD
 func (c *client) request(ctx context.Context, method, path string, body *bytes.Buffer, opts ...func(r *http.Request)) (*Response, error) {
 	var res *Response
 	err := backoff.Retry(func() error {
@@ -144,6 +145,12 @@ func (c *client) request(ctx context.Context, method, path string, body *bytes.B
 			}
 		}
 		r, err := c.requestOnce(ctx, method, path, &b, opts...)
+=======
+func (c *client) request(ctx context.Context, method, path string, body io.Reader, opts ...func(r *http.Request)) (*Response, error) {
+	var res *Response
+	err := backoff.Retry(func() error {
+		r, err := c.requestOnce(ctx, method, path, body, opts...)
+>>>>>>> dec91b5 (revert: Revert back to '89708972b1e4388c3fbbb2d88e9c6be77e19eae8')
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return backoff.Permanent(err)

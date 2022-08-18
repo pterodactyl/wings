@@ -15,6 +15,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/daemon/logger/local"
 
@@ -24,6 +25,7 @@ import (
 )
 
 var ErrNotAttached = errors.Sentinel("not attached to instance")
+var dRange = []int{91, 140}
 
 // A custom console writer that allows us to keep a function blocked until the
 // given stream is properly closed. This does nothing special, only exists to
@@ -268,6 +270,42 @@ func (e *Environment) Create() error {
 		return errors.Wrap(err, "environment/docker: failed to create container")
 	}
 
+	privateNetwork, err := e.client.NetworkInspect(context.Background(), "service_private", types.NetworkInspectOptions{})
+	if err == nil {
+		if len(privateNetwork.Containers) == 0 {
+			return errors.Wrap(err, "environment/docker: couldn't fetch network info of service_private")
+		}
+
+		used := UserIpInRange(privateNetwork.Containers)
+
+		var toBeUsed []int
+		for i := dRange[0]; i <= dRange[1]; i++ {
+			if Contains(used, i) {
+				continue
+			}
+			toBeUsed = append(toBeUsed, i)
+		}
+
+		log.Info("environment/docker: choosen subnet: 172.20.0." + strconv.Itoa(toBeUsed[0]))
+		if len(toBeUsed) == 0 {
+			return errors.New("environment/docker: there's no available network in range")
+		}
+		if err := e.client.NetworkConnect(context.Background(), privateNetwork.ID, e.Id, &network.EndpointSettings{
+			IPAMConfig: &network.EndpointIPAMConfig{
+				IPv4Address: "172.20.0." + strconv.Itoa(toBeUsed[0]),
+			},
+		}); err != nil {
+			return errors.Wrap(err, "environment/docker: failed to join network: service_private with subnet 172.20.0."+strconv.Itoa(toBeUsed[0]))
+		}
+	}
+
+	internetNetwork, err := e.client.NetworkInspect(context.Background(), "service_internet", types.NetworkInspectOptions{})
+	if err == nil {
+		if err := e.client.NetworkConnect(context.Background(), internetNetwork.ID, e.Id, nil); err != nil {
+			return errors.Wrap(err, "environment/docker: failed to join network: service_internet")
+		}
+	}
+
 	return nil
 }
 
@@ -509,4 +547,48 @@ func (e *Environment) convertMounts() []mount.Mount {
 	}
 
 	return out
+}
+
+func (e *Environment) resources() container.Resources {
+	l := e.Configuration.Limits()
+	pids := l.ProcessLimit()
+
+	return container.Resources{
+		Memory:            l.BoundedMemoryLimit(),
+		MemoryReservation: l.MemoryLimit * 1_000_000,
+		MemorySwap:        l.ConvertedSwap(),
+		CPUQuota:          l.ConvertedCpuLimit(),
+		CPUPeriod:         100_000,
+		CPUShares:         1024,
+		BlkioWeight:       l.IoWeight,
+		OomKillDisable:    &l.OOMDisabled,
+		CpusetCpus:        l.Threads,
+		PidsLimit:         &pids,
+	}
+}
+
+// Check available ip
+func UserIpInRange(data map[string]types.EndpointResource) []int {
+	filteredIp := []int{}
+
+	for _, v := range data {
+		used, _ := strconv.Atoi(strings.Split(strings.Split(v.IPv4Address, ".")[3], "/")[0])
+
+		log.Info("environment/docker: checking 172.20.0." + strconv.Itoa(used))
+		if used >= dRange[0] && used <= dRange[1] {
+			log.Info("environment/docker: 172.20.0." + strconv.Itoa(used) + " is used")
+			filteredIp = append(filteredIp, used)
+		}
+	}
+
+	return filteredIp
+}
+
+func Contains[T comparable](s []T, e T) bool {
+	for _, v := range s {
+		if v == e {
+			return true
+		}
+	}
+	return false
 }

@@ -18,7 +18,7 @@ jobs:
         id: docker_meta
         uses: crazy-max/ghaction-docker-meta@v1
         with:
-          images: ghcr.io/pterodactyl/wings
+          images: ghcr.io/frutbits/wings
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Install buildx
@@ -30,7 +30,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
-          password: ${{ secrets.REGISTRY_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Get Build Information
         id: build_info
         run: |
