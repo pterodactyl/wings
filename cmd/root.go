@@ -5,8 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/pterodactyl/wings/internal/cron"
-	"github.com/pterodactyl/wings/internal/database"
 	log2 "log"
 	"net/http"
 	_ "net/http/pprof"
@@ -30,6 +28,8 @@ import (
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/internal/cron"
+	"github.com/pterodactyl/wings/internal/database"
 	"github.com/pterodactyl/wings/loggers/cli"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/router"
@@ -87,6 +87,7 @@ func init() {
 
 	rootCommand.AddCommand(versionCommand)
 	rootCommand.AddCommand(configureCmd)
+	rootCommand.AddCommand(serviceCmd)
 	rootCommand.AddCommand(newDiagnosticsCommand())
 }
 
