@@ -63,7 +63,7 @@ func installService(cmd *cobra.Command, args []string) {
 	cmd_enable_err := enable_command.Start()
 
 	if cmd_enable_err != nil {
-		log.WithField("error", wf_err).Fatal("error while enabling service")
+		log.WithField("error", cmd_enable_err).Fatal("error while enabling service")
 		return
 	}
 
@@ -71,7 +71,7 @@ func installService(cmd *cobra.Command, args []string) {
 	cmd_reload_err := daemon_reload_command.Start()
 
 	if cmd_reload_err != nil {
-		log.WithField("error", wf_err).Fatal("error while reloading daemon")
+		log.WithField("error", cmd_reload_err).Fatal("error while reloading daemon")
 		return
 	}
 
