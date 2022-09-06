@@ -59,12 +59,21 @@ func installService(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	command := exec.Command("systemctl", "enable", "--now", serviceFile)
-	cmd_err := command.Start()
+	enable_command := exec.Command("systemctl", "enable", "--now", serviceFile)
+	cmd_enable_err := enable_command.Start()
 
-	if cmd_err != nil {
+	if cmd_enable_err != nil {
 		log.WithField("error", wf_err).Fatal("error while enabling service")
 		return
 	}
+
+	daemon_reload_command := exec.Command("systemctl", "daemon-reload")
+	cmd_reload_err := daemon_reload_command.Start()
+
+	if cmd_reload_err != nil {
+		log.WithField("error", wf_err).Fatal("error while reloading daemon")
+		return
+	}
+
 	fmt.Println("service created success!")
 }
