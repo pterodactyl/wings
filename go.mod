@@ -49,6 +49,7 @@ require (
 	github.com/go-co-op/gocron v1.15.0
 	github.com/goccy/go-json v0.9.6
 	github.com/klauspost/compress v1.15.1
+	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.23.8
 )
 
@@ -121,7 +122,6 @@ require (
 	google.golang.org/genproto v0.0.0-20220324131243-acbaeb5b85eb // indirect
 	google.golang.org/grpc v1.45.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.16.17 // indirect
 	modernc.org/mathutil v1.4.1 // indirect
 	modernc.org/memory v1.1.1 // indirect
