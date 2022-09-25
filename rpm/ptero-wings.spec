@@ -1,5 +1,5 @@
 Name:       ptero-wings
-Version:    1.5.3
+Version:    1.7.0
 Release:    1%{?dist}
 Summary:    The server control plane for Pterodactyl Panel. Written from the ground-up with security, speed, and stability in mind.
 BuildArch:  x86_64
@@ -91,6 +91,9 @@ rm -rf /var/log/pterodactyl
 wings --version
 
 %changelog
+* Wed Sep 14 2022 Chance Callahan <ccallaha@redhat.com> - 1.7.0-1
+- Updating specfile to match stable release.
+
 * Wed Oct 27 2021 Capitol Hosting Solutions Systems Engineering <syseng@chs.gg> - 1.5.3-1
 - specfile by Capitol Hosting Solutions, Upstream by Pterodactyl
 - Rebased for https://github.com/pterodactyl/wings/releases/tag/v1.5.3
