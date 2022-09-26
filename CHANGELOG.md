@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.7.1
+### Fixed
+* YAML parser has been updated to fix some strange issues
+
+### Added
+* Added `Force Outgoing IP` option for servers to ensure outgoing traffic uses the server's IP address
+* Adds an option to control the level of gzip compression for backups
+
 ## v1.7.0
 ### Fixed
 * Fixes multi-platform support for Wings' Docker image.
