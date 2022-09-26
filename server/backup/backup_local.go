@@ -69,7 +69,7 @@ func (b *LocalBackup) Generate(ctx context.Context, basePath, ignore string) (*A
 	}
 	b.log().Info("created backup successfully")
 
-	ad, err := b.Details(ctx)
+	ad, err := b.Details(ctx, nil)
 	if err != nil {
 		return nil, errors.WrapIf(err, "backup: failed to get archive details for local backup")
 	}

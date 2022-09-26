@@ -2,10 +2,11 @@ package remote
 
 import (
 	"bytes"
-	"github.com/apex/log"
-	"github.com/goccy/go-json"
 	"regexp"
 	"strings"
+
+	"github.com/apex/log"
+	"github.com/goccy/go-json"
 
 	"github.com/pterodactyl/wings/parser"
 )
@@ -156,9 +157,15 @@ type BackupRemoteUploadResponse struct {
 	PartSize int64    `json:"part_size"`
 }
 
+type BackupPart struct {
+	ETag       string `json:"etag"`
+	PartNumber int    `json:"part_number"`
+}
+
 type BackupRequest struct {
-	Checksum     string `json:"checksum"`
-	ChecksumType string `json:"checksum_type"`
-	Size         int64  `json:"size"`
-	Successful   bool   `json:"successful"`
+	Checksum     string       `json:"checksum"`
+	ChecksumType string       `json:"checksum_type"`
+	Size         int64        `json:"size"`
+	Successful   bool         `json:"successful"`
+	Parts        []BackupPart `json:"parts"`
 }
