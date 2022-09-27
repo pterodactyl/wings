@@ -62,17 +62,17 @@ func (a *Archive) Create(dst string) error {
 		writer = f
 	}
 
-	// The default compression level is BestSpeed
-	var cl = pgzip.BestSpeed
 
 	// Choose which compression level to use based on the compression_level configuration option
+	var cl int
+
 	switch config.Get().System.Backups.CompressionLevel {
 	case "none":
 		cl = pgzip.NoCompression
-	case "best_speed":
-		cl = pgzip.BestSpeed
 	case "best_compression":
 		cl = pgzip.BestCompression
+        default:
+		cl = pgzip.BestSpeed
 	}
 
 	// Create a new gzip writer around the file.
