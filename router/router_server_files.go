@@ -602,7 +602,7 @@ func postServerUploadFiles(c *gin.Context) {
 			NewServerError(err, s).Abort(c)
 			return
 		} else {
-			s.SaveActivity(s.NewRequestActivity(token.UserUuid, c.Request.RemoteAddr), server.ActivityFileUploaded, models.ActivityMeta{
+			s.SaveActivity(s.NewRequestActivity(token.UserUuid, c.ClientIP()), server.ActivityFileUploaded, models.ActivityMeta{
 				"file":      header.Filename,
 				"directory": filepath.Clean(directory),
 			})
