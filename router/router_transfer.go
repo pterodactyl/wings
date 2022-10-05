@@ -422,6 +422,7 @@ func postTransfer(c *gin.Context) {
 		data.log().Info("writing transfer archive to disk...")
 
 		progress := filesystem.NewProgress(size)
+		progress.SetWriter(file)
 
 		// Send the archive progress to the websocket every 3 seconds.
 		ctx, cancel := context.WithCancel(ctx)
@@ -448,7 +449,7 @@ func postTransfer(c *gin.Context) {
 		}
 
 		buf := make([]byte, 1024*4)
-		if _, err := io.CopyBuffer(file, io.TeeReader(reader, progress), buf); err != nil {
+		if _, err := io.CopyBuffer(progress, reader, buf); err != nil {
 			_ = file.Close()
 
 			sendTransferLog("Failed while writing archive file to disk: " + err.Error())

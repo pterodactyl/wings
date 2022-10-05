@@ -30,6 +30,28 @@ var pool = sync.Pool{
 	},
 }
 
+// TarProgress .
+type TarProgress struct {
+	*tar.Writer
+	p *Progress
+}
+
+// NewTarProgress .
+func NewTarProgress(w *tar.Writer, p *Progress) *TarProgress {
+	p.w = w
+	return &TarProgress{
+		Writer: w,
+		p:      p,
+	}
+}
+
+func (p *TarProgress) Write(v []byte) (int, error) {
+	if p.p == nil {
+		return p.Writer.Write(v)
+	}
+	return p.p.Write(v)
+}
+
 // Progress is used to track the progress of any I/O operation that are being
 // performed.
 type Progress struct {
@@ -44,6 +66,12 @@ type Progress struct {
 // NewProgress .
 func NewProgress(total int64) *Progress {
 	return &Progress{total: total}
+}
+
+// SetWriter sets the writer progress will forward writes to.
+// NOTE: This function is not thread safe.
+func (p *Progress) SetWriter(w io.Writer) {
+	p.w = w
 }
 
 // Written returns the total number of bytes written.
@@ -157,23 +185,17 @@ func (a *Archive) Create(dst string) error {
 	_ = gw.SetConcurrency(1<<20, 1)
 	defer gw.Close()
 
-	var pw io.Writer
-	if a.Progress != nil {
-		a.Progress.w = gw
-		pw = a.Progress
-	} else {
-		pw = gw
-	}
-
 	// Create a new tar writer around the gzip writer.
-	tw := tar.NewWriter(pw)
+	tw := tar.NewWriter(gw)
 	defer tw.Close()
+
+	pw := NewTarProgress(tw, a.Progress)
 
 	// Configure godirwalk.
 	options := &godirwalk.Options{
 		FollowSymbolicLinks: false,
 		Unsorted:            true,
-		Callback:            a.callback(tw),
+		Callback:            a.callback(pw),
 	}
 
 	// If we're specifically looking for only certain files, or have requested
@@ -182,7 +204,7 @@ func (a *Archive) Create(dst string) error {
 	if len(a.Files) == 0 && len(a.Ignore) > 0 {
 		i := ignore.CompileIgnoreLines(strings.Split(a.Ignore, "\n")...)
 
-		options.Callback = a.callback(tw, func(_ string, rp string) error {
+		options.Callback = a.callback(pw, func(_ string, rp string) error {
 			if i.MatchesPath(rp) {
 				return godirwalk.SkipThis
 			}
@@ -190,7 +212,7 @@ func (a *Archive) Create(dst string) error {
 			return nil
 		})
 	} else if len(a.Files) > 0 {
-		options.Callback = a.withFilesCallback(tw)
+		options.Callback = a.withFilesCallback(pw)
 	}
 
 	// Recursively walk the path we are archiving.
@@ -199,7 +221,7 @@ func (a *Archive) Create(dst string) error {
 
 // Callback function used to determine if a given file should be included in the archive
 // being generated.
-func (a *Archive) callback(tw *tar.Writer, opts ...func(path string, relative string) error) func(path string, de *godirwalk.Dirent) error {
+func (a *Archive) callback(tw *TarProgress, opts ...func(path string, relative string) error) func(path string, de *godirwalk.Dirent) error {
 	return func(path string, de *godirwalk.Dirent) error {
 		// Skip directories because we are walking them recursively.
 		if de.IsDir() {
@@ -223,7 +245,7 @@ func (a *Archive) callback(tw *tar.Writer, opts ...func(path string, relative st
 }
 
 // Pushes only files defined in the Files key to the final archive.
-func (a *Archive) withFilesCallback(tw *tar.Writer) func(path string, de *godirwalk.Dirent) error {
+func (a *Archive) withFilesCallback(tw *TarProgress) func(path string, de *godirwalk.Dirent) error {
 	return a.callback(tw, func(p string, rp string) error {
 		for _, f := range a.Files {
 			// If the given doesn't match, or doesn't have the same prefix continue
@@ -244,7 +266,7 @@ func (a *Archive) withFilesCallback(tw *tar.Writer) func(path string, de *godirw
 }
 
 // Adds a given file path to the final archive being created.
-func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
+func (a *Archive) addToArchive(p string, rp string, w *TarProgress) error {
 	// Lstat the file, this will give us the same information as Stat except that it will not
 	// follow a symlink to its target automatically. This is important to avoid including
 	// files that exist outside the server root unintentionally in the backup.
