@@ -3,11 +3,12 @@ package websocket
 import (
 	"context"
 	"fmt"
-	"github.com/pterodactyl/wings/internal/models"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pterodactyl/wings/internal/models"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"

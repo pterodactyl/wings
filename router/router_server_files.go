@@ -3,7 +3,6 @@ package router
 import (
 	"bufio"
 	"context"
-	"github.com/pterodactyl/wings/internal/models"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -13,6 +12,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/pterodactyl/wings/internal/models"
 
 	"github.com/pterodactyl/wings/config"
 

@@ -5,8 +5,6 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"fmt"
-	gzip2 "github.com/klauspost/compress/gzip"
-	zip2 "github.com/klauspost/compress/zip"
 	"os"
 	"path"
 	"path/filepath"
@@ -14,6 +12,9 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	gzip2 "github.com/klauspost/compress/gzip"
+	zip2 "github.com/klauspost/compress/zip"
 
 	"emperror.dev/errors"
 	"github.com/mholt/archiver/v3"

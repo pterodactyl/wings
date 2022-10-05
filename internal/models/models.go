@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+
 	"emperror.dev/errors"
 	"github.com/goccy/go-json"
 )

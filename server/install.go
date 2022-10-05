@@ -449,7 +449,7 @@ func (ip *InstallationProcess) Execute() (string, error) {
 		},
 		Privileged:  true,
 		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
-		UsernsMode: container.UsernsMode(config.Get().Docker.UsernsMode),
+		UsernsMode:  container.UsernsMode(config.Get().Docker.UsernsMode),
 	}
 
 	// Ensure the root directory for the server exists properly before attempting

@@ -1,9 +1,10 @@
 package models
 
 import (
+	"time"
+
 	"github.com/pterodactyl/wings/system"
 	"gorm.io/gorm"
-	"time"
 )
 
 type Event string
