@@ -147,10 +147,12 @@ func (e *Environment) InSituUpdate() error {
 // currently available for it. If the container already exists it will be
 // returned.
 func (e *Environment) Create() error {
+	ctx := context.Background()
+
 	// If the container already exists don't hit the user with an error, just return
 	// the current information about it which is what we would do when creating the
 	// container anyways.
-	if _, err := e.ContainerInspect(context.Background()); err == nil {
+	if _, err := e.ContainerInspect(ctx); err == nil {
 		return nil
 	} else if !client.IsErrNotFound(err) {
 		return errors.Wrap(err, "environment/docker: failed to inspect container")
@@ -190,7 +192,34 @@ func (e *Environment) Create() error {
 		},
 	}
 
-	tmpfsSize := strconv.Itoa(int(config.Get().Docker.TmpfsSize))
+	networkMode := container.NetworkMode(config.Get().Docker.Network.Mode)
+	if a.ForceOutgoingIP {
+		e.log().Debug("environment/docker: forcing outgoing IP address")
+		networkName := strings.ReplaceAll(e.Id, "-", "")
+		networkMode = container.NetworkMode(networkName)
+
+		if _, err := e.client.NetworkInspect(ctx, networkName, types.NetworkInspectOptions{}); err != nil {
+			if !client.IsErrNotFound(err) {
+				return err
+			}
+
+			if _, err := e.client.NetworkCreate(ctx, networkName, types.NetworkCreate{
+				Driver:     "bridge",
+				EnableIPv6: false,
+				Internal:   false,
+				Attachable: false,
+				Ingress:    false,
+				ConfigOnly: false,
+				Options: map[string]string{
+					"encryption": "false",
+					"com.docker.network.bridge.default_bridge": "false",
+					"com.docker.network.host_ipv4":             a.DefaultMapping.Ip,
+				},
+			}); err != nil {
+				return err
+			}
+		}
+	}
 
 	hostConf := &container.HostConfig{
 		PortBindings: a.DockerBindings(),
@@ -202,7 +231,7 @@ func (e *Environment) Create() error {
 		// Configure the /tmp folder mapping in containers. This is necessary for some
 		// games that need to make use of it for downloads and other installation processes.
 		Tmpfs: map[string]string{
-			"/tmp": "rw,exec,nosuid,size=" + tmpfsSize + "M",
+			"/tmp": "rw,exec,nosuid,size=" + strconv.Itoa(int(config.Get().Docker.TmpfsSize)) + "M",
 		},
 
 		// Define resource limits for the container based on the data passed through
@@ -231,11 +260,11 @@ func (e *Environment) Create() error {
 			"setpcap", "mknod", "audit_write", "net_raw", "dac_override",
 			"fowner", "fsetid", "net_bind_service", "sys_chroot", "setfcap",
 		},
-		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
-		UsernsMode: container.UsernsMode(config.Get().Docker.UsernsMode),
+		NetworkMode: networkMode,
+		UsernsMode:  container.UsernsMode(config.Get().Docker.UsernsMode),
 	}
 
-	if _, err := e.client.ContainerCreate(context.Background(), conf, hostConf, nil, nil, e.Id); err != nil {
+	if _, err := e.client.ContainerCreate(ctx, conf, hostConf, nil, nil, e.Id); err != nil {
 		return errors.Wrap(err, "environment/docker: failed to create container")
 	}
 

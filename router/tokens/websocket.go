@@ -7,7 +7,6 @@ import (
 
 	"github.com/apex/log"
 	"github.com/gbrlsnchs/jwt/v3"
-	"github.com/goccy/go-json"
 )
 
 // The time at which Wings was booted. No JWT's created before this time are allowed to
@@ -35,15 +34,15 @@ func DenyJTI(jti string) {
 	denylist.Store(jti, time.Now())
 }
 
-// A JWT payload for Websocket connections. This JWT is passed along to the Websocket after
-// it has been connected to by sending an "auth" event.
+// WebsocketPayload defines the JWT payload for a websocket connection. This JWT is passed along to
+// the websocket after it has been connected to by sending an "auth" event.
 type WebsocketPayload struct {
 	jwt.Payload
 	sync.RWMutex
 
-	UserID      json.Number `json:"user_id"`
-	ServerUUID  string      `json:"server_uuid"`
-	Permissions []string    `json:"permissions"`
+	UserUUID    string   `json:"user_uuid"`
+	ServerUUID  string   `json:"server_uuid"`
+	Permissions []string `json:"permissions"`
 }
 
 // Returns the JWT payload.

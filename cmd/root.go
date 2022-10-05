@@ -5,6 +5,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/pterodactyl/wings/internal/cron"
+	"github.com/pterodactyl/wings/internal/database"
 	log2 "log"
 	"net/http"
 	_ "net/http/pprof"
@@ -79,7 +81,7 @@ func init() {
 	rootCommand.Flags().Bool("pprof", false, "if the pprof profiler should be enabled. The profiler will bind to localhost:6060 by default")
 	rootCommand.Flags().Int("pprof-block-rate", 0, "enables block profile support, may have performance impacts")
 	rootCommand.Flags().Int("pprof-port", 6060, "If provided with --pprof, the port it will run on")
-	rootCommand.Flags().Bool("auto-tls", false, "pass in order to have wings generate and manage it's own SSL certificates using Let's Encrypt")
+	rootCommand.Flags().Bool("auto-tls", false, "pass in order to have wings generate and manage its own SSL certificates using Let's Encrypt")
 	rootCommand.Flags().String("tls-hostname", "", "required with --auto-tls, the FQDN for the generated SSL certificate")
 	rootCommand.Flags().Bool("ignore-certificate-errors", false, "ignore certificate verification errors when executing API calls")
 
@@ -130,6 +132,10 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		}),
 	)
 
+	if err := database.Initialize(); err != nil {
+		log.WithField("error", err).Fatal("failed to initialize database")
+	}
+
 	manager, err := server.NewManager(cmd.Context(), pclient)
 	if err != nil {
 		log.WithField("error", err).Fatal("failed to load server configurations")
@@ -156,7 +162,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	ticker := time.NewTicker(time.Minute)
 	// Every minute, write the current server states to the disk to allow for a more
 	// seamless hard-reboot process in which wings will re-sync server states based
-	// on it's last tracked state.
+	// on its last tracked state.
 	go func() {
 		for {
 			select {
@@ -258,6 +264,13 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 			s.CtxCancel()
 		}
 	}()
+
+	if s, err := cron.Scheduler(cmd.Context(), manager); err != nil {
+		log.WithField("error", err).Fatal("failed to initialize cron system")
+	} else {
+		log.WithField("subsystem", "cron").Info("starting cron processes")
+		s.StartAsync()
+	}
 
 	go func() {
 		// Run the SFTP server.

@@ -62,8 +62,21 @@ func (a *Archive) Create(dst string) error {
 		writer = f
 	}
 
+	// The default compression level is BestSpeed
+	var cl = pgzip.BestSpeed
+
+	// Choose which compression level to use based on the compression_level configuration option
+	switch config.Get().System.Backups.CompressionLevel {
+	case "none":
+		cl = pgzip.NoCompression
+	case "best_speed":
+		cl = pgzip.BestSpeed
+	case "best_compression":
+		cl = pgzip.BestCompression
+	}
+
 	// Create a new gzip writer around the file.
-	gw, _ := pgzip.NewWriterLevel(writer, pgzip.BestSpeed)
+	gw, _ := pgzip.NewWriterLevel(writer, cl)
 	_ = gw.SetConcurrency(1<<20, 1)
 	defer gw.Close()
 
@@ -148,7 +161,7 @@ func (a *Archive) withFilesCallback(tw *tar.Writer) func(path string, de *godirw
 // Adds a given file path to the final archive being created.
 func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
 	// Lstat the file, this will give us the same information as Stat except that it will not
-	// follow a symlink to it's target automatically. This is important to avoid including
+	// follow a symlink to its target automatically. This is important to avoid including
 	// files that exist outside the server root unintentionally in the backup.
 	s, err := os.Lstat(p)
 	if err != nil {

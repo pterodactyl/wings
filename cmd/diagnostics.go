@@ -58,7 +58,7 @@ func newDiagnosticsCommand() *cobra.Command {
 	return command
 }
 
-// diagnosticsCmdRun collects diagnostics about wings, it's configuration and the node.
+// diagnosticsCmdRun collects diagnostics about wings, its configuration and the node.
 // We collect:
 // - wings and docker versions
 // - relevant parts of daemon configuration

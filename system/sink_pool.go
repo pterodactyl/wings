@@ -23,7 +23,7 @@ type SinkPool struct {
 }
 
 // NewSinkPool returns a new empty SinkPool. A sink pool generally lives with a
-// server instance for it's full lifetime.
+// server instance for its full lifetime.
 func NewSinkPool() *SinkPool {
 	return &SinkPool{}
 }

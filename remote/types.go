@@ -87,6 +87,7 @@ type SftpAuthRequest struct {
 // user for the SFTP subsystem.
 type SftpAuthResponse struct {
 	Server      string   `json:"server"`
+	User        string   `json:"user"`
 	Permissions []string `json:"permissions"`
 }
 
@@ -156,9 +157,15 @@ type BackupRemoteUploadResponse struct {
 	PartSize int64    `json:"part_size"`
 }
 
+type BackupPart struct {
+	ETag       string `json:"etag"`
+	PartNumber int    `json:"part_number"`
+}
+
 type BackupRequest struct {
-	Checksum     string `json:"checksum"`
-	ChecksumType string `json:"checksum_type"`
-	Size         int64  `json:"size"`
-	Successful   bool   `json:"successful"`
+	Checksum     string       `json:"checksum"`
+	ChecksumType string       `json:"checksum_type"`
+	Size         int64        `json:"size"`
+	Successful   bool         `json:"successful"`
+	Parts        []BackupPart `json:"parts"`
 }

@@ -41,12 +41,12 @@ func ConfigureDocker(ctx context.Context) error {
 	nw := config.Get().Docker.Network
 	resource, err := cli.NetworkInspect(ctx, nw.Name, types.NetworkInspectOptions{})
 	if err != nil {
-		if client.IsErrNotFound(err) {
-			log.Info("creating missing pterodactyl0 interface, this could take a few seconds...")
-			if err := createDockerNetwork(ctx, cli); err != nil {
-				return err
-			}
-		} else {
+		if !client.IsErrNotFound(err) {
+			return err
+		}
+
+		log.Info("creating missing pterodactyl0 interface, this could take a few seconds...")
+		if err := createDockerNetwork(ctx, cli); err != nil {
 			return err
 		}
 	}
@@ -92,7 +92,7 @@ func createDockerNetwork(ctx context.Context, cli *client.Client) error {
 			"com.docker.network.bridge.enable_ip_masquerade": "true",
 			"com.docker.network.bridge.host_binding_ipv4":    "0.0.0.0",
 			"com.docker.network.bridge.name":                 "pterodactyl0",
-			"com.docker.network.driver.mtu":                  "1500",
+			"com.docker.network.driver.mtu":                  strconv.FormatInt(nw.NetworkMTU, 10),
 		},
 	})
 	if err != nil {
