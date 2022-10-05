@@ -261,6 +261,7 @@ func (e *Environment) Create() error {
 			"fowner", "fsetid", "net_bind_service", "sys_chroot", "setfcap",
 		},
 		NetworkMode: networkMode,
+		UsernsMode:  container.UsernsMode(config.Get().Docker.UsernsMode),
 	}
 
 	if _, err := e.client.ContainerCreate(ctx, conf, hostConf, nil, nil, e.Id); err != nil {

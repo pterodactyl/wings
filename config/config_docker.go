@@ -78,6 +78,14 @@ type DockerConfiguration struct {
 	Overhead Overhead `json:"overhead" yaml:"overhead"`
 
 	UsePerformantInspect bool `default:"true" json:"use_performant_inspect" yaml:"use_performant_inspect"`
+
+	// Sets the user namespace mode for the container when user namespace remapping option is
+	// enabled.
+	//
+	// If the value is blank, the daemon's user namespace remapping configuration is used,
+	// if the value is "host", then the pterodactyl containers are started with user namespace
+	// remapping disabled
+	UsernsMode string `default:"" json:"userns_mode" yaml:"userns_mode"`
 }
 
 // RegistryConfiguration defines the authentication credentials for a given
