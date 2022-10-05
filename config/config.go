@@ -91,6 +91,9 @@ type ApiConfiguration struct {
 
 	// The maximum size for files uploaded through the Panel in MB.
 	UploadLimit int64 `default:"100" json:"upload_limit" yaml:"upload_limit"`
+
+	// A list of IP address of proxies that may send a X-Forwarded-For header to set the true clients IP
+	TrustedProxies []string `json:"trusted_proxies" yaml:"trusted_proxies"`
 }
 
 // RemoteQueryConfiguration defines the configuration settings for remote requests

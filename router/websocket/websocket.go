@@ -12,6 +12,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gbrlsnchs/jwt/v3"
+	"github.com/gin-gonic/gin"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -79,7 +80,7 @@ func NewTokenPayload(token []byte) (*tokens.WebsocketPayload, error) {
 }
 
 // GetHandler returns a new websocket handler using the context provided.
-func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request) (*Handler, error) {
+func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request, c *gin.Context) (*Handler, error) {
 	upgrader := websocket.Upgrader{
 		// Ensure that the websocket request is originating from the Panel itself,
 		// and not some other location.
@@ -111,7 +112,7 @@ func GetHandler(s *server.Server, w http.ResponseWriter, r *http.Request) (*Hand
 		Connection: conn,
 		jwt:        nil,
 		server:     s,
-		ra:         s.NewRequestActivity("", r.RemoteAddr),
+		ra:         s.NewRequestActivity("", c.ClientIP()),
 		uuid:       u,
 	}, nil
 }
