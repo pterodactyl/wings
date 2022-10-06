@@ -58,7 +58,6 @@ jobs:
         run: |
           go build -v -trimpath -ldflags="-s -w -X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_${GOOS}_${GOARCH} wings.go
           go build -v -trimpath -ldflags="-X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o build/wings_${GOOS}_${GOARCH}_debug wings.go
-          upx build/wings_${GOOS}_${{ matrix.goarch }}
           chmod +x build/*
       - name: Tests
         run: go test -race ./...
