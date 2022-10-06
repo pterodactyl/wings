@@ -91,6 +91,9 @@ type ApiConfiguration struct {
 
 	// The maximum size for files uploaded through the Panel in MB.
 	UploadLimit int64 `default:"100" json:"upload_limit" yaml:"upload_limit"`
+
+	// A list of IP address of proxies that may send a X-Forwarded-For header to set the true clients IP
+	TrustedProxies []string `json:"trusted_proxies" yaml:"trusted_proxies"`
 }
 
 // RemoteQueryConfiguration defines the configuration settings for remote requests
@@ -219,6 +222,15 @@ type Backups struct {
 	//
 	// Defaults to 0 (unlimited)
 	WriteLimit int `default:"0" yaml:"write_limit"`
+
+	// CompressionLevel determines how much backups created by wings should be compressed.
+	//
+	// "none" -> no compression will be applied
+	// "best_speed" -> uses gzip level 1 for fast speed
+	// "best_compression" -> uses gzip level 9 for minimal disk space useage
+	//
+	// Defaults to "best_speed" (level 1)
+	CompressionLevel string `default:"best_speed" yaml:"compression_level"`
 }
 
 type Transfers struct {

@@ -4,6 +4,7 @@ import (
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/router/middleware"
 	wserver "github.com/pterodactyl/wings/server"
@@ -15,6 +16,7 @@ func Configure(m *wserver.Manager, client remote.Client) *gin.Engine {
 
 	router := gin.New()
 	router.Use(gin.Recovery())
+	router.SetTrustedProxies(config.Get().Api.TrustedProxies)
 	router.Use(middleware.AttachRequestID(), middleware.CaptureErrors(), middleware.SetAccessControlHeaders())
 	router.Use(middleware.AttachServerManager(m), middleware.AttachApiClient(client))
 	// @todo log this into a different file so you can setup IP blocking for abusive requests and such.

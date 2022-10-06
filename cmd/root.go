@@ -81,7 +81,7 @@ func init() {
 	rootCommand.Flags().Bool("pprof", false, "if the pprof profiler should be enabled. The profiler will bind to localhost:6060 by default")
 	rootCommand.Flags().Int("pprof-block-rate", 0, "enables block profile support, may have performance impacts")
 	rootCommand.Flags().Int("pprof-port", 6060, "If provided with --pprof, the port it will run on")
-	rootCommand.Flags().Bool("auto-tls", false, "pass in order to have wings generate and manage it's own SSL certificates using Let's Encrypt")
+	rootCommand.Flags().Bool("auto-tls", false, "pass in order to have wings generate and manage its own SSL certificates using Let's Encrypt")
 	rootCommand.Flags().String("tls-hostname", "", "required with --auto-tls, the FQDN for the generated SSL certificate")
 	rootCommand.Flags().Bool("ignore-certificate-errors", false, "ignore certificate verification errors when executing API calls")
 
@@ -162,7 +162,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	ticker := time.NewTicker(time.Minute)
 	// Every minute, write the current server states to the disk to allow for a more
 	// seamless hard-reboot process in which wings will re-sync server states based
-	// on it's last tracked state.
+	// on its last tracked state.
 	go func() {
 		for {
 			select {

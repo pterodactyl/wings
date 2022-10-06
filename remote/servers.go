@@ -3,9 +3,10 @@ package remote
 import (
 	"context"
 	"fmt"
-	"github.com/pterodactyl/wings/internal/models"
 	"strconv"
 	"sync"
+
+	"github.com/pterodactyl/wings/internal/models"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"

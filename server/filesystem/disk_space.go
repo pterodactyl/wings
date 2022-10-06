@@ -71,7 +71,7 @@ func (fs *Filesystem) HasSpaceAvailable(allowStaleValue bool) bool {
 	// If space is -1 or 0 just return true, means they're allowed unlimited.
 	//
 	// Technically we could skip disk space calculation because we don't need to check if the
-	// server exceeds it's limit but because this method caches the disk usage it would be best
+	// server exceeds its limit but because this method caches the disk usage it would be best
 	// to calculate the disk usage and always return true.
 	if fs.MaxDisk() == 0 {
 		return true
