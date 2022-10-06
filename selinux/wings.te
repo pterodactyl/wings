@@ -27,6 +27,5 @@ miscfiles_read_localization(wings_t)
 
 require {
         type wings_exec_t;
-        type bin_t;
-        class file execmod;
+        class file { execmod map };
 }
