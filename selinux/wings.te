@@ -18,7 +18,7 @@ permissive wings_t;
 #
 allow wings_t self:fifo_file rw_fifo_file_perms;
 allow wings_t self:unix_stream_socket create_stream_socket_perms;
-allow wings_exec_t:file execmod;
+allow wings_t wings_exec_t:file execmod;
 
 domain_use_interactive_fds(wings_t)
 
