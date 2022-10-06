@@ -1,0 +1,25 @@
+policy_module(wings, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type wings_t;
+type wings_exec_t;
+init_daemon_domain(wings_t, wings_exec_t)
+
+permissive wings_t;
+
+########################################
+#
+# wings local policy
+#
+allow wings_t self:fifo_file rw_fifo_file_perms;
+allow wings_t self:unix_stream_socket create_stream_socket_perms;
+
+domain_use_interactive_fds(wings_t)
+
+files_read_etc_files(wings_t)
+
+miscfiles_read_localization(wings_t)
