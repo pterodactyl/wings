@@ -24,7 +24,6 @@ func (s *Server) notifyPanelOfBackup(uuid string, ad *backup.ArchiveDetails, suc
 				"backup": uuid,
 				"error":  err,
 			}).Error("failed to notify panel of backup status due to wings error")
-
 			return err
 		}
 
@@ -127,7 +126,7 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	defer func() {
 		s.Config().SetSuspended(false)
 		if reader != nil {
-			reader.Close()
+			_ = reader.Close()
 		}
 	}()
 	// Send an API call to the Panel as soon as this function is done running so that
@@ -142,7 +141,7 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	// instance, otherwise you'll likely hit all types of write errors due to the
 	// server being suspended.
 	if s.Environment.State() != environment.ProcessOfflineState {
-		if err = s.Environment.WaitForStop(s.Context(), time.Minute*2, false); err != nil {
+		if err = s.Environment.WaitForStop(s.Context(), 2*time.Minute, false); err != nil {
 			if !client.IsErrNotFound(err) {
 				return errors.WrapIf(err, "server/backup: restore: failed to wait for container stop")
 			}
@@ -152,14 +151,19 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	// Attempt to restore the backup to the server by running through each entry
 	// in the file one at a time and writing them to the disk.
 	s.Log().Debug("starting file writing process for backup restoration")
-	err = b.Restore(s.Context(), reader, func(file string, r io.Reader, mode fs.FileMode, atime, mtime time.Time) error {
+	err = b.Restore(s.Context(), reader, func(file string, info fs.FileInfo, r io.ReadCloser) error {
+		defer r.Close()
 		s.Events().Publish(DaemonMessageEvent, "(restoring): "+file)
+
 		if err := s.Filesystem().Writefile(file, r); err != nil {
 			return err
 		}
-		if err := s.Filesystem().Chmod(file, mode); err != nil {
+		if err := s.Filesystem().Chmod(file, info.Mode()); err != nil {
 			return err
 		}
+
+		atime := info.ModTime()
+		mtime := atime
 		return s.Filesystem().Chtimes(file, atime, mtime)
 	})
 

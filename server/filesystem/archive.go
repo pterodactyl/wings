@@ -38,7 +38,9 @@ type TarProgress struct {
 
 // NewTarProgress .
 func NewTarProgress(w *tar.Writer, p *Progress) *TarProgress {
-	p.w = w
+	if p != nil {
+		p.w = w
+	}
 	return &TarProgress{
 		Writer: w,
 		p:      p,

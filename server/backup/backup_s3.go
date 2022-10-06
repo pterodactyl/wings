@@ -1,8 +1,6 @@
 package backup
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -13,13 +11,12 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/cenkalti/backoff/v4"
-
-	"github.com/pterodactyl/wings/server/filesystem"
-
 	"github.com/juju/ratelimit"
+	"github.com/mholt/archiver/v4"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/remote"
+	"github.com/pterodactyl/wings/server/filesystem"
 )
 
 type S3Backup struct {
@@ -96,31 +93,16 @@ func (s *S3Backup) Restore(ctx context.Context, r io.Reader, callback RestoreCal
 	if writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024); writeLimit > 0 {
 		reader = ratelimit.Reader(r, ratelimit.NewBucketWithRate(float64(writeLimit), writeLimit))
 	}
-	gr, err := gzip.NewReader(reader)
-	if err != nil {
-		return err
-	}
-	defer gr.Close()
-	tr := tar.NewReader(gr)
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			// Do nothing, fall through to the next block of code in this loop.
-		}
-		header, err := tr.Next()
+	if err := format.Extract(ctx, reader, nil, func(ctx context.Context, f archiver.File) error {
+		r, err := f.Open()
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
 			return err
 		}
-		if header.Typeflag == tar.TypeReg {
-			if err := callback(header.Name, tr, header.FileInfo().Mode(), header.AccessTime, header.ModTime); err != nil {
-				return err
-			}
-		}
+		defer r.Close()
+
+		return callback(filesystem.ExtractNameFromArchive(f), f.FileInfo, r)
+	}); err != nil {
+		return err
 	}
 	return nil
 }
