@@ -14,6 +14,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/errdefs"
 	"github.com/goccy/go-json"
+
 	"github.com/pterodactyl/wings/config"
 )
 

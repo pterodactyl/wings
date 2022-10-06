@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"emperror.dev/errors"
+
 	"github.com/pterodactyl/wings/internal/database"
 	"github.com/pterodactyl/wings/internal/models"
 	"github.com/pterodactyl/wings/server"

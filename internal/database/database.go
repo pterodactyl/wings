@@ -6,11 +6,12 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/internal/models"
 	"github.com/pterodactyl/wings/system"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 var (

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/apex/log"
+
 	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/system"
 

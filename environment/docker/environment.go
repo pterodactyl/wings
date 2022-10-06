@@ -10,6 +10,7 @@ import (
 	"github.com/apex/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/events"
 	"github.com/pterodactyl/wings/remote"

@@ -17,6 +17,7 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+
 	"github.com/pterodactyl/wings/system"
 
 	"github.com/pterodactyl/wings/config"
