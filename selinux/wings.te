@@ -7,7 +7,8 @@ policy_module(wings, 1.0.0)
 
 type wings_t;
 type wings_exec_t;
-init_daemon_domain(wings_t, wings_exec_t)
+type wings_etc_t;
+init_daemon_domain(wings_t, wings_exec_t, wings_etc_t)
 
 permissive wings_t;
 
@@ -23,3 +24,9 @@ domain_use_interactive_fds(wings_t)
 files_read_etc_files(wings_t)
 
 miscfiles_read_localization(wings_t)
+
+require {
+        type wings_exec_t;
+        type bin_t;
+        class file execmod;
+}
