@@ -174,6 +174,16 @@ func (e *Environment) Create() error {
 		}
 	}
 
+	// Merge user-provided labels with system labels
+	confLabels := e.Configuration.Labels()
+	labels := make(map[string]string, 2+len(confLabels))
+
+	for key := range confLabels {
+		labels[key] = confLabels[key]
+	}
+	labels["Service"] = "Pterodactyl"
+	labels["ContainerType"] = "server_process"
+
 	conf := &container.Config{
 		Hostname:     e.Id,
 		Domainname:   config.Get().Docker.Domainname,
@@ -186,10 +196,7 @@ func (e *Environment) Create() error {
 		ExposedPorts: a.Exposed(),
 		Image:        strings.TrimPrefix(e.meta.Image, "~"),
 		Env:          e.Configuration.EnvironmentVariables(),
-		Labels: map[string]string{
-			"Service":       "Pterodactyl",
-			"ContainerType": "server_process",
-		},
+		Labels:       labels,
 	}
 
 	networkMode := container.NetworkMode(config.Get().Docker.Network.Mode)

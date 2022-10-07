@@ -16,14 +16,16 @@ type Configuration struct {
 	mu sync.RWMutex
 
 	environmentVariables []string
+	labels               map[string]string
 	settings             Settings
 }
 
 // Returns a new environment configuration with the given settings and environment variables
 // defined within it.
-func NewConfiguration(s Settings, envVars []string) *Configuration {
+func NewConfiguration(s Settings, envVars []string, labels map[string]string) *Configuration {
 	return &Configuration{
 		environmentVariables: envVars,
+		labels:               labels,
 		settings:             s,
 	}
 }
@@ -74,4 +76,12 @@ func (c *Configuration) EnvironmentVariables() []string {
 	defer c.mu.RUnlock()
 
 	return c.environmentVariables
+}
+
+// Labels returns the container labels associated with this instance.
+func (c *Configuration) Labels() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.labels
 }
