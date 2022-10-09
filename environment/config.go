@@ -8,6 +8,7 @@ type Settings struct {
 	Mounts      []Mount
 	Allocations Allocations
 	Limits      Limits
+	Labels      map[string]string
 }
 
 // Defines the actual configuration struct for the environment with all of the settings
@@ -16,16 +17,14 @@ type Configuration struct {
 	mu sync.RWMutex
 
 	environmentVariables []string
-	labels               map[string]string
 	settings             Settings
 }
 
 // Returns a new environment configuration with the given settings and environment variables
 // defined within it.
-func NewConfiguration(s Settings, envVars []string, labels map[string]string) *Configuration {
+func NewConfiguration(s Settings, envVars []string) *Configuration {
 	return &Configuration{
 		environmentVariables: envVars,
-		labels:               labels,
 		settings:             s,
 	}
 }
@@ -70,18 +69,18 @@ func (c *Configuration) Mounts() []Mount {
 	return c.settings.Mounts
 }
 
+// Labels returns the container labels associated with this instance.
+func (c *Configuration) Labels() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.settings.Labels
+}
+
 // Returns the environment variables associated with this instance.
 func (c *Configuration) EnvironmentVariables() []string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	return c.environmentVariables
-}
-
-// Labels returns the container labels associated with this instance.
-func (c *Configuration) Labels() map[string]string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return c.labels
 }

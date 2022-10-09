@@ -205,9 +205,10 @@ func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, 
 		Mounts:      s.Mounts(),
 		Allocations: s.cfg.Allocations,
 		Limits:      s.cfg.Build,
+		Labels:      s.cfg.Labels,
 	}
 
-	envCfg := environment.NewConfiguration(settings, s.GetEnvironmentVariables(), s.Config().Labels)
+	envCfg := environment.NewConfiguration(settings, s.GetEnvironmentVariables())
 	meta := docker.Metadata{
 		Image: s.Config().Container.Image,
 	}
