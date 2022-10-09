@@ -26,7 +26,7 @@ allow wings_t container_var_run_t:sock_file write;
 allow wings_t http_cache_port_t:tcp_socket name_bind;
 allow wings_t http_port_t:tcp_socket name_connect;
 allow wings_t node_t:tcp_socket node_bind;
-allow wings_t passwd_file_t:file { open read };
+allow wings_t passwd_file_t:file { write open read };
 allow wings_t self:capability { chown dac_override dac_read_search };
 allow wings_t self:netlink_route_socket { bind create getattr nlmsg_read };
 allow wings_t self:process execmem;
