@@ -11,8 +11,6 @@ type wings_etc_t;
 type wings_tmp_t;
 init_daemon_domain(wings_t, wings_exec_t, wings_etc_t, wings_tmp_t)
 
-permissive wings_t;
-
 ########################################
 #
 # wings local policy
