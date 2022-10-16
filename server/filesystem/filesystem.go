@@ -2,7 +2,6 @@ package filesystem
 
 import (
 	"bufio"
-	"context"
 	"io"
 	"io/ioutil"
 	"os"
@@ -56,38 +55,15 @@ func New(uuid string, size int64, denylist []string) *Filesystem {
 	}
 
 	if config.Get().System.UseVirtualDisks {
-		fs.vhd = vhd.New(size, VirtualDiskPath(uuid), fs.root)
+		fs.vhd = vhd.New(size, vhd.DiskPath(uuid), fs.root)
 	}
 
 	return &fs
 }
 
-func VirtualDiskPath(uuid string) string {
-	return filepath.Join(config.Get().System.Data, ".vhd/", uuid+".img")
-}
-
 // Path returns the root path for the Filesystem instance.
 func (fs *Filesystem) Path() string {
 	return fs.root
-}
-
-// IsVirtual returns true if the filesystem is currently using a virtual disk.
-func (fs *Filesystem) IsVirtual() bool {
-	return fs.vhd != nil
-}
-
-// MountDisk will attempt to mount the underlying virtual disk for the server.
-// If the disk is already mounted this is a no-op function. If the filesystem is
-// not configured for virtual disks this function will panic.
-func (fs *Filesystem) MountDisk(ctx context.Context) error {
-	if !fs.IsVirtual() {
-		panic(errors.New("filesystem: cannot call MountDisk on Filesystem instance without VHD present"))
-	}
-	err := fs.vhd.Mount(ctx)
-	if errors.Is(err, vhd.ErrFilesystemMounted) {
-		return nil
-	}
-	return errors.WrapIf(err, "filesystem: failed to mount VHD")
 }
 
 // File returns a reader for a file instance as well as the stat information.

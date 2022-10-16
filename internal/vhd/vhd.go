@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"emperror.dev/errors"
@@ -55,6 +56,12 @@ type Disk struct {
 	mountAt   string
 	fs        afero.Fs
 	commander CommanderProvider
+}
+
+// DiskPath returns the underlying path that contains the virtual disk for the server
+// identified by its UUID.
+func DiskPath(uuid string) string {
+	return filepath.Join(config.Get().System.Data, ".vhd/", uuid+".img")
 }
 
 // New returns a new Disk instance. The "size" parameter should be provided in

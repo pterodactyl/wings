@@ -13,7 +13,6 @@ import (
 	"github.com/pterodactyl/wings/loggers/cli"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server"
-	"github.com/pterodactyl/wings/server/filesystem"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +22,7 @@ type MigrateVHDCommand struct {
 
 func newMigrateVHDCommand() *cobra.Command {
 	return &cobra.Command{
-		Use: "migrate-vhd",
+		Use:   "migrate-vhd",
 		Short: "migrates existing data from a directory tree into virtual hard-disks",
 		PreRun: func(cmd *cobra.Command, args []string) {
 			log.SetLevel(log.DebugLevel)
@@ -53,7 +52,7 @@ func (m *MigrateVHDCommand) Run(ctx context.Context) error {
 	for _, s := range m.manager.All() {
 		s.Log().Debug("starting migration of server contents to virtual disk...")
 
-		v := vhd.New(s.DiskSpace(), filesystem.VirtualDiskPath(s.Id()), s.Filesystem().Path())
+		v := vhd.New(s.DiskSpace(), vhd.DiskPath(s.ID()), s.Filesystem().Path())
 		s.Log().WithField("disk_image", v.Path()).Info("creating virtual disk for server")
 		if err := v.Allocate(ctx); err != nil {
 			return errors.WithStackIf(err)
