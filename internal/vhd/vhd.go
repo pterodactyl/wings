@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"emperror.dev/errors"
 	"github.com/pterodactyl/wings/config"
@@ -20,6 +21,9 @@ var (
 	ErrFilesystemMounted     = errors.Sentinel("vhd: filesystem is already mounted")
 	ErrFilesystemExists      = errors.Sentinel("vhd: filesystem already exists on disk")
 )
+
+var useDdAllocation bool
+var setDdAllocator sync.Once
 
 // hasExitCode allows this code to test the response error to see if there is
 // an exit code available from the command call that can be used to determine if
@@ -157,7 +161,7 @@ func (d *Disk) Mount(ctx context.Context) error {
 	if st, err := d.fs.Stat(d.mountAt); err != nil && !os.IsNotExist(err) {
 		return errors.Wrap(err, "vhd: failed to stat mount path")
 	} else if os.IsNotExist(err) {
-		if err := d.fs.MkdirAll(d.mountAt, 0600); err != nil {
+		if err := d.fs.MkdirAll(d.mountAt, 0700); err != nil {
 			return errors.Wrap(err, "vhd: failed to create mount path")
 		}
 	} else if !st.IsDir() {
@@ -191,6 +195,19 @@ func (d *Disk) Unmount(ctx context.Context) error {
 	return nil
 }
 
+// allocationCmd returns the command to allocate the disk image. This will attempt to
+// use the fallocate command if available, otherwise it will fall back to dd if the
+// fallocate command has previously failed.
+//
+// We use 1024 as the multiplier for all of the disk space logic within the application.
+// Passing "K" (/1024) is the same as "KiB" for fallocate, but is different than "KB" (/1000).
+func (d *Disk) alloc(ctx context.Context) Commander {
+	if useDdAllocation {
+		return d.commander(ctx, "dd", "if=/dev/zero", fmt.Sprintf("of=%s", d.diskPath), fmt.Sprintf("bs=%dk", d.size/1024), "count=1")
+	}
+	return d.commander(ctx, "fallocate", "-l", fmt.Sprintf("%dK", d.size/1024), d.diskPath)
+}
+
 // Allocate executes the "fallocate" command on the disk. This will first unmount
 // the disk from the system before attempting to actually allocate the space. If
 // this disk already exists on the machine it will be resized accordingly.
@@ -208,17 +225,23 @@ func (d *Disk) Allocate(ctx context.Context) error {
 		return errors.Wrap(err, "vhd: failed to check for existence of root disk")
 	}
 	trim := path.Base(d.diskPath)
-	if err := d.fs.MkdirAll(strings.TrimSuffix(d.diskPath, trim), 0600); err != nil {
+	if err := d.fs.MkdirAll(strings.TrimSuffix(d.diskPath, trim), 0700); err != nil {
 		return errors.Wrap(err, "vhd: failed to create base vhd disk directory")
 	}
-	// We use 1024 as the multiplier for all of the disk space logic within the
-	// application. Passing "K" (/1024) is the same as "KiB" for fallocate, but
-	// is different than "KB" (/1000).
-	cmd := d.commander(ctx, "fallocate", "-l", fmt.Sprintf("%dK", d.size/1024), d.diskPath)
+	cmd := d.alloc(ctx)
 	if _, err := cmd.Output(); err != nil {
-		msg := "vhd: failed to execute fallocate command"
+		msg := "vhd: failed to execute space allocation command"
 		if v, ok := err.(*exec.ExitError); ok {
-			msg = msg + ": " + strings.Trim(string(v.Stderr), ".\n")
+			stderr := strings.Trim(string(v.Stderr), ".\n")
+			if !useDdAllocation && strings.HasSuffix(stderr, "not supported") {
+				// Try again: fallocate is not supported on some filesystems so we'll fall
+				// back to making use of dd for subsequent operations.
+				setDdAllocator.Do(func() {
+					useDdAllocation = true
+				})
+				return d.Allocate(ctx)
+			}
+			msg = msg + ": " + stderr
 		}
 		return errors.Wrap(err, msg)
 	}
