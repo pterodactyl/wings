@@ -7,12 +7,12 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.6
 	github.com/Jeffail/gabs/v2 v2.6.1
 	github.com/NYTimes/logrotate v1.0.0
+	github.com/acobaugh/osrelease v0.1.0
 	github.com/apex/log v1.9.0
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d
 	github.com/beevik/etree v1.1.0
 	github.com/buger/jsonparser v1.1.1
 	github.com/cenkalti/backoff/v4 v4.1.3
-	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/creasty/defaults v1.6.0
 	github.com/docker/docker v20.10.18+incompatible
 	github.com/docker/go-connections v0.4.0

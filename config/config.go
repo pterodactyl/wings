@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"emperror.dev/errors"
+	"github.com/acobaugh/osrelease"
 	"github.com/apex/log"
-	"github.com/cobaugh/osrelease"
 	"github.com/creasty/defaults"
 	"github.com/gbrlsnchs/jwt/v3"
 	"gopkg.in/yaml.v2"

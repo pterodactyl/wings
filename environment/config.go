@@ -8,6 +8,7 @@ type Settings struct {
 	Mounts      []Mount
 	Allocations Allocations
 	Limits      Limits
+	Labels      map[string]string
 }
 
 // Defines the actual configuration struct for the environment with all of the settings
@@ -66,6 +67,14 @@ func (c *Configuration) Mounts() []Mount {
 	defer c.mu.RUnlock()
 
 	return c.settings.Mounts
+}
+
+// Labels returns the container labels associated with this instance.
+func (c *Configuration) Labels() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.settings.Labels
 }
 
 // Returns the environment variables associated with this instance.
