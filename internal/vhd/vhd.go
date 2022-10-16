@@ -201,7 +201,7 @@ func (d *Disk) Unmount(ctx context.Context) error {
 //
 // We use 1024 as the multiplier for all of the disk space logic within the application.
 // Passing "K" (/1024) is the same as "KiB" for fallocate, but is different than "KB" (/1000).
-func (d *Disk) alloc(ctx context.Context) Commander {
+func (d *Disk) allocationCmd(ctx context.Context) Commander {
 	if useDdAllocation {
 		return d.commander(ctx, "dd", "if=/dev/zero", fmt.Sprintf("of=%s", d.diskPath), fmt.Sprintf("bs=%dk", d.size/1024), "count=1")
 	}
@@ -228,7 +228,7 @@ func (d *Disk) Allocate(ctx context.Context) error {
 	if err := d.fs.MkdirAll(strings.TrimSuffix(d.diskPath, trim), 0700); err != nil {
 		return errors.Wrap(err, "vhd: failed to create base vhd disk directory")
 	}
-	cmd := d.alloc(ctx)
+	cmd := d.allocationCmd(ctx)
 	if _, err := cmd.Output(); err != nil {
 		msg := "vhd: failed to execute space allocation command"
 		if v, ok := err.(*exec.ExitError); ok {
@@ -245,7 +245,7 @@ func (d *Disk) Allocate(ctx context.Context) error {
 		}
 		return errors.Wrap(err, msg)
 	}
-	return nil
+	return errors.WithStack(d.fs.Chmod(d.diskPath, 0600))
 }
 
 // MakeFilesystem will attempt to execute the "mkfs" command against the disk on
