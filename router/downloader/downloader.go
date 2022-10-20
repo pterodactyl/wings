@@ -163,6 +163,17 @@ func (dl *Download) Execute() error {
 		return ErrDownloadFailed
 	}
 	defer res.Body.Close()
+
+	//If the http code is a redirect get the location and set the url to that
+	if res.StatusCode == http.StatusMovedPermanently || res.StatusCode == http.StatusFound {
+		redirect, redirectError := url.Parse(res.Header.Get("Location"))
+		if redirectError != nil {
+			return errors.New("downloader: redirect specified without loication")
+		}
+		dl.req.URL = redirect
+		return dl.Execute()
+	}
+
 	if res.StatusCode != http.StatusOK {
 		return errors.New("downloader: got bad response status from endpoint: " + res.Status)
 	}
