@@ -135,7 +135,7 @@ func (e *Environment) Exists() (bool, error) {
 // You can confirm if the instance wasn't found by using client.IsErrNotFound
 // from the Docker API.
 //
-// @see docker/client/request_error.go
+// @see docker/client/errors.go
 func (e *Environment) IsRunning(ctx context.Context) (bool, error) {
 	c, err := e.ContainerInspect(ctx)
 	if err != nil {

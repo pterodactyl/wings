@@ -115,11 +115,13 @@ func (re *RequestError) asFilesystemError() (int, string) {
 	if err == nil {
 		return 0, ""
 	}
+	if filesystem.IsErrorCode(err, filesystem.ErrNotExist) ||
+		filesystem.IsErrorCode(err, filesystem.ErrCodePathResolution) ||
+		strings.Contains(err.Error(), "resolves to a location outside the server root") {
+		return http.StatusNotFound, "The requested resources was not found on the system."
+	}
 	if filesystem.IsErrorCode(err, filesystem.ErrCodeDenylistFile) || strings.Contains(err.Error(), "filesystem: file access prohibited") {
 		return http.StatusForbidden, "This file cannot be modified: present in egg denylist."
-	}
-	if filesystem.IsErrorCode(err, filesystem.ErrCodePathResolution) || strings.Contains(err.Error(), "resolves to a location outside the server root") {
-		return http.StatusNotFound, "The requested resource was not found on the system."
 	}
 	if filesystem.IsErrorCode(err, filesystem.ErrCodeIsDirectory) || strings.Contains(err.Error(), "filesystem: is a directory") {
 		return http.StatusBadRequest, "Cannot perform that action: file is a directory."
