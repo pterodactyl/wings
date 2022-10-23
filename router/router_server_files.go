@@ -81,7 +81,7 @@ func getServerListDirectory(c *gin.Context) {
 	s := ExtractServer(c)
 	dir := c.Query("directory")
 	if stats, err := s.Filesystem().ListDirectory(dir); err != nil {
-		WithError(c, err)
+		middleware.CaptureAndAbort(c, err)
 	} else {
 		c.JSON(http.StatusOK, stats)
 	}
@@ -154,7 +154,7 @@ func putServerRenameFiles(c *gin.Context) {
 			return
 		}
 
-		NewServerError(err, s).AbortFilesystemError(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -174,11 +174,11 @@ func postServerCopyFile(c *gin.Context) {
 	}
 
 	if err := s.Filesystem().IsIgnored(data.Location); err != nil {
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 	if err := s.Filesystem().Copy(data.Location); err != nil {
-		NewServerError(err, s).AbortFilesystemError(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -223,7 +223,7 @@ func postServerDeleteFiles(c *gin.Context) {
 	}
 
 	if err := g.Wait(); err != nil {
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -238,7 +238,7 @@ func postServerWriteFile(c *gin.Context) {
 	f = "/" + strings.TrimLeft(f, "/")
 
 	if err := s.Filesystem().IsIgnored(f); err != nil {
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 	if err := s.Filesystem().Writefile(f, c.Request.Body); err != nil {
@@ -249,7 +249,7 @@ func postServerWriteFile(c *gin.Context) {
 			return
 		}
 
-		NewServerError(err, s).AbortFilesystemError(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -296,12 +296,12 @@ func postServerPullRemoteFile(c *gin.Context) {
 			})
 			return
 		}
-		WithError(c, err)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
 	if err := s.Filesystem().HasSpaceErr(true); err != nil {
-		WithError(c, err)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 	// Do not allow more than three simultaneous remote file downloads at one time.
@@ -340,13 +340,13 @@ func postServerPullRemoteFile(c *gin.Context) {
 	}
 
 	if err := download(); err != nil {
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
 	st, err := s.Filesystem().Stat(dl.Path())
 	if err != nil {
-		NewServerError(err, s).AbortFilesystemError(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, &st)
@@ -382,7 +382,7 @@ func postServerCreateDirectory(c *gin.Context) {
 			return
 		}
 
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -417,7 +417,7 @@ func postServerCompressFiles(c *gin.Context) {
 
 	f, err := s.Filesystem().CompressFiles(data.RootPath, data.Files)
 	if err != nil {
-		NewServerError(err, s).AbortFilesystemError(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -535,7 +535,7 @@ func postServerChmodFile(c *gin.Context) {
 			return
 		}
 
-		NewServerError(err, s).AbortFilesystemError(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -547,7 +547,7 @@ func postServerUploadFiles(c *gin.Context) {
 
 	token := tokens.UploadPayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
-		NewTrackedError(err).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -593,14 +593,14 @@ func postServerUploadFiles(c *gin.Context) {
 	for _, header := range headers {
 		p, err := s.Filesystem().SafePath(filepath.Join(directory, header.Filename))
 		if err != nil {
-			NewServerError(err, s).Abort(c)
+			middleware.CaptureAndAbort(c, err)
 			return
 		}
 
 		// We run this in a different method so I can use defer without any of
 		// the consequences caused by calling it in a loop.
 		if err := handleFileUpload(p, s, header); err != nil {
-			NewServerError(err, s).Abort(c)
+			middleware.CaptureAndAbort(c, err)
 			return
 		} else {
 			s.SaveActivity(s.NewRequestActivity(token.UserUuid, c.ClientIP()), server.ActivityFileUploaded, models.ActivityMeta{

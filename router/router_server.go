@@ -34,7 +34,7 @@ func getServerLogs(c *gin.Context) {
 
 	out, err := s.ReadLogfile(l)
 	if err != nil {
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -108,7 +108,7 @@ func postServerCommands(c *gin.Context) {
 	s := ExtractServer(c)
 
 	if running, err := s.Environment.IsRunning(c.Request.Context()); err != nil {
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	} else if !running {
 		c.AbortWithStatusJSON(http.StatusBadGateway, gin.H{
@@ -142,7 +142,7 @@ func postServerSync(c *gin.Context) {
 	s := ExtractServer(c)
 
 	if err := s.Sync(); err != nil {
-		WithError(c, err)
+		middleware.CaptureAndAbort(c, err)
 	} else {
 		c.Status(http.StatusNoContent)
 	}
@@ -199,7 +199,7 @@ func deleteServer(c *gin.Context) {
 	// forcibly terminate it before removing the container, so we do not need to handle
 	// that here.
 	if err := s.Environment.Destroy(); err != nil {
-		WithError(c, err)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 

@@ -20,8 +20,7 @@ import (
 func getSystemInformation(c *gin.Context) {
 	i, err := system.GetSystemInformation()
 	if err != nil {
-		NewTrackedError(err).Abort(c)
-
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -117,7 +116,7 @@ func postUpdateConfiguration(c *gin.Context) {
 	// Try to write this new configuration to the disk before updating our global
 	// state with it.
 	if err := config.WriteToDisk(cfg); err != nil {
-		WithError(c, err)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 	// Since we wrote it to the disk successfully now update the global configuration

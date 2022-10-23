@@ -59,7 +59,7 @@ func getServerArchive(c *gin.Context) {
 
 	token := tokens.TransferPayload{}
 	if err := tokens.ParseToken([]byte(auth[1]), &token); err != nil {
-		NewTrackedError(err).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -77,7 +77,7 @@ func getServerArchive(c *gin.Context) {
 	st, err := os.Lstat(archivePath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			_ = WithError(c, err)
+			middleware.CaptureAndAbort(c, err)
 			return
 		}
 		c.AbortWithStatus(http.StatusNotFound)
@@ -92,11 +92,11 @@ func getServerArchive(c *gin.Context) {
 	}
 	if _, err := io.Copy(h, bufio.NewReader(f)); err != nil {
 		_ = f.Close()
-		_ = WithError(c, err)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 	if err := f.Close(); err != nil {
-		_ = WithError(c, err)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 	checksum := hex.EncodeToString(h.Sum(nil))
@@ -104,7 +104,7 @@ func getServerArchive(c *gin.Context) {
 	// Stream the file to the client.
 	f, err = os.Open(archivePath)
 	if err != nil {
-		_ = WithError(c, err)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 	defer f.Close()
@@ -334,7 +334,7 @@ func postTransfer(c *gin.Context) {
 	manager := middleware.ExtractManager(c)
 	u, err := uuid.Parse(data.ServerID)
 	if err != nil {
-		_ = WithError(c, err)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 	// Force the server ID to be a valid UUID string at this point. If it is not an error
