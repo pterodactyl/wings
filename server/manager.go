@@ -197,11 +197,11 @@ func (m *Manager) InitServer(ctx context.Context, data remote.ServerConfiguratio
 		return nil, errors.WithStackIf(err)
 	}
 
-	s.fs = filesystem.New(s.Id(), s.DiskSpace(), s.Config().Egg.FileDenylist)
-	// If this is a virtuakl filesystem we need to go ahead and mount the disk
+	s.fs = filesystem.New(s.ID(), s.DiskSpace(), s.Config().Egg.FileDenylist)
+	// If this is a virtual filesystem we need to go ahead and mount the disk
 	// so that everything is accessible.
 	if s.fs.IsVirtual() && !m.skipVhdInitialization {
-		log.WithField("server", s.Id()).Info("mounting virtual disk for server")
+		log.WithField("server", s.ID()).Info("mounting virtual disk for server")
 		if err := s.fs.MountDisk(ctx); err != nil {
 			return nil, err
 		}

@@ -2,23 +2,24 @@ package vhd
 
 import (
 	"context"
+	"emperror.dev/errors"
 	"fmt"
+	"github.com/pterodactyl/wings/config"
+	"github.com/spf13/afero"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
 	"sync"
-
-	"emperror.dev/errors"
-	"github.com/pterodactyl/wings/config"
-	"github.com/spf13/afero"
+	"sync/atomic"
 )
 
 var (
 	ErrInvalidDiskPathTarget = errors.Sentinel("vhd: disk path is a directory or symlink")
 	ErrMountPathNotDirectory = errors.Sentinel("vhd: mount point is not a directory")
 	ErrFilesystemMounted     = errors.Sentinel("vhd: filesystem is already mounted")
+	ErrFilesystemNotMounted  = errors.Sentinel("vhd: filesystem is not mounted")
 	ErrFilesystemExists      = errors.Sentinel("vhd: filesystem already exists on disk")
 )
 
@@ -51,6 +52,7 @@ type CfgOption func(d *Disk) *Disk
 
 // Disk represents the underlying virtual disk for the instance.
 type Disk struct {
+	mu sync.RWMutex
 	// The total size of the disk allowed in bytes.
 	size int64
 	// The path where the disk image should be created.
@@ -123,6 +125,8 @@ func (d *Disk) MountPath() string {
 // the presence of the disk image, not the validity of it. An error is returned
 // if the path exists but the destination is not a file or is a symlink.
 func (d *Disk) Exists() (bool, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	st, err := d.fs.Stat(d.diskPath)
 	if err != nil && os.IsNotExist(err) {
 		return false, nil
@@ -158,59 +162,18 @@ func (d *Disk) IsMounted(ctx context.Context) (bool, error) {
 // returned to the caller. If the disk is already mounted an ErrFilesystemMounted
 // error is returned to the caller.
 func (d *Disk) Mount(ctx context.Context) error {
-	if isMounted, err := d.IsMounted(ctx); err != nil {
-		return errors.WithStackIf(err)
-	} else if isMounted {
-		return ErrFilesystemMounted
-	}
-	if st, err := d.fs.Stat(d.mountAt); err != nil && !os.IsNotExist(err) {
-		return errors.Wrap(err, "vhd: failed to stat mount path")
-	} else if os.IsNotExist(err) {
-		if err := d.fs.MkdirAll(d.mountAt, 0700); err != nil {
-			return errors.Wrap(err, "vhd: failed to create mount path")
-		}
-	} else if !st.IsDir() {
-		return errors.WithStack(ErrMountPathNotDirectory)
-	}
-	u := config.Get().System.User
-	if err := d.fs.Chown(d.mountAt, u.Uid, u.Gid); err != nil {
-		return errors.Wrap(err, "vhd: failed to chown mount point")
-	}
-	cmd := d.commander(ctx, "mount", "-t", "auto", "-o", "loop", d.diskPath, d.mountAt)
-	if _, err := cmd.Output(); err != nil {
-		msg := "vhd: failed to mount disk"
-		if v, ok := err.(*exec.ExitError); ok {
-			msg = msg + ": " + strings.Trim(string(v.Stderr), ".\n")
-		}
-		return errors.Wrap(err, msg)
-	}
-	return nil
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.mount(ctx)
 }
 
 // Unmount attempts to unmount the disk from the system. If the disk is not
-// currently mounted this function is a no-op and no error is returned. Any
-// other error encountered while unmounting will return an error to the caller.
+// currently mounted this function is a no-op and ErrFilesystemNotMounted is
+// returned to the caller.
 func (d *Disk) Unmount(ctx context.Context) error {
-	cmd := d.commander(ctx, "umount", d.mountAt)
-	if err := cmd.Run(); err != nil {
-		if v, ok := err.(hasExitCode); !ok || v.ExitCode() != 32 {
-			return errors.Wrap(err, "vhd: failed to execute unmount command for disk")
-		}
-	}
-	return nil
-}
-
-// allocationCmd returns the command to allocate the disk image. This will attempt to
-// use the fallocate command if available, otherwise it will fall back to dd if the
-// fallocate command has previously failed.
-//
-// We use 1024 as the multiplier for all of the disk space logic within the application.
-// Passing "K" (/1024) is the same as "KiB" for fallocate, but is different than "KB" (/1000).
-func (d *Disk) allocationCmd(ctx context.Context) Commander {
-	if useDdAllocation {
-		return d.commander(ctx, "dd", "if=/dev/zero", fmt.Sprintf("of=%s", d.diskPath), fmt.Sprintf("bs=%dk", d.size/1024), "count=1")
-	}
-	return d.commander(ctx, "fallocate", "-l", fmt.Sprintf("%dK", d.size/1024), d.diskPath)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.unmount(ctx)
 }
 
 // Allocate executes the "fallocate" command on the disk. This will first unmount
@@ -220,6 +183,8 @@ func (d *Disk) allocationCmd(ctx context.Context) Commander {
 // DANGER! This will unmount the disk from the machine while performing this
 // action, use caution when calling it during normal processes.
 func (d *Disk) Allocate(ctx context.Context) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if exists, err := d.Exists(); exists {
 		// If the disk currently exists attempt to unmount the mount point before
 		// allocating space.
@@ -253,11 +218,30 @@ func (d *Disk) Allocate(ctx context.Context) error {
 	return errors.WithStack(d.fs.Chmod(d.diskPath, 0600))
 }
 
+// Resize will change the internal disk size limit and then allocate the new
+// space to the disk automatically.
+func (d *Disk) Resize(ctx context.Context, size int64) error {
+	atomic.StoreInt64(&d.size, size)
+	return d.Allocate(ctx)
+}
+
+// Destroy removes the underlying allocated disk image and unmounts the disk.
+func (d *Disk) Destroy(ctx context.Context) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.unmount(ctx); err != nil {
+		return errors.WithStackIf(err)
+	}
+	return errors.WithStackIf(d.fs.RemoveAll(d.mountAt))
+}
+
 // MakeFilesystem will attempt to execute the "mkfs" command against the disk on
 // the machine. If the disk has already been created this command will return an
 // ErrFilesystemExists error to the caller. You should manually unmount the disk
 // if it shouldn't be mounted at this point.
 func (d *Disk) MakeFilesystem(ctx context.Context) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	// If no error is returned when mounting DO NOT execute this command as it will
 	// completely destroy the data stored at that location.
 	err := d.Mount(ctx)
@@ -284,4 +268,63 @@ func (d *Disk) MakeFilesystem(ctx context.Context) error {
 		return errors.Wrap(err, "vhd: failed to make filesystem for disk")
 	}
 	return nil
+}
+
+func (d *Disk) mount(ctx context.Context) error {
+	if isMounted, err := d.IsMounted(ctx); err != nil {
+		return errors.WithStackIf(err)
+	} else if isMounted {
+		return ErrFilesystemMounted
+	}
+
+	if st, err := d.fs.Stat(d.mountAt); err != nil && !os.IsNotExist(err) {
+		return errors.Wrap(err, "vhd: failed to stat mount path")
+	} else if os.IsNotExist(err) {
+		if err := d.fs.MkdirAll(d.mountAt, 0700); err != nil {
+			return errors.Wrap(err, "vhd: failed to create mount path")
+		}
+	} else if !st.IsDir() {
+		return errors.WithStack(ErrMountPathNotDirectory)
+	}
+
+	u := config.Get().System.User
+	if err := d.fs.Chown(d.mountAt, u.Uid, u.Gid); err != nil {
+		return errors.Wrap(err, "vhd: failed to chown mount point")
+	}
+
+	cmd := d.commander(ctx, "mount", "-t", "auto", "-o", "loop", d.diskPath, d.mountAt)
+	if _, err := cmd.Output(); err != nil {
+		msg := "vhd: failed to mount disk"
+		if v, ok := err.(*exec.ExitError); ok {
+			msg = msg + ": " + strings.Trim(string(v.Stderr), ".\n")
+		}
+		return errors.Wrap(err, msg)
+	}
+	return nil
+}
+
+func (d *Disk) unmount(ctx context.Context) error {
+	cmd := d.commander(ctx, "umount", d.mountAt)
+	if err := cmd.Run(); err != nil {
+		v, ok := err.(hasExitCode)
+		if ok && v.ExitCode() == 32 {
+			return ErrFilesystemNotMounted
+		}
+		return errors.Wrap(err, "vhd: failed to execute unmount command for disk")
+	}
+	return nil
+}
+
+// allocationCmd returns the command to allocate the disk image. This will attempt to
+// use the fallocate command if available, otherwise it will fall back to dd if the
+// fallocate command has previously failed.
+//
+// We use 1024 as the multiplier for all of the disk space logic within the application.
+// Passing "K" (/1024) is the same as "KiB" for fallocate, but is different than "KB" (/1000).
+func (d *Disk) allocationCmd(ctx context.Context) Commander {
+	s := atomic.LoadInt64(&d.size) / 1024
+	if useDdAllocation {
+		return d.commander(ctx, "dd", "if=/dev/zero", fmt.Sprintf("of=%s", d.diskPath), fmt.Sprintf("bs=%dk", s), "count=1")
+	}
+	return d.commander(ctx, "fallocate", "-l", fmt.Sprintf("%dK", s), d.diskPath)
 }

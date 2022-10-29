@@ -1,6 +1,8 @@
 package filesystem
 
 import (
+	"context"
+	"github.com/pterodactyl/wings/internal/vhd"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -35,14 +37,42 @@ func (ult *usageLookupTime) Get() time.Time {
 	return ult.value
 }
 
-// Returns the maximum amount of disk space that this Filesystem instance is allowed to use.
+// MaxDisk returns the maximum amount of disk space that this Filesystem
+// instance is allowed to use.
 func (fs *Filesystem) MaxDisk() int64 {
 	return atomic.LoadInt64(&fs.diskLimit)
 }
 
-// Sets the disk space limit for this Filesystem instance.
-func (fs *Filesystem) SetDiskLimit(i int64) {
-	atomic.SwapInt64(&fs.diskLimit, i)
+// SetDiskLimit sets the disk space limit for this Filesystem instance. This
+// logic will also handle mounting or unmounting a virtual disk if it is being
+// used currently.
+func (fs *Filesystem) SetDiskLimit(ctx context.Context, i int64) error {
+	// Do nothing if this method is called but the limit is not changing.
+	if atomic.LoadInt64(&fs.diskLimit) == i {
+		return nil
+	}
+	if vhd.Enabled() {
+		if i == 0 && fs.IsVirtual() {
+			fs.log().Debug("disk limit changed to 0, destroying virtual disk")
+			// Remove the VHD if it is mounted so that we're just storing files directly on the system
+			// since we cannot have a virtual disk with a space limit enforced like that.
+			if err := fs.vhd.Destroy(ctx); err != nil {
+				return errors.WithStackIf(err)
+			}
+			fs.vhd = nil
+		}
+		// If we're setting a disk size go ahead and mount the VHD if it isn't already mounted,
+		// and then allocate the new space to the disk.
+		if i > 0 {
+			fs.log().Debug("disk limit updated, allocating new space to virtual disk")
+			if err := fs.ConfigureDisk(ctx, i); err != nil {
+				return errors.WithStackIf(err)
+			}
+		}
+	}
+	fs.log().WithField("limit", i).Debug("disk limit updated")
+	atomic.StoreInt64(&fs.diskLimit, i)
+	return nil
 }
 
 // HasSpaceErr is the same concept as HasSpaceAvailable however this will return
@@ -76,8 +106,7 @@ func (fs *Filesystem) HasSpaceErr(allowStaleValue bool) error {
 func (fs *Filesystem) HasSpaceAvailable(allowStaleValue bool) bool {
 	size, err := fs.DiskUsage(allowStaleValue)
 	if err != nil {
-		log.WithField("root", fs.root).WithField("error", err).
-			Warn("failed to determine root fs directory size")
+		fs.log().WithField("error", err).Warn("failed to determine root fs directory size")
 	}
 	return fs.MaxDisk() == 0 || size <= fs.MaxDisk()
 }
@@ -125,8 +154,7 @@ func (fs *Filesystem) DiskUsage(allowStaleValue bool) (int64, error) {
 		if !fs.lookupInProgress.Load() {
 			go func(fs *Filesystem) {
 				if _, err := fs.updateCachedDiskUsage(); err != nil {
-					log.WithField("root", fs.root).WithField("error", err).
-						Warn("failed to update fs disk usage from within routine")
+					fs.log().WithField("error", err).Warn("failed to update fs disk usage from within routine")
 				}
 			}(fs)
 		}
@@ -248,4 +276,8 @@ func (fs *Filesystem) addDisk(i int64) int64 {
 	}
 
 	return atomic.AddInt64(&fs.diskUsed, i)
+}
+
+func (fs *Filesystem) log() *log.Entry {
+	return log.WithField("server", fs.uuid).WithField("root", fs.root)
 }

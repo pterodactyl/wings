@@ -11,13 +11,29 @@ func (fs *Filesystem) IsVirtual() bool {
 	return fs.vhd != nil
 }
 
-// MountDisk will attempt to mount the underlying virtual disk for the server.
-// If the disk is already mounted this is a no-op function. If the filesystem is
-// not configured for virtual disks this function will panic.
-func (fs *Filesystem) MountDisk(ctx context.Context) error {
-	if !fs.IsVirtual() {
-		panic(errors.New("filesystem: cannot call MountDisk on Filesystem instance without VHD present"))
+// ConfigureDisk will attempt to create a new VHD if there is not one already
+// created for the filesystem. If there is this method will attempt to resize
+// the underlying data volume. Passing a size of 0 or less will panic.
+func (fs *Filesystem) ConfigureDisk(ctx context.Context, size int64) error {
+	if size <= 0 {
+		panic("filesystem: attempt to configure disk with empty size")
 	}
+	if fs.vhd == nil {
+		fs.vhd = vhd.New(size, vhd.DiskPath(fs.uuid), fs.root)
+		if err := fs.MountDisk(ctx); err != nil {
+			return errors.WithStackIf(err)
+		}
+	}
+	// Resize the disk now that it is for sure mounted and exists on the system.
+	if err := fs.vhd.Resize(ctx, size); err != nil {
+		return errors.WithStackIf(err)
+	}
+	return nil
+}
+
+// MountDisk will attempt to mount the underlying virtual disk for the server.
+// If the disk is already mounted this is a no-op function.
+func (fs *Filesystem) MountDisk(ctx context.Context) error {
 	err := fs.vhd.Mount(ctx)
 	if errors.Is(err, vhd.ErrFilesystemMounted) {
 		return nil

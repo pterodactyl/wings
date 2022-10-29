@@ -38,6 +38,7 @@ type Filesystem struct {
 
 	// The root data directory path for this Filesystem instance.
 	root string
+	uuid string
 
 	isTest bool
 }
@@ -46,6 +47,7 @@ type Filesystem struct {
 func New(uuid string, size int64, denylist []string) *Filesystem {
 	root := filepath.Join(config.Get().System.Data, uuid)
 	fs := Filesystem{
+		uuid:              uuid,
 		root:              root,
 		diskLimit:         size,
 		diskCheckInterval: time.Duration(config.Get().System.DiskCheckInterval),

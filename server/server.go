@@ -179,6 +179,8 @@ func (s *Server) Log() *log.Entry {
 //
 // This also means mass actions can be performed against servers on the Panel
 // and they will automatically sync with Wings when the server is started.
+//
+// TODO: accept a context value rather than using the server's context.
 func (s *Server) Sync() error {
 	cfg, err := s.client.GetServerConfiguration(s.Context(), s.ID())
 	if err != nil {
@@ -194,7 +196,9 @@ func (s *Server) Sync() error {
 
 	// Update the disk space limits for the server whenever the configuration for
 	// it changes.
-	s.fs.SetDiskLimit(s.DiskSpace())
+	if err := s.fs.SetDiskLimit(s.Context(), s.DiskSpace()); err != nil {
+		return errors.WrapIf(err, "server: failed to sync server configuration from API")
+	}
 
 	s.SyncWithEnvironment()
 
