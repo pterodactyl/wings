@@ -54,7 +54,10 @@ func New(uuid string, size int64, denylist []string) *Filesystem {
 		denylist:          ignore.CompileIgnoreLines(denylist...),
 	}
 
-	if vhd.Enabled() {
+	// If VHD support is enabled but this server is configured with no disk size
+	// limit we cannot actually use a virtual disk. In that case fall back to using
+	// the default driver.
+	if vhd.Enabled() && size > 0 {
 		fs.vhd = vhd.New(size, vhd.DiskPath(uuid), fs.root)
 	}
 
@@ -86,9 +89,9 @@ func (fs *Filesystem) File(p string) (*os.File, Stat, error) {
 	return f, st, nil
 }
 
-// Acts by creating the given file and path on the disk if it is not present already. If
-// it is present, the file is opened using the defaults which will truncate the contents.
-// The opened file is then returned to the caller.
+// Touch acts by creating the given file and path on the disk if it is not present
+// already. If it is present, the file is opened using the defaults which will
+// truncate the contents. The opened file is then returned to the caller.
 func (fs *Filesystem) Touch(p string, flag int) (*os.File, error) {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {

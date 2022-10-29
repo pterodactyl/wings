@@ -45,8 +45,8 @@ func (fs *Filesystem) SetDiskLimit(i int64) {
 	atomic.SwapInt64(&fs.diskLimit, i)
 }
 
-// The same concept as HasSpaceAvailable however this will return an error if there is
-// no space, rather than a boolean value.
+// HasSpaceErr is the same concept as HasSpaceAvailable however this will return
+// an error if there is no space, rather than a boolean value.
 func (fs *Filesystem) HasSpaceErr(allowStaleValue bool) error {
 	if !fs.HasSpaceAvailable(allowStaleValue) {
 		return newFilesystemError(ErrCodeDiskSpace, nil)
@@ -54,30 +54,32 @@ func (fs *Filesystem) HasSpaceErr(allowStaleValue bool) error {
 	return nil
 }
 
-// Determines if the directory a file is trying to be added to has enough space available
-// for the file to be written to.
+// HasSpaceAvailable determines if the directory a file is trying to be added to
+// has enough space available for the file to be written to.
 //
-// Because determining the amount of space being used by a server is a taxing operation we
-// will load it all up into a cache and pull from that as long as the key is not expired.
+// Because determining the amount of space being used by a server is a taxing
+// operation we will load it all up into a cache and pull from that as long as
+// the key is not expired. This operation will potentially block unless
+// allowStaleValue is set to true. See the documentation on DiskUsage for how
+// this affects the call.
 //
-// This operation will potentially block unless allowStaleValue is set to true. See the
-// documentation on DiskUsage for how this affects the call.
+// If the current size of the disk is larger than the maximum allowed size this
+// function will return false, in all other cases it will return true. We do
+// not check the existence of a virtual disk at this point since this logic is
+// used to return friendly error messages to users, and also prevent us wasting
+// time on more taxing operations when we know the result will end up failing due
+// to space limits.
+//
+// If the servers disk limit is set to 0 it means there is no limit, however the
+// DiskUsage method is still called to keep the cache warm. This function will
+// always return true for a server with no limit set.
 func (fs *Filesystem) HasSpaceAvailable(allowStaleValue bool) bool {
 	size, err := fs.DiskUsage(allowStaleValue)
 	if err != nil {
-		log.WithField("root", fs.root).WithField("error", err).Warn("failed to determine root fs directory size")
+		log.WithField("root", fs.root).WithField("error", err).
+			Warn("failed to determine root fs directory size")
 	}
-
-	// If space is -1 or 0 just return true, means they're allowed unlimited.
-	//
-	// Technically we could skip disk space calculation because we don't need to check if the
-	// server exceeds its limit but because this method caches the disk usage it would be best
-	// to calculate the disk usage and always return true.
-	if fs.MaxDisk() == 0 {
-		return true
-	}
-
-	return size <= fs.MaxDisk()
+	return fs.MaxDisk() == 0 || size <= fs.MaxDisk()
 }
 
 // CachedUsage returns the cached value for the amount of disk space used by the
@@ -107,17 +109,24 @@ func (fs *Filesystem) DiskUsage(allowStaleValue bool) (int64, error) {
 		return 0, nil
 	}
 
-	if !fs.lastLookupTime.Get().After(time.Now().Add(time.Second * fs.diskCheckInterval * -1)) {
+	since := time.Now().Add(time.Second * fs.diskCheckInterval * -1)
+	// If the last lookup time was before our calculated limit we will re-execute this
+	// checking logic. If the lookup time was after the oldest possible timestamp we will
+	// continue returning the cached value.
+	if fs.lastLookupTime.Get().Before(since) {
 		// If we are now allowing a stale response go ahead  and perform the lookup and return the fresh
 		// value. This is a blocking operation to the calling process.
 		if !allowStaleValue {
 			return fs.updateCachedDiskUsage()
-		} else if !fs.lookupInProgress.Load() {
-			// Otherwise, if we allow a stale value and there isn't a valid item in the cache and we aren't
-			// currently performing a lookup, just do the disk usage calculation in the background.
+		}
+
+		// Otherwise, if we allow a stale value and there isn't a valid item in the cache and we aren't
+		// currently performing a lookup, just do the disk usage calculation in the background.
+		if !fs.lookupInProgress.Load() {
 			go func(fs *Filesystem) {
 				if _, err := fs.updateCachedDiskUsage(); err != nil {
-					log.WithField("root", fs.root).WithField("error", err).Warn("failed to update fs disk usage from within routine")
+					log.WithField("root", fs.root).WithField("error", err).
+						Warn("failed to update fs disk usage from within routine")
 				}
 			}(fs)
 		}
