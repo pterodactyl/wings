@@ -54,7 +54,7 @@ func New(uuid string, size int64, denylist []string) *Filesystem {
 		denylist:          ignore.CompileIgnoreLines(denylist...),
 	}
 
-	if config.Get().System.UseVirtualDisks {
+	if vhd.Enabled() {
 		fs.vhd = vhd.New(size, vhd.DiskPath(uuid), fs.root)
 	}
 

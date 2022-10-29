@@ -46,8 +46,8 @@ func newMigrateVHDCommand() *cobra.Command {
 
 // Run executes the migration command.
 func (m *MigrateVHDCommand) Run(ctx context.Context) error {
-	if !config.Get().System.UseVirtualDisks {
-		return errors.New("cannot migrate to vhd: configuration file \"system.use_virtual_disks\" value is set to \"false\"")
+	if !vhd.Enabled() {
+		return errors.New("cannot migrate to vhd: the underlying driver must be set to \"vhd\"")
 	}
 	for _, s := range m.manager.All() {
 		s.Log().Debug("starting migration of server contents to virtual disk...")

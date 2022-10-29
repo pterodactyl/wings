@@ -120,14 +120,6 @@ type RemoteQueryConfiguration struct {
 
 // SystemConfiguration defines basic system configuration settings.
 type SystemConfiguration struct {
-	// UseVirtualDisks sets Wings to use virtual hard-disks when storing server
-	// files. This allows for more enforced disk space limits, at a slight performance
-	// cost.
-	//
-	// Generally this only needs to be enabled on systems with a large untrusted
-	// user presence, it is not necessary for self-hosting instances.
-	UseVirtualDisks bool `json:"use_virtual_disks" yaml:"use_virtual_disks"`
-
 	// The root directory where all of the pterodactyl data is stored at.
 	RootDirectory string `default:"/var/lib/pterodactyl" yaml:"root_directory"`
 
@@ -313,6 +305,11 @@ type Configuration struct {
 	// is only required by users running Wings without SSL certificates and using internal IP
 	// addresses in order to connect. Most users should NOT enable this setting.
 	AllowCORSPrivateNetwork bool `json:"allow_cors_private_network" yaml:"allow_cors_private_network"`
+
+	// Servers contains all of the settings that are used when configuring individual servers
+	// on the system. This is a global configuration for all server instances, not to be confused
+	// with the per-server configurations provided by the Panel API.
+	Servers Servers `json:"servers" yaml:"servers"`
 }
 
 // NewAtPath creates a new struct and set the path where it should be stored.

@@ -68,6 +68,11 @@ func DiskPath(uuid string) string {
 	return filepath.Join(config.Get().System.Data, ".vhd/", uuid+".img")
 }
 
+// Enabled returns true when VHD support is enabled on the instance.
+func Enabled() bool {
+	return config.Get().Servers.Filesystem.Driver == config.FSDriverVHD
+}
+
 // New returns a new Disk instance. The "size" parameter should be provided in
 // bytes of space allowed for the disk. An additional slice of option callbacks
 // can be provided to programatically swap out the underlying filesystem
