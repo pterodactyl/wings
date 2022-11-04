@@ -152,9 +152,23 @@ type SystemConfiguration struct {
 	// Definitions for the user that gets created to ensure that we can quickly access
 	// this information without constantly having to do a system lookup.
 	User struct {
-		Uid int
-		Gid int
-	}
+		// Rootless controls settings related to rootless container daemons.
+		Rootless struct {
+			// Enabled controls whether rootless containers are enabled.
+			Enabled bool `yaml:"enabled" default:"false"`
+			// ContainerUID controls the UID of the user inside the container.
+			// This should likely be set to 0 so the container runs as the user
+			// running Wings.
+			ContainerUID int `yaml:"container_uid" default:"0"`
+			// ContainerGID controls the GID of the user inside the container.
+			// This should likely be set to 0 so the container runs as the user
+			// running Wings.
+			ContainerGID int `yaml:"container_gid" default:"0"`
+		} `yaml:"rootless"`
+
+		Uid int `yaml:"uid"`
+		Gid int `yaml:"gid"`
+	} `yaml:"user"`
 
 	// The amount of time in seconds that can elapse before a server's disk space calculation is
 	// considered stale and a re-check should occur. DANGER: setting this value too low can seriously
@@ -425,6 +439,19 @@ func EnsurePterodactylUser() error {
 		return nil
 	}
 
+	if _config.System.User.Rootless.Enabled {
+		log.Info("rootless mode is enabled, skipping user creation...")
+		u, err := user.Current()
+		if err != nil {
+			return err
+		}
+		_config.System.Username = u.Username
+		_config.System.User.Uid = system.MustInt(u.Uid)
+		_config.System.User.Gid = system.MustInt(u.Gid)
+		return nil
+	}
+
+	log.WithField("username", _config.System.Username).Info("checking for pterodactyl system user")
 	u, err := user.Lookup(_config.System.Username)
 	// If an error is returned but it isn't the unknown user error just abort
 	// the process entirely. If we did find a user, return it immediately.
