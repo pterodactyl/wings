@@ -69,20 +69,36 @@ func (p *Progress) Write(v []byte) (int, error) {
 
 // Progress returns a formatted progress string for the current progress.
 func (p *Progress) Progress(width int) string {
+	// current = 100 (Progress, dynamic)
+	// total = 1000 (Content-Length, dynamic)
+	// width = 25 (Number of ticks to display, static)
+	// widthPercentage = 100 / width (What percentage does each tick represent, static)
+	//
+	// percentageDecimal = current / total = 0.1
+	// percentage = percentageDecimal * 100 = 10%
+	// ticks = percentage / widthPercentage = 2.5
+	//
+	// ticks is a float64, so we cast it to an int which rounds it down to 2.
+
+	// Values are cast to floats to prevent integer division.
 	current := p.Written()
 	total := p.Total()
+	// width := is passed as a parameter
+	widthPercentage := float64(100) / float64(width)
+	percentageDecimal := float64(current) / float64(total)
+	percentage := percentageDecimal * 100
+	ticks := int(percentage / widthPercentage)
 
-	// v = 100 (Progress)
-	// size = 1000 (Content-Length)
-	// p / size = 0.1
-	// * 100 = 10% (Multiply by 100 to get a percentage of the download)
-	// 10% / tickPercentage = (10% / (100 / 25)) (Divide by tick percentage to get the number of ticks)
-	// 2.5 (Number of ticks as a float64)
-	// 2 (convert to an integer)
+	// Ensure that we never get a negative number of ticks, this will prevent strings#Repeat
+	// from panicking.  A negative number of ticks is likely to happen when the total size is
+	// inaccurate, such as when we are going off of rough disk usage calculation.
+	if ticks < 0 {
+		ticks = 0
+	} else if ticks > width {
+		ticks = width
+	}
 
-	// We have to cast these numbers to float in order to get a float result from the division.
-	ticks := ((float64(current) / float64(total)) * 100) / (float64(100) / float64(width))
-	bar := strings.Repeat("=", int(ticks)) + strings.Repeat(" ", width-int(ticks))
+	bar := strings.Repeat("=", ticks) + strings.Repeat(" ", width-ticks)
 	return "[" + bar + "] " + system.FormatBytes(current) + " / " + system.FormatBytes(total)
 }
 
@@ -255,7 +271,7 @@ func (a *Archive) addToArchive(p string, rp string, w *tar.Writer) error {
 		// it doesn't work.
 		target, err = os.Readlink(s.Name())
 		if err != nil {
-			// Ignore the not exist errors specifically, since theres nothing important about that.
+			// Ignore the not exist errors specifically, since there is nothing important about that.
 			if !os.IsNotExist(err) {
 				log.WithField("path", rp).WithField("readlink_err", err.Error()).Warn("failed reading symlink for target path; skipping...")
 			}
