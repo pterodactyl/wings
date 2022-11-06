@@ -188,9 +188,6 @@ func (fs *Filesystem) DecompressFileUnsafe(ctx context.Context, dir string, file
 		})
 	}
 
-	//if decom, ok := format.(archiver.Decompressor); ok {
-	//
-	//}
 	return nil
 }
 
