@@ -19,13 +19,15 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/lib/docker/containers/:/var/lib/docker/containers/"
       - "/etc/pterodactyl/:/etc/pterodactyl/"
-      - "/var/lib/pterodactyl/:/var/lib/pterodactyl/" # Changing this binding may cause issues when installing game servers
+      # To prevent issues when installing servers, the host and container paths of the binding below must match each other
+      # Keep this in mind if you decide to change the locations of this binding
+      - "/var/lib/pterodactyl/:/var/lib/pterodactyl/"
       - "/var/log/pterodactyl/:/var/log/pterodactyl/"
       - "/tmp/pterodactyl/:/tmp/pterodactyl/"
       - "/etc/ssl/certs:/etc/ssl/certs:ro"
-      # you may need /srv/daemon-data if you are upgrading from an old daemon
+      # You may need /srv/daemon-data if you are upgrading from an old daemon
       #- "/srv/daemon-data/:/srv/daemon-data/"
-      # Required for ssl if you use let's encrypt. uncomment to use.
+      # Required for ssl if you use Let's Encrypt. Uncomment to use
       #- "/etc/letsencrypt/:/etc/letsencrypt/"
 
 networks:
