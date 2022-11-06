@@ -16,9 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pterodactyl/wings/internal/cron"
-	"github.com/pterodactyl/wings/internal/database"
-
 	"github.com/NYTimes/logrotate"
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/multi"
@@ -31,6 +28,8 @@ import (
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/internal/cron"
+	"github.com/pterodactyl/wings/internal/database"
 	"github.com/pterodactyl/wings/loggers/cli"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/router"
@@ -111,7 +110,6 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		log.WithField("error", err).Fatal("failed to configure system directories for pterodactyl")
 		return
 	}
-	log.WithField("username", config.Get().System.User).Info("checking for pterodactyl system user")
 	if err := config.EnsurePterodactylUser(); err != nil {
 		log.WithField("error", err).Fatal("failed to create pterodactyl system user")
 	}
@@ -364,7 +362,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		return
 	}
 
-	// Check if main http server should run with TLS. Otherwise reset the TLS
+	// Check if main http server should run with TLS. Otherwise, reset the TLS
 	// config on the server and then serve it over normal HTTP.
 	if api.Ssl.Enabled {
 		if err := s.ListenAndServeTLS(api.Ssl.CertificateFile, api.Ssl.KeyFile); err != nil {
