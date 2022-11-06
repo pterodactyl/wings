@@ -65,7 +65,7 @@ func newDiagnosticsCommand() *cobra.Command {
 // - the docker debug output
 // - running docker containers
 // - logs
-func diagnosticsCmdRun(cmd *cobra.Command, args []string) {
+func diagnosticsCmdRun(*cobra.Command, []string) {
 	questions := []*survey.Question{
 		{
 			Name:   "IncludeEndpoints",
