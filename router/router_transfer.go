@@ -19,7 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/juju/ratelimit"
-	"github.com/mholt/archiver/v3"
 	"github.com/mitchellh/colorstring"
 
 	"github.com/pterodactyl/wings/config"
@@ -188,7 +187,7 @@ func postServerArchive(c *gin.Context) {
 		}
 
 		// Send the archive progress to the websocket every 3 seconds.
-		ctx, cancel := context.WithCancel(s.Context())
+		ctx2, cancel := context.WithCancel(s.Context())
 		defer cancel()
 		go func(ctx context.Context, p *filesystem.Progress, t *time.Ticker) {
 			defer t.Stop()
@@ -200,7 +199,7 @@ func postServerArchive(c *gin.Context) {
 					sendTransferLog("Archiving " + p.Progress(progressWidth))
 				}
 			}
-		}(ctx, a.Progress, time.NewTicker(5*time.Second))
+		}(ctx2, a.Progress, time.NewTicker(5*time.Second))
 
 		// Attempt to get an archive of the server.
 		if err := a.Create(getArchivePath(s.ID())); err != nil {
@@ -422,9 +421,10 @@ func postTransfer(c *gin.Context) {
 		data.log().Info("writing transfer archive to disk...")
 
 		progress := filesystem.NewProgress(size)
+		progress.SetWriter(file)
 
 		// Send the archive progress to the websocket every 3 seconds.
-		ctx, cancel := context.WithCancel(ctx)
+		ctx2, cancel := context.WithCancel(ctx)
 		defer cancel()
 		go func(ctx context.Context, p *filesystem.Progress, t *time.Ticker) {
 			defer t.Stop()
@@ -436,7 +436,7 @@ func postTransfer(c *gin.Context) {
 					sendTransferLog("Downloading " + p.Progress(progressWidth))
 				}
 			}
-		}(ctx, progress, time.NewTicker(5*time.Second))
+		}(ctx2, progress, time.NewTicker(5*time.Second))
 
 		var reader io.Reader
 		downloadLimit := float64(config.Get().System.Transfers.DownloadLimit) * 1024 * 1024
@@ -448,7 +448,7 @@ func postTransfer(c *gin.Context) {
 		}
 
 		buf := make([]byte, 1024*4)
-		if _, err := io.CopyBuffer(file, io.TeeReader(reader, progress), buf); err != nil {
+		if _, err := io.CopyBuffer(progress, reader, buf); err != nil {
 			_ = file.Close()
 
 			sendTransferLog("Failed while writing archive file to disk: " + err.Error())
@@ -495,7 +495,7 @@ func postTransfer(c *gin.Context) {
 
 		sendTransferLog("Server environment has been created, extracting transfer archive..")
 		data.log().Info("server environment configured, extracting transfer archive")
-		if err := archiver.NewTarGz().Unarchive(data.path(), i.Server().Filesystem().Path()); err != nil {
+		if err := i.Server().Filesystem().DecompressFileUnsafe(ctx, "/", data.path()); err != nil {
 			// Un-archiving failed, delete the server's data directory.
 			if err := os.RemoveAll(i.Server().Filesystem().Path()); err != nil && !os.IsNotExist(err) {
 				data.log().WithField("error", err).Warn("failed to delete local server files directory")

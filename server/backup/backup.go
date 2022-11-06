@@ -8,15 +8,20 @@ import (
 	"io/fs"
 	"os"
 	"path"
-	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/mholt/archiver/v4"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/remote"
 )
+
+var format = archiver.CompressedArchive{
+	Compression: archiver.Gz{},
+	Archival:    archiver.Tar{},
+}
 
 type AdapterType string
 
@@ -27,7 +32,7 @@ const (
 
 // RestoreCallback is a generic restoration callback that exists for both local
 // and remote backups allowing the files to be restored.
-type RestoreCallback func(file string, r io.Reader, mode fs.FileMode, atime, mtime time.Time) error
+type RestoreCallback func(file string, info fs.FileInfo, r io.ReadCloser) error
 
 // noinspection GoNameStartsWithPackageName
 type BackupInterface interface {

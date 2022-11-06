@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"context"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -28,7 +29,7 @@ func TestFilesystem_DecompressFile(t *testing.T) {
 				g.Assert(err).IsNil()
 
 				// decompress
-				err = fs.DecompressFile("/", "test."+ext)
+				err = fs.DecompressFile(context.Background(), "/", "test."+ext)
 				g.Assert(err).IsNil()
 
 				// make sure everything is where it is supposed to be
