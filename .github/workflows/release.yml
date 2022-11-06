@@ -1,41 +1,50 @@
-name: Create Release
+name: Release
+
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
+
 jobs:
   release:
+    name: Release
     runs-on: ubuntu-20.04
+
     steps:
       - name: Code Checkout
-        uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
         with:
-          go-version: '1.18.7'
-      - name: Build
+          go-version: "1.18.8"
+
+      - name: Build release binaries
         env:
+          CGO_ENABLED: 0
           REF: ${{ github.ref }}
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" -o build/wings_linux_amd64 -v wings.go
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" -o build/wings_linux_arm64 -v wings.go
-      - name: Test
-        run: go test ./...
+          GOARCH=amd64 go build -o dist/wings_linux_amd64 -v -trimpath -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" github.com/pterodactyl/wings
+          GOARCH=arm64 go build -o dist/wings_linux_ard64 -v -trimpath -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" github.com/pterodactyl/wings
+
       - name: Compress binary and make it executable
         run: |
-          chmod +x build/wings_linux_amd64
-          chmod +x build/wings_linux_arm64
+          chmod 755 dist/wings_linux_amd64 dist/wings_linux_arm64
+
       - name: Extract changelog
         env:
           REF: ${{ github.ref }}
         run: |
           sed -n "/^## ${REF:10}/,/^## /{/^## /b;p}" CHANGELOG.md > ./RELEASE_CHANGELOG
-          echo ::set-output name=version_name::`sed -nr "s/^## (${REF:10} .*)$/\1/p" CHANGELOG.md`
+          echo "version_name=`sed -nr "s/^## (${REF:10} .*)$/\1/p" CHANGELOG.md`" > $GITHUB_OUTPUT
+
       - name: Create checksum and add to changelog
         run: |
           SUM=`cd build && sha256sum wings_linux_amd64`
           SUM2=`cd build && sha256sum wings_linux_arm64`
           echo -e "\n#### SHA256 Checksum\n\`\`\`\n$SUM\n$SUM2\n\`\`\`\n" >> ./RELEASE_CHANGELOG
           echo -e "$SUM\n$SUM2" > checksums.txt
+
       - name: Create release branch
         env:
           REF: ${{ github.ref }}
@@ -49,7 +58,8 @@ jobs:
           git add system/const.go
           git commit -m "bump version for release"
           git push
-      - name: Create Release
+
+      - name: Create release
         id: create_release
         uses: actions/create-release@v1
         env:
@@ -60,7 +70,8 @@ jobs:
           body_path: ./RELEASE_CHANGELOG
           draft: true
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
-      - name: Upload amd64 Binary
+
+      - name: Upload amd64 binary
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,7 +80,8 @@ jobs:
           asset_path: build/wings_linux_amd64
           asset_name: wings_linux_amd64
           asset_content_type: application/octet-stream
-      - name: Upload arm64 Binary
+
+      - name: Upload arm64 binary
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -78,6 +90,7 @@ jobs:
           asset_path: build/wings_linux_arm64
           asset_name: wings_linux_arm64
           asset_content_type: application/octet-stream
+
       - name: Upload checksum
         uses: actions/upload-release-asset@v1
         env:
