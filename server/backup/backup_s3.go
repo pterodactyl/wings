@@ -57,7 +57,7 @@ func (s *S3Backup) Generate(ctx context.Context, basePath, ignore string) (*Arch
 	}
 
 	s.log().WithField("path", s.Path()).Info("creating backup for server")
-	if err := a.Create(s.Path()); err != nil {
+	if err := a.Create(ctx, s.Path()); err != nil {
 		return nil, err
 	}
 	s.log().Info("created backup successfully")

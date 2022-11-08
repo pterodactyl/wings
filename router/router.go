@@ -40,7 +40,7 @@ func Configure(m *wserver.Manager, client remote.Client) *gin.Engine {
 	router.GET("/download/file", getDownloadFile)
 	router.POST("/upload/file", postServerUploadFiles)
 
-	// This route is special it sits above all of the other requests because we are
+	// This route is special it sits above all the other requests because we are
 	// using a JWT to authorize access to it, therefore it needs to be publicly
 	// accessible.
 	router.GET("/api/servers/:server/ws", middleware.ServerExists(), getServerWebsocket)
@@ -48,16 +48,21 @@ func Configure(m *wserver.Manager, client remote.Client) *gin.Engine {
 	// This request is called by another daemon when a server is going to be transferred out.
 	// This request does not need the AuthorizationMiddleware as the panel should never call it
 	// and requests are authenticated through a JWT the panel issues to the other daemon.
-	router.GET("/api/servers/:server/archive", middleware.ServerExists(), getServerArchive)
+	router.POST("/api/transfers", postTransfers)
+	// TODO: move after testing
+	router.POST("/api/servers/:server/transfer", middleware.ServerExists(), postServerTransfer)
+	router.DELETE("/api/servers/:server/transfer", middleware.ServerExists(), deleteServerTransfer)
 
-	// All of the routes beyond this mount will use an authorization middleware
+	// All the routes beyond this mount will use an authorization middleware
 	// and will not be accessible without the correct Authorization header provided.
 	protected := router.Use(middleware.RequireAuthorization())
 	protected.POST("/api/update", postUpdateConfiguration)
 	protected.GET("/api/system", getSystemInformation)
 	protected.GET("/api/servers", getAllServers)
 	protected.POST("/api/servers", postCreateServer)
-	protected.POST("/api/transfer", postTransfer)
+	// TODO: wire this up properly.  Delete endpoint for a target node.
+	protected.DELETE("/api/transfers/:server", deleteServerTransfer)
+	// protected.POST("/api/transfers", postTransfers)
 
 	// These are server specific routes, and require that the request be authorized, and
 	// that the server exist on the Daemon.
@@ -77,7 +82,8 @@ func Configure(m *wserver.Manager, client remote.Client) *gin.Engine {
 
 		// This archive request causes the archive to start being created
 		// this should only be triggered by the panel.
-		server.POST("/archive", postServerArchive)
+		//server.POST("/transfer", postServerTransfer)
+		//server.DELETE("/transfer", deleteServerTransfer)
 
 		files := server.Group("/files")
 		{

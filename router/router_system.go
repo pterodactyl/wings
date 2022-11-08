@@ -10,9 +10,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/pterodactyl/wings/config"
-	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/server/installer"
 	"github.com/pterodactyl/wings/system"
 )
 
@@ -28,7 +28,7 @@ func getSystemInformation(c *gin.Context) {
 	c.JSON(http.StatusOK, i)
 }
 
-// Returns all of the servers that are registered and configured correctly on
+// Returns all the servers that are registered and configured correctly on
 // this wings instance.
 func getAllServers(c *gin.Context) {
 	servers := middleware.ExtractManager(c).All()
@@ -117,7 +117,7 @@ func postUpdateConfiguration(c *gin.Context) {
 	// Try to write this new configuration to the disk before updating our global
 	// state with it.
 	if err := config.WriteToDisk(cfg); err != nil {
-		WithError(c, err)
+		_ = WithError(c, err)
 		return
 	}
 	// Since we wrote it to the disk successfully now update the global configuration

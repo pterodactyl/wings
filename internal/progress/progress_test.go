@@ -1,10 +1,12 @@
-package filesystem
+package progress_test
 
 import (
 	"bytes"
 	"testing"
 
 	. "github.com/franela/goblin"
+
+	"github.com/pterodactyl/wings/internal/progress"
 )
 
 func TestProgress(t *testing.T) {
@@ -13,7 +15,7 @@ func TestProgress(t *testing.T) {
 	g.Describe("Progress", func() {
 		g.It("properly initializes", func() {
 			total := int64(1000)
-			p := NewProgress(total)
+			p := progress.NewProgress(total)
 			g.Assert(p).IsNotNil()
 			g.Assert(p.Total()).Equal(total)
 			g.Assert(p.Written()).Equal(int64(0))
@@ -21,7 +23,7 @@ func TestProgress(t *testing.T) {
 
 		g.It("increments written when Write is called", func() {
 			v := []byte("hello")
-			p := NewProgress(1000)
+			p := progress.NewProgress(1000)
 			_, err := p.Write(v)
 			g.Assert(err).IsNil()
 			g.Assert(p.Written()).Equal(int64(len(v)))
@@ -29,7 +31,7 @@ func TestProgress(t *testing.T) {
 
 		g.It("renders a progress bar", func() {
 			v := bytes.Repeat([]byte{' '}, 100)
-			p := NewProgress(1000)
+			p := progress.NewProgress(1000)
 			_, err := p.Write(v)
 			g.Assert(err).IsNil()
 			g.Assert(p.Written()).Equal(int64(len(v)))
@@ -38,7 +40,7 @@ func TestProgress(t *testing.T) {
 
 		g.It("renders a progress bar when written exceeds total", func() {
 			v := bytes.Repeat([]byte{' '}, 1001)
-			p := NewProgress(1000)
+			p := progress.NewProgress(1000)
 			_, err := p.Write(v)
 			g.Assert(err).IsNil()
 			g.Assert(p.Written()).Equal(int64(len(v)))
