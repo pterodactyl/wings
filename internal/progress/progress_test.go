@@ -14,7 +14,7 @@ func TestProgress(t *testing.T) {
 
 	g.Describe("Progress", func() {
 		g.It("properly initializes", func() {
-			total := int64(1000)
+			total := uint64(1000)
 			p := progress.NewProgress(total)
 			g.Assert(p).IsNotNil()
 			g.Assert(p.Total()).Equal(total)
