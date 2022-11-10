@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/router/middleware"
+	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/installer"
 	"github.com/pterodactyl/wings/server/transfer"
 )
@@ -39,6 +41,20 @@ func postServerTransfer(c *gin.Context) {
 		return
 	}
 
+	manager := middleware.ExtractManager(c)
+
+	notifyPanelOfFailure := func() {
+		if err := manager.Client().SetTransferStatus(context.Background(), s.ID(), false); err != nil {
+			s.Log().WithField("subsystem", "transfer").
+				WithField("status", false).
+				WithError(err).
+				Error("failed to set transfer status")
+		}
+
+		s.Events().Publish(server.TransferStatusEvent, "failure")
+		s.SetTransferring(false)
+	}
+
 	// Block the server from starting while we are transferring it.
 	s.SetTransferring(true)
 
@@ -50,7 +66,7 @@ func postServerTransfer(c *gin.Context) {
 			time.Minute,
 			false,
 		); err != nil && !strings.Contains(strings.ToLower(err.Error()), "no such container") {
-			s.SetTransferring(false)
+			notifyPanelOfFailure()
 			s.Log().WithError(err).Error("failed to stop server for transfer")
 			return
 		}
@@ -61,8 +77,11 @@ func postServerTransfer(c *gin.Context) {
 	transfer.Outgoing().Add(trnsfr)
 
 	go func() {
-		_, err := trnsfr.PushArchiveToTarget(data.URL, data.Token)
-		if err != nil {
+		defer transfer.Outgoing().Remove(trnsfr)
+
+		if _, err := trnsfr.PushArchiveToTarget(data.URL, data.Token); err != nil {
+			notifyPanelOfFailure()
+
 			if err == context.Canceled {
 				trnsfr.Log().Debug("canceled")
 				trnsfr.SendSourceMessage("Canceled.")
@@ -73,13 +92,19 @@ func postServerTransfer(c *gin.Context) {
 			return
 		}
 
-		//log.Debug(string(v))
+		// DO NOT NOTIFY THE PANEL OF SUCCESS HERE. The only node that should send
+		// a success status is the destination node.  When we send a failure status,
+		// the panel will automatically cancel the transfer and attempt to reset
+		// the server state on the destination node, we just need to make sure
+		// we clean up our statuses for failure.
+
+		trnsfr.Log().Debug("transfer complete")
 	}()
 
 	c.Status(http.StatusAccepted)
 }
 
-// deleteServerTransfer cancels a transfer for a server.
+// deleteServerTransfer cancels an outgoing transfer for a server.
 func deleteServerTransfer(c *gin.Context) {
 	s := ExtractServer(c)
 
@@ -100,5 +125,5 @@ func deleteServerTransfer(c *gin.Context) {
 
 	trnsfr.Cancel()
 
-	// TODO: Do we want to wait here until we are sure the transfer has been canceled?
+	c.Status(http.StatusAccepted)
 }

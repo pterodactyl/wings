@@ -98,6 +98,8 @@ func (t *Transfer) SetStatus(s Status) {
 	// TODO: prevent certain status changes from happening.
 	// If we are cancelling, then we can't go back to processing.
 	t.status.Store(s)
+
+	t.Server.Events().Publish(server.TransferStatusEvent, s)
 }
 
 // SendMessage .

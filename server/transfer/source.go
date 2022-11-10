@@ -24,8 +24,6 @@ func (t *Transfer) PushArchiveToTarget(url, token string) ([]byte, error) {
 	a, err := t.Archive()
 	if err != nil {
 		t.SourceError(err, "Failed to get archive for transfer.")
-		// TODO: figure out the best way to handle failures.
-		//t.SetStatus(StatusFailed)
 		return nil, errors.New("failed to get archive for transfer")
 	}
 
@@ -142,7 +140,15 @@ func (t *Transfer) PushArchiveToTarget(url, token string) ([]byte, error) {
 		defer res.Body.Close()
 		t.Log().Debug("received response from destination")
 
-		//return io.ReadAll(res.Body)
-		return nil, nil
+		v, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+
+		if res.StatusCode != http.StatusOK {
+			return nil, errors.New(string(v))
+		}
+
+		return v, nil
 	}
 }
