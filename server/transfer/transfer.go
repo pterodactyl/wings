@@ -11,7 +11,7 @@ import (
 	"github.com/pterodactyl/wings/system"
 )
 
-// Status .
+// Status represents the current status of a transfer.
 type Status string
 
 // String satisfies the fmt.Stringer interface.
@@ -20,23 +20,26 @@ func (s Status) String() string {
 }
 
 const (
-	// StatusPending .
+	// StatusPending is the status of a transfer when it is first created.
 	StatusPending Status = "pending"
-	// StatusProcessing .
+	// StatusProcessing is the status of a transfer when it is currently in
+	// progress, such as when the archive is being streamed to the target node.
 	StatusProcessing Status = "processing"
 
-	// StatusCancelling .
+	// StatusCancelling is the status of a transfer when it is in the process of
+	// being cancelled.
 	StatusCancelling Status = "cancelling"
 
-	// StatusCancelled .
+	// StatusCancelled is the final status of a transfer when it has been
+	// cancelled.
 	StatusCancelled Status = "cancelled"
-	// StatusFailed .
+	// StatusFailed is the final status of a transfer when it has failed.
 	StatusFailed Status = "failed"
-	// StatusCompleted .
+	// StatusCompleted is the final status of a transfer when it has completed.
 	StatusCompleted Status = "completed"
 )
 
-// Transfer .
+// Transfer represents a transfer of a server from one node to another.
 type Transfer struct {
 	// ctx is the context for the transfer.
 	ctx context.Context
@@ -52,7 +55,7 @@ type Transfer struct {
 	archive *Archive
 }
 
-// New .
+// New returns a new transfer instance for the given server.
 func New(ctx context.Context, s *server.Server) *Transfer {
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -65,12 +68,12 @@ func New(ctx context.Context, s *server.Server) *Transfer {
 	}
 }
 
-// Context .
+// Context returns the context for the transfer.
 func (t *Transfer) Context() context.Context {
 	return t.ctx
 }
 
-// Cancel .
+// Cancel cancels the transfer.
 func (t *Transfer) Cancel() {
 	status := t.Status()
 	if status == StatusCancelling ||
@@ -88,12 +91,12 @@ func (t *Transfer) Cancel() {
 	(*t.cancel)()
 }
 
-// Status .
+// Status returns the current status of the transfer.
 func (t *Transfer) Status() Status {
 	return t.status.Load()
 }
 
-// SetStatus .
+// SetStatus sets the status of the transfer.
 func (t *Transfer) SetStatus(s Status) {
 	// TODO: prevent certain status changes from happening.
 	// If we are cancelling, then we can't go back to processing.
@@ -102,38 +105,21 @@ func (t *Transfer) SetStatus(s Status) {
 	t.Server.Events().Publish(server.TransferStatusEvent, s)
 }
 
-// SendMessage .
+// SendMessage sends a message to the server's console.
 func (t *Transfer) SendMessage(v string) {
-	t.Server.Events().Publish(server.TransferLogsEvent, v)
-}
-
-// SendSourceMessage .
-func (t *Transfer) SendSourceMessage(v string) {
-	t.SendMessage(
-		colorstring.Color("[yellow][bold]" + time.Now().Format(time.RFC1123) + " [Transfer System] [Source Node]:[default] " + v),
+	t.Server.Events().Publish(
+		server.TransferLogsEvent,
+		colorstring.Color("[yellow][bold]"+time.Now().Format(time.RFC1123)+" [Transfer System] [Source Node]:[default] "+v),
 	)
 }
 
-// SendTargetMessage .
-func (t *Transfer) SendTargetMessage(v string) {
-	t.SendMessage(
-		colorstring.Color("[yellow][bold]" + time.Now().Format(time.RFC1123) + " [Transfer System] [Target Node]:[default] " + v),
-	)
-}
-
-// SourceError .
-func (t *Transfer) SourceError(err error, v string) {
+// Error logs an error that occurred on the source node.
+func (t *Transfer) Error(err error, v string) {
 	t.Log().WithError(err).Error(v)
-	t.SendSourceMessage(v)
+	t.SendMessage(v)
 }
 
-// TargetError .
-func (t *Transfer) TargetError(err error, v string) {
-	t.Log().WithError(err).Error(v)
-	t.SendTargetMessage(v)
-}
-
-// Log .
+// Log returns a logger for the transfer.
 func (t *Transfer) Log() *log.Entry {
 	if t.Server == nil {
 		return log.WithField("subsystem", "transfer")

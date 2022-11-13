@@ -9,7 +9,8 @@ import (
 	"github.com/pterodactyl/wings/server/filesystem"
 )
 
-// Archive .
+// Archive returns an archive that can be used to stream the contents of the
+// contents of a server.
 func (t *Transfer) Archive() (*Archive, error) {
 	if t.archive == nil {
 		// Get the disk usage of the server (used to calculate the progress of the archive process)
@@ -25,12 +26,12 @@ func (t *Transfer) Archive() (*Archive, error) {
 	return t.archive, nil
 }
 
-// Archive .
+// Archive represents an archive used to transfer the contents of a server.
 type Archive struct {
 	archive *filesystem.Archive
 }
 
-// NewArchive .
+// NewArchive returns a new archive associated with the given transfer.
 func NewArchive(t *Transfer, size uint64) *Archive {
 	return &Archive{
 		archive: &filesystem.Archive{
@@ -40,12 +41,12 @@ func NewArchive(t *Transfer, size uint64) *Archive {
 	}
 }
 
-// Stream .
+// Stream returns a reader that can be used to stream the contents of the archive.
 func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
 	return a.archive.Stream(ctx, w)
 }
 
-// Progress .
+// Progress returns the current progress of the archive.
 func (a *Archive) Progress() *progress.Progress {
 	return a.archive.Progress
 }

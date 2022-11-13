@@ -118,7 +118,6 @@ func postTransfers(c *gin.Context) {
 
 		trnsfr.Server.SetTransferring(false)
 		trnsfr.Server.Events().Publish(server.TransferStatusEvent, "success")
-		trnsfr.SendTargetMessage("Transfer completed.")
 	}(ctx, trnsfr)
 
 	mediaType, params, err := mime.ParseMediaType(c.GetHeader("Content-Type"))

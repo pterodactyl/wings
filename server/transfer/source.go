@@ -14,38 +14,42 @@ import (
 	"github.com/pterodactyl/wings/internal/progress"
 )
 
+// PushArchiveToTarget POSTs the archive to the target node and returns the
+// response body.
 func (t *Transfer) PushArchiveToTarget(url, token string) ([]byte, error) {
 	ctx, cancel := context.WithCancel(t.ctx)
 	defer cancel()
 
-	t.SendSourceMessage("Preparing to stream server data to destination...")
+	t.SendMessage("Preparing to stream server data to destination...")
 	t.SetStatus(StatusProcessing)
 
 	a, err := t.Archive()
 	if err != nil {
-		t.SourceError(err, "Failed to get archive for transfer.")
+		t.Error(err, "Failed to get archive for transfer.")
 		return nil, errors.New("failed to get archive for transfer")
 	}
 
-	t.SendSourceMessage("Streaming archive to destination...")
+	t.SendMessage("Streaming archive to destination...")
 
 	// Send the upload progress to the websocket every 5 seconds.
 	ctx2, cancel2 := context.WithCancel(ctx)
 	defer cancel2()
 	go func(ctx context.Context, p *progress.Progress, tc *time.Ticker) {
 		defer tc.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-tc.C:
-				t.SendSourceMessage("Uploading " + p.Progress(25))
+				t.SendMessage("Uploading " + p.Progress(25))
 			}
 		}
 	}(ctx2, a.Progress(), time.NewTicker(5*time.Second))
 
 	// Create a new request using the pipe as the body.
 	body, writer := io.Pipe()
+	defer body.Close()
 	defer writer.Close()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
@@ -53,12 +57,13 @@ func (t *Transfer) PushArchiveToTarget(url, token string) ([]byte, error) {
 	}
 	req.Header.Set("Authorization", token)
 
-	// Create a new multipart writer to write the archive to the pipe.
+	// Create a new multipart writer that writes the archive to the pipe.
 	mp := multipart.NewWriter(writer)
 	defer mp.Close()
 	req.Header.Set("Content-Type", mp.FormDataContentType())
 
-	// TODO: fix all resource leaks if the context is canceled.
+	// Create a new goroutine to write the archive to the pipe used by the
+	// multipart writer.
 	errChan := make(chan error)
 	go func() {
 		defer close(errChan)
@@ -66,6 +71,7 @@ func (t *Transfer) PushArchiveToTarget(url, token string) ([]byte, error) {
 		defer mp.Close()
 
 		src, pw := io.Pipe()
+		defer src.Close()
 		defer pw.Close()
 
 		h := sha256.New()
@@ -81,8 +87,6 @@ func (t *Transfer) PushArchiveToTarget(url, token string) ([]byte, error) {
 		go func() {
 			defer close(ch)
 
-			// TODO: figure out how to cancel this with a context.
-			// ref; https://stackoverflow.com/questions/63789503/is-it-possible-to-interrupt-io-copy-by-closing-src
 			if _, err := io.Copy(dest, tee); err != nil {
 				ch <- fmt.Errorf("failed to stream archive to destination: %w", err)
 				return
@@ -96,6 +100,7 @@ func (t *Transfer) PushArchiveToTarget(url, token string) ([]byte, error) {
 			return
 		}
 		t.Log().Debug("finished streaming archive to pipe")
+
 		// Close the pipe writer early to release resources and ensure that the data gets flushed.
 		_ = pw.Close()
 
@@ -112,7 +117,7 @@ func (t *Transfer) PushArchiveToTarget(url, token string) ([]byte, error) {
 		}
 
 		cancel2()
-		t.SendSourceMessage("Finished streaming archive to destination.")
+		t.SendMessage("Finished streaming archive to destination.")
 
 		if err := mp.Close(); err != nil {
 			t.Log().WithError(err).Error("error while closing multipart writer")

@@ -84,7 +84,7 @@ func postServerTransfer(c *gin.Context) {
 
 			if err == context.Canceled {
 				trnsfr.Log().Debug("canceled")
-				trnsfr.SendSourceMessage("Canceled.")
+				trnsfr.SendMessage("Canceled.")
 				return
 			}
 
