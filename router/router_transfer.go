@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"emperror.dev/errors"
@@ -20,7 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/juju/ratelimit"
-	"github.com/mholt/archiver/v3"
 	"github.com/mitchellh/colorstring"
 
 	"github.com/pterodactyl/wings/config"
@@ -30,19 +28,9 @@ import (
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/filesystem"
-	"github.com/pterodactyl/wings/system"
 )
 
-// Number of ticks in the progress bar
-const ticks = 25
-
-// 100% / number of ticks = percentage represented by each tick
-const tickPercentage = 100 / ticks
-
-type downloadProgress struct {
-	size     int64
-	progress int64
-}
+const progressWidth = 25
 
 // Data passed over to initiate a server transfer.
 type serverTransferRequest struct {
@@ -95,7 +83,7 @@ func getServerArchive(c *gin.Context) {
 		return
 	}
 
-	// Compute sha1 checksum.
+	// Compute sha256 checksum.
 	h := sha256.New()
 	f, err := os.Open(archivePath)
 	if err != nil {
@@ -184,10 +172,34 @@ func postServerArchive(c *gin.Context) {
 			return
 		}
 
+		// Get the disk usage of the server (used to calculate the progress of the archive process)
+		rawSize, err := s.Filesystem().DiskUsage(true)
+		if err != nil {
+			sendTransferLog("Failed to get disk usage for server, aborting transfer..")
+			l.WithField("error", err).Error("failed to get disk usage for server")
+			return
+		}
+
 		// Create an archive of the entire server's data directory.
 		a := &filesystem.Archive{
 			BasePath: s.Filesystem().Path(),
+			Progress: filesystem.NewProgress(rawSize),
 		}
+
+		// Send the archive progress to the websocket every 3 seconds.
+		ctx2, cancel := context.WithCancel(s.Context())
+		defer cancel()
+		go func(ctx context.Context, p *filesystem.Progress, t *time.Ticker) {
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					sendTransferLog("Archiving " + p.Progress(progressWidth))
+				}
+			}
+		}(ctx2, a.Progress, time.NewTicker(5*time.Second))
 
 		// Attempt to get an archive of the server.
 		if err := a.Create(getArchivePath(s.ID())); err != nil {
@@ -195,6 +207,12 @@ func postServerArchive(c *gin.Context) {
 			l.WithField("error", err).Error("failed to get transfer archive for server")
 			return
 		}
+
+		// Cancel the progress ticker.
+		cancel()
+
+		// Show 100% completion.
+		sendTransferLog("Archiving " + a.Progress.Progress(progressWidth))
 
 		sendTransferLog("Successfully created archive, attempting to notify panel..")
 		l.Info("successfully created server transfer archive, notifying panel..")
@@ -221,12 +239,6 @@ func postServerArchive(c *gin.Context) {
 	}(s)
 
 	c.Status(http.StatusAccepted)
-}
-
-func (w *downloadProgress) Write(v []byte) (int, error) {
-	n := len(v)
-	atomic.AddInt64(&w.progress, int64(n))
-	return n, nil
 }
 
 // Log helper function to attach all errors and info output to a consistently formatted
@@ -321,7 +333,7 @@ func postTransfer(c *gin.Context) {
 	manager := middleware.ExtractManager(c)
 	u, err := uuid.Parse(data.ServerID)
 	if err != nil {
-		WithError(c, err)
+		_ = WithError(c, err)
 		return
 	}
 	// Force the server ID to be a valid UUID string at this point. If it is not an error
@@ -331,11 +343,12 @@ func postTransfer(c *gin.Context) {
 
 	data.log().Info("handling incoming server transfer request")
 	go func(data *serverTransferRequest) {
+		ctx := context.Background()
 		hasError := true
 
 		// Create a new server installer. This will only configure the environment and not
 		// run the installer scripts.
-		i, err := installer.New(context.Background(), manager, data.Server)
+		i, err := installer.New(ctx, manager, data.Server)
 		if err != nil {
 			_ = data.sendTransferStatus(manager.Client(), false)
 			data.log().WithField("error", err).Error("failed to validate received server data")
@@ -407,25 +420,23 @@ func postTransfer(c *gin.Context) {
 		sendTransferLog("Writing archive to disk...")
 		data.log().Info("writing transfer archive to disk...")
 
-		// Copy the file.
-		progress := &downloadProgress{size: size}
-		ticker := time.NewTicker(3 * time.Second)
-		go func(progress *downloadProgress, t *time.Ticker) {
-			for range ticker.C {
-				// p = 100 (Downloaded)
-				// size = 1000 (Content-Length)
-				// p / size = 0.1
-				// * 100 = 10% (Multiply by 100 to get a percentage of the download)
-				// 10% / tickPercentage = (10% / (100 / 25)) (Divide by tick percentage to get the number of ticks)
-				// 2.5 (Number of ticks as a float64)
-				// 2 (convert to an integer)
-				p := atomic.LoadInt64(&progress.progress)
-				// We have to cast these numbers to float in order to get a float result from the division.
-				width := ((float64(p) / float64(size)) * 100) / tickPercentage
-				bar := strings.Repeat("=", int(width)) + strings.Repeat(" ", ticks-int(width))
-				sendTransferLog("Downloading [" + bar + "] " + system.FormatBytes(p) + " / " + system.FormatBytes(progress.size))
+		progress := filesystem.NewProgress(size)
+		progress.SetWriter(file)
+
+		// Send the archive progress to the websocket every 3 seconds.
+		ctx2, cancel := context.WithCancel(ctx)
+		defer cancel()
+		go func(ctx context.Context, p *filesystem.Progress, t *time.Ticker) {
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					sendTransferLog("Downloading " + p.Progress(progressWidth))
+				}
 			}
-		}(progress, ticker)
+		}(ctx2, progress, time.NewTicker(5*time.Second))
 
 		var reader io.Reader
 		downloadLimit := float64(config.Get().System.Transfers.DownloadLimit) * 1024 * 1024
@@ -437,19 +448,17 @@ func postTransfer(c *gin.Context) {
 		}
 
 		buf := make([]byte, 1024*4)
-		if _, err := io.CopyBuffer(file, io.TeeReader(reader, progress), buf); err != nil {
-			ticker.Stop()
+		if _, err := io.CopyBuffer(progress, reader, buf); err != nil {
 			_ = file.Close()
 
 			sendTransferLog("Failed while writing archive file to disk: " + err.Error())
 			data.log().WithField("error", err).Error("failed to copy archive file to disk")
 			return
 		}
-		ticker.Stop()
+		cancel()
 
 		// Show 100% completion.
-		humanSize := system.FormatBytes(progress.size)
-		sendTransferLog("Downloading [" + strings.Repeat("=", ticks) + "] " + humanSize + " / " + humanSize)
+		sendTransferLog("Downloading " + progress.Progress(progressWidth))
 
 		if err := file.Close(); err != nil {
 			data.log().WithField("error", err).Error("unable to close archive file on local filesystem")
@@ -486,7 +495,7 @@ func postTransfer(c *gin.Context) {
 
 		sendTransferLog("Server environment has been created, extracting transfer archive..")
 		data.log().Info("server environment configured, extracting transfer archive")
-		if err := archiver.NewTarGz().Unarchive(data.path(), i.Server().Filesystem().Path()); err != nil {
+		if err := i.Server().Filesystem().DecompressFileUnsafe(ctx, "/", data.path()); err != nil {
 			// Un-archiving failed, delete the server's data directory.
 			if err := os.RemoveAll(i.Server().Filesystem().Path()); err != nil && !os.IsNotExist(err) {
 				data.log().WithField("error", err).Warn("failed to delete local server files directory")

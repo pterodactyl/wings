@@ -8,15 +8,20 @@ import (
 	"io/fs"
 	"os"
 	"path"
-	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/mholt/archiver/v4"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/remote"
 )
+
+var format = archiver.CompressedArchive{
+	Compression: archiver.Gz{},
+	Archival:    archiver.Tar{},
+}
 
 type AdapterType string
 
@@ -27,12 +32,12 @@ const (
 
 // RestoreCallback is a generic restoration callback that exists for both local
 // and remote backups allowing the files to be restored.
-type RestoreCallback func(file string, r io.Reader, mode fs.FileMode, atime, mtime time.Time) error
+type RestoreCallback func(file string, info fs.FileInfo, r io.ReadCloser) error
 
 // noinspection GoNameStartsWithPackageName
 type BackupInterface interface {
 	// SetClient sets the API request client on the backup interface.
-	SetClient(c remote.Client)
+	SetClient(remote.Client)
 	// Identifier returns the UUID of this backup as tracked by the panel
 	// instance.
 	Identifier() string
@@ -41,7 +46,7 @@ type BackupInterface interface {
 	WithLogContext(map[string]interface{})
 	// Generate creates a backup in whatever the configured source for the
 	// specific implementation is.
-	Generate(ctx context.Context, basePath string, ignore string) (*ArchiveDetails, error)
+	Generate(context.Context, string, string) (*ArchiveDetails, error)
 	// Ignored returns the ignored files for this backup instance.
 	Ignored() string
 	// Checksum returns a SHA1 checksum for the generated backup.
@@ -53,13 +58,13 @@ type BackupInterface interface {
 	// to store it until it is moved to the final spot.
 	Path() string
 	// Details returns details about the archive.
-	Details(ctx context.Context) (*ArchiveDetails, error)
+	Details(context.Context, []remote.BackupPart) (*ArchiveDetails, error)
 	// Remove removes a backup file.
 	Remove() error
 	// Restore is called when a backup is ready to be restored to the disk from
 	// the given source. Not every backup implementation will support this nor
 	// will every implementation require a reader be provided.
-	Restore(ctx context.Context, reader io.Reader, callback RestoreCallback) error
+	Restore(context.Context, io.Reader, RestoreCallback) error
 }
 
 type Backup struct {
@@ -119,8 +124,8 @@ func (b *Backup) Checksum() ([]byte, error) {
 
 // Details returns both the checksum and size of the archive currently stored on
 // the disk to the caller.
-func (b *Backup) Details(ctx context.Context) (*ArchiveDetails, error) {
-	ad := ArchiveDetails{ChecksumType: "sha1"}
+func (b *Backup) Details(ctx context.Context, parts []remote.BackupPart) (*ArchiveDetails, error) {
+	ad := ArchiveDetails{ChecksumType: "sha1", Parts: parts}
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
@@ -162,9 +167,10 @@ func (b *Backup) log() *log.Entry {
 }
 
 type ArchiveDetails struct {
-	Checksum     string `json:"checksum"`
-	ChecksumType string `json:"checksum_type"`
-	Size         int64  `json:"size"`
+	Checksum     string              `json:"checksum"`
+	ChecksumType string              `json:"checksum_type"`
+	Size         int64               `json:"size"`
+	Parts        []remote.BackupPart `json:"parts"`
 }
 
 // ToRequest returns a request object.
@@ -174,5 +180,6 @@ func (ad *ArchiveDetails) ToRequest(successful bool) remote.BackupRequest {
 		ChecksumType: ad.ChecksumType,
 		Size:         ad.Size,
 		Successful:   successful,
+		Parts:        ad.Parts,
 	}
 }

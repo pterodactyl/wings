@@ -134,7 +134,11 @@ func calculateDockerAbsoluteCpu(pStats types.CPUStats, stats types.CPUStats) flo
 
 	percent := 0.0
 	if systemDelta > 0.0 && cpuDelta > 0.0 {
-		percent = (cpuDelta / systemDelta) * cpus * 100.0
+		percent = (cpuDelta / systemDelta) * 100.0
+
+		if cpus > 0 {
+			percent *= cpus
+		}
 	}
 
 	return math.Round(percent*1000) / 1000

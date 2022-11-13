@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/pterodactyl/wings/cmd"
 	"math/rand"
 	"time"
+
+	"github.com/pterodactyl/wings/cmd"
 )
 
 func main() {

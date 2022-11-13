@@ -1,0 +1,100 @@
+name: Push
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04]
+        go: ["1.18.8", "1.19.3"]
+        goos: [linux]
+        goarch: [amd64, arm64]
+
+    steps:
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Code Checkout
+        uses: actions/checkout@v3
+
+      - name: Gather environment variables
+        id: env
+        run: |
+          printf "Go Executable Path: $(which go)\n"
+          printf "Go Version: $(go version)\n"
+          printf "\n\nGo Environment:\n\n"
+          go env
+          printf "\n\nSystem Environment:\n\n"
+          env
+          printf "Git Version: $(git version)\n\n"
+          echo "version_tag=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_OUTPUT
+          echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "go_cache=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "go_mod_cache=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+      - name: Build Cache
+        uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+          path: |
+            ${{ steps.env.outputs.go_cache }}
+            ${{ steps.env.outputs.go_mod_cache }}
+
+      - name: go mod download
+        env:
+          CGO_ENABLED: 0
+        run: |
+          go mod download
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+          SRC_PATH: github.com/pterodactyl/wings
+        run: |
+          go build -v -trimpath -ldflags="-s -w -X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o dist/wings ${SRC_PATH}
+          go build -v -trimpath -ldflags="-X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o dist/wings_debug ${SRC_PATH}
+          chmod 755 dist/*
+
+      - name: go test
+        if: ${{ matrix.goarch == 'amd64' }}
+        env:
+          CGO_ENABLED: 0
+        run: |
+          go test $(go list ./...)
+
+      - name: go test -race
+        if: ${{ matrix.goarch == 'amd64' }}
+        env:
+          CGO_ENABLED: 1
+        run: |
+          go test -race $(go list ./...)
+
+      - name: Upload Release Artifact
+        uses: actions/upload-artifact@v2
+        if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
+        with:
+          name: wings_linux_${{ matrix.goarch }}
+          path: dist/wings
+
+      - name: Upload Debug Artifact
+        uses: actions/upload-artifact@v2
+        if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
+        with:
+          name: wings_linux_${{ matrix.goarch }}_debug
+          path: dist/wings_debug

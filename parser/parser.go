@@ -15,7 +15,7 @@ import (
 	"github.com/icza/dyno"
 	"github.com/magiconair/properties"
 	"gopkg.in/ini.v1"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/pterodactyl/wings/config"
 )

@@ -81,7 +81,7 @@ func init() {
 	rootCommand.Flags().Bool("pprof", false, "if the pprof profiler should be enabled. The profiler will bind to localhost:6060 by default")
 	rootCommand.Flags().Int("pprof-block-rate", 0, "enables block profile support, may have performance impacts")
 	rootCommand.Flags().Int("pprof-port", 6060, "If provided with --pprof, the port it will run on")
-	rootCommand.Flags().Bool("auto-tls", false, "pass in order to have wings generate and manage it's own SSL certificates using Let's Encrypt")
+	rootCommand.Flags().Bool("auto-tls", false, "pass in order to have wings generate and manage its own SSL certificates using Let's Encrypt")
 	rootCommand.Flags().String("tls-hostname", "", "required with --auto-tls, the FQDN for the generated SSL certificate")
 	rootCommand.Flags().Bool("ignore-certificate-errors", false, "ignore certificate verification errors when executing API calls")
 
@@ -111,7 +111,6 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		log.WithField("error", err).Fatal("failed to configure system directories for pterodactyl")
 		return
 	}
-	log.WithField("username", config.Get().System.User).Info("checking for pterodactyl system user")
 	if err := config.EnsurePterodactylUser(); err != nil {
 		log.WithField("error", err).Fatal("failed to create pterodactyl system user")
 	}
@@ -163,7 +162,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	ticker := time.NewTicker(time.Minute)
 	// Every minute, write the current server states to the disk to allow for a more
 	// seamless hard-reboot process in which wings will re-sync server states based
-	// on it's last tracked state.
+	// on its last tracked state.
 	go func() {
 		for {
 			select {
@@ -364,7 +363,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		return
 	}
 
-	// Check if main http server should run with TLS. Otherwise reset the TLS
+	// Check if main http server should run with TLS. Otherwise, reset the TLS
 	// config on the server and then serve it over normal HTTP.
 	if api.Ssl.Enabled {
 		if err := s.ListenAndServeTLS(api.Ssl.CertificateFile, api.Ssl.KeyFile); err != nil {

@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/goccy/go-json"
 )
 
@@ -78,6 +79,30 @@ type DockerConfiguration struct {
 	Overhead Overhead `json:"overhead" yaml:"overhead"`
 
 	UsePerformantInspect bool `default:"true" json:"use_performant_inspect" yaml:"use_performant_inspect"`
+
+	// Sets the user namespace mode for the container when user namespace remapping option is
+	// enabled.
+	//
+	// If the value is blank, the daemon's user namespace remapping configuration is used,
+	// if the value is "host", then the pterodactyl containers are started with user namespace
+	// remapping disabled
+	UsernsMode string `default:"" json:"userns_mode" yaml:"userns_mode"`
+
+	LogConfig struct {
+		Type   string            `default:"local" json:"type" yaml:"type"`
+		Config map[string]string `default:"{\"max-size\":\"5m\",\"max-file\":\"1\",\"compress\":\"false\",\"mode\":\"non-blocking\"}" json:"config" yaml:"config"`
+	} `json:"log_config" yaml:"log_config"`
+}
+
+func (c DockerConfiguration) ContainerLogConfig() container.LogConfig {
+	if c.LogConfig.Type == "" {
+		return container.LogConfig{}
+	}
+
+	return container.LogConfig{
+		Type:   c.LogConfig.Type,
+		Config: c.LogConfig.Config,
+	}
 }
 
 // RegistryConfiguration defines the authentication credentials for a given

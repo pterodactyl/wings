@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.7.2
+### Fixed
+* The S3 backup driver now supports Cloudflare R2
+
+### Added
+* During a server transfer, there is a new "Archiving" status that outputs the progress of creating the server transfer archive.
+* Adds a configuration option to control the list of trusted proxies that can be used to determine the client IP address.
+* Adds a configuration option to control the Docker username space setting when Wings creates containers.
+
+### Changed
+* Releases are now built using `Go 1.18` — the minimum version required to build Wings is now `Go 1.18`.
+
+## v1.7.1
+### Fixed
+* YAML parser has been updated to fix some strange issues
+
+### Added
+* Added `Force Outgoing IP` option for servers to ensure outgoing traffic uses the server's IP address
+* Adds an option to control the level of gzip compression for backups
+
 ## v1.7.0
 ### Fixed
 * Fixes multi-platform support for Wings' Docker image.

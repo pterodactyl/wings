@@ -5,6 +5,7 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/goccy/go-json"
+
 	"github.com/pterodactyl/wings/system"
 )
 

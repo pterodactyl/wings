@@ -1,8 +1,6 @@
 package backup
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -13,13 +11,12 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/cenkalti/backoff/v4"
-
-	"github.com/pterodactyl/wings/server/filesystem"
-
 	"github.com/juju/ratelimit"
+	"github.com/mholt/archiver/v4"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/remote"
+	"github.com/pterodactyl/wings/server/filesystem"
 )
 
 type S3Backup struct {
@@ -71,10 +68,11 @@ func (s *S3Backup) Generate(ctx context.Context, basePath, ignore string) (*Arch
 	}
 	defer rc.Close()
 
-	if err := s.generateRemoteRequest(ctx, rc); err != nil {
+	parts, err := s.generateRemoteRequest(ctx, rc)
+	if err != nil {
 		return nil, err
 	}
-	ad, err := s.Details(ctx)
+	ad, err := s.Details(ctx, parts)
 	if err != nil {
 		return nil, errors.WrapIf(err, "backup: failed to get archive details after upload")
 	}
@@ -95,50 +93,35 @@ func (s *S3Backup) Restore(ctx context.Context, r io.Reader, callback RestoreCal
 	if writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024); writeLimit > 0 {
 		reader = ratelimit.Reader(r, ratelimit.NewBucketWithRate(float64(writeLimit), writeLimit))
 	}
-	gr, err := gzip.NewReader(reader)
-	if err != nil {
-		return err
-	}
-	defer gr.Close()
-	tr := tar.NewReader(gr)
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			// Do nothing, fall through to the next block of code in this loop.
-		}
-		header, err := tr.Next()
+	if err := format.Extract(ctx, reader, nil, func(ctx context.Context, f archiver.File) error {
+		r, err := f.Open()
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
 			return err
 		}
-		if header.Typeflag == tar.TypeReg {
-			if err := callback(header.Name, tr, header.FileInfo().Mode(), header.AccessTime, header.ModTime); err != nil {
-				return err
-			}
-		}
+		defer r.Close()
+
+		return callback(filesystem.ExtractNameFromArchive(f), f.FileInfo, r)
+	}); err != nil {
+		return err
 	}
 	return nil
 }
 
 // Generates the remote S3 request and begins the upload.
-func (s *S3Backup) generateRemoteRequest(ctx context.Context, rc io.ReadCloser) error {
+func (s *S3Backup) generateRemoteRequest(ctx context.Context, rc io.ReadCloser) ([]remote.BackupPart, error) {
 	defer rc.Close()
 
 	s.log().Debug("attempting to get size of backup...")
 	size, err := s.Backup.Size()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	s.log().WithField("size", size).Debug("got size of backup")
 
 	s.log().Debug("attempting to get S3 upload urls from Panel...")
 	urls, err := s.client.GetBackupRemoteUploadURLs(context.Background(), s.Backup.Uuid, size)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	s.log().Debug("got S3 upload urls from the Panel")
 	s.log().WithField("parts", len(urls.Parts)).Info("attempting to upload backup to s3 endpoint...")
@@ -156,22 +139,26 @@ func (s *S3Backup) generateRemoteRequest(ctx context.Context, rc io.ReadCloser) 
 		}
 
 		// Attempt to upload the part.
-		if _, err := uploader.uploadPart(ctx, part, partSize); err != nil {
+		etag, err := uploader.uploadPart(ctx, part, partSize)
+		if err != nil {
 			s.log().WithField("part_id", i+1).WithError(err).Warn("failed to upload part")
-			return err
+			return nil, err
 		}
-
+		uploader.uploadedParts = append(uploader.uploadedParts, remote.BackupPart{
+			ETag:       etag,
+			PartNumber: i + 1,
+		})
 		s.log().WithField("part_id", i+1).Info("successfully uploaded backup part")
 	}
-
 	s.log().WithField("parts", len(urls.Parts)).Info("backup has been successfully uploaded")
 
-	return nil
+	return uploader.uploadedParts, nil
 }
 
 type s3FileUploader struct {
 	io.ReadCloser
-	client *http.Client
+	client        *http.Client
+	uploadedParts []remote.BackupPart
 }
 
 // newS3FileUploader returns a new file uploader instance.

@@ -41,12 +41,12 @@ func ConfigureDocker(ctx context.Context) error {
 	nw := config.Get().Docker.Network
 	resource, err := cli.NetworkInspect(ctx, nw.Name, types.NetworkInspectOptions{})
 	if err != nil {
-		if client.IsErrNotFound(err) {
-			log.Info("creating missing pterodactyl0 interface, this could take a few seconds...")
-			if err := createDockerNetwork(ctx, cli); err != nil {
-				return err
-			}
-		} else {
+		if !client.IsErrNotFound(err) {
+			return err
+		}
+
+		log.Info("creating missing pterodactyl0 interface, this could take a few seconds...")
+		if err := createDockerNetwork(ctx, cli); err != nil {
 			return err
 		}
 	}

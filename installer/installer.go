@@ -5,6 +5,7 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/asaskevich/govalidator"
+
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server"
 )

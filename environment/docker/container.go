@@ -16,7 +16,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/daemon/logger/local"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -43,15 +42,11 @@ func (nw noopWriter) Write(b []byte) (int, error) {
 //
 // Calling this function will poll resources for the container in the background
 // until the container is stopped. The context provided to this function is used
-// for the purposes of attaching to the container, a seecond context is created
+// for the purposes of attaching to the container, a second context is created
 // within the function for managing polling.
 func (e *Environment) Attach(ctx context.Context) error {
 	if e.IsAttached() {
 		return nil
-	}
-
-	if err := e.followOutput(); err != nil {
-		return err
 	}
 
 	opts := types.ContainerAttachOptions{
@@ -90,20 +85,13 @@ func (e *Environment) Attach(ctx context.Context) error {
 			}
 		}()
 
-		// Block the completion of this routine until the container is no longer running. This allows
-		// the pollResources function to run until it needs to be stopped. Because the container
-		// can be polled for resource usage, even when stopped, we need to have this logic present
-		// in order to cancel the context and therefore stop the routine that is spawned.
-		//
-		// For now, DO NOT use client#ContainerWait from the Docker package. There is a nasty
-		// bug causing containers to hang on deletion and cause servers to lock up on the system.
-		//
-		// This weird code isn't intuitive, but it keeps the function from ending until the container
-		// is stopped and therefore the stream reader ends up closed.
-		// @see https://github.com/moby/moby/issues/41827
-		c := new(noopWriter)
-		if _, err := io.Copy(c, e.stream.Reader); err != nil {
-			e.log().WithField("error", err).Error("could not copy from environment stream to noop writer")
+		if err := system.ScanReader(e.stream.Reader, func(v []byte) {
+			e.logCallbackMx.Lock()
+			defer e.logCallbackMx.Unlock()
+			e.logCallback(v)
+		}); err != nil && err != io.EOF {
+			log.WithField("error", err).WithField("container_id", e.Id).Warn("error processing scanner line in console output")
+			return
 		}
 	}()
 
@@ -147,10 +135,12 @@ func (e *Environment) InSituUpdate() error {
 // currently available for it. If the container already exists it will be
 // returned.
 func (e *Environment) Create() error {
+	ctx := context.Background()
+
 	// If the container already exists don't hit the user with an error, just return
 	// the current information about it which is what we would do when creating the
 	// container anyways.
-	if _, err := e.ContainerInspect(context.Background()); err == nil {
+	if _, err := e.ContainerInspect(ctx); err == nil {
 		return nil
 	} else if !client.IsErrNotFound(err) {
 		return errors.Wrap(err, "environment/docker: failed to inspect container")
@@ -161,21 +151,30 @@ func (e *Environment) Create() error {
 		return errors.WithStackIf(err)
 	}
 
+	cfg := config.Get()
 	a := e.Configuration.Allocations()
-
 	evs := e.Configuration.EnvironmentVariables()
 	for i, v := range evs {
 		// Convert 127.0.0.1 to the pterodactyl0 network interface if the environment is Docker
 		// so that the server operates as expected.
 		if v == "SERVER_IP=127.0.0.1" {
-			evs[i] = "SERVER_IP=" + config.Get().Docker.Network.Interface
+			evs[i] = "SERVER_IP=" + cfg.Docker.Network.Interface
 		}
 	}
 
+	// Merge user-provided labels with system labels
+	confLabels := e.Configuration.Labels()
+	labels := make(map[string]string, 2+len(confLabels))
+
+	for key := range confLabels {
+		labels[key] = confLabels[key]
+	}
+	labels["Service"] = "Pterodactyl"
+	labels["ContainerType"] = "server_process"
+
 	conf := &container.Config{
 		Hostname:     e.Id,
-		Domainname:   config.Get().Docker.Domainname,
-		User:         strconv.Itoa(config.Get().System.User.Uid) + ":" + strconv.Itoa(config.Get().System.User.Gid),
+		Domainname:   cfg.Docker.Domainname,
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -184,13 +183,44 @@ func (e *Environment) Create() error {
 		ExposedPorts: a.Exposed(),
 		Image:        strings.TrimPrefix(e.meta.Image, "~"),
 		Env:          e.Configuration.EnvironmentVariables(),
-		Labels: map[string]string{
-			"Service":       "Pterodactyl",
-			"ContainerType": "server_process",
-		},
+		Labels:       labels,
 	}
 
-	tmpfsSize := strconv.Itoa(int(config.Get().Docker.TmpfsSize))
+	// Set the user running the container properly depending on what mode we are operating in.
+	if cfg.System.User.Rootless.Enabled {
+		conf.User = fmt.Sprintf("%d:%d", cfg.System.User.Rootless.ContainerUID, cfg.System.User.Rootless.ContainerGID)
+	} else {
+		conf.User = strconv.Itoa(cfg.System.User.Uid) + ":" + strconv.Itoa(cfg.System.User.Gid)
+	}
+
+	networkMode := container.NetworkMode(cfg.Docker.Network.Mode)
+	if a.ForceOutgoingIP {
+		e.log().Debug("environment/docker: forcing outgoing IP address")
+		networkName := strings.ReplaceAll(e.Id, "-", "")
+		networkMode = container.NetworkMode(networkName)
+
+		if _, err := e.client.NetworkInspect(ctx, networkName, types.NetworkInspectOptions{}); err != nil {
+			if !client.IsErrNotFound(err) {
+				return err
+			}
+
+			if _, err := e.client.NetworkCreate(ctx, networkName, types.NetworkCreate{
+				Driver:     "bridge",
+				EnableIPv6: false,
+				Internal:   false,
+				Attachable: false,
+				Ingress:    false,
+				ConfigOnly: false,
+				Options: map[string]string{
+					"encryption": "false",
+					"com.docker.network.bridge.default_bridge": "false",
+					"com.docker.network.host_ipv4":             a.DefaultMapping.Ip,
+				},
+			}); err != nil {
+				return err
+			}
+		}
+	}
 
 	hostConf := &container.HostConfig{
 		PortBindings: a.DockerBindings(),
@@ -202,28 +232,20 @@ func (e *Environment) Create() error {
 		// Configure the /tmp folder mapping in containers. This is necessary for some
 		// games that need to make use of it for downloads and other installation processes.
 		Tmpfs: map[string]string{
-			"/tmp": "rw,exec,nosuid,size=" + tmpfsSize + "M",
+			"/tmp": "rw,exec,nosuid,size=" + strconv.Itoa(int(cfg.Docker.TmpfsSize)) + "M",
 		},
 
 		// Define resource limits for the container based on the data passed through
 		// from the Panel.
 		Resources: e.Configuration.Limits().AsContainerResources(),
 
-		DNS: config.Get().Docker.Network.Dns,
+		DNS: cfg.Docker.Network.Dns,
 
 		// Configure logging for the container to make it easier on the Daemon to grab
 		// the server output. Ensure that we don't use too much space on the host machine
 		// since we only need it for the last few hundred lines of output and don't care
 		// about anything else in it.
-		LogConfig: container.LogConfig{
-			Type: local.Name,
-			Config: map[string]string{
-				"max-size": "5m",
-				"max-file": "1",
-				"compress": "false",
-				"mode":     "non-blocking",
-			},
-		},
+		LogConfig: cfg.Docker.ContainerLogConfig(),
 
 		SecurityOpt:    []string{"no-new-privileges"},
 		ReadonlyRootfs: true,
@@ -231,10 +253,11 @@ func (e *Environment) Create() error {
 			"setpcap", "mknod", "audit_write", "net_raw", "dac_override",
 			"fowner", "fsetid", "net_bind_service", "sys_chroot", "setfcap",
 		},
-		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
+		NetworkMode: networkMode,
+		UsernsMode:  container.UsernsMode(cfg.Docker.UsernsMode),
 	}
 
-	if _, err := e.client.ContainerCreate(context.Background(), conf, hostConf, nil, nil, e.Id); err != nil {
+	if _, err := e.client.ContainerCreate(ctx, conf, hostConf, nil, nil, e.Id); err != nil {
 		return errors.Wrap(err, "environment/docker: failed to create container")
 	}
 
@@ -310,59 +333,6 @@ func (e *Environment) Readlog(lines int) ([]string, error) {
 	}
 
 	return out, nil
-}
-
-// Attaches to the log for the container. This avoids us missing crucial output
-// that happens in the split seconds before the code moves from 'Starting' to
-// 'Attaching' on the process.
-func (e *Environment) followOutput() error {
-	if exists, err := e.Exists(); !exists {
-		if err != nil {
-			return err
-		}
-		return errors.New(fmt.Sprintf("no such container: %s", e.Id))
-	}
-
-	opts := types.ContainerLogsOptions{
-		ShowStderr: true,
-		ShowStdout: true,
-		Follow:     true,
-		Since:      time.Now().Format(time.RFC3339),
-	}
-
-	reader, err := e.client.ContainerLogs(context.Background(), e.Id, opts)
-	if err != nil {
-		return err
-	}
-
-	go e.scanOutput(reader)
-
-	return nil
-}
-
-func (e *Environment) scanOutput(reader io.ReadCloser) {
-	defer reader.Close()
-
-	if err := system.ScanReader(reader, func(v []byte) {
-		e.logCallbackMx.Lock()
-		defer e.logCallbackMx.Unlock()
-		e.logCallback(v)
-	}); err != nil && err != io.EOF {
-		log.WithField("error", err).WithField("container_id", e.Id).Warn("error processing scanner line in console output")
-		return
-	}
-
-	// Return here if the server is offline or currently stopping.
-	if e.State() == environment.ProcessStoppingState || e.State() == environment.ProcessOfflineState {
-		return
-	}
-
-	// Close the current reader before starting a new one, the defer will still run,
-	// but it will do nothing if we already closed the stream.
-	_ = reader.Close()
-
-	// Start following the output of the server again.
-	go e.followOutput()
 }
 
 // Pulls the image from Docker. If there is an error while pulling the image

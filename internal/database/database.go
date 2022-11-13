@@ -1,19 +1,23 @@
 package database
 
 import (
+	"path/filepath"
+	"time"
+
 	"emperror.dev/errors"
 	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/internal/models"
 	"github.com/pterodactyl/wings/system"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-	"path/filepath"
-	"time"
 )
 
-var o system.AtomicBool
-var db *gorm.DB
+var (
+	o  system.AtomicBool
+	db *gorm.DB
+)
 
 // Initialize configures the local SQLite database for Wings and ensures that the models have
 // been fully migrated.

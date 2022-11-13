@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	. "github.com/franela/goblin"
+
 	"github.com/pterodactyl/wings/system"
 )
 

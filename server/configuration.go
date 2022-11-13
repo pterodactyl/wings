@@ -46,6 +46,9 @@ type Configuration struct {
 	// server process.
 	EnvVars environment.Variables `json:"environment"`
 
+	// Labels is a map of container labels that should be applied to the running server process.
+	Labels map[string]string `json:"labels"`
+
 	Allocations           environment.Allocations `json:"allocations"`
 	Build                 environment.Limits      `json:"build"`
 	CrashDetectionEnabled bool                    `json:"crash_detection_enabled"`

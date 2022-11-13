@@ -14,9 +14,6 @@ rmdebug:
 	go build -gcflags "all=-N -l" -ldflags="-X github.com/pterodactyl/wings/system.Version=$(GIT_HEAD)" -race
 	sudo dlv --listen=:2345 --headless=true --api-version=2 --accept-multiclient exec ./wings -- --debug --ignore-certificate-errors --config config.yml
 
-compress:
-	upx --brute build/wings_*
-
 cross-build: clean build compress
 
 clean:

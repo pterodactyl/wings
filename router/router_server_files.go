@@ -3,7 +3,6 @@ package router
 import (
 	"bufio"
 	"context"
-	"github.com/pterodactyl/wings/internal/models"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -14,13 +13,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pterodactyl/wings/config"
-
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/internal/models"
 	"github.com/pterodactyl/wings/router/downloader"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
@@ -441,7 +440,7 @@ func postServerDecompressFiles(c *gin.Context) {
 	s := middleware.ExtractServer(c)
 	lg := middleware.ExtractLogger(c).WithFields(log.Fields{"root_path": data.RootPath, "file": data.File})
 	lg.Debug("checking if space is available for file decompression")
-	err := s.Filesystem().SpaceAvailableForDecompression(data.RootPath, data.File)
+	err := s.Filesystem().SpaceAvailableForDecompression(context.Background(), data.RootPath, data.File)
 	if err != nil {
 		if filesystem.IsErrorCode(err, filesystem.ErrCodeUnknownArchive) {
 			lg.WithField("error", err).Warn("failed to decompress file: unknown archive format")
@@ -453,7 +452,7 @@ func postServerDecompressFiles(c *gin.Context) {
 	}
 
 	lg.Info("starting file decompression")
-	if err := s.Filesystem().DecompressFile(data.RootPath, data.File); err != nil {
+	if err := s.Filesystem().DecompressFile(context.Background(), data.RootPath, data.File); err != nil {
 		// If the file is busy for some reason just return a nicer error to the user since there is not
 		// much we specifically can do. They'll need to stop the running server process in order to overwrite
 		// a file like this.
@@ -602,7 +601,7 @@ func postServerUploadFiles(c *gin.Context) {
 			NewServerError(err, s).Abort(c)
 			return
 		} else {
-			s.SaveActivity(s.NewRequestActivity(token.UserUuid, c.Request.RemoteAddr), server.ActivityFileUploaded, models.ActivityMeta{
+			s.SaveActivity(s.NewRequestActivity(token.UserUuid, c.ClientIP()), server.ActivityFileUploaded, models.ActivityMeta{
 				"file":      header.Filename,
 				"directory": filepath.Clean(directory),
 			})

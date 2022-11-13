@@ -2,13 +2,15 @@ package cron
 
 import (
 	"context"
+	"time"
+
 	"emperror.dev/errors"
 	log2 "github.com/apex/log"
 	"github.com/go-co-op/gocron"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/system"
-	"time"
 )
 
 const ErrCronRunning = errors.Sentinel("cron: job already running")

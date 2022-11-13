@@ -2,10 +2,12 @@ package server
 
 import (
 	"context"
+	"time"
+
 	"emperror.dev/errors"
+
 	"github.com/pterodactyl/wings/internal/database"
 	"github.com/pterodactyl/wings/internal/models"
-	"time"
 )
 
 const ActivityPowerPrefix = "server:power."

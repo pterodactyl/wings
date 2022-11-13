@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"html/template"
 	"io"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/remote"
@@ -418,7 +420,12 @@ func (ip *InstallationProcess) Execute() (string, error) {
 		},
 	}
 
-	tmpfsSize := strconv.Itoa(int(config.Get().Docker.TmpfsSize))
+	cfg := config.Get()
+	if cfg.System.User.Rootless.Enabled {
+		conf.User = fmt.Sprintf("%d:%d", cfg.System.User.Rootless.ContainerUID, cfg.System.User.Rootless.ContainerGID)
+	}
+
+	tmpfsSize := strconv.Itoa(int(cfg.Docker.TmpfsSize))
 	hostConf := &container.HostConfig{
 		Mounts: []mount.Mount{
 			{
@@ -438,17 +445,11 @@ func (ip *InstallationProcess) Execute() (string, error) {
 		Tmpfs: map[string]string{
 			"/tmp": "rw,exec,nosuid,size=" + tmpfsSize + "M",
 		},
-		DNS: config.Get().Docker.Network.Dns,
-		LogConfig: container.LogConfig{
-			Type: "local",
-			Config: map[string]string{
-				"max-size": "5m",
-				"max-file": "1",
-				"compress": "false",
-			},
-		},
+		DNS:         cfg.Docker.Network.Dns,
+		LogConfig:   cfg.Docker.ContainerLogConfig(),
 		Privileged:  true,
-		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
+		NetworkMode: container.NetworkMode(cfg.Docker.Network.Mode),
+		UsernsMode:  container.UsernsMode(cfg.Docker.UsernsMode),
 	}
 
 	// Ensure the root directory for the server exists properly before attempting
