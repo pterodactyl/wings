@@ -2,13 +2,13 @@ package filesystem
 
 import (
 	"archive/tar"
+	"context"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -18,7 +18,7 @@ import (
 	ignore "github.com/sabhiram/go-gitignore"
 
 	"github.com/pterodactyl/wings/config"
-	"github.com/pterodactyl/wings/system"
+	"github.com/pterodactyl/wings/internal/progress"
 )
 
 const memory = 4 * 1024
@@ -33,13 +33,13 @@ var pool = sync.Pool{
 // TarProgress .
 type TarProgress struct {
 	*tar.Writer
-	p *Progress
+	p *progress.Progress
 }
 
 // NewTarProgress .
-func NewTarProgress(w *tar.Writer, p *Progress) *TarProgress {
+func NewTarProgress(w *tar.Writer, p *progress.Progress) *TarProgress {
 	if p != nil {
-		p.w = w
+		p.Writer = w
 	}
 	return &TarProgress{
 		Writer: w,
@@ -47,89 +47,12 @@ func NewTarProgress(w *tar.Writer, p *Progress) *TarProgress {
 	}
 }
 
+// Write .
 func (p *TarProgress) Write(v []byte) (int, error) {
 	if p.p == nil {
 		return p.Writer.Write(v)
 	}
 	return p.p.Write(v)
-}
-
-// Progress is used to track the progress of any I/O operation that are being
-// performed.
-type Progress struct {
-	// written is the total size of the files that have been written to the writer.
-	written int64
-	// Total is the total size of the archive in bytes.
-	total int64
-	// w .
-	w io.Writer
-}
-
-// NewProgress .
-func NewProgress(total int64) *Progress {
-	return &Progress{total: total}
-}
-
-// SetWriter sets the writer progress will forward writes to.
-// NOTE: This function is not thread safe.
-func (p *Progress) SetWriter(w io.Writer) {
-	p.w = w
-}
-
-// Written returns the total number of bytes written.
-// This function should be used when the progress is tracking data being written.
-func (p *Progress) Written() int64 {
-	return atomic.LoadInt64(&p.written)
-}
-
-// Total returns the total size in bytes.
-func (p *Progress) Total() int64 {
-	return atomic.LoadInt64(&p.total)
-}
-
-// Write totals the number of bytes that have been written to the writer.
-func (p *Progress) Write(v []byte) (int, error) {
-	n := len(v)
-	atomic.AddInt64(&p.written, int64(n))
-	if p.w != nil {
-		return p.w.Write(v)
-	}
-	return n, nil
-}
-
-// Progress returns a formatted progress string for the current progress.
-func (p *Progress) Progress(width int) string {
-	// current = 100 (Progress, dynamic)
-	// total = 1000 (Content-Length, dynamic)
-	// width = 25 (Number of ticks to display, static)
-	// widthPercentage = 100 / width (What percentage does each tick represent, static)
-	//
-	// percentageDecimal = current / total = 0.1
-	// percentage = percentageDecimal * 100 = 10%
-	// ticks = percentage / widthPercentage = 2.5
-	//
-	// ticks is a float64, so we cast it to an int which rounds it down to 2.
-
-	// Values are cast to floats to prevent integer division.
-	current := p.Written()
-	total := p.Total()
-	// width := is passed as a parameter
-	widthPercentage := float64(100) / float64(width)
-	percentageDecimal := float64(current) / float64(total)
-	percentage := percentageDecimal * 100
-	ticks := int(percentage / widthPercentage)
-
-	// Ensure that we never get a negative number of ticks, this will prevent strings#Repeat
-	// from panicking.  A negative number of ticks is likely to happen when the total size is
-	// inaccurate, such as when we are going off of rough disk usage calculation.
-	if ticks < 0 {
-		ticks = 0
-	} else if ticks > width {
-		ticks = width
-	}
-
-	bar := strings.Repeat("=", ticks) + strings.Repeat(" ", width-ticks)
-	return "[" + bar + "] " + system.FormatBytes(current) + " / " + system.FormatBytes(total)
 }
 
 type Archive struct {
@@ -146,12 +69,12 @@ type Archive struct {
 	Files []string
 
 	// Progress wraps the writer of the archive to pass through the progress tracker.
-	Progress *Progress
+	Progress *progress.Progress
 }
 
 // Create creates an archive at dst with all the files defined in the
 // included Files array.
-func (a *Archive) Create(dst string) error {
+func (a *Archive) Create(ctx context.Context, dst string) error {
 	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
@@ -169,6 +92,11 @@ func (a *Archive) Create(dst string) error {
 		writer = f
 	}
 
+	return a.Stream(ctx, writer)
+}
+
+// Stream .
+func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
 	// Choose which compression level to use based on the compression_level configuration option
 	var compressionLevel int
 	switch config.Get().System.Backups.CompressionLevel {
@@ -183,7 +111,7 @@ func (a *Archive) Create(dst string) error {
 	}
 
 	// Create a new gzip writer around the file.
-	gw, _ := pgzip.NewWriterLevel(writer, compressionLevel)
+	gw, _ := pgzip.NewWriterLevel(w, compressionLevel)
 	_ = gw.SetConcurrency(1<<20, 1)
 	defer gw.Close()
 
@@ -197,16 +125,16 @@ func (a *Archive) Create(dst string) error {
 	options := &godirwalk.Options{
 		FollowSymbolicLinks: false,
 		Unsorted:            true,
-		Callback:            a.callback(pw),
 	}
 
 	// If we're specifically looking for only certain files, or have requested
 	// that certain files be ignored we'll update the callback function to reflect
 	// that request.
+	var callback godirwalk.WalkFunc
 	if len(a.Files) == 0 && len(a.Ignore) > 0 {
 		i := ignore.CompileIgnoreLines(strings.Split(a.Ignore, "\n")...)
 
-		options.Callback = a.callback(pw, func(_ string, rp string) error {
+		callback = a.callback(pw, func(_ string, rp string) error {
 			if i.MatchesPath(rp) {
 				return godirwalk.SkipThis
 			}
@@ -214,7 +142,19 @@ func (a *Archive) Create(dst string) error {
 			return nil
 		})
 	} else if len(a.Files) > 0 {
-		options.Callback = a.withFilesCallback(pw)
+		callback = a.withFilesCallback(pw)
+	} else {
+		callback = a.callback(pw)
+	}
+
+	// Set the callback function, wrapped with support for context cancellation.
+	options.Callback = func(path string, de *godirwalk.Dirent) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			return callback(path, de)
+		}
 	}
 
 	// Recursively walk the path we are archiving.

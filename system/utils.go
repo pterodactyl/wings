@@ -120,7 +120,7 @@ func ScanReader(r io.Reader, callback func(line []byte)) error {
 	return nil
 }
 
-func FormatBytes(b int64) string {
+func FormatBytes[T int | int16 | int32 | int64 | uint | uint16 | uint32 | uint64](b T) string {
 	if b < 1024 {
 		return fmt.Sprintf("%d B", b)
 	}
@@ -188,14 +188,14 @@ func NewAtomicString(v string) *AtomicString {
 	return &AtomicString{v: v}
 }
 
-// Stores the string value passed atomically.
+// Store stores the string value passed atomically.
 func (as *AtomicString) Store(v string) {
 	as.mu.Lock()
 	as.v = v
 	as.mu.Unlock()
 }
 
-// Loads the string value and returns it.
+// Load loads the string value and returns it.
 func (as *AtomicString) Load() string {
 	as.mu.RLock()
 	defer as.mu.RUnlock()
@@ -210,4 +210,42 @@ func (as *AtomicString) UnmarshalJSON(b []byte) error {
 
 func (as *AtomicString) MarshalJSON() ([]byte, error) {
 	return json.Marshal(as.Load())
+}
+
+type Atomic[T any] struct {
+	v  T
+	mu sync.RWMutex
+}
+
+func NewAtomic[T any](v T) *Atomic[T] {
+	return &Atomic[T]{v: v}
+}
+
+// Store stores the string value passed atomically.
+func (a *Atomic[T]) Store(v T) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.v = v
+}
+
+// Load loads the string value and returns it.
+func (a *Atomic[T]) Load() T {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return a.v
+}
+
+// UnmarshalJSON unmarshals the JSON value into the Atomic[T] value.
+func (a *Atomic[T]) UnmarshalJSON(b []byte) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return json.Unmarshal(b, &a.v)
+}
+
+// MarshalJSON marshals the Atomic[T] value into JSON.
+func (a *Atomic[T]) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.Load())
 }

@@ -66,7 +66,7 @@ func (b *LocalBackup) Generate(ctx context.Context, basePath, ignore string) (*A
 	}
 
 	b.log().WithField("path", b.Path()).Info("creating backup for server")
-	if err := a.Create(b.Path()); err != nil {
+	if err := a.Create(ctx, b.Path()); err != nil {
 		return nil, err
 	}
 	b.log().Info("created backup successfully")

@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	iofs "io/fs"
 	"os"
 	"path"
@@ -21,7 +22,7 @@ import (
 	"github.com/mholt/archiver/v4"
 )
 
-// CompressFiles compresses all of the files matching the given paths in the
+// CompressFiles compresses all the files matching the given paths in the
 // specified directory. This function also supports passing nested paths to only
 // compress certain files and folders when working in a larger directory. This
 // effectively creates a local backup, but rather than ignoring specific files
@@ -36,7 +37,7 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 		return nil, err
 	}
 
-	// Take all of the paths passed in and merge them together with the root directory we've gotten.
+	// Take all the paths passed in and merge them together with the root directory we've gotten.
 	for i, p := range paths {
 		paths[i] = filepath.Join(cleanedRootDir, p)
 	}
@@ -52,7 +53,7 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, er
 		fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")),
 	)
 
-	if err := a.Create(d); err != nil {
+	if err := a.Create(context.Background(), d); err != nil {
 		return nil, err
 	}
 
@@ -147,6 +148,7 @@ func (fs *Filesystem) DecompressFileUnsafe(ctx context.Context, dir string, file
 	if err != nil {
 		return err
 	}
+	// TODO: defer file close?
 
 	// Identify the type of archive we are dealing with.
 	format, input, err := archiver.Identify(filepath.Base(file), f)
@@ -157,13 +159,49 @@ func (fs *Filesystem) DecompressFileUnsafe(ctx context.Context, dir string, file
 		return err
 	}
 
+	return fs.extractStream(ctx, extractStreamOptions{
+		Directory: dir,
+		Format:    format,
+		Reader:    input,
+	})
+}
+
+// ExtractStreamUnsafe .
+func (fs *Filesystem) ExtractStreamUnsafe(ctx context.Context, dir string, r io.Reader) error {
+	format, input, err := archiver.Identify("archive.tar.gz", r)
+	if err != nil {
+		if errors.Is(err, archiver.ErrNoMatch) {
+			return newFilesystemError(ErrCodeUnknownArchive, err)
+		}
+		return err
+	}
+
+	return fs.extractStream(ctx, extractStreamOptions{
+		Directory: dir,
+		Format:    format,
+		Reader:    input,
+	})
+}
+
+type extractStreamOptions struct {
+	// The directory to extract the archive to.
+	Directory string
+	// File name of the archive.
+	FileName string
+	// Format of the archive.
+	Format archiver.Format
+	// Reader for the archive.
+	Reader io.Reader
+}
+
+func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptions) error {
 	// Decompress and extract archive
-	if ex, ok := format.(archiver.Extractor); ok {
-		return ex.Extract(ctx, input, nil, func(ctx context.Context, f archiver.File) error {
+	if ex, ok := opts.Format.(archiver.Extractor); ok {
+		return ex.Extract(ctx, opts.Reader, nil, func(ctx context.Context, f archiver.File) error {
 			if f.IsDir() {
 				return nil
 			}
-			p := filepath.Join(dir, ExtractNameFromArchive(f))
+			p := filepath.Join(opts.Directory, ExtractNameFromArchive(f))
 			// If it is ignored, just don't do anything with the file and skip over it.
 			if err := fs.IsIgnored(p); err != nil {
 				return nil
@@ -174,20 +212,19 @@ func (fs *Filesystem) DecompressFileUnsafe(ctx context.Context, dir string, file
 			}
 			defer r.Close()
 			if err := fs.Writefile(p, r); err != nil {
-				return wrapError(err, file)
+				return wrapError(err, opts.FileName)
 			}
 			// Update the file permissions to the one set in the archive.
 			if err := fs.Chmod(p, f.Mode()); err != nil {
-				return wrapError(err, file)
+				return wrapError(err, opts.FileName)
 			}
 			// Update the file modification time to the one set in the archive.
 			if err := fs.Chtimes(p, f.ModTime(), f.ModTime()); err != nil {
-				return wrapError(err, file)
+				return wrapError(err, opts.FileName)
 			}
 			return nil
 		})
 	}
-
 	return nil
 }
 
