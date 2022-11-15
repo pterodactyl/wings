@@ -25,11 +25,9 @@ jobs:
           REF: ${{ github.ref }}
         run: |
           GOARCH=amd64 go build -o dist/wings_linux_amd64 -v -trimpath -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" github.com/pterodactyl/wings
-          GOARCH=arm64 go build -o dist/wings_linux_ard64 -v -trimpath -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" github.com/pterodactyl/wings
-
-      - name: Compress binary and make it executable
-        run: |
-          chmod 755 dist/wings_linux_amd64 dist/wings_linux_arm64
+          chmod 755 dist/wings_linux_amd64
+          GOARCH=arm64 go build -o dist/wings_linux_arm64 -v -trimpath -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" github.com/pterodactyl/wings
+          chmod 755 dist/wings_linux_arm64
 
       - name: Extract changelog
         env:
