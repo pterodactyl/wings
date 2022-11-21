@@ -153,9 +153,15 @@ func postServerSync(c *gin.Context) {
 func postServerInstall(c *gin.Context) {
 	s := ExtractServer(c)
 
-	go func(serv *server.Server) {
-		if err := serv.Install(true); err != nil {
-			serv.Log().WithField("error", err).Error("failed to execute server installation process")
+	go func(s *server.Server) {
+		s.Log().Info("syncing server state with remote source before executing installation process")
+		if err := s.Sync(); err != nil {
+			s.Log().WithField("error", err).Error("failed to sync server state with Panel")
+			return
+		}
+
+		if err := s.Install(); err != nil {
+			s.Log().WithField("error", err).Error("failed to execute server installation process")
 		}
 	}(s)
 
