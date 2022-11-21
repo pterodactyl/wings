@@ -196,7 +196,7 @@ func (e *Environment) Create() error {
 	networkMode := container.NetworkMode(cfg.Docker.Network.Mode)
 	if a.ForceOutgoingIP {
 		e.log().Debug("environment/docker: forcing outgoing IP address")
-		networkName := strings.ReplaceAll(e.Id, "-", "")
+		networkName := "ip-" + strings.ReplaceAll(strings.ReplaceAll(a.DefaultMapping.Ip, ".", "-"), ":", "-")
 		networkMode = container.NetworkMode(networkName)
 
 		if _, err := e.client.NetworkInspect(ctx, networkName, types.NetworkInspectOptions{}); err != nil {
