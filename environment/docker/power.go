@@ -179,8 +179,12 @@ func (e *Environment) Stop(ctx context.Context) error {
 
 	// Allow the stop action to run for however long it takes, similar to executing a command
 	// and using a different logic pathway to wait for the container to stop successfully.
-	t := time.Duration(-1)
-	if err := e.client.ContainerStop(ctx, e.Id, &t); err != nil {
+	//
+	// Using a negative timeout here will allow the container to stop gracefully,
+	// rather than forcefully terminating it, this value MUST be at least 1
+	// second, otherwise it will be ignored.
+	timeout := -1 * time.Second
+	if err := e.client.ContainerStop(ctx, e.Id, &timeout); err != nil {
 		// If the container does not exist just mark the process as stopped and return without
 		// an error.
 		if client.IsErrNotFound(err) {
