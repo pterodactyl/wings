@@ -21,11 +21,27 @@ func getSystemInformation(c *gin.Context) {
 	i, err := system.GetSystemInformation()
 	if err != nil {
 		NewTrackedError(err).Abort(c)
-
 		return
 	}
 
-	c.JSON(http.StatusOK, i)
+	if c.Query("v") == "2" {
+		c.JSON(http.StatusOK, i)
+		return
+	}
+
+	c.JSON(http.StatusOK, struct {
+		Architecture  string `json:"architecture"`
+		CPUCount      int    `json:"cpu_count"`
+		KernelVersion string `json:"kernel_version"`
+		OS            string `json:"os"`
+		Version       string `json:"version"`
+	}{
+		Architecture:  i.System.Architecture,
+		CPUCount:      i.System.CPUThreads,
+		KernelVersion: i.System.KernelVersion,
+		OS:            i.System.OSType,
+		Version:       i.Version,
+	})
 }
 
 // Returns all the servers that are registered and configured correctly on
