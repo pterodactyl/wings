@@ -6,8 +6,10 @@ import (
 	"os"
 
 	"emperror.dev/errors"
-	"github.com/mholt/archiver/v3"
+	"github.com/juju/ratelimit"
+	"github.com/mholt/archiver/v4"
 
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server/filesystem"
 )
@@ -64,7 +66,7 @@ func (b *LocalBackup) Generate(ctx context.Context, basePath, ignore string) (*A
 	}
 
 	b.log().WithField("path", b.Path()).Info("creating backup for server")
-	if err := a.Create(b.Path()); err != nil {
+	if err := a.Create(ctx, b.Path()); err != nil {
 		return nil, err
 	}
 	b.log().Info("created backup successfully")
@@ -79,16 +81,27 @@ func (b *LocalBackup) Generate(ctx context.Context, basePath, ignore string) (*A
 // Restore will walk over the archive and call the callback function for each
 // file encountered.
 func (b *LocalBackup) Restore(ctx context.Context, _ io.Reader, callback RestoreCallback) error {
-	return archiver.Walk(b.Path(), func(f archiver.File) error {
-		select {
-		case <-ctx.Done():
-			// Stop walking if the context is canceled.
-			return archiver.ErrStopWalk
-		default:
-			if f.IsDir() {
-				return nil
-			}
-			return callback(filesystem.ExtractNameFromArchive(f), f, f.Mode(), f.ModTime(), f.ModTime())
+	f, err := os.Open(b.Path())
+	if err != nil {
+		return err
+	}
+
+	var reader io.Reader = f
+	// Steal the logic we use for making backups which will be applied when restoring
+	// this specific backup. This allows us to prevent overloading the disk unintentionally.
+	if writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024); writeLimit > 0 {
+		reader = ratelimit.Reader(f, ratelimit.NewBucketWithRate(float64(writeLimit), writeLimit))
+	}
+	if err := format.Extract(ctx, reader, nil, func(ctx context.Context, f archiver.File) error {
+		r, err := f.Open()
+		if err != nil {
+			return err
 		}
-	})
+		defer r.Close()
+
+		return callback(filesystem.ExtractNameFromArchive(f), f.FileInfo, r)
+	}); err != nil {
+		return err
+	}
+	return nil
 }

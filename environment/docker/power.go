@@ -39,7 +39,7 @@ func (e *Environment) OnBeforeStart(ctx context.Context) error {
 	//
 	// This won't actually run an installation process however, it is just here to ensure the
 	// environment gets created properly if it is missing and the server is started. We're making
-	// an assumption that all of the files will still exist at this point.
+	// an assumption that all the files will still exist at this point.
 	if err := e.Create(); err != nil {
 		return err
 	}
@@ -107,7 +107,7 @@ func (e *Environment) Start(ctx context.Context) error {
 	}
 
 	// If we cannot start & attach to the container in 30 seconds something has gone
-	// quite sideways and we should stop trying to avoid a hanging situation.
+	// quite sideways, and we should stop trying to avoid a hanging situation.
 	actx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
@@ -179,8 +179,12 @@ func (e *Environment) Stop(ctx context.Context) error {
 
 	// Allow the stop action to run for however long it takes, similar to executing a command
 	// and using a different logic pathway to wait for the container to stop successfully.
-	t := time.Duration(-1)
-	if err := e.client.ContainerStop(ctx, e.Id, &t); err != nil {
+	//
+	// Using a negative timeout here will allow the container to stop gracefully,
+	// rather than forcefully terminating it, this value MUST be at least 1
+	// second, otherwise it will be ignored.
+	timeout := -1 * time.Second
+	if err := e.client.ContainerStop(ctx, e.Id, &timeout); err != nil {
 		// If the container does not exist just mark the process as stopped and return without
 		// an error.
 		if client.IsErrNotFound(err) {

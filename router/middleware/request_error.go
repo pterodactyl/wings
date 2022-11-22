@@ -2,14 +2,16 @@ package middleware
 
 import (
 	"context"
-	"emperror.dev/errors"
-	"github.com/apex/log"
-	"github.com/gin-gonic/gin"
-	"github.com/pterodactyl/wings/server"
-	"github.com/pterodactyl/wings/server/filesystem"
 	"net/http"
 	"os"
 	"strings"
+
+	"emperror.dev/errors"
+	"github.com/apex/log"
+	"github.com/gin-gonic/gin"
+
+	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/server/filesystem"
 )
 
 // RequestError is a custom error type returned when something goes wrong with

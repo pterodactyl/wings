@@ -29,7 +29,7 @@ type Client interface {
 	SetArchiveStatus(ctx context.Context, uuid string, successful bool) error
 	SetBackupStatus(ctx context.Context, backup string, data BackupRequest) error
 	SendRestorationStatus(ctx context.Context, backup string, successful bool) error
-	SetInstallationStatus(ctx context.Context, uuid string, successful bool) error
+	SetInstallationStatus(ctx context.Context, uuid string, data InstallStatusRequest) error
 	SetTransferStatus(ctx context.Context, uuid string, successful bool) error
 	ValidateSftpCredentials(ctx context.Context, request SftpAuthRequest) (SftpAuthResponse, error)
 	SendActivityLogs(ctx context.Context, activity []models.Activity) error

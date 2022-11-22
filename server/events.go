@@ -5,8 +5,7 @@ import (
 	"github.com/pterodactyl/wings/system"
 )
 
-// Defines all of the possible output events for a server.
-// noinspection GoNameStartsWithPackageName
+// Defines all the possible output events for a server.
 const (
 	DaemonMessageEvent          = "daemon message"
 	InstallOutputEvent          = "install output"
@@ -19,6 +18,7 @@ const (
 	BackupCompletedEvent        = "backup completed"
 	TransferLogsEvent           = "transfer logs"
 	TransferStatusEvent         = "transfer status"
+	DeletedEvent                = "deleted"
 )
 
 // Events returns the server's emitter instance.

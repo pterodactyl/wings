@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -121,15 +120,6 @@ func IsErrorCode(err error, code ErrorCode) bool {
 	var fserr *Error
 	if err != nil && errors.As(err, &fserr) {
 		return fserr.code == code
-	}
-	return false
-}
-
-// IsUnknownArchiveFormatError checks if the error is due to the archive being
-// in an unexpected file format.
-func IsUnknownArchiveFormatError(err error) bool {
-	if err != nil && strings.HasPrefix(err.Error(), "format ") {
-		return true
 	}
 	return false
 }

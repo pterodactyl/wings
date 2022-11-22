@@ -96,7 +96,7 @@ func (e *Environment) SetStream(s *types.HijackedResponse) {
 	e.mu.Unlock()
 }
 
-// IsAttached determine if the this process is currently attached to the
+// IsAttached determines if this process is currently attached to the
 // container instance by checking if the stream is nil or not.
 func (e *Environment) IsAttached() bool {
 	e.mu.RLock()

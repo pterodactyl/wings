@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.11.0-rc.1
+### Changed
+* Wings release versions will now follow the major and minor version of the panel.
+* Transfers no longer buffer to disk, instead they are fully streamed with only a small amount of memory used for buffering.
+* Release binaries are no longer compressed with UPX.
+
+### Fixed
+* Wings can be run with podman instead of Docker, this is still experimental and not recommended for production use.
+* Archive progress is now reported correctly.
+* Labels for containers can now be set by the Panel.
+
 ## v1.7.2
 ### Fixed
 * The S3 backup driver now supports Cloudflare R2

@@ -53,7 +53,7 @@ func AttachApiClient(client remote.Client) gin.HandlerFunc {
 }
 
 // CaptureAndAbort aborts the request and attaches the provided error to the gin
-// context so it can be reported properly. If the error is missing a stacktrace
+// context, so it can be reported properly. If the error is missing a stacktrace
 // at the time it is called the stack will be attached.
 func CaptureAndAbort(c *gin.Context, err error) {
 	c.Abort()

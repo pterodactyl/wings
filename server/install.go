@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"html/template"
 	"io"
 	"os"
@@ -31,19 +32,17 @@ import (
 //
 // Pass true as the first argument in order to execute a server sync before the
 // process to ensure the latest information is used.
-func (s *Server) Install(sync bool) error {
-	if sync {
-		s.Log().Info("syncing server state with remote source before executing installation process")
-		if err := s.Sync(); err != nil {
-			return errors.WrapIf(err, "install: failed to sync server state with Panel")
-		}
-	}
+func (s *Server) Install() error {
+	return s.install(false)
+}
 
+func (s *Server) install(reinstall bool) error {
 	var err error
 	if !s.Config().SkipEggScripts {
-		// Send the start event so the Panel can automatically update. We don't send this unless the process
-		// is actually going to run, otherwise all sorts of weird rapid UI behavior happens since there isn't
-		// an actual install process being executed.
+		// Send the start event so the Panel can automatically update. We don't
+		// send this unless the process is actually going to run, otherwise all
+		// sorts of weird rapid UI behavior happens since there isn't an actual
+		// install process being executed.
 		s.Events().Publish(InstallStartedEvent, "")
 
 		err = s.internalInstall()
@@ -52,12 +51,13 @@ func (s *Server) Install(sync bool) error {
 	}
 
 	s.Log().WithField("was_successful", err == nil).Debug("notifying panel of server install state")
-	if serr := s.SyncInstallState(err == nil); serr != nil {
+	if serr := s.SyncInstallState(err == nil, reinstall); serr != nil {
 		l := s.Log().WithField("was_successful", err == nil)
 
-		// If the request was successful but there was an error with this request, attach the
-		// error to this log entry. Otherwise ignore it in this log since whatever is calling
-		// this function should handle the error and will end up logging the same one.
+		// If the request was successful but there was an error with this request,
+		// attach the error to this log entry. Otherwise, ignore it in this log
+		// since whatever is calling this function should handle the error and
+		// will end up logging the same one.
 		if err == nil {
 			l.WithField("error", err)
 		}
@@ -65,19 +65,20 @@ func (s *Server) Install(sync bool) error {
 		l.Warn("failed to notify panel of server install state")
 	}
 
-	// Ensure that the server is marked as offline at this point, otherwise you end up
-	// with a blank value which is a bit confusing.
+	// Ensure that the server is marked as offline at this point, otherwise you
+	// end up with a blank value which is a bit confusing.
 	s.Environment.SetState(environment.ProcessOfflineState)
 
-	// Push an event to the websocket so we can auto-refresh the information in the panel once
-	// the install is completed.
+	// Push an event to the websocket, so we can auto-refresh the information in
+	// the panel once the installation is completed.
 	s.Events().Publish(InstallCompletedEvent, "")
 
 	return errors.WithStackIf(err)
 }
 
-// Reinstalls a server's software by utilizing the install script for the server egg. This
-// does not touch any existing files for the server, other than what the script modifies.
+// Reinstall reinstalls a server's software by utilizing the installation script
+// for the server egg. This does not touch any existing files for the server,
+// other than what the script modifies.
 func (s *Server) Reinstall() error {
 	if s.Environment.State() != environment.ProcessOfflineState {
 		s.Log().Debug("waiting for server instance to enter a stopped state")
@@ -86,7 +87,12 @@ func (s *Server) Reinstall() error {
 		}
 	}
 
-	return s.Install(true)
+	s.Log().Info("syncing server state with remote source before executing re-installation process")
+	if err := s.Sync(); err != nil {
+		return errors.WrapIf(err, "install: failed to sync server state with Panel")
+	}
+
+	return s.install(true)
 }
 
 // Internal installation function used to simplify reporting back to the Panel.
@@ -115,8 +121,9 @@ type InstallationProcess struct {
 	client *client.Client
 }
 
-// Generates a new installation process struct that will be used to create containers,
-// and otherwise perform installation commands for a server.
+// NewInstallationProcess returns a new installation process struct that will be
+// used to create containers and otherwise perform installation commands for a
+// server.
 func NewInstallationProcess(s *Server, script *remote.InstallationScript) (*InstallationProcess, error) {
 	proc := &InstallationProcess{
 		Script: script,
@@ -132,8 +139,8 @@ func NewInstallationProcess(s *Server, script *remote.InstallationScript) (*Inst
 	return proc, nil
 }
 
-// Determines if the server is actively running the installation process by checking the status
-// of the installer lock.
+// IsInstalling returns if the server is actively running the installation
+// process by checking the status of the installer lock.
 func (s *Server) IsInstalling() bool {
 	return s.installing.Load()
 }
@@ -154,7 +161,7 @@ func (s *Server) SetRestoring(state bool) {
 	s.restoring.Store(state)
 }
 
-// Removes the installer container for the server.
+// RemoveContainer removes the installation container for the server.
 func (ip *InstallationProcess) RemoveContainer() error {
 	err := ip.client.ContainerRemove(ip.Server.Context(), ip.Server.ID()+"_installer", types.ContainerRemoveOptions{
 		RemoveVolumes: true,
@@ -327,14 +334,14 @@ func (ip *InstallationProcess) BeforeExecute() error {
 	return nil
 }
 
-// Returns the log path for the installation process.
+// GetLogPath returns the log path for the installation process.
 func (ip *InstallationProcess) GetLogPath() string {
 	return filepath.Join(config.Get().System.LogDirectory, "/install", ip.Server.ID()+".log")
 }
 
-// Cleans up after the execution of the installation process. This grabs the logs from the
-// process to store in the server configuration directory, and then destroys the associated
-// installation container.
+// AfterExecute cleans up after the execution of the installation process.
+// This grabs the logs from the process to store in the server configuration
+// directory, and then destroys the associated installation container.
 func (ip *InstallationProcess) AfterExecute(containerId string) error {
 	defer ip.RemoveContainer()
 
@@ -419,7 +426,12 @@ func (ip *InstallationProcess) Execute() (string, error) {
 		},
 	}
 
-	tmpfsSize := strconv.Itoa(int(config.Get().Docker.TmpfsSize))
+	cfg := config.Get()
+	if cfg.System.User.Rootless.Enabled {
+		conf.User = fmt.Sprintf("%d:%d", cfg.System.User.Rootless.ContainerUID, cfg.System.User.Rootless.ContainerGID)
+	}
+
+	tmpfsSize := strconv.Itoa(int(cfg.Docker.TmpfsSize))
 	hostConf := &container.HostConfig{
 		Mounts: []mount.Mount{
 			{
@@ -439,18 +451,11 @@ func (ip *InstallationProcess) Execute() (string, error) {
 		Tmpfs: map[string]string{
 			"/tmp": "rw,exec,nosuid,size=" + tmpfsSize + "M",
 		},
-		DNS: config.Get().Docker.Network.Dns,
-		LogConfig: container.LogConfig{
-			Type: "local",
-			Config: map[string]string{
-				"max-size": "5m",
-				"max-file": "1",
-				"compress": "false",
-			},
-		},
+		DNS:         cfg.Docker.Network.Dns,
+		LogConfig:   cfg.Docker.ContainerLogConfig(),
 		Privileged:  true,
-		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
-		UsernsMode:  container.UsernsMode(config.Get().Docker.UsernsMode),
+		NetworkMode: container.NetworkMode(cfg.Docker.Network.Mode),
+		UsernsMode:  container.UsernsMode(cfg.Docker.UsernsMode),
 	}
 
 	// Ensure the root directory for the server exists properly before attempting
@@ -526,7 +531,7 @@ func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) erro
 	return nil
 }
 
-// resourceLimits returns the install container specific resource limits. This
+// resourceLimits returns resource limits for the installation container. This
 // looks at the globally defined install container limits and attempts to use
 // the higher of the two (defined limits & server limits). This allows for servers
 // with super low limits (e.g. Discord bots with 128Mb of memory) to perform more
@@ -538,8 +543,8 @@ func (ip *InstallationProcess) StreamOutput(ctx context.Context, id string) erro
 func (ip *InstallationProcess) resourceLimits() container.Resources {
 	limits := config.Get().Docker.InstallerLimits
 
-	// Create a copy of the configuration so we're not accidentally making changes
-	// to the underlying server build data.
+	// Create a copy of the configuration, so we're not accidentally making
+	// changes to the underlying server build data.
 	c := *ip.Server.Config()
 	cfg := c.Build
 	if cfg.MemoryLimit < limits.Memory {
@@ -563,10 +568,12 @@ func (ip *InstallationProcess) resourceLimits() container.Resources {
 	return resources
 }
 
-// SyncInstallState makes a HTTP request to the Panel instance notifying it that
+// SyncInstallState makes an HTTP request to the Panel instance notifying it that
 // the server has completed the installation process, and what the state of the
-// server is. A boolean value of "true" means everything was successful, "false"
-// means something went wrong and the server must be deleted and re-created.
-func (s *Server) SyncInstallState(successful bool) error {
-	return s.client.SetInstallationStatus(s.Context(), s.ID(), successful)
+// server is.
+func (s *Server) SyncInstallState(successful, reinstall bool) error {
+	return s.client.SetInstallationStatus(s.Context(), s.ID(), remote.InstallStatusRequest{
+		Successful: successful,
+		Reinstall:  reinstall,
+	})
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
 	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/server/transfer"
 )
 
 // Returns a single server from the collection of servers.
@@ -152,9 +153,15 @@ func postServerSync(c *gin.Context) {
 func postServerInstall(c *gin.Context) {
 	s := ExtractServer(c)
 
-	go func(serv *server.Server) {
-		if err := serv.Install(true); err != nil {
-			serv.Log().WithField("error", err).Error("failed to execute server installation process")
+	go func(s *server.Server) {
+		s.Log().Info("syncing server state with remote source before executing installation process")
+		if err := s.Sync(); err != nil {
+			s.Log().WithField("error", err).Error("failed to sync server state with Panel")
+			return
+		}
+
+		if err := s.Install(); err != nil {
+			s.Log().WithField("error", err).Error("failed to execute server installation process")
 		}
 	}(s)
 
@@ -188,6 +195,17 @@ func deleteServer(c *gin.Context) {
 	// Immediately suspend the server to prevent a user from attempting
 	// to start it while this process is running.
 	s.Config().SetSuspended(true)
+
+	// Notify all websocket clients that the server is being deleted.
+	// This is useful for two reasons, one to tell clients not to bother
+	// retrying to connect to the websocket.  And two, for transfers when
+	// the server has been successfully transferred to another node, and
+	// the client needs to switch to the new node.
+	if s.IsTransferring() {
+		s.Events().Publish(server.TransferStatusEvent, transfer.StatusCompleted)
+	}
+	s.Events().Publish(server.DeletedEvent, nil)
+
 	s.CleanupForDestroy()
 
 	// Remove any pending remote file downloads for the server.
@@ -207,7 +225,7 @@ func deleteServer(c *gin.Context) {
 	// done in a separate process since failure is not the end of the world and can be
 	// manually cleaned up after the fact.
 	//
-	// In addition, servers with large amounts of files can take some time to finish deleting
+	// In addition, servers with large amounts of files can take some time to finish deleting,
 	// so we don't want to block the HTTP call while waiting on this.
 	go func(p string) {
 		if err := os.RemoveAll(p); err != nil {

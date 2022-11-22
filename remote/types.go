@@ -92,8 +92,8 @@ type SftpAuthResponse struct {
 }
 
 type OutputLineMatcher struct {
-	// The raw string to match against. This may or may not be prefixed with
-	// regex: which indicates we want to match against the regex expression.
+	// raw string to match against. This may or may not be prefixed with
+	// `regex:` which indicates we want to match against the regex expression.
 	raw []byte
 	reg *regexp.Regexp
 }
@@ -139,9 +139,9 @@ type ProcessStopConfiguration struct {
 }
 
 // ProcessConfiguration defines the process configuration for a given server
-// instance. This sets what Wings is looking for to mark a server as done starting
-// what to do when stopping, and what changes to make to the configuration file
-// for a server.
+// instance. This sets what Wings is looking for to mark a server as done
+// starting what to do when stopping, and what changes to make to the
+// configuration file for a server.
 type ProcessConfiguration struct {
 	Startup struct {
 		Done            []*OutputLineMatcher `json:"done"`
@@ -168,4 +168,9 @@ type BackupRequest struct {
 	Size         int64        `json:"size"`
 	Successful   bool         `json:"successful"`
 	Parts        []BackupPart `json:"parts"`
+}
+
+type InstallStatusRequest struct {
+	Successful bool `json:"successful"`
+	Reinstall  bool `json:"reinstall"`
 }

@@ -10,9 +10,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/pterodactyl/wings/config"
-	"github.com/pterodactyl/wings/installer"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/server/installer"
 	"github.com/pterodactyl/wings/system"
 )
 
@@ -24,10 +24,27 @@ func getSystemInformation(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, i)
+	if c.Query("v") == "2" {
+		c.JSON(http.StatusOK, i)
+		return
+	}
+
+	c.JSON(http.StatusOK, struct {
+		Architecture  string `json:"architecture"`
+		CPUCount      int    `json:"cpu_count"`
+		KernelVersion string `json:"kernel_version"`
+		OS            string `json:"os"`
+		Version       string `json:"version"`
+	}{
+		Architecture:  i.System.Architecture,
+		CPUCount:      i.System.CPUThreads,
+		KernelVersion: i.System.KernelVersion,
+		OS:            i.System.OSType,
+		Version:       i.Version,
+	})
 }
 
-// Returns all of the servers that are registered and configured correctly on
+// Returns all the servers that are registered and configured correctly on
 // this wings instance.
 func getAllServers(c *gin.Context) {
 	servers := middleware.ExtractManager(c).All()
@@ -74,7 +91,7 @@ func postCreateServer(c *gin.Context) {
 			return
 		}
 
-		if err := i.Server().Install(false); err != nil {
+		if err := i.Server().Install(); err != nil {
 			log.WithFields(log.Fields{"server": i.Server().ID(), "error": err}).Error("failed to run install process for server")
 			return
 		}
