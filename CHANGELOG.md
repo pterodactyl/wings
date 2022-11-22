@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.11.0-rc.2
+### Added
+* More detailed information returned by the `/api/system` endpoint when using the `?v=2` query parameter.
+
+### Changed
+* Send reinstallation status separately from installation status.
+
+### Fixed
+* Fixed servers outgoing IP not being updated whenever a server's primary allocation is changed when using the Force Outgoing IP option.
+* Fixed servers being terminated rather than gracefully stopped when a signal is used to stop the container rather than a command.
+* Fixed file not found errors being treated as an internal error, they are now treated as a 404.
+
 ## v1.11.0-rc.1
 ### Changed
 * Wings release versions will now follow the major and minor version of the panel.
