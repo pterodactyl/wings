@@ -61,25 +61,28 @@ func (fs *Filesystem) Path() string {
 func (fs *Filesystem) File(p string) (*os.File, Stat, error) {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {
-		return nil, Stat{}, err
+		return nil, Stat{}, errors.WithStackIf(err)
 	}
 	st, err := fs.Stat(cleaned)
 	if err != nil {
-		return nil, Stat{}, err
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, Stat{}, newFilesystemError(ErrNotExist, err)
+		}
+		return nil, Stat{}, errors.WithStackIf(err)
 	}
 	if st.IsDir() {
 		return nil, Stat{}, newFilesystemError(ErrCodeIsDirectory, nil)
 	}
 	f, err := os.Open(cleaned)
 	if err != nil {
-		return nil, Stat{}, err
+		return nil, Stat{}, errors.WithStackIf(err)
 	}
 	return f, st, nil
 }
 
-// Acts by creating the given file and path on the disk if it is not present already. If
-// it is present, the file is opened using the defaults which will truncate the contents.
-// The opened file is then returned to the caller.
+// Touch acts by creating the given file and path on the disk if it is not present
+// already. If  it is present, the file is opened using the defaults which will truncate
+// the contents. The opened file is then returned to the caller.
 func (fs *Filesystem) Touch(p string, flag int) (*os.File, error) {
 	cleaned, err := fs.SafePath(p)
 	if err != nil {

@@ -18,6 +18,7 @@ const (
 	ErrCodePathResolution ErrorCode = "E_BADPATH"
 	ErrCodeDenylistFile   ErrorCode = "E_DENYLIST"
 	ErrCodeUnknownError   ErrorCode = "E_UNKNOWN"
+	ErrNotExist           ErrorCode = "E_NOTEXIST"
 )
 
 type Error struct {
@@ -68,6 +69,8 @@ func (e *Error) Error() string {
 			r = "<empty>"
 		}
 		return fmt.Sprintf("filesystem: server path [%s] resolves to a location outside the server root: %s", e.path, r)
+	case ErrNotExist:
+		return "filesystem: does not exist"
 	case ErrCodeUnknownError:
 		fallthrough
 	default:

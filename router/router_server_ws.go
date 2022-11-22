@@ -34,7 +34,7 @@ func getServerWebsocket(c *gin.Context) {
 
 	handler, err := websocket.GetHandler(s, c.Writer, c.Request, c)
 	if err != nil {
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 	defer handler.Connection.Close()

@@ -21,12 +21,11 @@ func getDownloadBackup(c *gin.Context) {
 
 	token := tokens.BackupPayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
-		NewTrackedError(err).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
-	s, ok := manager.Get(token.ServerUuid)
-	if !ok || !token.IsUniqueRequest() {
+	if _, ok := manager.Get(token.ServerUuid); !ok || !token.IsUniqueRequest() {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"error": "The requested resource was not found on this server.",
 		})
@@ -42,13 +41,13 @@ func getDownloadBackup(c *gin.Context) {
 			return
 		}
 
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
 	f, err := os.Open(b.Path())
 	if err != nil {
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 	defer f.Close()
@@ -57,7 +56,7 @@ func getDownloadBackup(c *gin.Context) {
 	c.Header("Content-Disposition", "attachment; filename="+strconv.Quote(st.Name()))
 	c.Header("Content-Type", "application/octet-stream")
 
-	bufio.NewReader(f).WriteTo(c.Writer)
+	_, _ = bufio.NewReader(f).WriteTo(c.Writer)
 }
 
 // Handles downloading a specific file for a server.
@@ -65,7 +64,7 @@ func getDownloadFile(c *gin.Context) {
 	manager := middleware.ExtractManager(c)
 	token := tokens.FilePayload{}
 	if err := tokens.ParseToken([]byte(c.Query("token")), &token); err != nil {
-		NewTrackedError(err).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -82,7 +81,7 @@ func getDownloadFile(c *gin.Context) {
 	// If there is an error or we're somehow trying to download a directory, just
 	// respond with the appropriate error.
 	if err != nil {
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	} else if st.IsDir() {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
@@ -93,7 +92,7 @@ func getDownloadFile(c *gin.Context) {
 
 	f, err := os.Open(p)
 	if err != nil {
-		NewServerError(err, s).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -101,5 +100,5 @@ func getDownloadFile(c *gin.Context) {
 	c.Header("Content-Disposition", "attachment; filename="+strconv.Quote(st.Name()))
 	c.Header("Content-Type", "application/octet-stream")
 
-	bufio.NewReader(f).WriteTo(c.Writer)
+	_, _ = bufio.NewReader(f).WriteTo(c.Writer)
 }

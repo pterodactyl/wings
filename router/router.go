@@ -1,6 +1,7 @@
 package router
 
 import (
+	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
 
@@ -16,7 +17,10 @@ func Configure(m *wserver.Manager, client remote.Client) *gin.Engine {
 
 	router := gin.New()
 	router.Use(gin.Recovery())
-	_ = router.SetTrustedProxies(config.Get().Api.TrustedProxies)
+	if err := router.SetTrustedProxies(config.Get().Api.TrustedProxies); err != nil {
+		panic(errors.WithStack(err))
+		return nil
+	}
 	router.Use(middleware.AttachRequestID(), middleware.CaptureErrors(), middleware.SetAccessControlHeaders())
 	router.Use(middleware.AttachServerManager(m), middleware.AttachApiClient(client))
 	// @todo log this into a different file so you can setup IP blocking for abusive requests and such.

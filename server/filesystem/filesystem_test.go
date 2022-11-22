@@ -84,6 +84,35 @@ func (rfs *rootFs) reset() {
 	}
 }
 
+func TestFilesystem_Openfile(t *testing.T) {
+	g := Goblin(t)
+	fs, rfs := NewFs()
+
+	g.Describe("File", func() {
+		g.It("returns custom error when file does not exist", func() {
+			_, _, err := fs.File("foo/bar.txt")
+
+			g.Assert(err).IsNotNil()
+			g.Assert(IsErrorCode(err, ErrNotExist)).IsTrue()
+		})
+
+		g.It("returns file stat information", func() {
+			_ = rfs.CreateServerFile("foo.txt", []byte("hello world"))
+
+			f, st, err := fs.File("foo.txt")
+			g.Assert(err).IsNil()
+
+			g.Assert(st.Name()).Equal("foo.txt")
+			g.Assert(f).IsNotNil()
+			_ = f.Close()
+		})
+
+		g.AfterEach(func() {
+			rfs.reset()
+		})
+	})
+}
+
 func TestFilesystem_Writefile(t *testing.T) {
 	g := Goblin(t)
 	fs, rfs := NewFs()

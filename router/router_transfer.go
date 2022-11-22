@@ -38,14 +38,14 @@ func postTransfers(c *gin.Context) {
 
 	token := tokens.TransferPayload{}
 	if err := tokens.ParseToken([]byte(auth[1]), &token); err != nil {
-		NewTrackedError(err).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
 	manager := middleware.ExtractManager(c)
 	u, err := uuid.Parse(token.Subject)
 	if err != nil {
-		NewTrackedError(err).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
@@ -70,7 +70,7 @@ func postTransfers(c *gin.Context) {
 			if err := manager.Client().SetTransferStatus(context.Background(), trnsfr.Server.ID(), false); err != nil {
 				trnsfr.Log().WithField("status", false).WithError(err).Error("failed to set transfer status")
 			}
-			NewTrackedError(err).Abort(c)
+			middleware.CaptureAndAbort(c, err)
 			return
 		}
 
@@ -123,13 +123,13 @@ func postTransfers(c *gin.Context) {
 	mediaType, params, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
 	if err != nil {
 		trnsfr.Log().Debug("failed to parse content type header")
-		NewTrackedError(err).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
 	if !strings.HasPrefix(mediaType, "multipart/") {
 		trnsfr.Log().Debug("invalid content type")
-		NewTrackedError(fmt.Errorf("invalid content type \"%s\", expected \"multipart/form-data\"", mediaType)).Abort(c)
+		middleware.CaptureAndAbort(c, fmt.Errorf("invalid content type \"%s\", expected \"multipart/form-data\"", mediaType))
 		return
 	}
 
@@ -156,7 +156,7 @@ out:
 				break out
 			}
 			if err != nil {
-				NewTrackedError(err).Abort(c)
+				middleware.CaptureAndAbort(c, err)
 				return
 			}
 
@@ -166,13 +166,13 @@ out:
 				trnsfr.Log().Debug("received archive")
 
 				if err := trnsfr.Server.EnsureDataDirectoryExists(); err != nil {
-					NewTrackedError(err).Abort(c)
+					middleware.CaptureAndAbort(c, err)
 					return
 				}
 
 				tee := io.TeeReader(p, h)
 				if err := trnsfr.Server.Filesystem().ExtractStreamUnsafe(ctx, "/", tee); err != nil {
-					NewTrackedError(err).Abort(c)
+					middleware.CaptureAndAbort(c, err)
 					return
 				}
 
@@ -181,7 +181,7 @@ out:
 				trnsfr.Log().Debug("received checksum")
 
 				if !hasArchive {
-					NewTrackedError(errors.New("archive must be sent before the checksum")).Abort(c)
+					middleware.CaptureAndAbort(c, errors.New("archive must be sent before the checksum"))
 					return
 				}
 
@@ -189,14 +189,14 @@ out:
 
 				v, err := io.ReadAll(p)
 				if err != nil {
-					NewTrackedError(err).Abort(c)
+					middleware.CaptureAndAbort(c, err)
 					return
 				}
 
 				expected := make([]byte, hex.DecodedLen(len(v)))
 				n, err := hex.Decode(expected, v)
 				if err != nil {
-					NewTrackedError(err).Abort(c)
+					middleware.CaptureAndAbort(c, err)
 					return
 				}
 				actual := h.Sum(nil)
@@ -207,7 +207,7 @@ out:
 				}).Debug("checksums")
 
 				if !bytes.Equal(expected[:n], actual) {
-					NewTrackedError(errors.New("checksums don't match")).Abort(c)
+					middleware.CaptureAndAbort(c, errors.New("checksums don't match"))
 					return
 				}
 
@@ -220,12 +220,12 @@ out:
 	}
 
 	if !hasArchive || !hasChecksum {
-		NewTrackedError(errors.New("missing archive or checksum")).Abort(c)
+		middleware.CaptureAndAbort(c, errors.New("missing archive or checksum"))
 		return
 	}
 
 	if !checksumVerified {
-		NewTrackedError(errors.New("checksums don't match")).Abort(c)
+		middleware.CaptureAndAbort(c, errors.New("checksums don't match"))
 		return
 	}
 
@@ -235,7 +235,7 @@ out:
 
 	// Ensure the server environment gets configured.
 	if err := trnsfr.Server.CreateEnvironment(); err != nil {
-		NewTrackedError(err).Abort(c)
+		middleware.CaptureAndAbort(c, err)
 		return
 	}
 
