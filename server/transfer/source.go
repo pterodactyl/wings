@@ -128,6 +128,13 @@ func (t *Transfer) PushArchiveToTarget(url, token string) ([]byte, error) {
 	t.Log().Debug("sending archive to destination")
 	client := http.Client{Timeout: 0}
 	res, err := client.Do(req)
+	if err != nil {
+		t.Log().Debug("error while sending archive to destination")
+		return nil, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code from destination: %d", res.StatusCode)
+	}
 	t.Log().Debug("waiting for stream to complete")
 	select {
 	case <-ctx.Done():
