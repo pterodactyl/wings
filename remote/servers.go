@@ -115,7 +115,7 @@ func (c *client) SetTransferStatus(ctx context.Context, uuid string, successful 
 	if successful {
 		state = "success"
 	}
-	resp, err := c.Get(ctx, fmt.Sprintf("/servers/%s/transfer/%s", uuid, state), nil)
+	resp, err := c.Post(ctx, fmt.Sprintf("/servers/%s/transfer/%s", uuid, state), nil)
 	if err != nil {
 		return err
 	}
