@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.11.0
+### Added (since 1.7.2)
+* More detailed information returned by the `/api/system` endpoint when using the `?v=2` query parameter.
+
+### Changed (since 1.7.2)
+* Send re-installation status separately from installation status.
+* Wings release versions will now follow the major and minor version of the Panel.
+* Transfers no longer buffer to disk, instead they are fully streamed with only a small amount of memory used for buffering.
+* Release binaries are no longer compressed with UPX.
+* Use `POST` instead of `GET` for sending the status of a transfer to the Panel.
+
+### Fixed (since 1.7.2)
+* Fixed servers outgoing IP not being updated whenever a server's primary allocation is changed when using the Force Outgoing IP option.
+* Fixed servers being terminated rather than gracefully stopped when a signal is used to stop the container rather than a command.
+* Fixed file not found errors being treated as an internal error, they are now treated as a 404.
+* Wings can be run with Podman instead of Docker, this is still experimental and not recommended for production use.
+* Archive progress is now reported correctly.
+* Labels for containers can now be set by the Panel.
+* Fixed servers becoming deadlocked when the target node of a transfer goes offline.
+
 ## v1.11.0-rc.2
 ### Added
 * More detailed information returned by the `/api/system` endpoint when using the `?v=2` query parameter.
