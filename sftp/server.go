@@ -68,6 +68,21 @@ func (c *SFTPServer) Run() error {
 	}
 
 	conf := &ssh.ServerConfig{
+		Config: ssh.Config{
+			KeyExchanges: []string{
+				"curve25519-sha256", "curve25519-sha256@libssh.org",
+				"ecdh-sha2-nistp256", "ecdh-sha2-nistp384", "ecdh-sha2-nistp521",
+				"diffie-hellman-group14-sha256",
+			},
+			Ciphers: []string{
+				"aes128-gcm@openssh.com",
+				"chacha20-poly1305@openssh.com",
+				"aes128-ctr", "aes192-ctr", "aes256-ctr",
+			},
+			MACs: []string{
+				"hmac-sha2-256-etm@openssh.com", "hmac-sha2-256",
+			},
+		},
 		NoClientAuth: false,
 		MaxAuthTries: 6,
 		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
