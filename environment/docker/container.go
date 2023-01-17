@@ -58,7 +58,7 @@ func (e *Environment) Attach(ctx context.Context) error {
 
 	// Set the stream again with the container.
 	if st, err := e.client.ContainerAttach(ctx, e.Id, opts); err != nil {
-		return err
+		return errors.WrapIf(err, "environment/docker: error while attaching to container")
 	} else {
 		e.SetStream(&st)
 	}
@@ -143,7 +143,7 @@ func (e *Environment) Create() error {
 	if _, err := e.ContainerInspect(ctx); err == nil {
 		return nil
 	} else if !client.IsErrNotFound(err) {
-		return errors.Wrap(err, "environment/docker: failed to inspect container")
+		return errors.WrapIf(err, "environment/docker: failed to inspect container")
 	}
 
 	// Try to pull the requested image before creating the container.

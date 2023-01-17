@@ -161,7 +161,7 @@ func (e *Environment) ExitState() (uint32, bool, error) {
 		if client.IsErrNotFound(err) {
 			return 1, false, nil
 		}
-		return 0, false, err
+		return 0, false, errors.WrapIf(err, "environment/docker: failed to inspect container")
 	}
 	return uint32(c.State.ExitCode), c.State.OOMKilled, nil
 }

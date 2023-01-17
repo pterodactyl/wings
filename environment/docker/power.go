@@ -103,7 +103,7 @@ func (e *Environment) Start(ctx context.Context) error {
 	// exists on the system, and rebuild the container if that is required for server booting to
 	// occur.
 	if err := e.OnBeforeStart(ctx); err != nil {
-		return errors.WithStackIf(err)
+		return errors.WrapIf(err, "environment/docker: failed to run pre-boot process")
 	}
 
 	// If we cannot start & attach to the container in 30 seconds something has gone
@@ -119,7 +119,7 @@ func (e *Environment) Start(ctx context.Context) error {
 	// By explicitly attaching to the instance before we start it, we can immediately
 	// react to errors/output stopping/etc. when starting.
 	if err := e.Attach(actx); err != nil {
-		return err
+		return errors.WrapIf(err, "environment/docker: failed to attach to container")
 	}
 
 	if err := e.client.ContainerStart(actx, e.Id, types.ContainerStartOptions{}); err != nil {

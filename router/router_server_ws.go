@@ -58,7 +58,7 @@ func getServerWebsocket(c *gin.Context) {
 		case <-ctx.Done():
 			break
 		case <-s.Context().Done():
-			handler.Connection.WriteControl(ws.CloseMessage, ws.FormatCloseMessage(ws.CloseGoingAway, "server deleted"), time.Now().Add(time.Second*5))
+			_ = handler.Connection.WriteControl(ws.CloseMessage, ws.FormatCloseMessage(ws.CloseGoingAway, "server deleted"), time.Now().Add(time.Second*5))
 			break
 		}
 	}()
@@ -83,7 +83,7 @@ func getServerWebsocket(c *gin.Context) {
 
 		go func(msg websocket.Message) {
 			if err := handler.HandleInbound(ctx, msg); err != nil {
-				handler.SendErrorJson(msg, err)
+				_ = handler.SendErrorJson(msg, err)
 			}
 		}(j)
 	}

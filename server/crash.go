@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"emperror.dev/errors"
+
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 )
@@ -57,7 +59,7 @@ func (s *Server) handleServerCrash() error {
 
 	exitCode, oomKilled, err := s.Environment.ExitState()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get exit state for server process")
 	}
 
 	// If the system is not configured to detect a clean exit code as a crash, and the
@@ -85,5 +87,5 @@ func (s *Server) handleServerCrash() error {
 
 	s.crasher.SetLastCrash(time.Now())
 
-	return s.HandlePowerAction(PowerActionStart)
+	return errors.Wrap(s.HandlePowerAction(PowerActionStart), "failed to start server after crash detection")
 }
