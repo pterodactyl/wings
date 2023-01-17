@@ -465,6 +465,16 @@ func (ip *InstallationProcess) Execute() (string, error) {
 	if err := ip.Server.EnsureDataDirectoryExists(); err != nil {
 		return "", err
 	}
+	
+	// Add on custom mounts
+	for _, m := range ip.Server.customMounts() {
+ 		hostConf.Mounts = append(hostConf.Mounts, mount.Mount{
+ 			Target:   m.Target,
+ 			Source:   m.Source,
+ 			Type:     mount.TypeBind,
+ 			ReadOnly: m.ReadOnly,
+ 		})
+ 	}
 
 	ip.Server.Log().WithField("install_script", ip.tempDir()+"/install.sh").Info("creating install container for server process")
 	// Remove the temporary directory when the installation process finishes for this server container.
