@@ -95,6 +95,7 @@ func getDownloadFile(c *gin.Context) {
 		middleware.CaptureAndAbort(c, err)
 		return
 	}
+	defer f.Close()
 
 	c.Header("Content-Length", strconv.Itoa(int(st.Size())))
 	c.Header("Content-Disposition", "attachment; filename="+strconv.Quote(st.Name()))

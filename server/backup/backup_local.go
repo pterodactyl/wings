@@ -85,6 +85,7 @@ func (b *LocalBackup) Restore(ctx context.Context, _ io.Reader, callback Restore
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 
 	var reader io.Reader = f
 	// Steal the logic we use for making backups which will be applied when restoring

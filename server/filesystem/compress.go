@@ -148,7 +148,7 @@ func (fs *Filesystem) DecompressFileUnsafe(ctx context.Context, dir string, file
 	if err != nil {
 		return err
 	}
-	// TODO: defer file close?
+	defer f.Close()
 
 	// Identify the type of archive we are dealing with.
 	format, input, err := archiver.Identify(filepath.Base(file), f)
