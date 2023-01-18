@@ -117,7 +117,6 @@ func (fs *Filesystem) Touch(p string, flag int) (*os.File, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "server/filesystem: touch: failed to open file with wait")
 	}
-	_ = f.Close()
 	_ = fs.Chown(cleaned)
 	return f, nil
 }
