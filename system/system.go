@@ -127,6 +127,7 @@ func GetDockerInfo(ctx context.Context) (types.Version, types.Info, error) {
 	if err != nil {
 		return types.Version{}, types.Info{}, err
 	}
+	defer c.Close()
 
 	dockerVersion, err := c.ServerVersion(ctx)
 	if err != nil {
