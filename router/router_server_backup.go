@@ -147,6 +147,7 @@ func postServerRestoreBackup(c *gin.Context) {
 		middleware.CaptureAndAbort(c, err)
 		return
 	}
+	defer res.Body.Close()
 	// Don't allow content types that we know are going to give us problems.
 	if res.Header.Get("Content-Type") == "" || !strings.Contains("application/x-gzip application/gzip", res.Header.Get("Content-Type")) {
 		_ = res.Body.Close()

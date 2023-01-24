@@ -183,7 +183,7 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 			}
 
 			if !e.IsDir() {
-				syscall.Lstat(p, &st)
+				_ = syscall.Lstat(p, &st)
 				atomic.AddInt64(&size, st.Size)
 			}
 
