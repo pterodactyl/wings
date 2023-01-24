@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"emperror.dev/errors"
 	"github.com/gin-gonic/gin"
 
 	"github.com/pterodactyl/wings/environment"
@@ -67,7 +68,7 @@ func postServerTransfer(c *gin.Context) {
 			false,
 		); err != nil && !strings.Contains(strings.ToLower(err.Error()), "no such container") {
 			s.SetTransferring(false)
-			s.Log().WithError(err).Error("failed to stop server for transfer")
+			middleware.CaptureAndAbort(c, errors.Wrap(err, "failed to stop server for transfer"))
 			return
 		}
 	}
