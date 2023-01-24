@@ -1,11 +1,11 @@
 package models
 
 import (
+	"net"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
-
-	"github.com/pterodactyl/wings/system"
 )
 
 type Event string
@@ -57,7 +57,9 @@ func (a Activity) SetUser(u string) *Activity {
 // is trimmed down to remove any extraneous data, and the timestamp is set to the current
 // system time and then stored as UTC.
 func (a *Activity) BeforeCreate(_ *gorm.DB) error {
-	a.IP = system.TrimIPSuffix(a.IP)
+	if ip, _, err := net.SplitHostPort(strings.TrimSpace(a.IP)); err == nil {
+		a.IP = ip
+	}
 	if a.Timestamp.IsZero() {
 		a.Timestamp = time.Now()
 	}
