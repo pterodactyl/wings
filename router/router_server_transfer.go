@@ -63,10 +63,10 @@ func postServerTransfer(c *gin.Context) {
 	if s.Environment.State() != environment.ProcessOfflineState {
 		if err := s.Environment.WaitForStop(
 			s.Context(),
-			time.Minute,
+			time.Second*15,
 			false,
 		); err != nil && !strings.Contains(strings.ToLower(err.Error()), "no such container") {
-			notifyPanelOfFailure()
+			s.SetTransferring(false)
 			s.Log().WithError(err).Error("failed to stop server for transfer")
 			return
 		}
