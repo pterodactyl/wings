@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.11.1
+### Changed
+* Release binaries are now built with Go 1.18.10
+* Timeout when stopping a server before a transfer begins has been reduced to 15 seconds from 1 minute
+* Removed insecure SSH protocols for use with the SFTP server
+
+### Fixed
+* Unnecessary Docker client connections being left open, causing a slow leak of file descriptors
+* Files being left open in parts of the server's filesystem, causing a leak of file descriptors
+* IPv6 addresses being corrupted by flawed port stripping logic for activity logs, old entries with malformed IPs will be deleted from the local SQLite database automatically
+* A server that times out while being stopped at the beginning of a transfer no longer causes the server to become stuck in a transferring state
+
 ## v1.11.0
 ### Added (since 1.7.2)
 * More detailed information returned by the `/api/system` endpoint when using the `?v=2` query parameter.
