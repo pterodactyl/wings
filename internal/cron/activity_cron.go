@@ -49,7 +49,7 @@ func (ac *activityCron) Run(ctx context.Context) error {
 	for _, v := range activity {
 		// Delete any activity that has an invalid IP address. This is a fix for
 		// a bug that truncated the last octet of an IPv6 address in the database.
-		if err := net.ParseIP(v.IP); err != nil {
+		if ip := net.ParseIP(v.IP); ip == nil {
 			ids = append(ids, v.ID)
 			continue
 		}
