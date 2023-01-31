@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.11.2
+### Fixed
+* Backups being restored from remote storage (s3) erroring out due to a closed stream.
+* Fix IP validation logic for activity logs filtering out valid IPs instead of invalid IPs
+
 ## v1.11.1
 ### Changed
 * Release binaries are now built with Go 1.18.10
