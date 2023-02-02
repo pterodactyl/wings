@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -143,13 +144,30 @@ func (s *Server) Context() context.Context {
 	return s.ctx
 }
 
+func parseInvocation(invocation string, envvars map[string]interface{}, memory int64, port int, ip string) (parsed string) {
+	// replace "{{" and "}}" with "${" and "}" respectively
+	invocation = strings.Replace(invocation, "{{", "${", -1)
+	invocation = strings.Replace(invocation, "}}", "}", -1)
+
+	// replaces ${varname} with varval
+	for varname, varval := range envvars {
+		invocation = strings.Replace(invocation, fmt.Sprintf("${%s}", varname), fmt.Sprint(varval), -1)
+	}
+
+	invocation = strings.Replace(invocation, "${SERVER_PORT}", strconv.Itoa(port), -1)
+	invocation = strings.Replace(invocation, "${SERVER_MEMORY}", strconv.Itoa(int(memory)), -1)
+	invocation = strings.Replace(invocation, "${SERVER_IP}", ip, -1)
+
+	return invocation
+}
+
 // Returns all of the environment variables that should be assigned to a running
 // server instance.
 func (s *Server) GetEnvironmentVariables() []string {
 	out := []string{
 		// TODO: allow this to be overridden by the user.
 		fmt.Sprintf("TZ=%s", config.Get().System.Timezone),
-		fmt.Sprintf("STARTUP=%s", s.Config().Invocation),
+		fmt.Sprintf("STARTUP=%s", parseInvocation(s.Config().Invocation, s.Config().EnvVars, s.MemoryLimit(), s.Config().Allocations.DefaultMapping.Port, s.Config().Allocations.DefaultMapping.Ip)),
 		fmt.Sprintf("SERVER_MEMORY=%d", s.MemoryLimit()),
 		fmt.Sprintf("SERVER_IP=%s", s.Config().Allocations.DefaultMapping.Ip),
 		fmt.Sprintf("SERVER_PORT=%d", s.Config().Allocations.DefaultMapping.Port),
