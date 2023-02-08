@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.11.3
+### Fixed
+* CVE-2023-25152
+
 ## v1.11.2
 ### Fixed
 * Backups being restored from remote storage (s3) erroring out due to a closed stream.
@@ -59,6 +63,10 @@
 * Wings can be run with podman instead of Docker, this is still experimental and not recommended for production use.
 * Archive progress is now reported correctly.
 * Labels for containers can now be set by the Panel.
+
+## v1.7.3
+### Fixed
+* CVE-2023-25152
 
 ## v1.7.2
 ### Fixed
