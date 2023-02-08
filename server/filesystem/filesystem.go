@@ -381,10 +381,9 @@ func (fs *Filesystem) TruncateRootDirectory() error {
 // Delete removes a file or folder from the system. Prevents the user from
 // accidentally (or maliciously) removing their root server data directory.
 func (fs *Filesystem) Delete(p string) error {
-	wg := sync.WaitGroup{}
 	// This is one of the few (only?) places in the codebase where we're explicitly not using
 	// the SafePath functionality when working with user provided input. If we did, you would
-	// not be able to delete a file that is a symlink pointing to a location outside of the data
+	// not be able to delete a file that is a symlink pointing to a location outside the data
 	// directory.
 	//
 	// We also want to avoid resolving a symlink that points _within_ the data directory and thus
@@ -401,25 +400,65 @@ func (fs *Filesystem) Delete(p string) error {
 		return errors.New("cannot delete root server directory")
 	}
 
-	if st, err := os.Lstat(resolved); err != nil {
+	st, err := os.Lstat(resolved)
+	if err != nil {
 		if !os.IsNotExist(err) {
 			fs.error(err).Warn("error while attempting to stat file before deletion")
+			return err
 		}
-	} else {
-		if !st.IsDir() {
-			fs.addDisk(-st.Size())
-		} else {
-			wg.Add(1)
-			go func(wg *sync.WaitGroup, st os.FileInfo, resolved string) {
-				defer wg.Done()
-				if s, err := fs.DirectorySize(resolved); err == nil {
-					fs.addDisk(-s)
+
+		// The following logic is used to handle a case where a user attempts to
+		// delete a file that does not exist through a directory symlink.
+		// We don't want to reveal that the file does not exist, so we validate
+		// the path of the symlink and return a bad path error if it is invalid.
+
+		// The requested file or directory doesn't exist, so at this point we
+		// need to iterate up the path chain until we hit a directory that
+		// _does_ exist and can be validated.
+		parts := strings.Split(filepath.Dir(resolved), "/")
+
+		// Range over all the path parts and form directory paths from the end
+		// moving up until we have a valid resolution, or we run out of paths to
+		// try.
+		for k := range parts {
+			try := strings.Join(parts[:(len(parts)-k)], "/")
+			if !fs.unsafeIsInDataDirectory(try) {
+				break
+			}
+
+			t, err := filepath.EvalSymlinks(try)
+			if err == nil {
+				if !fs.unsafeIsInDataDirectory(t) {
+					return NewBadPathResolution(p, t)
 				}
-			}(&wg, st, resolved)
+				break
+			}
+		}
+
+		// Always return early if the file does not exist.
+		return nil
+	}
+
+	// If the file is not a symlink, we need to check that it is not within a
+	// symlinked directory that points outside the data directory.
+	if st.Mode()&os.ModeSymlink == 0 {
+		ep, err := filepath.EvalSymlinks(resolved)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+		} else if !fs.unsafeIsInDataDirectory(ep) {
+			return NewBadPathResolution(p, ep)
 		}
 	}
 
-	wg.Wait()
+	if st.IsDir() {
+		if s, err := fs.DirectorySize(resolved); err == nil {
+			fs.addDisk(-s)
+		}
+	} else {
+		fs.addDisk(-st.Size())
+	}
 
 	return os.RemoveAll(resolved)
 }
