@@ -537,6 +537,80 @@ func TestFilesystem_Delete(t *testing.T) {
 			}
 		})
 
+		g.It("deletes a symlink but not it's target within the root directory", func() {
+			// Symlink to a file inside the root directory.
+			err := os.Symlink(filepath.Join(rfs.root, "server/source.txt"), filepath.Join(rfs.root, "server/symlink.txt"))
+			g.Assert(err).IsNil()
+
+			// Delete the symlink itself.
+			err = fs.Delete("symlink.txt")
+			g.Assert(err).IsNil()
+
+			// Ensure the symlink was deleted.
+			_, err = os.Lstat(filepath.Join(rfs.root, "server/symlink.txt"))
+			g.Assert(err).IsNotNil()
+
+			// Ensure the symlink target still exists.
+			_, err = os.Lstat(filepath.Join(rfs.root, "server/source.txt"))
+			g.Assert(err).IsNil()
+		})
+
+		g.It("does not delete files symlinked outside of the root directory", func() {
+			// Create a file outside the root directory.
+			err := rfs.CreateServerFileFromString("/../source.txt", "test content")
+			g.Assert(err).IsNil()
+
+			// Create a symlink to the file outside the root directory.
+			err = os.Symlink(filepath.Join(rfs.root, "source.txt"), filepath.Join(rfs.root, "/server/symlink.txt"))
+			g.Assert(err).IsNil()
+
+			// Delete the symlink. (This should pass as we will delete the symlink itself, not it's target)
+			err = fs.Delete("symlink.txt")
+			g.Assert(err).IsNil()
+
+			// Ensure the file outside the root directory still exists.
+			_, err = os.Lstat(filepath.Join(rfs.root, "source.txt"))
+			g.Assert(err).IsNil()
+		})
+
+		g.It("does not delete files symlinked through a directory outside of the root directory", func() {
+			// Create a directory outside the root directory.
+			err := os.Mkdir(filepath.Join(rfs.root, "foo"), 0o755)
+			g.Assert(err).IsNil()
+
+			// Create a file inside the directory that is outside the root.
+			err = rfs.CreateServerFileFromString("/../foo/source.txt", "test content")
+			g.Assert(err).IsNil()
+
+			// Symlink the directory that is outside the root to a file inside the root.
+			err = os.Symlink(filepath.Join(rfs.root, "foo"), filepath.Join(rfs.root, "server/symlink"))
+			g.Assert(err).IsNil()
+
+			// Delete a file inside the symlinked directory.
+			err = fs.Delete("symlink/source.txt")
+			g.Assert(err).IsNotNil()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+
+			// Ensure the file outside the root directory still exists.
+			_, err = os.Lstat(filepath.Join(rfs.root, "foo/source.txt"))
+			g.Assert(err).IsNil()
+		})
+
+		g.It("returns an error when trying to delete a non-existent file symlinked through a directory outside of the root directory", func() {
+			// Create a directory outside the root directory.
+			err := os.Mkdir(filepath.Join(rfs.root, "foo2"), 0o755)
+			g.Assert(err).IsNil()
+
+			// Symlink the directory that is outside the root to a file inside the root.
+			err = os.Symlink(filepath.Join(rfs.root, "foo2"), filepath.Join(rfs.root, "server/symlink"))
+			g.Assert(err).IsNil()
+
+			// Delete a file inside the symlinked directory.
+			err = fs.Delete("symlink/source.txt")
+			g.Assert(err).IsNotNil()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+		})
+
 		g.AfterEach(func() {
 			rfs.reset()
 
