@@ -165,7 +165,7 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 	// Adjust the disk usage to account for the old size and the new size of the file.
 	fs.addDisk(sz - currentSize)
 
-	return fs.Chown(cleaned)
+	return fs.unsafeChown(cleaned)
 }
 
 // Creates a new directory (name) at a specified path (p) for the server.
@@ -223,7 +223,12 @@ func (fs *Filesystem) Chown(path string) error {
 	if err != nil {
 		return err
 	}
+	return fs.unsafeChown(cleaned)
+}
 
+// unsafeChown chowns the given path, without checking if the path is safe. This should only be used
+// when the path has already been checked.
+func (fs *Filesystem) unsafeChown(path string) error {
 	if fs.isTest {
 		return nil
 	}
@@ -232,19 +237,19 @@ func (fs *Filesystem) Chown(path string) error {
 	gid := config.Get().System.User.Gid
 
 	// Start by just chowning the initial path that we received.
-	if err := os.Chown(cleaned, uid, gid); err != nil {
+	if err := os.Chown(path, uid, gid); err != nil {
 		return errors.Wrap(err, "server/filesystem: chown: failed to chown path")
 	}
 
 	// If this is not a directory we can now return from the function, there is nothing
 	// left that we need to do.
-	if st, err := os.Stat(cleaned); err != nil || !st.IsDir() {
+	if st, err := os.Stat(path); err != nil || !st.IsDir() {
 		return nil
 	}
 
 	// If this was a directory, begin walking over its contents recursively and ensure that all
 	// of the subfiles and directories get their permissions updated as well.
-	err = godirwalk.Walk(cleaned, &godirwalk.Options{
+	err := godirwalk.Walk(path, &godirwalk.Options{
 		Unsorted: true,
 		Callback: func(p string, e *godirwalk.Dirent) error {
 			// Do not attempt to chown a symlink. Go's os.Chown function will affect the symlink
@@ -261,7 +266,6 @@ func (fs *Filesystem) Chown(path string) error {
 			return os.Chown(p, uid, gid)
 		},
 	})
-
 	return errors.Wrap(err, "server/filesystem: chown: failed to chown during walk function")
 }
 
