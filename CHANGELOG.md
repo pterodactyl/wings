@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.7.4
+### Fixed
+* CVE-2023-25168
+
 ## v1.7.3
 ### Fixed
 * CVE-2023-25152
