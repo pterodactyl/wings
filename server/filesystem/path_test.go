@@ -115,6 +115,14 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 		panic(err)
 	}
 
+	if err := os.Symlink(filepath.Join(rfs.root, "malicious_does_not_exist.txt"), filepath.Join(rfs.root, "/server/symlinked_does_not_exist.txt")); err != nil {
+		panic(err)
+	}
+
+	if err := os.Symlink(filepath.Join(rfs.root, "/server/symlinked_does_not_exist.txt"), filepath.Join(rfs.root, "/server/symlinked_does_not_exist2.txt")); err != nil {
+		panic(err)
+	}
+
 	if err := os.Symlink(filepath.Join(rfs.root, "/malicious_dir"), filepath.Join(rfs.root, "/server/external_dir")); err != nil {
 		panic(err)
 	}
@@ -124,6 +132,22 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 			r := bytes.NewReader([]byte("testing"))
 
 			err := fs.Writefile("symlinked.txt", r)
+			g.Assert(err).IsNotNil()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+		})
+
+		g.It("cannot write to a non-existent file symlinked outside the root", func() {
+			r := bytes.NewReader([]byte("testing what the fuck"))
+
+			err := fs.Writefile("symlinked_does_not_exist.txt", r)
+			g.Assert(err).IsNotNil()
+			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+		})
+
+		g.It("cannot write to chained symlinks with target that does not exist outside the root", func() {
+			r := bytes.NewReader([]byte("testing what the fuck"))
+
+			err := fs.Writefile("symlinked_does_not_exist2.txt", r)
 			g.Assert(err).IsNotNil()
 			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
 		})

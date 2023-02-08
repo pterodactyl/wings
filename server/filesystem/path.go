@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"context"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,8 +34,6 @@ func (fs *Filesystem) IsIgnored(paths ...string) error {
 // This logic is actually copied over from the SFTP server code. Ideally that eventually
 // either gets ported into this application, or is able to make use of this package.
 func (fs *Filesystem) SafePath(p string) (string, error) {
-	var nonExistentPathResolution string
-
 	// Start with a cleaned up path before checking the more complex bits.
 	r := fs.unsafeFilePath(p)
 
@@ -44,47 +43,24 @@ func (fs *Filesystem) SafePath(p string) (string, error) {
 	if err != nil && !os.IsNotExist(err) {
 		return "", errors.Wrap(err, "server/filesystem: failed to evaluate symlink")
 	} else if os.IsNotExist(err) {
-		// The requested directory doesn't exist, so at this point we need to iterate up the
-		// path chain until we hit a directory that _does_ exist and can be validated.
-		parts := strings.Split(filepath.Dir(r), "/")
-
-		var try string
-		// Range over all of the path parts and form directory pathings from the end
-		// moving up until we have a valid resolution or we run out of paths to try.
-		for k := range parts {
-			try = strings.Join(parts[:(len(parts)-k)], "/")
-
-			if !fs.unsafeIsInDataDirectory(try) {
-				break
-			}
-
-			t, err := filepath.EvalSymlinks(try)
-			if err == nil {
-				nonExistentPathResolution = t
-				break
-			}
+		// The target of one of the symlinks (EvalSymlinks is recursive) does not exist.
+		// So we get what target path does not exist and check if it's within the data
+		// directory. If it is, we return the original path, otherwise we return an error.
+		pErr, ok := err.(*iofs.PathError)
+		if !ok {
+			return "", errors.Wrap(err, "server/filesystem: failed to evaluate symlink")
 		}
-	}
-
-	// If the new path doesn't start with their root directory there is clearly an escape
-	// attempt going on, and we should NOT resolve this path for them.
-	if nonExistentPathResolution != "" {
-		if !fs.unsafeIsInDataDirectory(nonExistentPathResolution) {
-			return "", NewBadPathResolution(p, nonExistentPathResolution)
-		}
-
-		// If the nonExistentPathResolution variable is not empty then the initial path requested
-		// did not exist and we looped through the pathway until we found a match. At this point
-		// we've confirmed the first matched pathway exists in the root server directory, so we
-		// can go ahead and just return the path that was requested initially.
-		return r, nil
+		ep = pErr.Path
 	}
 
 	// If the requested directory from EvalSymlinks begins with the server root directory go
 	// ahead and return it. If not we'll return an error which will block any further action
 	// on the file.
 	if fs.unsafeIsInDataDirectory(ep) {
-		return ep, nil
+		// Returning the original path here instead of the resolved path ensures that
+		// whatever the user is trying to do will work as expected. If we returned the
+		// resolved path, the user would be unable to know that it is in fact a symlink.
+		return r, nil
 	}
 
 	return "", NewBadPathResolution(p, r)
