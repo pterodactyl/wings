@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.7.3
+### Fixed
+* CVE-2023-25152
+
 ## v1.7.2
 ### Fixed
 * The S3 backup driver now supports Cloudflare R2
