@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.11.4
+### Fixed
+* CVE-2023-25168
+
 ## v1.11.3
 ### Fixed
 * CVE-2023-25152
@@ -63,6 +67,10 @@
 * Wings can be run with podman instead of Docker, this is still experimental and not recommended for production use.
 * Archive progress is now reported correctly.
 * Labels for containers can now be set by the Panel.
+
+## v1.7.4
+### Fixed
+* CVE-2023-25168
 
 ## v1.7.3
 ### Fixed
