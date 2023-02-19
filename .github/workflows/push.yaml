@@ -86,14 +86,14 @@ jobs:
           go test -race $(go list ./...)
 
       - name: Upload Release Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
         with:
           name: wings_linux_${{ matrix.goarch }}
           path: dist/wings
 
       - name: Upload Debug Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: ${{ github.ref == 'refs/heads/develop' || github.event_name == 'pull_request' }}
         with:
           name: wings_linux_${{ matrix.goarch }}_debug
