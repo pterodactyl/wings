@@ -113,9 +113,21 @@ func postCreateServer(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
+type postUpdateConfigurationResponse struct {
+	Applied bool `json:"applied"`
+}
+
 // Updates the running configuration for this Wings instance.
 func postUpdateConfiguration(c *gin.Context) {
 	cfg := config.Get()
+
+	if cfg.IgnorePanelConfigUpdates {
+		c.JSON(http.StatusOK, postUpdateConfigurationResponse{
+			Applied: false,
+		})
+		return
+	}
+
 	if err := c.BindJSON(&cfg); err != nil {
 		return
 	}
@@ -139,5 +151,7 @@ func postUpdateConfiguration(c *gin.Context) {
 	// Since we wrote it to the disk successfully now update the global configuration
 	// state to use this new configuration struct.
 	config.Set(cfg)
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusOK, postUpdateConfigurationResponse{
+		Applied: true,
+	})
 }

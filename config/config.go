@@ -319,6 +319,9 @@ type Configuration struct {
 	// is only required by users running Wings without SSL certificates and using internal IP
 	// addresses in order to connect. Most users should NOT enable this setting.
 	AllowCORSPrivateNetwork bool `json:"allow_cors_private_network" yaml:"allow_cors_private_network"`
+
+	// IgnorePanelConfigUpdates causes confiuration updates that are sent by the panel to be ignored.
+	IgnorePanelConfigUpdates bool `json:"ignore_panel_config_updates" yaml:"ignore_panel_config_updates"`
 }
 
 // NewAtPath creates a new struct and set the path where it should be stored.
