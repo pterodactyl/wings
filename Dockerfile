@@ -1,5 +1,5 @@
 # Stage 1 (Build)
-FROM golang:1.18-alpine AS builder
+FROM golang:1.19-alpine AS builder
 
 ARG VERSION
 RUN apk add --update --no-cache git make
