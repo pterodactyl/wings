@@ -5,6 +5,7 @@ import (
 	iofs "io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -59,7 +60,7 @@ func TestArchive_Stream(t *testing.T) {
 				},
 			}
 
-			// Create the archive
+			// Create the archive.
 			archivePath := filepath.Join(rfs.root, "archive.tar.gz")
 			g.Assert(a.Create(context.Background(), archivePath)).IsNil()
 
@@ -80,10 +81,17 @@ func TestArchive_Stream(t *testing.T) {
 			g.Assert(err).IsNil()
 
 			// Ensure the files in the archive match what we are expecting.
-			g.Assert(files).Equal([]string{
+			expected := []string{
 				"test_file.txt",
 				"test/file.txt",
-			})
+			}
+
+			// Sort the slices to ensure the comparison never fails if the
+			// contents are sorted differently.
+			sort.Strings(expected)
+			sort.Strings(files)
+
+			g.Assert(files).Equal(expected)
 		})
 	})
 }
