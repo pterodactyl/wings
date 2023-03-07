@@ -3,6 +3,7 @@ package filesystem
 import (
 	"archive/tar"
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -66,6 +67,8 @@ type Archive struct {
 
 	// Files specifies the files to archive, this takes priority over the Ignore option, if
 	// unspecified, all files in the BasePath will be archived unless Ignore is set.
+	//
+	// All items in Files must be absolute within BasePath.
 	Files []string
 
 	// Progress wraps the writer of the archive to pass through the progress tracker.
@@ -97,6 +100,14 @@ func (a *Archive) Create(ctx context.Context, dst string) error {
 
 // Stream .
 func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
+	for _, f := range a.Files {
+		if strings.HasPrefix(f, a.BasePath) {
+			continue
+		}
+
+		return fmt.Errorf("archive: all entries in Files must be absolute and within BasePath: %s\n", f)
+	}
+
 	// Choose which compression level to use based on the compression_level configuration option
 	var compressionLevel int
 	switch config.Get().System.Backups.CompressionLevel {
@@ -190,9 +201,11 @@ func (a *Archive) callback(tw *TarProgress, opts ...func(path string, relative s
 func (a *Archive) withFilesCallback(tw *TarProgress) func(path string, de *godirwalk.Dirent) error {
 	return a.callback(tw, func(p string, rp string) error {
 		for _, f := range a.Files {
-			// If the given doesn't match, or doesn't have the same prefix continue
-			// to the next item in the loop.
-			if p != f && !strings.HasPrefix(strings.TrimSuffix(p, "/")+"/", f) {
+			// Allow exact file matches, otherwise check if file is within a parent directory.
+			//
+			// The slashes are added in the prefix checks to prevent partial name matches from being
+			// included in the archive.
+			if f != p && !strings.HasPrefix(strings.TrimSuffix(p, "/")+"/", strings.TrimSuffix(f, "/")+"/") {
 				continue
 			}
 
