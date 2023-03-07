@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.11.5
+### Added
+* Added a config option to disable Wings config.yml updates from the Panel (https://github.com/pterodactyl/wings/commit/ec6d6d83ea3eb14995c24f001233e85b37ffb87b)
+
+### Changed
+* Wings is now built with Go 1.19.7
+
+### Fixed
+* Fixed archives containing partially matched file names (https://github.com/pterodactyl/wings/commit/43b3496f0001cec231c80af1f9a9b3417d04e8d4)
+
 ## v1.11.4
 ### Fixed
 * CVE-2023-25168
