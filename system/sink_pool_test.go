@@ -15,7 +15,16 @@ func MutexLocked(m *sync.RWMutex) bool {
 
 	state := v.FieldByName("w").FieldByName("state")
 
-	return state.Int()&1 == 1 || v.FieldByName("readerCount").Int() > 0
+	readerCountField := v.FieldByName("readerCount")
+	// go1.20 changed readerCount to an atomic
+	// ref; https://github.com/golang/go/commit/e509452727b469d89a3fc4a7d1cbf9d3f110efee
+	var readerCount int64
+	if readerCountField.Kind() == reflect.Struct {
+		readerCount = readerCountField.FieldByName("v").Int()
+	} else {
+		readerCount = readerCountField.Int()
+	}
+	return state.Int()&1 == 1 || readerCount > 0
 }
 
 func TestSink(t *testing.T) {
