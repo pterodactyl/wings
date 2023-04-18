@@ -14,7 +14,7 @@ require (
 	github.com/buger/jsonparser v1.1.1
 	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/creasty/defaults v1.6.0
-	github.com/docker/docker v23.0.1+incompatible
+	github.com/docker/docker v23.0.3+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/fatih/color v1.14.1
 	github.com/franela/goblin v0.0.0-20211003143422-0a4f594942bf
