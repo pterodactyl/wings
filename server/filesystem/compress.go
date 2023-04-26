@@ -1,9 +1,6 @@
 package filesystem
 
 import (
-	"archive/tar"
-	"archive/zip"
-	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -11,14 +8,11 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"emperror.dev/errors"
-	gzip2 "github.com/klauspost/compress/gzip"
-	zip2 "github.com/klauspost/compress/zip"
 	"github.com/mholt/archiver/v4"
 )
 
@@ -201,7 +195,7 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 			if f.IsDir() {
 				return nil
 			}
-			p := filepath.Join(opts.Directory, ExtractNameFromArchive(f))
+			p := filepath.Join(opts.Directory, f.NameInArchive)
 			// If it is ignored, just don't do anything with the file and skip over it.
 			if err := fs.IsIgnored(p); err != nil {
 				return nil
@@ -226,49 +220,4 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 		})
 	}
 	return nil
-}
-
-// ExtractNameFromArchive looks at an archive file to try and determine the name
-// for a given element in an archive. Because of... who knows why, each file type
-// uses different methods to determine the file name.
-//
-// If there is a archiver.File#Sys() value present we will try to use the name
-// present in there, otherwise falling back to archiver.File#Name() if all else
-// fails. Without this logic present, some archive types such as zip/tars/etc.
-// will write all of the files to the base directory, rather than the nested
-// directory that is expected.
-//
-// For files like ".rar" types, there is no f.Sys() value present, and the value
-// of archiver.File#Name() will be what you need.
-func ExtractNameFromArchive(f archiver.File) string {
-	sys := f.Sys()
-	// Some archive types won't have a value returned when you call f.Sys() on them,
-	// such as ".rar" archives for example. In those cases the only thing you can do
-	// is hope that "f.Name()" is actually correct for them.
-	if sys == nil {
-		return f.Name()
-	}
-	switch s := sys.(type) {
-	case *zip.FileHeader:
-		return s.Name
-	case *zip2.FileHeader:
-		return s.Name
-	case *tar.Header:
-		return s.Name
-	case *gzip.Header:
-		return s.Name
-	case *gzip2.Header:
-		return s.Name
-	default:
-		// At this point we cannot figure out what type of archive this might be so
-		// just try to find the name field in the struct. If it is found return it.
-		field := reflect.Indirect(reflect.ValueOf(sys)).FieldByName("Name")
-		if field.IsValid() {
-			return field.String()
-		}
-		// Fallback to the basename of the file at this point. There is nothing we can really
-		// do to try and figure out what the underlying directory of the file is supposed to
-		// be since it didn't implement a name field.
-		return f.Name()
-	}
 }

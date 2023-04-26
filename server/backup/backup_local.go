@@ -100,7 +100,7 @@ func (b *LocalBackup) Restore(ctx context.Context, _ io.Reader, callback Restore
 		}
 		defer r.Close()
 
-		return callback(filesystem.ExtractNameFromArchive(f), f.FileInfo, r)
+		return callback(f.NameInArchive, f.FileInfo, r)
 	}); err != nil {
 		return err
 	}
