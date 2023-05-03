@@ -4,9 +4,7 @@ import (
 	"time"
 )
 
-// On linux systems this will return the time that the file was created.
-// However, I have no idea how to do this on windows, so we're skipping it
-// for right now.
 func (s *Stat) CTime() time.Time {
-	return s.ModTime()
+	st := s.Sys().(*syscall.Win32FileAttributeData)
+	return time.Unix(int64(st.CreationTime.Nanoseconds()/1e9), int64(st.CreationTime.Nanoseconds()))
 }
