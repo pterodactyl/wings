@@ -164,7 +164,7 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 	}
 
 	var size int64
-	var st syscall.Stat_t
+	var st syscall.Win32FileAttributeData
 
 	err = godirwalk.Walk(d, &godirwalk.Options{
 		Unsorted: true,
