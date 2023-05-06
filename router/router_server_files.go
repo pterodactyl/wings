@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+        "syscall"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -373,13 +374,14 @@ func postServerCreateDirectory(c *gin.Context) {
 	}
 
 	if err := s.Filesystem().CreateDirectory(data.Name, data.Path); err != nil {
-		if err.Error() == "not a directory" {
+		var pathErr *os.PathError
+		if errors.As(err, &pathErr) && pathErr.Err == syscall.ENOTDIR {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 				"error": "Part of the path being created is not a directory (ENOTDIR).",
 			})
 			return
 		}
-
+	
 		middleware.CaptureAndAbort(c, err)
 		return
 	}
