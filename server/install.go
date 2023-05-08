@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"fmt"
 	"html/template"
 	"io"
 	"os"
@@ -427,10 +426,6 @@ func (ip *InstallationProcess) Execute() (string, error) {
 	}
 
 	cfg := config.Get()
-	if cfg.System.User.Rootless.Enabled {
-		conf.User = fmt.Sprintf("%d:%d", cfg.System.User.Rootless.ContainerUID, cfg.System.User.Rootless.ContainerGID)
-	}
-
 	tmpfsSize := strconv.Itoa(int(cfg.Docker.TmpfsSize))
 	hostConf := &container.HostConfig{
 		Mounts: []mount.Mount{
@@ -453,7 +448,6 @@ func (ip *InstallationProcess) Execute() (string, error) {
 		},
 		DNS:         cfg.Docker.Network.Dns,
 		LogConfig:   cfg.Docker.ContainerLogConfig(),
-		Privileged:  true,
 		NetworkMode: container.NetworkMode(cfg.Docker.Network.Mode),
 		UsernsMode:  container.UsernsMode(cfg.Docker.UsernsMode),
 	}
