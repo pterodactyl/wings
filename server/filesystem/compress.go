@@ -91,7 +91,7 @@ func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir st
 	// waiting an unnecessary amount of time on this call.
 	dirSize, err := fs.DiskUsage(false)
 
-	fsys, err := archiver.FileSystem(source)
+	fsys, err := archiver.FileSystem(ctx, source)
 	if err != nil {
 		if errors.Is(err, archiver.ErrNoMatch) {
 			return newFilesystemError(ErrCodeUnknownArchive, err)
