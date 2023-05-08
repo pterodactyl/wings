@@ -447,7 +447,6 @@ func (ip *InstallationProcess) Execute() (string, error) {
 				"compress": "false",
 			},
 		},
-		Privileged:  true,
 		NetworkMode: container.NetworkMode(config.Get().Docker.Network.Mode),
 		UsernsMode: container.UsernsMode(config.Get().Docker.UsernsMode),
 	}
