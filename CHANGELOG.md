@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.7.5
+### Fixed
+* CVE-2023-32080
+
 ## v1.7.4
 ### Fixed
 * CVE-2023-25168
