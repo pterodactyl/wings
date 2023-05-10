@@ -16,43 +16,18 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04]
-        go: ["1.19.7", "1.20.2"]
+        go: ["1.19.9", "1.20.4"]
         goos: [linux]
         goarch: [amd64, arm64]
 
     steps:
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
 
-      - name: Code Checkout
+      - name: Code checkout
         uses: actions/checkout@v3
-
-      - name: Gather environment variables
-        id: env
-        run: |
-          printf "Go Executable Path: $(which go)\n"
-          printf "Go Version: $(go version)\n"
-          printf "\n\nGo Environment:\n\n"
-          go env
-          printf "\n\nSystem Environment:\n\n"
-          env
-          printf "Git Version: $(git version)\n\n"
-          echo "version_tag=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_OUTPUT
-          echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "go_cache=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "go_mod_cache=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      - name: Build Cache
-        uses: actions/cache@v3
-        with:
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-          path: |
-            ${{ steps.env.outputs.go_cache }}
-            ${{ steps.env.outputs.go_mod_cache }}
 
       - name: go mod download
         env:
