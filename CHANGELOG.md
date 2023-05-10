@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.11.6
+### Fixed
+* CVE-2023-32080
+
 ## v1.11.5
 ### Added
 * Added a config option to disable Wings config.yml updates from the Panel (https://github.com/pterodactyl/wings/commit/ec6d6d83ea3eb14995c24f001233e85b37ffb87b)
@@ -77,6 +81,10 @@
 * Wings can be run with podman instead of Docker, this is still experimental and not recommended for production use.
 * Archive progress is now reported correctly.
 * Labels for containers can now be set by the Panel.
+
+## v1.7.5
+### Fixed
+* CVE-2023-32080
 
 ## v1.7.4
 ### Fixed
