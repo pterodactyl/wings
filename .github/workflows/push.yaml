@@ -15,8 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
-        go: ["1.19.9", "1.20.4"]
+        os: [ubuntu-22.04]
+        go: ["1.19.11", "1.20.6"]
         goos: [linux]
         goarch: [amd64, arm64]
 

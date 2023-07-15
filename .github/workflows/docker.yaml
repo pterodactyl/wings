@@ -11,7 +11,7 @@ on:
 jobs:
   build-and-push:
     name: Build and Push
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     # Always run against a tag, even if the commit into the tag has [docker skip] within the commit message.
     if: "!contains(github.ref, 'develop') || (!contains(github.event.head_commit.message, 'skip docker') && !contains(github.event.head_commit.message, 'docker skip'))"
     steps:
@@ -50,7 +50,7 @@ jobs:
           echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Build and Push (tag)
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         if: "github.event_name == 'release' && github.event.action == 'published'"
         with:
           context: .
@@ -63,7 +63,7 @@ jobs:
           tags: ${{ steps.docker_meta.outputs.tags }}
 
       - name: Build and Push (develop)
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         if: "github.event_name == 'push' && contains(github.ref, 'develop')"
         with:
           context: .
