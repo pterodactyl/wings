@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.11.7
+### Changed
+* Updated Go dependencies (this resolves an issue related to `http: invalid Host header` with Docker)
+* Wings is now built with go1.19.11
+
 ## v1.11.6
 ### Fixed
 * CVE-2023-32080
