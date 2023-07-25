@@ -452,6 +452,15 @@ func (ip *InstallationProcess) Execute() (string, error) {
 		UsernsMode:  container.UsernsMode(cfg.Docker.UsernsMode),
 	}
 
+	for _, m := range ip.Server.customMounts() {
+		hostConf.Mounts = append(hostConf.Mounts, mount.Mount{
+			Target:   m.Target,
+			Source:   m.Source,
+			Type:     mount.TypeBind,
+			ReadOnly: m.ReadOnly,
+		})
+	}
+
 	// Ensure the root directory for the server exists properly before attempting
 	// to trigger the reinstall of the server. It is possible the directory would
 	// not exist when this runs if Wings boots with a missing directory and a user
