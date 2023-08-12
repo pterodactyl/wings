@@ -27,6 +27,12 @@ func (s *Server) Mounts() []environment.Mount {
 			Source:   s.Filesystem().Path(),
 			ReadOnly: false,
 		},
+		{
+			Default:  true,
+			Target:   "/etc/passwd",
+			Source:   "/etc/pterodactyl/passwd",
+			ReadOnly: true,
+		},
 	}
 
 	// Also include any of this server's custom mounts when returning them.

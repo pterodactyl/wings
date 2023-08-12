@@ -168,6 +168,8 @@ type SystemConfiguration struct {
 
 		Uid int `yaml:"uid"`
 		Gid int `yaml:"gid"`
+
+		Login bool `yaml:"login"`
 	} `yaml:"user"`
 
 	// The amount of time in seconds that can elapse before a server's disk space calculation is
@@ -524,6 +526,24 @@ func ConfigureDirectories() error {
 	log.WithField("path", root).Debug("ensuring root data directory exists")
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return err
+	}
+
+	log.WithField("filepath", "/etc/pterodactyl//passwd").Debug("ensuring passwd file exists")
+	if passwd, err := os.Create("/etc/pterodactyl/passwd"); err != nil {
+		return err
+	} else {
+		shell := "/usr/sbin/nologin"
+		if _config.System.User.Login {
+			shell = "/bin/sh"
+		}
+
+		// the WriteFile method returns an error if unsuccessful
+		err := os.WriteFile(passwd.Name(), []byte(fmt.Sprintf("container:x:%d:%d::/home/container:%s", _config.System.User.Uid, _config.System.User.Gid, shell)), 0777)
+		// handle this error
+		if err != nil {
+			// print it out
+			fmt.Println(err)
+		}
 	}
 
 	// There are a non-trivial number of users out there whose data directories are actually a
