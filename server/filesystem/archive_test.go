@@ -119,10 +119,8 @@ func getFiles(f iofs.ReadDirFS, name string) ([]string, error) {
 			if files == nil {
 				return nil, nil
 			}
-
-			for _, f := range files {
-				v = append(v, f)
-			}
+			
+			v = append(v, files...)
 			continue
 		}
 
