@@ -528,7 +528,7 @@ func ConfigureDirectories() error {
 		return err
 	}
 
-	log.WithField("filepath", "/etc/pterodactyl//passwd").Debug("ensuring passwd file exists")
+	log.WithField("filepath", "/etc/pterodactyl/passwd").Debug("ensuring passwd file exists")
 	if passwd, err := os.Create("/etc/pterodactyl/passwd"); err != nil {
 		return err
 	} else {
