@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/NYTimes/logrotate"
@@ -379,13 +378,14 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 // Reads the configuration from the disk and then sets up the global singleton
 // with all the configuration values.
 func initConfig() {
-	if !strings.HasPrefix(configPath, "/") {
-		d, err := os.Getwd()
+	if !filepath.IsAbs(configPath) {
+		d, err := filepath.Abs(configPath)
 		if err != nil {
-			log2.Fatalf("cmd/root: could not determine directory: %s", err)
+			log2.Fatalf("cmd/root: failed to get path to config file: %s", err)
 		}
-		configPath = path.Clean(path.Join(d, configPath))
+		configPath = d
 	}
+
 	err := config.FromFile(configPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
