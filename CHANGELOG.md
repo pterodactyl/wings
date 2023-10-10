@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.11.8
+### Changed
+* Release binaries are now built with Go 1.20.10 (resolves [CVE-2023-44487](https://www.cve.org/CVERecord?id=CVE-2023-44487))
+* Updated Go dependencies
+
 ## v1.11.7
 ### Changed
 * Updated Go dependencies (this resolves an issue related to `http: invalid Host header` with Docker)
