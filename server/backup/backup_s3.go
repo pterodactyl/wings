@@ -100,7 +100,7 @@ func (s *S3Backup) Restore(ctx context.Context, r io.Reader, callback RestoreCal
 		}
 		defer r.Close()
 
-		return callback(filesystem.ExtractNameFromArchive(f), f.FileInfo, r)
+		return callback(f.NameInArchive, f.FileInfo, r)
 	}); err != nil {
 		return err
 	}
