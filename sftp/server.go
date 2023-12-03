@@ -107,7 +107,7 @@ func (c *SFTPServer) Run() error {
 			go func(conn net.Conn) {
 				defer conn.Close()
 				if err := c.AcceptInbound(conn, conf); err != nil {
-					log.WithField("error", err).Error("sftp: failed to accept inbound connection")
+					log.WithField("error", err).WithField("ip", conn.RemoteAddr().String()).Error("sftp: failed to accept inbound connection")
 				}
 			}(conn)
 		}
