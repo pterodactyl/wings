@@ -535,7 +535,7 @@ func ConfigureDirectories() error {
 		return err
 	} else {
 		// the WriteFile method returns an error if unsuccessful
-		err := os.WriteFile(passwd.Name(), []byte(fmt.Sprintf("container:x:%d:%d::/home/container:/usr/sbin/nologin", _config.System.User.Uid, _config.System.User.Gid)), 0755)
+		err := os.WriteFile(passwd.Name(), []byte(fmt.Sprintf("container:x:%d:%d::/home/container:/usr/sbin/nologin", _config.System.User.Uid, _config.System.User.Gid)), 0644)
 		// handle this error
 		if err != nil {
 			// print it out
