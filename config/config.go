@@ -171,7 +171,8 @@ type SystemConfiguration struct {
 
 		// Passwd controls weather a passwd file is mounted in the container
 		// at /etc/passwd to resolve missing user issues
-		Passwd bool `json:"mount_passwd" yaml:"mount_passwd" default:"true"`
+		Passwd     bool   `json:"mount_passwd" yaml:"mount_passwd" default:"true"`
+		PasswdFile string `json:"passwd_file" yaml:"passwd_file" default:"/etc/pterodactyl/passwd"`
 	} `yaml:"user"`
 
 	// The amount of time in seconds that can elapse before a server's disk space calculation is
@@ -530,8 +531,8 @@ func ConfigureDirectories() error {
 		return err
 	}
 
-	log.WithField("filepath", "/etc/pterodactyl/passwd").Debug("ensuring passwd file exists")
-	if passwd, err := os.Create("/etc/pterodactyl/passwd"); err != nil {
+	log.WithField("filepath", _config.System.User.PasswdFile).Debug("ensuring passwd file exists")
+	if passwd, err := os.Create(_config.System.User.PasswdFile); err != nil {
 		return err
 	} else {
 		// the WriteFile method returns an error if unsuccessful

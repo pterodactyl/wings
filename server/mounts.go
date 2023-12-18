@@ -34,7 +34,7 @@ func (s *Server) Mounts() []environment.Mount {
 		passwdMount := environment.Mount{
 			Default:  true,
 			Target:   "/etc/passwd",
-			Source:   "/etc/pterodactyl/passwd",
+			Source:   config.Get().System.User.PasswdFile,
 			ReadOnly: true,
 		}
 
