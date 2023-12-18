@@ -27,12 +27,18 @@ func (s *Server) Mounts() []environment.Mount {
 			Source:   s.Filesystem().Path(),
 			ReadOnly: false,
 		},
-		{
+	}
+
+	// Mount passwd file if set to true
+	if config.Get().System.User.Passwd {
+		passwdMount := environment.Mount{
 			Default:  true,
 			Target:   "/etc/passwd",
 			Source:   "/etc/pterodactyl/passwd",
 			ReadOnly: true,
-		},
+		}
+
+		m = append(m, passwdMount)
 	}
 
 	// Also include any of this server's custom mounts when returning them.

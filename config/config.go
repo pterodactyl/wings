@@ -169,7 +169,9 @@ type SystemConfiguration struct {
 		Uid int `yaml:"uid"`
 		Gid int `yaml:"gid"`
 
-		Login bool `yaml:"login"`
+		// Passwd controls weather a passwd file is mounted in the container
+		// at /etc/passwd to resolve missing user issues
+		Passwd bool `json:"mount_passwd" yaml:"mount_passwd" default:"true"`
 	} `yaml:"user"`
 
 	// The amount of time in seconds that can elapse before a server's disk space calculation is
@@ -532,13 +534,8 @@ func ConfigureDirectories() error {
 	if passwd, err := os.Create("/etc/pterodactyl/passwd"); err != nil {
 		return err
 	} else {
-		shell := "/usr/sbin/nologin"
-		if _config.System.User.Login {
-			shell = "/bin/sh"
-		}
-
 		// the WriteFile method returns an error if unsuccessful
-		err := os.WriteFile(passwd.Name(), []byte(fmt.Sprintf("container:x:%d:%d::/home/container:%s", _config.System.User.Uid, _config.System.User.Gid, shell)), 0777)
+		err := os.WriteFile(passwd.Name(), []byte(fmt.Sprintf("container:x:%d:%d::/home/container:/usr/sbin/nologin", _config.System.User.Uid, _config.System.User.Gid)), 0755)
 		// handle this error
 		if err != nil {
 			// print it out
