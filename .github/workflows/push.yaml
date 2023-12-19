@@ -16,13 +16,13 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04]
-        go: ["1.20.11", "1.21.4"]
+        go: ["1.20.12", "1.21.5"]
         goos: [linux]
         goarch: [amd64, arm64]
 
     steps:
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
 
