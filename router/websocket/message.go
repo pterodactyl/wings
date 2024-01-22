@@ -7,6 +7,7 @@ const (
 	AuthenticationEvent        = "auth"
 	SetStateEvent              = "set state"
 	SendServerLogsEvent        = "send logs"
+	SendNumLogsEvent           = "send numlogs"
 	SendCommandEvent           = "send command"
 	SendStatsEvent             = "send stats"
 	ErrorEvent                 = "daemon error"
