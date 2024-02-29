@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"slices"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -166,6 +167,8 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 	var size int64
 	var st syscall.Stat_t
 
+	var hardLinks []uint64
+
 	err = godirwalk.Walk(d, &godirwalk.Options{
 		Unsorted: true,
 		Callback: func(p string, e *godirwalk.Dirent) error {
@@ -184,6 +187,16 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 
 			if !e.IsDir() {
 				_ = syscall.Lstat(p, &st)
+
+				// Hard links have the same inode number
+				if slices.Contains(hardLinks, st.Ino) {
+					// Don't add hard links size twice
+					return godirwalk.SkipThis
+				}
+				if st.Nlink > 1 {
+					hardLinks = append(hardLinks, st.Ino)
+				}
+
 				atomic.AddInt64(&size, st.Size)
 			}
 
