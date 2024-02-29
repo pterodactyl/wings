@@ -188,13 +188,14 @@ func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
 			if !e.IsDir() {
 				_ = syscall.Lstat(p, &st)
 
-				// Hard links have the same inode number
-				if slices.Contains(hardLinks, st.Ino) {
-					// Don't add hard links size twice
-					return godirwalk.SkipThis
-				}
 				if st.Nlink > 1 {
-					hardLinks = append(hardLinks, st.Ino)
+					// Hard links have the same inode number
+					if slices.Contains(hardLinks, st.Ino) {
+						// Don't add hard links size twice
+						return godirwalk.SkipThis
+					} else {
+						hardLinks = append(hardLinks, st.Ino)
+					}
 				}
 
 				atomic.AddInt64(&size, st.Size)
