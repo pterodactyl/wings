@@ -21,9 +21,6 @@ import (
 	"github.com/pterodactyl/wings/internal/ufs"
 )
 
-// TODO: detect and enable
-var useOpenat2 = true
-
 type Filesystem struct {
 	unixFS *ufs.Quota
 

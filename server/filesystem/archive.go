@@ -66,10 +66,9 @@ type Archive struct {
 	// BaseDirectory .
 	BaseDirectory string
 
-	// Files specifies the files to archive, this takes priority over the Ignore option, if
-	// unspecified, all files in the BasePath will be archived unless Ignore is set.
-	//
-	// All items in Files must be absolute within BasePath.
+	// Files specifies the files to archive, this takes priority over the Ignore
+	// option, if unspecified, all files in the BaseDirectory will be archived
+	// unless Ignore is set.
 	Files []string
 
 	// Progress wraps the writer of the archive to pass through the progress tracker.
@@ -114,11 +113,16 @@ func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
 		return errors.New("filesystem: archive.Filesystem is unset")
 	}
 
-	for i, f := range a.Files {
-		if !strings.HasPrefix(f, a.Filesystem.Path()) {
-			continue
+	if filesLen := len(a.Files); filesLen > 0 {
+		files := make([]string, filesLen)
+		for i, f := range a.Files {
+			if !strings.HasPrefix(f, a.Filesystem.Path()) {
+				files[i] = f
+				continue
+			}
+			files[i] = strings.TrimPrefix(strings.TrimPrefix(f, a.Filesystem.Path()), "/")
 		}
-		a.Files[i] = strings.TrimPrefix(strings.TrimPrefix(f, a.Filesystem.Path()), "/")
+		a.Files = files
 	}
 
 	// Choose which compression level to use based on the compression_level configuration option
@@ -128,8 +132,6 @@ func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
 		compressionLevel = pgzip.NoCompression
 	case "best_compression":
 		compressionLevel = pgzip.BestCompression
-	case "best_speed":
-		fallthrough
 	default:
 		compressionLevel = pgzip.BestSpeed
 	}
@@ -196,6 +198,9 @@ func (a *Archive) callback(opts ...walkFunc) walkFunc {
 		// a non-nil error we will exit immediately.
 		for _, opt := range opts {
 			if err := opt(dirfd, name, relative, d); err != nil {
+				if err == SkipThis {
+					return nil
+				}
 				return err
 			}
 		}
@@ -205,6 +210,8 @@ func (a *Archive) callback(opts ...walkFunc) walkFunc {
 		return a.addToArchive(dirfd, name, relative, d)
 	}
 }
+
+var SkipThis = errors.New("skip this")
 
 // Pushes only files defined in the Files key to the final archive.
 func (a *Archive) withFilesCallback() walkFunc {
@@ -225,7 +232,7 @@ func (a *Archive) withFilesCallback() walkFunc {
 			return nil
 		}
 
-		return ufs.SkipDir
+		return SkipThis
 	})
 }
 
