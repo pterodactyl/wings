@@ -6,6 +6,7 @@ import (
 
 	"github.com/acobaugh/osrelease"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/system"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/parsers/kernel"
 )
@@ -121,22 +122,22 @@ func GetSystemInformation() (*Information, error) {
 	}, nil
 }
 
-func GetDockerInfo(ctx context.Context) (types.Version, types.Info, error) {
+func GetDockerInfo(ctx context.Context) (types.Version, system.Info, error) {
 	// TODO: find a way to re-use the client from the docker environment.
 	c, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return types.Version{}, types.Info{}, err
+		return types.Version{}, system.Info{}, err
 	}
 	defer c.Close()
 
 	dockerVersion, err := c.ServerVersion(ctx)
 	if err != nil {
-		return types.Version{}, types.Info{}, err
+		return types.Version{}, system.Info{}, err
 	}
 
 	dockerInfo, err := c.Info(ctx)
 	if err != nil {
-		return types.Version{}, types.Info{}, err
+		return types.Version{}, system.Info{}, err
 	}
 
 	return dockerVersion, dockerInfo, nil

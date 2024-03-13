@@ -4,8 +4,8 @@ import (
 	"encoding/base64"
 	"sort"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/registry"
 	"github.com/goccy/go-json"
 )
 
@@ -115,7 +115,7 @@ type RegistryConfiguration struct {
 // Base64 returns the authentication for a given registry as a base64 encoded
 // string value.
 func (c RegistryConfiguration) Base64() (string, error) {
-	b, err := json.Marshal(types.AuthConfig{
+	b, err := json.Marshal(registry.AuthConfig{
 		Username: c.Username,
 		Password: c.Password,
 	})
