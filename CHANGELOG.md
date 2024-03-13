@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.11.10
+### Fixed
+* Archives randomly ignoring files and directories ([#5027](https://github.com/pterodactyl/panel/issues/5027))
+* Crash when deleting or transferring a server ([#5028](https://github.com/pterodactyl/panel/issues/5028))
+
 ## v1.11.9
 ### Changed
 * Release binaries are now built with Go 1.21.8
