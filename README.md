@@ -15,7 +15,7 @@ dependencies, and allowing users to authenticate with the same credentials they 
 
 ## Sponsors
 
-I would like to extend my sincere thanks to the following sponsors for helping find Pterodactyl's development.
+I would like to extend my sincere thanks to the following sponsors for helping fund Pterodactyl's development.
 [Interested in becoming a sponsor?](https://github.com/sponsors/matthewpi)
 
 | Company                                                   | About                                                                                                                                                                                                 |
@@ -24,6 +24,7 @@ I would like to extend my sincere thanks to the following sponsors for helping f
 | [**BisectHosting**](https://www.bisecthosting.com/)       | BisectHosting provides Minecraft, Valheim and other server hosting services with the highest reliability and lightning fast support since 2012.                                                       |
 | [**MineStrator**](https://minestrator.com/)               | Looking for the most highend French hosting company for your minecraft server? More than 24,000 members on our discord trust us. Give us a try!                                                       |
 | [**VibeGAMES**](https://vibegames.net/)                   | VibeGAMES is a game server provider that specializes in DDOS protection for the games we offer. We have multiple locations in the US, Brazil, France, Germany, Singapore, Australia and South Africa. |
+| [**HostEZ**](https://hostez.io)                           | US & EU Rust & Minecraft Hosting. DDoS Protected bare metal, VPS and colocation with low latency, high uptime and maximum availability. EZ!                                                           |
 
 ## Documentation
 
