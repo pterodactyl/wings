@@ -167,13 +167,8 @@ func (dl *Download) Execute() error {
 		return errors.New("downloader: got bad response status from endpoint: " + res.Status)
 	}
 
-	// If there is a Content-Length header on this request go ahead and check that we can
-	// even write the whole file before beginning this process. If there is no header present
-	// we'll just have to give it a spin and see how it goes.
-	if res.ContentLength > 0 {
-		if err := dl.server.Filesystem().HasSpaceFor(res.ContentLength); err != nil {
-			return errors.WrapIf(err, "downloader: failed to write file: not enough space")
-		}
+	if res.ContentLength < 1 {
+		return errors.New("downloader: request is missing ContentLength")
 	}
 
 	if dl.req.UseHeader {
@@ -200,8 +195,10 @@ func (dl *Download) Execute() error {
 	p := dl.Path()
 	dl.server.Log().WithField("path", p).Debug("writing remote file to disk")
 
+	// Write the file while tracking the progress, Write will check that the
+	// size of the file won't exceed the disk limit.
 	r := io.TeeReader(res.Body, dl.counter(res.ContentLength))
-	if err := dl.server.Filesystem().Writefile(p, r); err != nil {
+	if err := dl.server.Filesystem().Write(p, r, res.ContentLength, 0o644); err != nil {
 		return errors.WrapIf(err, "downloader: failed to write file to server directory")
 	}
 	return nil

@@ -2,8 +2,6 @@ package parser
 
 import (
 	"bytes"
-	"io"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -29,23 +27,13 @@ var configMatchRegex = regexp.MustCompile(`{{\s?config\.([\w.-]+)\s?}}`)
 // matching:
 //
 // <Root>
-//   <Property value="testing"/>
+//
+//	<Property value="testing"/>
+//
 // </Root>
 //
 // noinspection RegExpRedundantEscape
 var xmlValueMatchRegex = regexp.MustCompile(`^\[([\w]+)='(.*)'\]$`)
-
-// Gets the []byte representation of a configuration file to be passed through to other
-// handler functions. If the file does not currently exist, it will be created.
-func readFileBytes(path string) ([]byte, error) {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	return io.ReadAll(file)
-}
 
 // Gets the value of a key based on the value type defined.
 func (cfr *ConfigurationFileReplacement) getKeyValue(value string) interface{} {

@@ -67,7 +67,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 		}
 	}
 
-	ad, err := b.Generate(s.Context(), s.Filesystem().Path(), ignored)
+	ad, err := b.Generate(s.Context(), s.Filesystem(), ignored)
 	if err != nil {
 		if err := s.notifyPanelOfBackup(b.Identifier(), &backup.ArchiveDetails{}, false); err != nil {
 			s.Log().WithFields(log.Fields{
@@ -154,17 +154,14 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	err = b.Restore(s.Context(), reader, func(file string, info fs.FileInfo, r io.ReadCloser) error {
 		defer r.Close()
 		s.Events().Publish(DaemonMessageEvent, "(restoring): "+file)
-
-		if err := s.Filesystem().Writefile(file, r); err != nil {
+		// TODO: since this will be called a lot, it may be worth adding an optimized
+		// Write with Chtimes method to the UnixFS that is able to re-use the
+		// same dirfd and file name.
+		if err := s.Filesystem().Write(file, r, info.Size(), info.Mode()); err != nil {
 			return err
 		}
-		if err := s.Filesystem().Chmod(file, info.Mode()); err != nil {
-			return err
-		}
-
 		atime := info.ModTime()
-		mtime := atime
-		return s.Filesystem().Chtimes(file, atime, mtime)
+		return s.Filesystem().Chtimes(file, atime, atime)
 	})
 
 	return errors.WithStackIf(err)

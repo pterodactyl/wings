@@ -1,27 +1,29 @@
 package filesystem
 
 import (
+	"golang.org/x/sys/unix"
 	"slices"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
-	"github.com/karrick/godirwalk"
+
+	"github.com/pterodactyl/wings/internal/ufs"
 )
 
 type SpaceCheckingOpts struct {
 	AllowStaleResponse bool
 }
 
+// TODO: can this be replaced with some sort of atomic? Like atomic.Pointer?
 type usageLookupTime struct {
 	sync.RWMutex
 	value time.Time
 }
 
-// Update the last time that a disk space lookup was performed.
+// Set sets the last time that a disk space lookup was performed.
 func (ult *usageLookupTime) Set(t time.Time) {
 	ult.Lock()
 	ult.value = t
@@ -36,14 +38,15 @@ func (ult *usageLookupTime) Get() time.Time {
 	return ult.value
 }
 
-// Returns the maximum amount of disk space that this Filesystem instance is allowed to use.
+// MaxDisk returns the maximum amount of disk space that this Filesystem
+// instance is allowed to use.
 func (fs *Filesystem) MaxDisk() int64 {
-	return atomic.LoadInt64(&fs.diskLimit)
+	return fs.unixFS.Limit()
 }
 
-// Sets the disk space limit for this Filesystem instance.
+// SetDiskLimit sets the disk space limit for this Filesystem instance.
 func (fs *Filesystem) SetDiskLimit(i int64) {
-	atomic.SwapInt64(&fs.diskLimit, i)
+	fs.unixFS.SetLimit(i)
 }
 
 // The same concept as HasSpaceAvailable however this will return an error if there is
@@ -66,7 +69,7 @@ func (fs *Filesystem) HasSpaceErr(allowStaleValue bool) error {
 func (fs *Filesystem) HasSpaceAvailable(allowStaleValue bool) bool {
 	size, err := fs.DiskUsage(allowStaleValue)
 	if err != nil {
-		log.WithField("root", fs.root).WithField("error", err).Warn("failed to determine root fs directory size")
+		log.WithField("root", fs.Path()).WithField("error", err).Warn("failed to determine root fs directory size")
 	}
 
 	// If space is -1 or 0 just return true, means they're allowed unlimited.
@@ -85,7 +88,7 @@ func (fs *Filesystem) HasSpaceAvailable(allowStaleValue bool) bool {
 // function for critical logical checks. It should only be used in areas where the actual disk usage
 // does not need to be perfect, e.g. API responses for server resource usage.
 func (fs *Filesystem) CachedUsage() int64 {
-	return atomic.LoadInt64(&fs.diskUsed)
+	return fs.unixFS.Usage()
 }
 
 // Internal helper function to allow other parts of the codebase to check the total used disk space
@@ -115,14 +118,14 @@ func (fs *Filesystem) DiskUsage(allowStaleValue bool) (int64, error) {
 			// currently performing a lookup, just do the disk usage calculation in the background.
 			go func(fs *Filesystem) {
 				if _, err := fs.updateCachedDiskUsage(); err != nil {
-					log.WithField("root", fs.root).WithField("error", err).Warn("failed to update fs disk usage from within routine")
+					log.WithField("root", fs.Path()).WithField("error", err).Warn("failed to update fs disk usage from within routine")
 				}
 			}(fs)
 		}
 	}
 
 	// Return the currently cached value back to the calling function.
-	return atomic.LoadInt64(&fs.diskUsed), nil
+	return fs.unixFS.Usage(), nil
 }
 
 // Updates the currently used disk space for a server.
@@ -150,76 +153,56 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	// error encountered.
 	fs.lastLookupTime.Set(time.Now())
 
-	atomic.StoreInt64(&fs.diskUsed, size)
+	fs.unixFS.SetUsage(size)
 
 	return size, err
 }
 
-// Determines the directory size of a given location by running parallel tasks to iterate
-// through all of the folders. Returns the size in bytes. This can be a fairly taxing operation
-// on locations with tons of files, so it is recommended that you cache the output.
-func (fs *Filesystem) DirectorySize(dir string) (int64, error) {
-	d, err := fs.SafePath(dir)
+// DirectorySize calculates the size of a directory and its descendants.
+func (fs *Filesystem) DirectorySize(root string) (int64, error) {
+	dirfd, name, closeFd, err := fs.unixFS.SafePath(root)
+	defer closeFd()
 	if err != nil {
 		return 0, err
 	}
 
-	var size int64
-	var st syscall.Stat_t
-
 	var hardLinks []uint64
 
-	err = godirwalk.Walk(d, &godirwalk.Options{
-		Unsorted: true,
-		Callback: func(p string, e *godirwalk.Dirent) error {
-			// If this is a symlink then resolve the final destination of it before trying to continue walking
-			// over its contents. If it resolves outside the server data directory just skip everything else for
-			// it. Otherwise, allow it to continue.
-			if e.IsSymlink() {
-				if _, err := fs.SafePath(p); err != nil {
-					if IsErrorCode(err, ErrCodePathResolution) {
-						return godirwalk.SkipThis
-					}
+	var size atomic.Int64
+	err = fs.unixFS.WalkDirat(dirfd, name, func(dirfd int, name, _ string, d ufs.DirEntry, err error) error {
+		if err != nil {
+			return errors.Wrap(err, "walkdirat err")
+		}
 
-					return err
-				}
-			}
-
-			if !e.IsDir() {
-				_ = syscall.Lstat(p, &st)
-
-				if st.Nlink > 1 {
-					// Hard links have the same inode number
-					if slices.Contains(hardLinks, st.Ino) {
-						// Don't add hard links size twice
-						return godirwalk.SkipThis
-					} else {
-						hardLinks = append(hardLinks, st.Ino)
-					}
-				}
-
-				atomic.AddInt64(&size, st.Size)
-			}
-
+		// Only calculate the size of regular files.
+		if !d.Type().IsRegular() {
 			return nil
-		},
-	})
+		}
 
-	return size, errors.WrapIf(err, "server/filesystem: directorysize: failed to walk directory")
+		info, err := fs.unixFS.Lstatat(dirfd, name)
+		if err != nil {
+			return errors.Wrap(err, "lstatat err")
+		}
+
+		var sysFileInfo = info.Sys().(*unix.Stat_t)
+		if sysFileInfo.Nlink > 1 {
+			// Hard links have the same inode number
+			if slices.Contains(hardLinks, sysFileInfo.Ino) {
+				// Don't add hard links size twice
+				return nil
+			} else {
+				hardLinks = append(hardLinks, sysFileInfo.Ino)
+			}
+		}
+
+		size.Add(info.Size())
+		return nil
+	})
+	return size.Load(), errors.WrapIf(err, "server/filesystem: directorysize: failed to walk directory")
 }
 
-// Helper function to determine if a server has space available for a file of a given size.
-// If space is available, no error will be returned, otherwise an ErrNotEnoughSpace error
-// will be raised.
 func (fs *Filesystem) HasSpaceFor(size int64) error {
-	if fs.MaxDisk() == 0 {
-		return nil
-	}
-	s, err := fs.DiskUsage(true)
-	if err != nil {
-		return err
-	}
-	if (s + size) > fs.MaxDisk() {
+	if !fs.unixFS.CanFit(size) {
 		return newFilesystemError(ErrCodeDiskSpace, nil)
 	}
 	return nil
@@ -227,24 +210,5 @@ func (fs *Filesystem) HasSpaceFor(size int64) error {
 
 // Updates the disk usage for the Filesystem instance.
 func (fs *Filesystem) addDisk(i int64) int64 {
-	size := atomic.LoadInt64(&fs.diskUsed)
-
-	// Sorry go gods. This is ugly but the best approach I can come up with for right
-	// now without completely re-evaluating the logic we use for determining disk space.
-	//
-	// Normally I would just be using the atomic load right below, but I'm not sure about
-	// the scenarios where it is 0 because nothing has run that would trigger a disk size
-	// calculation?
-	//
-	// Perhaps that isn't even a concern for the sake of this?
-	if !fs.isTest {
-		size, _ = fs.DiskUsage(true)
-	}
-
-	// If we're dropping below 0 somehow just cap it to 0.
-	if (size + i) < 0 {
-		return atomic.SwapInt64(&fs.diskUsed, 0)
-	}
-
-	return atomic.AddInt64(&fs.diskUsed, i)
+	return fs.unixFS.Add(i)
 }

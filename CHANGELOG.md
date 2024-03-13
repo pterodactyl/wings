@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.11.10
+### Fixed
+* Archives randomly ignoring files and directories ([#5027](https://github.com/pterodactyl/panel/issues/5027))
+* Crash when deleting or transferring a server ([#5028](https://github.com/pterodactyl/panel/issues/5028))
+
+## v1.11.9
+### Changed
+* Release binaries are now built with Go 1.21.8
+* Updated Go dependencies
+
+### Fixed
+* [CVE-2024-27102](https://www.cve.org/CVERecord?id=CVE-2024-27102)
+
 ## v1.11.8
 ### Changed
 * Release binaries are now built with Go 1.20.10 (resolves [CVE-2023-44487](https://www.cve.org/CVERecord?id=CVE-2023-44487))

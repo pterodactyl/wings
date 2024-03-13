@@ -3,17 +3,18 @@ package filesystem
 import (
 	"context"
 	"os"
-	"sync/atomic"
 	"testing"
 
 	. "github.com/franela/goblin"
 )
 
 // Given an archive named test.{ext}, with the following file structure:
+//
 //	test/
 //	|──inside/
 //	|────finside.txt
 //	|──outside.txt
+//
 // this test will ensure that it's being decompressed as expected
 func TestFilesystem_DecompressFile(t *testing.T) {
 	g := Goblin(t)
@@ -47,9 +48,7 @@ func TestFilesystem_DecompressFile(t *testing.T) {
 		}
 
 		g.AfterEach(func() {
-			rfs.reset()
-			atomic.StoreInt64(&fs.diskUsed, 0)
-			atomic.StoreInt64(&fs.diskLimit, 0)
+			_ = fs.TruncateRootDirectory()
 		})
 	})
 }

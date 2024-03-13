@@ -8,6 +8,8 @@ import (
 
 	"emperror.dev/errors"
 	. "github.com/franela/goblin"
+
+	"github.com/pterodactyl/wings/internal/ufs"
 )
 
 func TestFilesystem_Path(t *testing.T) {
@@ -17,80 +19,6 @@ func TestFilesystem_Path(t *testing.T) {
 	g.Describe("Path", func() {
 		g.It("returns the root path for the instance", func() {
 			g.Assert(fs.Path()).Equal(filepath.Join(rfs.root, "/server"))
-		})
-	})
-}
-
-func TestFilesystem_SafePath(t *testing.T) {
-	g := Goblin(t)
-	fs, rfs := NewFs()
-	prefix := filepath.Join(rfs.root, "/server")
-
-	g.Describe("SafePath", func() {
-		g.It("returns a cleaned path to a given file", func() {
-			p, err := fs.SafePath("test.txt")
-			g.Assert(err).IsNil()
-			g.Assert(p).Equal(prefix + "/test.txt")
-
-			p, err = fs.SafePath("/test.txt")
-			g.Assert(err).IsNil()
-			g.Assert(p).Equal(prefix + "/test.txt")
-
-			p, err = fs.SafePath("./test.txt")
-			g.Assert(err).IsNil()
-			g.Assert(p).Equal(prefix + "/test.txt")
-
-			p, err = fs.SafePath("/foo/../test.txt")
-			g.Assert(err).IsNil()
-			g.Assert(p).Equal(prefix + "/test.txt")
-
-			p, err = fs.SafePath("/foo/bar")
-			g.Assert(err).IsNil()
-			g.Assert(p).Equal(prefix + "/foo/bar")
-		})
-
-		g.It("handles root directory access", func() {
-			p, err := fs.SafePath("/")
-			g.Assert(err).IsNil()
-			g.Assert(p).Equal(prefix)
-
-			p, err = fs.SafePath("")
-			g.Assert(err).IsNil()
-			g.Assert(p).Equal(prefix)
-		})
-
-		g.It("removes trailing slashes from paths", func() {
-			p, err := fs.SafePath("/foo/bar/")
-			g.Assert(err).IsNil()
-			g.Assert(p).Equal(prefix + "/foo/bar")
-		})
-
-		g.It("handles deeply nested directories that do not exist", func() {
-			p, err := fs.SafePath("/foo/bar/baz/quaz/../../ducks/testing.txt")
-			g.Assert(err).IsNil()
-			g.Assert(p).Equal(prefix + "/foo/bar/ducks/testing.txt")
-		})
-
-		g.It("blocks access to files outside the root directory", func() {
-			p, err := fs.SafePath("../test.txt")
-			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
-			g.Assert(p).Equal("")
-
-			p, err = fs.SafePath("/../test.txt")
-			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
-			g.Assert(p).Equal("")
-
-			p, err = fs.SafePath("./foo/../../test.txt")
-			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
-			g.Assert(p).Equal("")
-
-			p, err = fs.SafePath("..")
-			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
-			g.Assert(p).Equal("")
 		})
 	})
 }
@@ -133,7 +61,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 
 			err := fs.Writefile("symlinked.txt", r)
 			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+			g.Assert(errors.Is(err, ufs.ErrBadPathResolution)).IsTrue("err is not ErrBadPathResolution")
 		})
 
 		g.It("cannot write to a non-existent file symlinked outside the root", func() {
@@ -141,7 +69,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 
 			err := fs.Writefile("symlinked_does_not_exist.txt", r)
 			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+			g.Assert(errors.Is(err, ufs.ErrBadPathResolution)).IsTrue("err is not ErrBadPathResolution")
 		})
 
 		g.It("cannot write to chained symlinks with target that does not exist outside the root", func() {
@@ -149,7 +77,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 
 			err := fs.Writefile("symlinked_does_not_exist2.txt", r)
 			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+			g.Assert(errors.Is(err, ufs.ErrBadPathResolution)).IsTrue("err is not ErrBadPathResolution")
 		})
 
 		g.It("cannot write a file to a directory symlinked outside the root", func() {
@@ -157,7 +85,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 
 			err := fs.Writefile("external_dir/foo.txt", r)
 			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+			g.Assert(errors.Is(err, ufs.ErrNotDirectory)).IsTrue("err is not ErrNotDirectory")
 		})
 	})
 
@@ -165,55 +93,54 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 		g.It("cannot create a directory outside the root", func() {
 			err := fs.CreateDirectory("my_dir", "external_dir")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+			g.Assert(errors.Is(err, ufs.ErrNotDirectory)).IsTrue("err is not ErrNotDirectory")
 		})
 
 		g.It("cannot create a nested directory outside the root", func() {
 			err := fs.CreateDirectory("my/nested/dir", "external_dir/foo/bar")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+			g.Assert(errors.Is(err, ufs.ErrNotDirectory)).IsTrue("err is not ErrNotDirectory")
 		})
 
 		g.It("cannot create a nested directory outside the root", func() {
 			err := fs.CreateDirectory("my/nested/dir", "external_dir/server")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+			g.Assert(errors.Is(err, ufs.ErrNotDirectory)).IsTrue("err is not ErrNotDirectory")
 		})
 	})
 
 	g.Describe("Rename", func() {
-		g.It("cannot rename a file symlinked outside the directory root", func() {
-			err := fs.Rename("symlinked.txt", "foo.txt")
-			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+		g.It("can rename a file symlinked outside the directory root", func() {
+			_, err := os.Lstat(filepath.Join(rfs.root, "server", "symlinked.txt"))
+			g.Assert(err).IsNil()
+			err = fs.Rename("symlinked.txt", "foo.txt")
+			g.Assert(err).IsNil()
+			_, err = os.Lstat(filepath.Join(rfs.root, "server", "foo.txt"))
+			g.Assert(err).IsNil()
 		})
 
-		g.It("cannot rename a symlinked directory outside the root", func() {
-			err := fs.Rename("external_dir", "foo")
-			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+		g.It("can rename a symlinked directory outside the root", func() {
+			_, err := os.Lstat(filepath.Join(rfs.root, "server", "external_dir"))
+			g.Assert(err).IsNil()
+			err = fs.Rename("external_dir", "foo")
+			g.Assert(err).IsNil()
+			_, err = os.Lstat(filepath.Join(rfs.root, "server", "foo"))
+			g.Assert(err).IsNil()
 		})
 
 		g.It("cannot rename a file to a location outside the directory root", func() {
-			rfs.CreateServerFileFromString("my_file.txt", "internal content")
+			_ = rfs.CreateServerFileFromString("my_file.txt", "internal content")
+			t.Log(rfs.root)
 
-			err := fs.Rename("my_file.txt", "external_dir/my_file.txt")
-			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
-		})
-	})
+			st, err := os.Lstat(filepath.Join(rfs.root, "server", "foo"))
+			g.Assert(err).IsNil()
+			g.Assert(st.Mode()&ufs.ModeSymlink != 0).IsTrue()
 
-	g.Describe("Chown", func() {
-		g.It("cannot chown a file symlinked outside the directory root", func() {
-			err := fs.Chown("symlinked.txt")
-			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
-		})
+			err = fs.Rename("my_file.txt", "foo/my_file.txt")
+			g.Assert(errors.Is(err, ufs.ErrNotDirectory)).IsTrue()
 
-		g.It("cannot chown a directory symlinked outside the directory root", func() {
-			err := fs.Chown("external_dir")
-			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+			st, err = os.Lstat(filepath.Join(rfs.root, "malicious_dir", "my_file.txt"))
+			g.Assert(errors.Is(err, ufs.ErrNotExist)).IsTrue()
 		})
 	})
 
@@ -221,7 +148,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 		g.It("cannot copy a file symlinked outside the directory root", func() {
 			err := fs.Copy("symlinked.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(IsErrorCode(err, ErrCodePathResolution)).IsTrue()
+			g.Assert(errors.Is(err, ufs.ErrNotExist)).IsTrue("err is not ErrNotExist")
 		})
 	})
 
@@ -235,9 +162,9 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 
 			_, err = rfs.StatServerFile("symlinked.txt")
 			g.Assert(err).IsNotNil()
-			g.Assert(errors.Is(err, os.ErrNotExist)).IsTrue()
+			g.Assert(errors.Is(err, ufs.ErrNotExist)).IsTrue("err is not ErrNotExist")
 		})
 	})
 
-	rfs.reset()
+	_ = fs.TruncateRootDirectory()
 }
