@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.11.9
+### Changed
+* Release binaries are now built with Go 1.21.8
+* Updated Go dependencies
+
+### Fixed
+* [CVE-2024-27102](https://www.cve.org/CVERecord?id=CVE-2024-27102)
+
 ## v1.11.8
 ### Changed
 * Release binaries are now built with Go 1.20.10 (resolves [CVE-2023-44487](https://www.cve.org/CVERecord?id=CVE-2023-44487))
