@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	iofs "io/fs"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -13,7 +12,10 @@ import (
 	"time"
 
 	"emperror.dev/errors"
+	"github.com/klauspost/compress/zip"
 	"github.com/mholt/archiver/v4"
+
+	"github.com/pterodactyl/wings/internal/ufs"
 )
 
 // CompressFiles compresses all the files matching the given paths in the
@@ -25,46 +27,69 @@ import (
 // All paths are relative to the dir that is passed in as the first argument,
 // and the compressed file will be placed at that location named
 // `archive-{date}.tar.gz`.
-func (fs *Filesystem) CompressFiles(dir string, paths []string) (os.FileInfo, error) {
-	cleanedRootDir, err := fs.SafePath(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	// Take all the paths passed in and merge them together with the root directory we've gotten.
-	for i, p := range paths {
-		paths[i] = filepath.Join(cleanedRootDir, p)
-	}
-
-	cleaned, err := fs.ParallelSafePath(paths)
-	if err != nil {
-		return nil, err
-	}
-
-	a := &Archive{BasePath: cleanedRootDir, Files: cleaned}
+func (fs *Filesystem) CompressFiles(dir string, paths []string) (ufs.FileInfo, error) {
+	a := &Archive{Filesystem: fs, BaseDirectory: dir, Files: paths}
 	d := path.Join(
-		cleanedRootDir,
+		dir,
 		fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")),
 	)
-
-	if err := a.Create(context.Background(), d); err != nil {
-		return nil, err
-	}
-
-	f, err := os.Stat(d)
+	f, err := fs.unixFS.OpenFile(d, ufs.O_WRONLY|ufs.O_CREATE, 0o644)
 	if err != nil {
-		_ = os.Remove(d)
+		return nil, err
+	}
+	defer f.Close()
+	cw := ufs.NewCountedWriter(f)
+	if err := a.Stream(context.Background(), cw); err != nil {
+		return nil, err
+	}
+	if !fs.unixFS.CanFit(cw.BytesWritten()) {
+		_ = fs.unixFS.Remove(d)
+		return nil, newFilesystemError(ErrCodeDiskSpace, nil)
+	}
+	fs.unixFS.Add(cw.BytesWritten())
+	return f.Stat()
+}
+
+func (fs *Filesystem) archiverFileSystem(ctx context.Context, p string) (iofs.FS, error) {
+	f, err := fs.unixFS.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	// Do not use defer to close `f`, it will likely be used later.
+
+	format, _, err := archiver.Identify(filepath.Base(p), f)
+	if err != nil && !errors.Is(err, archiver.ErrNoMatch) {
+		_ = f.Close()
 		return nil, err
 	}
 
-	if err := fs.HasSpaceFor(f.Size()); err != nil {
-		_ = os.Remove(d)
+	// Reset the file reader.
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		_ = f.Close()
 		return nil, err
 	}
 
-	fs.addDisk(f.Size())
+	info, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
 
-	return f, nil
+	if format != nil {
+		switch ff := format.(type) {
+		case archiver.Zip:
+			// zip.Reader is more performant than ArchiveFS, because zip.Reader caches content information
+			// and zip.Reader can open several content files concurrently because of io.ReaderAt requirement
+			// while ArchiveFS can't.
+			// zip.Reader doesn't suffer from issue #330 and #310 according to local test (but they should be fixed anyway)
+			return zip.NewReader(f, info.Size())
+		case archiver.Archival:
+			return archiver.ArchiveFS{Stream: io.NewSectionReader(f, 0, info.Size()), Format: ff, Context: ctx}, nil
+		}
+	}
+
+	_ = f.Close()
+	return nil, nil
 }
 
 // SpaceAvailableForDecompression looks through a given archive and determines
@@ -76,16 +101,7 @@ func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir st
 		return nil
 	}
 
-	source, err := fs.SafePath(filepath.Join(dir, file))
-	if err != nil {
-		return err
-	}
-
-	// Get the cached size in a parallel process so that if it is not cached we are not
-	// waiting an unnecessary amount of time on this call.
-	dirSize, err := fs.DiskUsage(false)
-
-	fsys, err := archiver.FileSystem(ctx, source)
+	fsys, err := fs.archiverFileSystem(ctx, filepath.Join(dir, file))
 	if err != nil {
 		if errors.Is(err, archiver.ErrNoMatch) {
 			return newFilesystemError(ErrCodeUnknownArchive, err)
@@ -93,7 +109,7 @@ func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir st
 		return err
 	}
 
-	var size int64
+	var size atomic.Int64
 	return iofs.WalkDir(fsys, ".", func(path string, d iofs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -108,7 +124,7 @@ func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir st
 			if err != nil {
 				return err
 			}
-			if atomic.AddInt64(&size, info.Size())+dirSize > fs.MaxDisk() {
+			if !fs.unixFS.CanFit(size.Add(info.Size())) {
 				return newFilesystemError(ErrCodeDiskSpace, nil)
 			}
 			return nil
@@ -122,23 +138,7 @@ func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir st
 // zip-slip attack being attempted by validating that the final path is within
 // the server data directory.
 func (fs *Filesystem) DecompressFile(ctx context.Context, dir string, file string) error {
-	source, err := fs.SafePath(filepath.Join(dir, file))
-	if err != nil {
-		return err
-	}
-	return fs.DecompressFileUnsafe(ctx, dir, source)
-}
-
-// DecompressFileUnsafe will decompress any file on the local disk without checking
-// if it is owned by the server.  The file will be SAFELY decompressed and extracted
-// into the server's directory.
-func (fs *Filesystem) DecompressFileUnsafe(ctx context.Context, dir string, file string) error {
-	// Ensure that the archive actually exists on the system.
-	if _, err := os.Stat(file); err != nil {
-		return errors.WithStack(err)
-	}
-
-	f, err := os.Open(file)
+	f, err := fs.unixFS.Open(filepath.Join(dir, file))
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,6 @@ func (fs *Filesystem) ExtractStreamUnsafe(ctx context.Context, dir string, r io.
 		}
 		return err
 	}
-
 	return fs.extractStream(ctx, extractStreamOptions{
 		Directory: dir,
 		Format:    format,
@@ -190,34 +189,31 @@ type extractStreamOptions struct {
 
 func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptions) error {
 	// Decompress and extract archive
-	if ex, ok := opts.Format.(archiver.Extractor); ok {
-		return ex.Extract(ctx, opts.Reader, nil, func(ctx context.Context, f archiver.File) error {
-			if f.IsDir() {
-				return nil
-			}
-			p := filepath.Join(opts.Directory, f.NameInArchive)
-			// If it is ignored, just don't do anything with the file and skip over it.
-			if err := fs.IsIgnored(p); err != nil {
-				return nil
-			}
-			r, err := f.Open()
-			if err != nil {
-				return err
-			}
-			defer r.Close()
-			if err := fs.Writefile(p, r); err != nil {
-				return wrapError(err, opts.FileName)
-			}
-			// Update the file permissions to the one set in the archive.
-			if err := fs.Chmod(p, f.Mode()); err != nil {
-				return wrapError(err, opts.FileName)
-			}
-			// Update the file modification time to the one set in the archive.
-			if err := fs.Chtimes(p, f.ModTime(), f.ModTime()); err != nil {
-				return wrapError(err, opts.FileName)
-			}
-			return nil
-		})
+	ex, ok := opts.Format.(archiver.Extractor)
+	if !ok {
+		return nil
 	}
-	return nil
+	return ex.Extract(ctx, opts.Reader, nil, func(ctx context.Context, f archiver.File) error {
+		if f.IsDir() {
+			return nil
+		}
+		p := filepath.Join(opts.Directory, f.NameInArchive)
+		// If it is ignored, just don't do anything with the file and skip over it.
+		if err := fs.IsIgnored(p); err != nil {
+			return nil
+		}
+		r, err := f.Open()
+		if err != nil {
+			return err
+		}
+		defer r.Close()
+		if err := fs.Write(p, r, f.Size(), f.Mode()); err != nil {
+			return wrapError(err, opts.FileName)
+		}
+		// Update the file modification time to the one set in the archive.
+		if err := fs.Chtimes(p, f.ModTime(), f.ModTime()); err != nil {
+			return wrapError(err, opts.FileName)
+		}
+		return nil
+	})
 }

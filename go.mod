@@ -30,7 +30,7 @@ require (
 	github.com/iancoleman/strcase v0.3.0
 	github.com/icza/dyno v0.0.0-20230330125955-09f820a8d9c0
 	github.com/juju/ratelimit v1.0.2
-	github.com/karrick/godirwalk v1.17.0
+	github.com/klauspost/compress v1.17.7
 	github.com/klauspost/pgzip v1.2.6
 	github.com/magiconair/properties v1.8.7
 	github.com/mattn/go-colorable v0.1.13
@@ -43,6 +43,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/crypto v0.21.0
 	golang.org/x/sync v0.6.0
+	golang.org/x/sys v0.18.0
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -83,7 +84,6 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
-	github.com/klauspost/compress v1.17.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
@@ -122,7 +122,6 @@ require (
 	golang.org/x/arch v0.7.0 // indirect
 	golang.org/x/mod v0.16.0 // indirect
 	golang.org/x/net v0.22.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/term v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect

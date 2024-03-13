@@ -228,6 +228,7 @@ func deleteServer(c *gin.Context) {
 	// In addition, servers with large amounts of files can take some time to finish deleting,
 	// so we don't want to block the HTTP call while waiting on this.
 	go func(p string) {
+		_ = s.Filesystem().UnixFS().Close()
 		if err := os.RemoveAll(p); err != nil {
 			log.WithFields(log.Fields{"path": p, "error": err}).Warn("failed to remove server files during deletion process")
 		}

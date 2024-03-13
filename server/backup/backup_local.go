@@ -59,10 +59,10 @@ func (b *LocalBackup) WithLogContext(c map[string]interface{}) {
 
 // Generate generates a backup of the selected files and pushes it to the
 // defined location for this instance.
-func (b *LocalBackup) Generate(ctx context.Context, basePath, ignore string) (*ArchiveDetails, error) {
+func (b *LocalBackup) Generate(ctx context.Context, fsys *filesystem.Filesystem, ignore string) (*ArchiveDetails, error) {
 	a := &filesystem.Archive{
-		BasePath: basePath,
-		Ignore:   ignore,
+		Filesystem: fsys,
+		Ignore:     ignore,
 	}
 
 	b.log().WithField("path", b.Path()).Info("creating backup for server")

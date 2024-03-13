@@ -3,7 +3,6 @@ package filesystem
 import (
 	"archive/tar"
 	"context"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -14,12 +13,12 @@ import (
 	"emperror.dev/errors"
 	"github.com/apex/log"
 	"github.com/juju/ratelimit"
-	"github.com/karrick/godirwalk"
 	"github.com/klauspost/pgzip"
 	ignore "github.com/sabhiram/go-gitignore"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/internal/progress"
+	"github.com/pterodactyl/wings/internal/ufs"
 )
 
 const memory = 4 * 1024
@@ -57,13 +56,15 @@ func (p *TarProgress) Write(v []byte) (int, error) {
 }
 
 type Archive struct {
-	// BasePath is the absolute path to create the archive from where Files and Ignore are
-	// relative to.
-	BasePath string
+	// Filesystem to create the archive with.
+	Filesystem *Filesystem
 
 	// Ignore is a gitignore string (most likely read from a file) of files to ignore
 	// from the archive.
 	Ignore string
+
+	// BaseDirectory .
+	BaseDirectory string
 
 	// Files specifies the files to archive, this takes priority over the Ignore option, if
 	// unspecified, all files in the BasePath will be archived unless Ignore is set.
@@ -73,11 +74,18 @@ type Archive struct {
 
 	// Progress wraps the writer of the archive to pass through the progress tracker.
 	Progress *progress.Progress
+
+	w *TarProgress
 }
 
 // Create creates an archive at dst with all the files defined in the
 // included Files array.
+//
+// THIS IS UNSAFE TO USE IF `dst` IS PROVIDED BY A USER! ONLY USE THIS WITH
+// CONTROLLED PATHS!
 func (a *Archive) Create(ctx context.Context, dst string) error {
+	// Using os.OpenFile here is expected, as long as `dst` is not a user
+	// provided path.
 	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
@@ -98,14 +106,19 @@ func (a *Archive) Create(ctx context.Context, dst string) error {
 	return a.Stream(ctx, writer)
 }
 
-// Stream .
+type walkFunc func(dirfd int, name, relative string, d ufs.DirEntry) error
+
+// Stream streams the creation of the archive to the given writer.
 func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
-	for _, f := range a.Files {
-		if strings.HasPrefix(f, a.BasePath) {
+	if a.Filesystem == nil {
+		return errors.New("filesystem: archive.Filesystem is unset")
+	}
+
+	for i, f := range a.Files {
+		if !strings.HasPrefix(f, a.Filesystem.Path()) {
 			continue
 		}
-
-		return fmt.Errorf("archive: all entries in Files must be absolute and within BasePath: %s\n", f)
+		a.Files[i] = strings.TrimPrefix(strings.TrimPrefix(f, a.Filesystem.Path()), "/")
 	}
 
 	// Choose which compression level to use based on the compression_level configuration option
@@ -130,107 +143,100 @@ func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
 	tw := tar.NewWriter(gw)
 	defer tw.Close()
 
-	pw := NewTarProgress(tw, a.Progress)
+	a.w = NewTarProgress(tw, a.Progress)
 
-	// Configure godirwalk.
-	options := &godirwalk.Options{
-		FollowSymbolicLinks: false,
-		Unsorted:            true,
-	}
+	fs := a.Filesystem.unixFS
 
 	// If we're specifically looking for only certain files, or have requested
 	// that certain files be ignored we'll update the callback function to reflect
 	// that request.
-	var callback godirwalk.WalkFunc
+	var callback walkFunc
 	if len(a.Files) == 0 && len(a.Ignore) > 0 {
 		i := ignore.CompileIgnoreLines(strings.Split(a.Ignore, "\n")...)
-
-		callback = a.callback(pw, func(_ string, rp string) error {
-			if i.MatchesPath(rp) {
-				return godirwalk.SkipThis
+		callback = a.callback(func(_ int, _, relative string, _ ufs.DirEntry) error {
+			if i.MatchesPath(relative) {
+				return ufs.SkipDir
 			}
-
 			return nil
 		})
 	} else if len(a.Files) > 0 {
-		callback = a.withFilesCallback(pw)
+		callback = a.withFilesCallback()
 	} else {
-		callback = a.callback(pw)
+		callback = a.callback()
 	}
 
-	// Set the callback function, wrapped with support for context cancellation.
-	options.Callback = func(path string, de *godirwalk.Dirent) error {
+	dirfd, name, closeFd, err := fs.SafePath(a.BaseDirectory)
+	defer closeFd()
+	if err != nil {
+		return err
+	}
+	return fs.WalkDirat(dirfd, name, func(dirfd int, name, relative string, d ufs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			return callback(path, de)
+			return callback(dirfd, name, relative, d)
 		}
-	}
-
-	// Recursively walk the path we are archiving.
-	return godirwalk.Walk(a.BasePath, options)
+	})
 }
 
 // Callback function used to determine if a given file should be included in the archive
 // being generated.
-func (a *Archive) callback(tw *TarProgress, opts ...func(path string, relative string) error) func(path string, de *godirwalk.Dirent) error {
-	return func(path string, de *godirwalk.Dirent) error {
+func (a *Archive) callback(opts ...walkFunc) walkFunc {
+	return func(dirfd int, name, relative string, d ufs.DirEntry) error {
 		// Skip directories because we are walking them recursively.
-		if de.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
-
-		relative := filepath.ToSlash(strings.TrimPrefix(path, a.BasePath+string(filepath.Separator)))
 
 		// Call the additional options passed to this callback function. If any of them return
 		// a non-nil error we will exit immediately.
 		for _, opt := range opts {
-			if err := opt(path, relative); err != nil {
+			if err := opt(dirfd, name, relative, d); err != nil {
 				return err
 			}
 		}
 
 		// Add the file to the archive, if it is nested in a directory,
 		// the directory will be automatically "created" in the archive.
-		return a.addToArchive(path, relative, tw)
+		return a.addToArchive(dirfd, name, relative, d)
 	}
 }
 
 // Pushes only files defined in the Files key to the final archive.
-func (a *Archive) withFilesCallback(tw *TarProgress) func(path string, de *godirwalk.Dirent) error {
-	return a.callback(tw, func(p string, rp string) error {
+func (a *Archive) withFilesCallback() walkFunc {
+	return a.callback(func(_ int, _, relative string, _ ufs.DirEntry) error {
 		for _, f := range a.Files {
 			// Allow exact file matches, otherwise check if file is within a parent directory.
 			//
 			// The slashes are added in the prefix checks to prevent partial name matches from being
 			// included in the archive.
-			if f != p && !strings.HasPrefix(strings.TrimSuffix(p, "/")+"/", strings.TrimSuffix(f, "/")+"/") {
+			if f != relative && !strings.HasPrefix(strings.TrimSuffix(relative, "/")+"/", strings.TrimSuffix(f, "/")+"/") {
 				continue
 			}
 
 			// Once we have a match return a nil value here so that the loop stops and the
 			// call to this function will correctly include the file in the archive. If there
 			// are no matches we'll never make it to this line, and the final error returned
-			// will be the godirwalk.SkipThis error.
+			// will be the ufs.SkipDir error.
 			return nil
 		}
 
-		return godirwalk.SkipThis
+		return ufs.SkipDir
 	})
 }
 
 // Adds a given file path to the final archive being created.
-func (a *Archive) addToArchive(p string, rp string, w *TarProgress) error {
-	// Lstat the file, this will give us the same information as Stat except that it will not
-	// follow a symlink to its target automatically. This is important to avoid including
-	// files that exist outside the server root unintentionally in the backup.
-	s, err := os.Lstat(p)
+func (a *Archive) addToArchive(dirfd int, name, relative string, entry ufs.DirEntry) error {
+	s, err := entry.Info()
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, ufs.ErrNotExist) {
 			return nil
 		}
-		return errors.WrapIff(err, "failed executing os.Lstat on '%s'", rp)
+		return errors.WrapIff(err, "failed executing os.Lstat on '%s'", name)
 	}
 
 	// Skip socket files as they are unsupported by archive/tar.
@@ -250,7 +256,7 @@ func (a *Archive) addToArchive(p string, rp string, w *TarProgress) error {
 		if err != nil {
 			// Ignore the not exist errors specifically, since there is nothing important about that.
 			if !os.IsNotExist(err) {
-				log.WithField("path", rp).WithField("readlink_err", err.Error()).Warn("failed reading symlink for target path; skipping...")
+				log.WithField("name", name).WithField("readlink_err", err.Error()).Warn("failed reading symlink for target path; skipping...")
 			}
 			return nil
 		}
@@ -259,17 +265,17 @@ func (a *Archive) addToArchive(p string, rp string, w *TarProgress) error {
 	// Get the tar FileInfoHeader in order to add the file to the archive.
 	header, err := tar.FileInfoHeader(s, filepath.ToSlash(target))
 	if err != nil {
-		return errors.WrapIff(err, "failed to get tar#FileInfoHeader for '%s'", rp)
+		return errors.WrapIff(err, "failed to get tar#FileInfoHeader for '%s'", name)
 	}
 
 	// Fix the header name if the file is not a symlink.
 	if s.Mode()&fs.ModeSymlink == 0 {
-		header.Name = rp
+		header.Name = relative
 	}
 
 	// Write the tar FileInfoHeader to the archive.
-	if err := w.WriteHeader(header); err != nil {
-		return errors.WrapIff(err, "failed to write tar#FileInfoHeader for '%s'", rp)
+	if err := a.w.WriteHeader(header); err != nil {
+		return errors.WrapIff(err, "failed to write tar#FileInfoHeader for '%s'", name)
 	}
 
 	// If the size of the file is less than 1 (most likely for symlinks), skip writing the file.
@@ -291,7 +297,7 @@ func (a *Archive) addToArchive(p string, rp string, w *TarProgress) error {
 	}
 
 	// Open the file.
-	f, err := os.Open(p)
+	f, err := a.Filesystem.unixFS.OpenFileat(dirfd, name, ufs.O_RDONLY, 0)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -301,9 +307,8 @@ func (a *Archive) addToArchive(p string, rp string, w *TarProgress) error {
 	defer f.Close()
 
 	// Copy the file's contents to the archive using our buffer.
-	if _, err := io.CopyBuffer(w, io.LimitReader(f, header.Size), buf); err != nil {
+	if _, err := io.CopyBuffer(a.w, io.LimitReader(f, header.Size), buf); err != nil {
 		return errors.WrapIff(err, "failed to copy '%s' to archive", header.Name)
 	}
-
 	return nil
 }

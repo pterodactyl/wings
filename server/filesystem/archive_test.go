@@ -20,43 +20,34 @@ func TestArchive_Stream(t *testing.T) {
 	g.Describe("Archive", func() {
 		g.AfterEach(func() {
 			// Reset the filesystem after each run.
-			rfs.reset()
-		})
-
-		g.It("throws an error when passed invalid file paths", func() {
-			a := &Archive{
-				BasePath: fs.Path(),
-				Files: []string{
-					// To use the archiver properly, this needs to be filepath.Join(BasePath, "yeet")
-					// However, this test tests that we actually validate that behavior.
-					"yeet",
-				},
-			}
-
-			g.Assert(a.Create(context.Background(), "")).IsNotNil()
+			_ = fs.TruncateRootDirectory()
 		})
 
 		g.It("creates archive with intended files", func() {
 			g.Assert(fs.CreateDirectory("test", "/")).IsNil()
 			g.Assert(fs.CreateDirectory("test2", "/")).IsNil()
 
-			err := fs.Writefile("test/file.txt", strings.NewReader("hello, world!\n"))
+			r := strings.NewReader("hello, world!\n")
+			err := fs.Write("test/file.txt", r, r.Size(), 0o644)
 			g.Assert(err).IsNil()
 
-			err = fs.Writefile("test2/file.txt", strings.NewReader("hello, world!\n"))
+			r = strings.NewReader("hello, world!\n")
+			err = fs.Write("test2/file.txt", r, r.Size(), 0o644)
 			g.Assert(err).IsNil()
 
-			err = fs.Writefile("test_file.txt", strings.NewReader("hello, world!\n"))
+			r = strings.NewReader("hello, world!\n")
+			err = fs.Write("test_file.txt", r, r.Size(), 0o644)
 			g.Assert(err).IsNil()
 
-			err = fs.Writefile("test_file.txt.old", strings.NewReader("hello, world!\n"))
+			r = strings.NewReader("hello, world!\n")
+			err = fs.Write("test_file.txt.old", r, r.Size(), 0o644)
 			g.Assert(err).IsNil()
 
 			a := &Archive{
-				BasePath: fs.Path(),
+				Filesystem: fs,
 				Files: []string{
-					filepath.Join(fs.Path(), "test"),
-					filepath.Join(fs.Path(), "test_file.txt"),
+					"test",
+					"test_file.txt",
 				},
 			}
 
@@ -119,7 +110,7 @@ func getFiles(f iofs.ReadDirFS, name string) ([]string, error) {
 			if files == nil {
 				return nil, nil
 			}
-			
+
 			v = append(v, files...)
 			continue
 		}

@@ -30,7 +30,7 @@ import (
 // getServerFileContents returns the contents of a file on the server.
 func getServerFileContents(c *gin.Context) {
 	s := middleware.ExtractServer(c)
-	p := "/" + strings.TrimLeft(c.Query("file"), "/")
+	p := strings.TrimLeft(c.Query("file"), "/")
 	f, st, err := s.Filesystem().File(p)
 	if err != nil {
 		middleware.CaptureAndAbort(c, err)
@@ -129,7 +129,6 @@ func putServerRenameFiles(c *gin.Context) {
 				}
 				if err := fs.Rename(pf, pt); err != nil {
 					// Return nil if the error is an is not exists.
-					// NOTE: os.IsNotExist() does not work if the error is wrapped.
 					if errors.Is(err, os.ErrNotExist) {
 						s.Log().WithField("error", err).
 							WithField("from_path", pf).
@@ -239,7 +238,15 @@ func postServerWriteFile(c *gin.Context) {
 		middleware.CaptureAndAbort(c, err)
 		return
 	}
-	if err := s.Filesystem().Writefile(f, c.Request.Body); err != nil {
+
+	if c.Request.ContentLength < 1 {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Missing Content-Length",
+		})
+		return
+	}
+
+	if err := s.Filesystem().Write(f, c.Request.Body, c.Request.ContentLength, 0o644); err != nil {
 		if filesystem.IsErrorCode(err, filesystem.ErrCodeIsDirectory) {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 				"error": "Cannot write file, name conflicts with an existing directory by the same name.",
@@ -589,15 +596,9 @@ func postServerUploadFiles(c *gin.Context) {
 	}
 
 	for _, header := range headers {
-		p, err := s.Filesystem().SafePath(filepath.Join(directory, header.Filename))
-		if err != nil {
-			middleware.CaptureAndAbort(c, err)
-			return
-		}
-
 		// We run this in a different method so I can use defer without any of
 		// the consequences caused by calling it in a loop.
-		if err := handleFileUpload(p, s, header); err != nil {
+		if err := handleFileUpload(filepath.Join(directory, header.Filename), s, header); err != nil {
 			middleware.CaptureAndAbort(c, err)
 			return
 		} else {
@@ -619,7 +620,8 @@ func handleFileUpload(p string, s *server.Server, header *multipart.FileHeader) 
 	if err := s.Filesystem().IsIgnored(p); err != nil {
 		return err
 	}
-	if err := s.Filesystem().Writefile(p, file); err != nil {
+
+	if err := s.Filesystem().Write(p, file, header.Size, 0o644); err != nil {
 		return err
 	}
 	return nil

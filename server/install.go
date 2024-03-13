@@ -2,7 +2,6 @@ package server
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"html/template"
 	"io"
@@ -218,30 +217,18 @@ func (ip *InstallationProcess) tempDir() string {
 // can be properly mounted into the installation container and then executed.
 func (ip *InstallationProcess) writeScriptToDisk() error {
 	// Make sure the temp directory root exists before trying to make a directory within it. The
-	// ioutil.TempDir call expects this base to exist, it won't create it for you.
+	// os.TempDir call expects this base to exist, it won't create it for you.
 	if err := os.MkdirAll(ip.tempDir(), 0o700); err != nil {
 		return errors.WithMessage(err, "could not create temporary directory for install process")
 	}
-
 	f, err := os.OpenFile(filepath.Join(ip.tempDir(), "install.sh"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return errors.WithMessage(err, "failed to write server installation script to disk before mount")
 	}
 	defer f.Close()
-
-	w := bufio.NewWriter(f)
-
-	scanner := bufio.NewScanner(bytes.NewReader([]byte(ip.Script.Script)))
-	for scanner.Scan() {
-		w.WriteString(scanner.Text() + "\n")
-	}
-
-	if err := scanner.Err(); err != nil {
+	if _, err := io.Copy(f, strings.NewReader(strings.ReplaceAll(ip.Script.Script, "\r\n", "\n"))); err != nil {
 		return err
 	}
-
-	w.Flush()
-
 	return nil
 }
 

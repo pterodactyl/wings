@@ -106,6 +106,7 @@ func postTransfers(c *gin.Context) {
 			if !successful && err != nil {
 				// Delete all extracted files.
 				go func(trnsfr *transfer.Transfer) {
+					_ = trnsfr.Server.Filesystem().UnixFS().Close()
 					if err := os.RemoveAll(trnsfr.Server.Filesystem().Path()); err != nil && !os.IsNotExist(err) {
 						trnsfr.Log().WithError(err).Warn("failed to delete local server files")
 					}
