@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04]
-        go: ["1.20.12", "1.21.5"]
+        go: ["1.21.8", "1.22.1"]
         goos: [linux]
         goarch: [amd64, arm64]
 
@@ -62,14 +62,14 @@ jobs:
 
       - name: Upload Release Artifact
         uses: actions/upload-artifact@v4
-        if: ${{ (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') && matrix.go == '1.20.12' }}
+        if: ${{ (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') && matrix.go == '1.21.8' }}
         with:
           name: wings_linux_${{ matrix.goarch }}
           path: dist/wings
 
       - name: Upload Debug Artifact
         uses: actions/upload-artifact@v4
-        if: ${{ (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') && matrix.go == '1.20.12' }}
+        if: ${{ (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') && matrix.go == '1.21.8' }}
         with:
           name: wings_linux_${{ matrix.goarch }}_debug
           path: dist/wings_debug
