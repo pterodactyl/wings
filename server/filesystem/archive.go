@@ -157,7 +157,7 @@ func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
 		i := ignore.CompileIgnoreLines(strings.Split(a.Ignore, "\n")...)
 		callback = a.callback(func(_ int, _, relative string, _ ufs.DirEntry) error {
 			if i.MatchesPath(relative) {
-				return ufs.SkipDir
+				return SkipThis
 			}
 			return nil
 		})
