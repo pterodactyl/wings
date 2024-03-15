@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.11.11
+### Fixed
+* Backups missing content when a `.pteroignore` file is used
+* Archives originating from a subdirectory not containing any files ([#5030](https://github.com/pterodactyl/panel/issues/5030))
+
 ## v1.11.10
 ### Fixed
 * Archives randomly ignoring files and directories ([#5027](https://github.com/pterodactyl/panel/issues/5027))

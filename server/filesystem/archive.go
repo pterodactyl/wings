@@ -113,6 +113,10 @@ func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
 		return errors.New("filesystem: archive.Filesystem is unset")
 	}
 
+	// The base directory may come with a prefixed `/`, strip it to prevent
+	// problems.
+	a.BaseDirectory = strings.TrimPrefix(a.BaseDirectory, "/")
+
 	if filesLen := len(a.Files); filesLen > 0 {
 		files := make([]string, filesLen)
 		for i, f := range a.Files {
@@ -157,7 +161,7 @@ func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
 		i := ignore.CompileIgnoreLines(strings.Split(a.Ignore, "\n")...)
 		callback = a.callback(func(_ int, _, relative string, _ ufs.DirEntry) error {
 			if i.MatchesPath(relative) {
-				return ufs.SkipDir
+				return SkipThis
 			}
 			return nil
 		})
@@ -167,11 +171,14 @@ func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
 		callback = a.callback()
 	}
 
+	// Open the base directory we were provided.
 	dirfd, name, closeFd, err := fs.SafePath(a.BaseDirectory)
 	defer closeFd()
 	if err != nil {
 		return err
 	}
+
+	// Recursively walk the base directory.
 	return fs.WalkDirat(dirfd, name, func(dirfd int, name, relative string, d ufs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -188,10 +195,26 @@ func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
 // Callback function used to determine if a given file should be included in the archive
 // being generated.
 func (a *Archive) callback(opts ...walkFunc) walkFunc {
+	// Get the base directory we need to strip when walking.
+	//
+	// This is important as when we are walking, the last part of the base directory
+	// is present on all the paths we walk.
+	var base string
+	if a.BaseDirectory != "" {
+		base = filepath.Base(a.BaseDirectory) + "/"
+	}
 	return func(dirfd int, name, relative string, d ufs.DirEntry) error {
 		// Skip directories because we are walking them recursively.
 		if d.IsDir() {
 			return nil
+		}
+
+		// If base isn't empty, strip it from the relative path. This fixes an
+		// issue when creating an archive starting from a nested directory.
+		//
+		// See https://github.com/pterodactyl/panel/issues/5030 for more details.
+		if base != "" {
+			relative = strings.TrimPrefix(relative, base)
 		}
 
 		// Call the additional options passed to this callback function. If any of them return

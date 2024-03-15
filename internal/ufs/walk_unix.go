@@ -66,6 +66,13 @@ func (fs *UnixFS) walkDir(b []byte, parentfd int, name, relative string, d DirEn
 	}
 
 	for _, d1 := range dirs {
+		// TODO: the path.Join on this line may actually be partially incorrect.
+		// If we are not walking starting at the root, relative will contain the
+		// name of the directory we are starting the walk from, which will be
+		// relative to the root of the filesystem instead of from where the walk
+		// was initiated from.
+		//
+		// ref; https://github.com/pterodactyl/panel/issues/5030
 		if err := fs.walkDir(b, dirfd, d1.Name(), path.Join(relative, d1.Name()), d1, walkDirFn); err != nil {
 			if err == SkipDir {
 				break
