@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"strconv"
 
 	"github.com/pterodactyl/wings/internal/models"
 
@@ -387,6 +388,31 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 			}
 
 			logs, err := h.server.Environment.Readlog(config.Get().System.WebsocketLogCount)
+			if err != nil {
+				return err
+			}
+
+			for _, line := range logs {
+				_ = h.SendJson(Message{
+					Event: server.ConsoleOutputEvent,
+					Args:  []string{line},
+				})
+			}
+
+			return nil
+		}
+	case SendNumLogsEvent:
+		{
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
+			if running, _ := h.server.Environment.IsRunning(ctx); !running {
+				return nil
+			}
+
+			stringValue := m.Args[0]
+    		intVal, err := strconv.Atoi(stringValue)
+
+			logs, err := h.server.Environment.Readlog(intVal)
 			if err != nil {
 				return err
 			}
