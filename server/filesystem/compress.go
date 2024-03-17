@@ -16,6 +16,7 @@ import (
 	"github.com/mholt/archiver/v4"
 
 	"github.com/pterodactyl/wings/internal/ufs"
+	"github.com/pterodactyl/wings/server/filesystem/archiverext"
 )
 
 // CompressFiles compresses all the files matching the given paths in the
@@ -85,11 +86,12 @@ func (fs *Filesystem) archiverFileSystem(ctx context.Context, p string) (iofs.FS
 			return zip.NewReader(f, info.Size())
 		case archiver.Archival:
 			return archiver.ArchiveFS{Stream: io.NewSectionReader(f, 0, info.Size()), Format: ff, Context: ctx}, nil
+		case archiver.Compression:
+			return archiverext.FileFS{File: f, Compression: ff}, nil
 		}
 	}
-
 	_ = f.Close()
-	return nil, nil
+	return nil, archiver.ErrNoMatch
 }
 
 // SpaceAvailableForDecompression looks through a given archive and determines
