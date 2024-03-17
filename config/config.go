@@ -170,6 +170,11 @@ type SystemConfiguration struct {
 
 		Uid int `yaml:"uid"`
 		Gid int `yaml:"gid"`
+
+		// Passwd controls weather a passwd file is mounted in the container
+		// at /etc/passwd to resolve missing user issues
+		Passwd     bool   `json:"mount_passwd" yaml:"mount_passwd" default:"true"`
+		PasswdFile string `json:"passwd_file" yaml:"passwd_file" default:"/etc/pterodactyl/passwd"`
 	} `yaml:"user"`
 
 	// The amount of time in seconds that can elapse before a server's disk space calculation is
@@ -528,6 +533,19 @@ func ConfigureDirectories() error {
 	log.WithField("path", root).Debug("ensuring root data directory exists")
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return err
+	}
+
+	log.WithField("filepath", _config.System.User.PasswdFile).Debug("ensuring passwd file exists")
+	if passwd, err := os.Create(_config.System.User.PasswdFile); err != nil {
+		return err
+	} else {
+		// the WriteFile method returns an error if unsuccessful
+		err := os.WriteFile(passwd.Name(), []byte(fmt.Sprintf("container:x:%d:%d::/home/container:/usr/sbin/nologin", _config.System.User.Uid, _config.System.User.Gid)), 0644)
+		// handle this error
+		if err != nil {
+			// print it out
+			fmt.Println(err)
+		}
 	}
 
 	// There are a non-trivial number of users out there whose data directories are actually a
