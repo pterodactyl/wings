@@ -166,17 +166,23 @@ func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode ufs.FileM
 	}
 	defer file.Close()
 
-	// Do not use CopyBuffer here, it is wasteful as the file implements
-	// io.ReaderFrom, which causes it to not use the buffer anyways.
-	n, err := io.Copy(file, io.LimitReader(r, newSize))
+	if newSize == 0 {
+		// Subtract the previous size of the file if the new size is 0.
+		fs.unixFS.Add(-currentSize)
+	} else {
+		// Do not use CopyBuffer here, it is wasteful as the file implements
+		// io.ReaderFrom, which causes it to not use the buffer anyways.
+		var n int64
+		n, err = io.Copy(file, io.LimitReader(r, newSize))
 
-	// Adjust the disk usage to account for the old size and the new size of the file.
-	fs.unixFS.Add(n - currentSize)
+		// Adjust the disk usage to account for the old size and the new size of the file.
+		fs.unixFS.Add(n - currentSize)
+	}
 
 	if err := fs.chownFile(p); err != nil {
 		return err
 	}
-	// Return the error from io.Copy.
+	// Return any remaining error.
 	return err
 }
 

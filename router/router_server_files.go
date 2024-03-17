@@ -239,7 +239,8 @@ func postServerWriteFile(c *gin.Context) {
 		return
 	}
 
-	if c.Request.ContentLength < 1 {
+	// A content length of -1 means the actual length is unknown.
+	if c.Request.ContentLength == -1 {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error": "Missing Content-Length",
 		})
