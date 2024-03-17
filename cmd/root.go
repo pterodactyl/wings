@@ -87,6 +87,7 @@ func init() {
 
 	rootCommand.AddCommand(versionCommand)
 	rootCommand.AddCommand(configureCmd)
+	rootCommand.AddCommand(serviceCmd)
 	rootCommand.AddCommand(newDiagnosticsCommand())
 }
 
