@@ -1,6 +1,8 @@
 package filesystem
 
 import (
+	"golang.org/x/sys/unix"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -164,6 +166,8 @@ func (fs *Filesystem) DirectorySize(root string) (int64, error) {
 		return 0, err
 	}
 
+	var hardLinks []uint64
+
 	var size atomic.Int64
 	err = fs.unixFS.WalkDirat(dirfd, name, func(dirfd int, name, _ string, d ufs.DirEntry, err error) error {
 		if err != nil {
@@ -180,8 +184,16 @@ func (fs *Filesystem) DirectorySize(root string) (int64, error) {
 			return errors.Wrap(err, "lstatat err")
 		}
 
-		// TODO: detect if info is a hard-link and de-duplicate it.
-		// ref; https://github.com/pterodactyl/wings/pull/181/files
+		var sysFileInfo = info.Sys().(*unix.Stat_t)
+		if sysFileInfo.Nlink > 1 {
+			// Hard links have the same inode number
+			if slices.Contains(hardLinks, sysFileInfo.Ino) {
+				// Don't add hard links size twice
+				return nil
+			} else {
+				hardLinks = append(hardLinks, sysFileInfo.Ino)
+			}
+		}
 
 		size.Add(info.Size())
 		return nil
