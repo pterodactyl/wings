@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -294,6 +295,14 @@ func (a *Archive) addToArchive(dirfd int, name, relative string, entry ufs.DirEn
 
 	// Get the tar FileInfoHeader in order to add the file to the archive.
 	header, err := tar.FileInfoHeader(s, filepath.ToSlash(target))
+
+	// set to format gnu so 7-zip can read Chinese Filename
+	header.Format = tar.FormatGNU
+
+	// temp workaround for golang write accesstime and changetime into gnu_header‘s prefix.
+	header.AccessTime = time.Time{}
+	header.ChangeTime = time.Time{}
+
 	if err != nil {
 		return errors.WrapIff(err, "failed to get tar#FileInfoHeader for '%s'", name)
 	}
