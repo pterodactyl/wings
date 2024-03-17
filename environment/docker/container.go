@@ -15,6 +15,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 
 	"github.com/pterodactyl/wings/config"
@@ -257,7 +258,25 @@ func (e *Environment) Create() error {
 		UsernsMode:  container.UsernsMode(cfg.Docker.UsernsMode),
 	}
 
-	if _, err := e.client.ContainerCreate(ctx, conf, hostConf, nil, nil, e.Id); err != nil {
+	var netConf *network.NetworkingConfig = nil //In case when no networking config is needed set nil
+	var serverNetConfig = config.Get().Docker.Network
+	if "macvlan" == serverNetConfig.Driver { //Generate networking config for macvlan driver
+		var defaultMapping = e.Config().Allocations().DefaultMapping
+		e.log().Debug("Set macvlan " + serverNetConfig.Name + " IP to " + defaultMapping.Ip)
+		netConf = &network.NetworkingConfig{
+			EndpointsConfig: map[string]*network.EndpointSettings{
+				serverNetConfig.Name: { //Get network name from wings config
+					IPAMConfig: &network.EndpointIPAMConfig{
+						IPv4Address: defaultMapping.Ip,
+					},
+					IPAddress: defaultMapping.Ip, //Use default mapping ip address (wings support only one network per server)
+					Gateway:   serverNetConfig.Interfaces.V4.Gateway,
+				},
+			},
+		}
+	}
+	// Pass the networkings configuration or nil if none required
+	if _, err := e.client.ContainerCreate(ctx, conf, hostConf, netConf, nil, e.Id); err != nil {
 		return errors.Wrap(err, "environment/docker: failed to create container")
 	}
 
