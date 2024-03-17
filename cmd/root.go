@@ -440,18 +440,18 @@ in all copies or substantial portions of the Software.%s`), system.Version, time
 }
 
 func exitWithConfigurationNotice() {
-	fmt.Print(colorstring.Color(`
+	fmt.Printf(colorstring.Color(`
 [_red_][white][bold]Error: Configuration File Not Found[reset]
 
 Wings was not able to locate your configuration file, and therefore is not
 able to complete its boot process. Please ensure you have copied your instance
 configuration file into the default location below.
 
-Default Location: /etc/pterodactyl/config.yml
+Default Location: %s
 
 [yellow]This is not a bug with this software. Please do not make a bug report
 for this issue, it will be closed.[reset]
 
-`))
+`), config.DefaultLocation)
 	os.Exit(1)
 }
