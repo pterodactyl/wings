@@ -31,6 +31,10 @@ import (
 func getServerFileContents(c *gin.Context) {
 	s := middleware.ExtractServer(c)
 	p := strings.TrimLeft(c.Query("file"), "/")
+	if err := s.Filesystem().IsIgnored(p); err != nil {
+		middleware.CaptureAndAbort(c, err)
+		return
+	}
 	f, st, err := s.Filesystem().File(p)
 	if err != nil {
 		middleware.CaptureAndAbort(c, err)
@@ -214,6 +218,9 @@ func postServerDeleteFiles(c *gin.Context) {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
+				if err := s.Filesystem().IsIgnored(pi); err != nil {
+					return err
+				}
 				return s.Filesystem().Delete(pi)
 			}
 		})
@@ -324,6 +331,11 @@ func postServerPullRemoteFile(c *gin.Context) {
 		FileName:  data.FileName,
 		UseHeader: data.UseHeader,
 	})
+
+	if err := s.Filesystem().IsIgnored(dl.Path()); err != nil {
+		middleware.CaptureAndAbort(c, err)
+		return
+	}
 
 	download := func() error {
 		s.Log().WithField("download_id", dl.Identifier).WithField("url", u.String()).Info("starting pull of remote file to disk")

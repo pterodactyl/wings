@@ -29,6 +29,11 @@ import (
 // and the compressed file will be placed at that location named
 // `archive-{date}.tar.gz`.
 func (fs *Filesystem) CompressFiles(dir string, paths []string) (ufs.FileInfo, error) {
+	for _, file := range paths {
+		if err := fs.IsIgnored(path.Join(dir, file)); err != nil {
+			return nil, err
+		}
+	}
 	a := &Archive{Filesystem: fs, BaseDirectory: dir, Files: paths}
 	d := path.Join(
 		dir,
