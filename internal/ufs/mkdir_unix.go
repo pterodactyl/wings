@@ -10,10 +10,6 @@
 
 package ufs
 
-import (
-	"golang.org/x/sys/unix"
-)
-
 // mkdirAll is a recursive Mkdir implementation that properly handles symlinks.
 func (fs *UnixFS) mkdirAll(name string, mode FileMode) error {
 	// Fast path: if we can tell whether path is a directory or file, stop with success or error.
@@ -30,7 +26,7 @@ func (fs *UnixFS) mkdirAll(name string, mode FileMode) error {
 		if dir.IsDir() {
 			return nil
 		}
-		return convertErrorType(&PathError{Op: "mkdir", Path: name, Err: unix.ENOTDIR})
+		return &PathError{Op: "mkdir", Path: name, Err: ErrNotDirectory}
 	}
 
 	// Slow path: make sure parent exists and then call Mkdir for path.

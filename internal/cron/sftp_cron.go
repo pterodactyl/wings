@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"emperror.dev/errors"
+	"gorm.io/gorm"
 
 	"github.com/pterodactyl/wings/internal/database"
 	"github.com/pterodactyl/wings/internal/models"
@@ -83,9 +84,26 @@ func (sc *sftpCron) Run(ctx context.Context) error {
 	if err := sc.manager.Client().SendActivityLogs(ctx, events.Elements()); err != nil {
 		return errors.Wrap(err, "failed to send sftp activity logs to Panel")
 	}
-	if tx := database.Instance().Where("id IN ?", events.ids).Delete(&models.Activity{}); tx.Error != nil {
-		return errors.WithStack(tx.Error)
+
+	// SQLite has a limitation of how many parameters we can specify in a single
+	// query, so we need to delete the activies in chunks of 32,000 instead of
+	// all at once.
+	i := 0
+	idsLen := len(events.ids)
+	var tx *gorm.DB
+	for i < idsLen {
+		start := i
+		end := min(i+32000, idsLen)
+		batchSize := end - start
+
+		tx = database.Instance().WithContext(ctx).Where("id IN ?", events.ids[start:end]).Delete(&models.Activity{})
+		if tx.Error != nil {
+			return errors.WithStack(tx.Error)
+		}
+
+		i += batchSize
 	}
+
 	return nil
 }
 

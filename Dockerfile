@@ -1,5 +1,5 @@
 # Stage 1 (Build)
-FROM golang:1.22.10-alpine AS builder
+FROM golang:1.23.7-alpine AS builder
 
 ARG VERSION
 RUN apk add --update --no-cache git make mailcap

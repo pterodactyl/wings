@@ -31,8 +31,8 @@ func NewSinkPool() *SinkPool {
 // On adds a channel to the sink pool instance.
 func (p *SinkPool) On(c chan []byte) {
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.sinks = append(p.sinks, c)
-	p.mu.Unlock()
 }
 
 // Off removes a given channel from the sink pool. If no matching sink is found
@@ -69,13 +69,11 @@ func (p *SinkPool) Off(c chan []byte) {
 func (p *SinkPool) Destroy() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
 	for _, c := range p.sinks {
 		if c != nil {
 			close(c)
 		}
 	}
-
 	p.sinks = nil
 }
 
@@ -98,6 +96,7 @@ func (p *SinkPool) Destroy() {
 func (p *SinkPool) Push(data []byte) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+
 	var wg sync.WaitGroup
 	wg.Add(len(p.sinks))
 	for _, c := range p.sinks {
@@ -105,15 +104,22 @@ func (p *SinkPool) Push(data []byte) {
 			defer wg.Done()
 			select {
 			case c <- data:
-			case <-time.After(time.Millisecond * 10):
-				// If there is nothing in the channel to read, but we also cannot write
-				// to the channel, just skip over sending data. If we don't do this you'll
-				// end up blocking the application on the channel read below.
-				if len(c) == 0 {
-					break
+			case <-time.After(10 * time.Millisecond):
+				// If we cannot send the message to the channel within 10ms,
+				// then try to drop the oldest message from the channel, then
+				// send our message.
+				select {
+				case <-c:
+					// Only attempt to send the message if we were able to make
+					// space for it on the channel.
+					select {
+					case c <- data:
+					default:
+					}
+				default:
+					// Do nothing, this is a fallthrough if there is nothing to
+					// read from c.
 				}
-				<-c
-				c <- data
 			}
 		}(c)
 	}

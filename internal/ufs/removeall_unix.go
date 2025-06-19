@@ -52,60 +52,69 @@ func removeAll(fs unixFS, path string) error {
 	parentDir, base := splitPath(path)
 
 	parent, err := fs.Open(parentDir)
-	if errors.Is(err, ErrNotExist) {
+	if err != nil {
+		if !errors.Is(err, ErrNotExist) {
+			return err
+		}
 		// If parent does not exist, base cannot exist. Fail silently
 		return nil
-	}
-	if err != nil {
-		return err
 	}
 	defer parent.Close()
 
 	if err := removeAllFrom(fs, parent, base); err != nil {
 		if pathErr, ok := err.(*PathError); ok {
 			pathErr.Path = parentDir + string(os.PathSeparator) + pathErr.Path
-			err = pathErr
+			err = convertErrorType(pathErr)
+		} else {
+			err = ensurePathError(err, "removeallfrom", base)
 		}
-		return convertErrorType(err)
+		return err
 	}
 	return nil
 }
 
-func removeAllFrom(fs unixFS, parent File, base string) error {
-	parentFd := int(parent.Fd())
-	// Simple case: if Unlink (aka remove) works, we're done.
-	err := fs.unlinkat(parentFd, base, 0)
-	if err == nil || errors.Is(err, ErrNotExist) {
+func (fs *UnixFS) removeContents(path string) error {
+	return removeContents(fs, path)
+}
+
+func removeContents(fs unixFS, path string) error {
+	if path == "" {
+		// fail silently to retain compatibility with previous behavior
+		// of RemoveAll. See issue https://go.dev/issue/28830.
 		return nil
 	}
 
-	// EISDIR means that we have a directory, and we need to
-	// remove its contents.
-	// EPERM or EACCES means that we don't have write permission on
-	// the parent directory, but this entry might still be a directory
-	// whose contents need to be removed.
-	// Otherwise, just return the error.
-	if err != unix.EISDIR && err != unix.EPERM && err != unix.EACCES {
-		return &PathError{Op: "unlinkat", Path: base, Err: err}
-	}
+	// RemoveAll recurses by deleting the path base from
+	// its parent directory
+	parentDir, base := splitPath(path)
 
-	// Is this a directory we need to recurse into?
-	var statInfo unix.Stat_t
-	statErr := ignoringEINTR(func() error {
-		return unix.Fstatat(parentFd, base, &statInfo, AT_SYMLINK_NOFOLLOW)
-	})
-	if statErr != nil {
-		if errors.Is(statErr, ErrNotExist) {
-			return nil
+	parent, err := fs.Open(parentDir)
+	if err != nil {
+		if !errors.Is(err, ErrNotExist) {
+			return err
 		}
-		return &PathError{Op: "fstatat", Path: base, Err: statErr}
+		// If parent does not exist, base cannot exist. Fail silently
+		return nil
 	}
-	if statInfo.Mode&unix.S_IFMT != unix.S_IFDIR {
-		// Not a directory; return the error from the unix.Unlinkat.
-		return &PathError{Op: "unlinkat", Path: base, Err: err}
-	}
+	defer parent.Close()
 
-	// Remove the directory's entries.
+	if err := removeContentsFrom(fs, parent, base); err != nil {
+		if pathErr, ok := err.(*PathError); ok {
+			pathErr.Path = parentDir + string(os.PathSeparator) + pathErr.Path
+			err = convertErrorType(pathErr)
+		} else {
+			err = ensurePathError(err, "removecontentsfrom", base)
+		}
+		return err
+	}
+	return nil
+}
+
+// removeContentsFrom recursively removes all descendants of parent without
+// removing parent itself. Parent must be a directory.
+func removeContentsFrom(fs unixFS, parent File, base string) error {
+	parentFd := int(parent.Fd())
+
 	var recurseErr error
 	for {
 		const reqSize = 1024
@@ -168,6 +177,50 @@ func removeAllFrom(fs unixFS, parent File, base string) error {
 		}
 	}
 
+	return nil
+}
+
+func removeAllFrom(fs unixFS, parent File, base string) error {
+	parentFd := int(parent.Fd())
+
+	// Simple case: if Unlink (aka remove) works, we're done.
+	err := fs.unlinkat(parentFd, base, 0)
+	if err == nil || errors.Is(err, ErrNotExist) {
+		return nil
+	}
+
+	// EISDIR means that we have a directory, and we need to
+	// remove its contents.
+	// EPERM or EACCES means that we don't have write permission on
+	// the parent directory, but this entry might still be a directory
+	// whose contents need to be removed.
+	// Otherwise, just return the error.
+	if err != unix.EISDIR && err != unix.EPERM && err != unix.EACCES {
+		return &PathError{Op: "unlinkat", Path: base, Err: err}
+	}
+
+	// Is this a directory we need to recurse into?
+	var statInfo unix.Stat_t
+	statErr := ignoringEINTR(func() error {
+		return unix.Fstatat(parentFd, base, &statInfo, AT_SYMLINK_NOFOLLOW)
+	})
+	if statErr != nil {
+		if errors.Is(statErr, ErrNotExist) {
+			return nil
+		}
+		return &PathError{Op: "fstatat", Path: base, Err: statErr}
+	}
+	if statInfo.Mode&unix.S_IFMT != unix.S_IFDIR {
+		// Not a directory; return the error from the unix.Unlinkat.
+		return &PathError{Op: "unlinkat", Path: base, Err: err}
+	}
+
+	// Remove all contents will remove the contents of the directory.
+	//
+	// It was split out of this function to allow the deletion of the
+	// contents of a directory, without deleting the directory itself.
+	recurseErr := removeContentsFrom(fs, parent, base)
+
 	// Remove the directory itself.
 	unlinkErr := fs.unlinkat(parentFd, base, AT_REMOVEDIR)
 	if unlinkErr == nil || errors.Is(unlinkErr, ErrNotExist) {
@@ -177,7 +230,8 @@ func removeAllFrom(fs unixFS, parent File, base string) error {
 	if recurseErr != nil {
 		return recurseErr
 	}
-	return &PathError{Op: "unlinkat", Path: base, Err: unlinkErr}
+
+	return ensurePathError(err, "unlinkat", base)
 }
 
 // openFdAt opens path relative to the directory in fd.

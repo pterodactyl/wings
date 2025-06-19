@@ -12,24 +12,23 @@ jobs:
   build-and-test:
     name: Build and Test
     runs-on: ${{ matrix.os }}
-    permissions:
-      contents: read
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
-        go: ["1.22.10", "1.23.4"]
+        os: [ubuntu-24.04]
+        go: ["1.23.7", "1.24.1"]
         goos: [linux]
         goarch: [amd64, arm64]
-
+    permissions:
+      contents: read
     steps:
+      - name: Code checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version: ${{ matrix.go }}
-
-      - name: Code checkout
-        uses: actions/checkout@v4
 
       - name: go mod download
         env:
@@ -44,8 +43,8 @@ jobs:
           CGO_ENABLED: 0
           SRC_PATH: github.com/pterodactyl/wings
         run: |
-          go build -v -trimpath -ldflags="-s -w -X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o dist/wings ${SRC_PATH}
-          go build -v -trimpath -ldflags="-X ${SRC_PATH}/system.Version=dev-${GIT_COMMIT:0:7}" -o dist/wings_debug ${SRC_PATH}
+          go build -v -trimpath -ldflags="-s -w -X ${SRC_PATH}/system.Version=dev-${GITHUB_SHA:0:7}" -o dist/wings ${SRC_PATH}
+          go build -v -trimpath -ldflags="-X ${SRC_PATH}/system.Version=dev-${GITHUB_SHA:0:7}" -o dist/wings_debug ${SRC_PATH}
           chmod 755 dist/*
 
       - name: go test
@@ -63,15 +62,15 @@ jobs:
           go test -race $(go list ./...)
 
       - name: Upload Release Artifact
-        uses: actions/upload-artifact@v4
-        if: ${{ (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') && matrix.go == '1.22.10' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') && matrix.go == '1.23.7' }}
         with:
           name: wings_linux_${{ matrix.goarch }}
           path: dist/wings
 
       - name: Upload Debug Artifact
-        uses: actions/upload-artifact@v4
-        if: ${{ (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') && matrix.go == '1.22.10' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') && matrix.go == '1.23.7' }}
         with:
           name: wings_linux_${{ matrix.goarch }}_debug
           path: dist/wings_debug

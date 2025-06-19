@@ -7,8 +7,12 @@ import (
 	"sync/atomic"
 )
 
-// Quota .
-// TODO: document
+// Quota is a wrapper around [*UnixFS] that provides the ability to limit the
+// disk usage of the filesystem.
+//
+// NOTE: this is not a full complete quota filesystem, it provides utilities for
+// tracking and checking the usage of the filesystem. The only operation that is
+// automatically accounted against the quota are file deletions.
 type Quota struct {
 	// fs is the underlying filesystem that runs the actual I/O operations.
 	*UnixFS
@@ -28,8 +32,7 @@ type Quota struct {
 	usage atomic.Int64
 }
 
-// NewQuota .
-// TODO: document
+// NewQuota creates a new Quota filesystem using an existing UnixFS and a limit.
 func NewQuota(fs *UnixFS, limit int64) *Quota {
 	qfs := Quota{UnixFS: fs}
 	qfs.limit.Store(limit)
@@ -105,6 +108,9 @@ func (fs *Quota) CanFit(size int64) bool {
 	return false
 }
 
+// Remove removes the named file or (empty) directory.
+//
+// If there is an error, it will be of type [*PathError].
 func (fs *Quota) Remove(name string) error {
 	// For information on why this interface is used here, check its
 	// documentation.
@@ -129,7 +135,7 @@ func (fs *Quota) Remove(name string) error {
 // it encounters. If the path does not exist, RemoveAll
 // returns nil (no error).
 //
-// If there is an error, it will be of type *PathError.
+// If there is an error, it will be of type [*PathError].
 func (fs *Quota) RemoveAll(name string) error {
 	name, err := fs.unsafePath(name)
 	if err != nil {

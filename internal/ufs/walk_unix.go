@@ -199,7 +199,7 @@ func (fs *UnixFS) modeTypeFromDirent(de *unix.Dirent, fd int, name string) (File
 func (fs *UnixFS) modeType(dirfd int, name string) (FileMode, error) {
 	fi, err := fs.Lstatat(dirfd, name)
 	if err != nil {
-		return 0, fmt.Errorf("ufs: error finding mode type for %s during readDir: %w", name, convertErrorType(err))
+		return 0, fmt.Errorf("ufs: error finding mode type for %s during readDir: %w", name, err)
 	}
 	return fi.Mode() & ModeType, nil
 }
@@ -227,7 +227,7 @@ func (fs *UnixFS) readDir(fd int, name, relative string, b []byte) ([]DirEntry, 
 				if err == unix.EINTR {
 					continue
 				}
-				return nil, fmt.Errorf("ufs: error with getdents during readDir: %w", convertErrorType(err))
+				return nil, ensurePathError(err, "getdents", name)
 			}
 			if n <= 0 {
 				// end of directory: normal exit

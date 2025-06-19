@@ -2,7 +2,6 @@ package system
 
 import (
 	"fmt"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -11,20 +10,11 @@ import (
 )
 
 func MutexLocked(m *sync.RWMutex) bool {
-	v := reflect.ValueOf(m).Elem()
-
-	state := v.FieldByName("w").FieldByName("state")
-
-	readerCountField := v.FieldByName("readerCount")
-	// go1.20 changed readerCount to an atomic
-	// ref; https://github.com/golang/go/commit/e509452727b469d89a3fc4a7d1cbf9d3f110efee
-	var readerCount int64
-	if readerCountField.Kind() == reflect.Struct {
-		readerCount = readerCountField.FieldByName("v").Int()
-	} else {
-		readerCount = readerCountField.Int()
+	unlocked := m.TryLock()
+	if unlocked {
+		m.Unlock()
 	}
-	return state.Int()&1 == 1 || readerCount > 0
+	return !unlocked
 }
 
 func TestSink(t *testing.T) {

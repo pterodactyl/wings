@@ -56,6 +56,7 @@ func (ac *activityCron) Run(ctx context.Context) error {
 		activities = append(activities, v)
 	}
 
+	// Delete any invalid activies
 	if len(ids) > 0 {
 		tx = database.Instance().WithContext(ctx).Where("id IN ?", ids).Delete(&models.Activity{})
 		if tx.Error != nil {
@@ -71,16 +72,28 @@ func (ac *activityCron) Run(ctx context.Context) error {
 		return errors.WrapIf(err, "cron: failed to send activity events to Panel")
 	}
 
-	// Add all the successful activities to the list of IDs to delete.
 	ids = make([]int, len(activities))
 	for i, v := range activities {
 		ids[i] = v.ID
 	}
 
-	// Delete all the activities that were sent to the Panel (or that were invalid).
-	tx = database.Instance().WithContext(ctx).Where("id IN ?", ids).Delete(&models.Activity{})
-	if tx.Error != nil {
-		return errors.WithStack(tx.Error)
+	// SQLite has a limitation of how many parameters we can specify in a single
+	// query, so we need to delete the activies in chunks of 32,000 instead of
+	// all at once.
+	i := 0
+	idsLen := len(ids)
+	for i < idsLen {
+		start := i
+		end := min(i+32000, idsLen)
+		batchSize := end - start
+
+		tx = database.Instance().WithContext(ctx).Where("id IN ?", ids[start:end]).Delete(&models.Activity{})
+		if tx.Error != nil {
+			return errors.WithStack(tx.Error)
+		}
+
+		i += batchSize
 	}
+
 	return nil
 }
