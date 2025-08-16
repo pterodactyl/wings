@@ -30,6 +30,8 @@ jobs:
           chmod 755 dist/wings_linux_amd64
           GOARCH=arm64 go build -o dist/wings_linux_arm64 -v -trimpath -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" github.com/pterodactyl/wings
           chmod 755 dist/wings_linux_arm64
+          GOARCH=ppc64le go build -o dist/wings_linux_ppc64le -v -trimpath -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" github.com/pterodactyl/wings
+          chmod 755 dist/wings_linux_ppc64le
 
       - name: Extract changelog
         env:
@@ -41,8 +43,9 @@ jobs:
         run: |
           SUM=`cd dist && sha256sum wings_linux_amd64`
           SUM2=`cd dist && sha256sum wings_linux_arm64`
-          echo -e "\n#### SHA256 Checksum\n\`\`\`\n$SUM\n$SUM2\n\`\`\`\n" >> ./RELEASE_CHANGELOG
-          echo -e "$SUM\n$SUM2" > checksums.txt
+          SUM3=$(cd dist && sha256sum wings_linux_ppc64le)
+          echo -e "\n#### SHA256 Checksum\n\`\`\`\n$SUM\n$SUM2\n$SUM3\n\`\`\`\n" >> ./RELEASE_CHANGELOG
+          echo -e "$SUM\n$SUM2\n$SUM3" > checksums.txt
 
       - name: Create release branch
         env:
