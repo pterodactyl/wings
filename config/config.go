@@ -436,7 +436,11 @@ func GetJwtAlgorithm() *jwt.HMACSHA {
 func WriteToDisk(c *Configuration) error {
 	_writeLock.Lock()
 	defer _writeLock.Unlock()
-
+	
+	// Check if panel config updates should be ignored
+	if c.IgnorePanelConfigUpdates {
+		return nil // Skip writing to disk if flag is set
+	}
 	//goland:noinspection GoVetCopyLock
 	ccopy := *c
 	// If debugging is set with the flag, don't save that to the configuration file,
