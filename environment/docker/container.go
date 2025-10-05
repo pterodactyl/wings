@@ -194,35 +194,35 @@ func (e *Environment) Create() error {
 		conf.User = strconv.Itoa(cfg.System.User.Uid) + ":" + strconv.Itoa(cfg.System.User.Gid)
 	}
 
-	networkMode := container.NetworkMode(cfg.Docker.Network.Mode)
-	if a.ForceOutgoingIP {
-		e.log().Debug("environment/docker: forcing outgoing IP address")
-		networkName := "ip-" + strings.ReplaceAll(strings.ReplaceAll(a.DefaultMapping.Ip, ".", "-"), ":", "-")
-		networkMode = container.NetworkMode(networkName)
+	// MODIFICATION: The check for "ForceOutgoingIP" has been removed. This logic
+	// will now always execute, creating a dedicated network for the container to
+	// ensure its outgoing IP address is the one assigned for the server.
+	e.log().Debug("environment/docker: forcing outgoing IP address")
+	networkName := "ip-" + strings.ReplaceAll(strings.ReplaceAll(a.DefaultMapping.Ip, ".", "-"), ":", "-")
+	networkMode := container.NetworkMode(networkName)
 
-		if _, err := e.client.NetworkInspect(ctx, networkName, network.InspectOptions{}); err != nil {
-			if !client.IsErrNotFound(err) {
-				return err
-			}
+	if _, err := e.client.NetworkInspect(ctx, networkName, network.InspectOptions{}); err != nil {
+		if !client.IsErrNotFound(err) {
+			return err
+		}
 
-			enableIPv6 := false
-			if _, err := e.client.NetworkCreate(ctx, networkName, network.CreateOptions{
-				Driver:     "bridge",
-				EnableIPv6: &enableIPv6,
-				Internal:   false,
-				Attachable: false,
-				Ingress:    false,
-				ConfigOnly: false,
-				Options: map[string]string{
-					"encryption": "false",
-					"com.docker.network.bridge.enable_ip_masquerade": "false",
-					"com.docker.network.bridge.default_bridge":       "false",
-					"com.docker.network.host_ipv4":                   a.DefaultMapping.Ip,
-					"com.docker.network.driver.mtu":                  strconv.Itoa(int(cfg.Docker.Network.NetworkMTU)),
-				},
-			}); err != nil {
-				return err
-			}
+		enableIPv6 := false
+		if _, err := e.client.NetworkCreate(ctx, networkName, network.CreateOptions{
+			Driver:     "bridge",
+			EnableIPv6: &enableIPv6,
+			Internal:   false,
+			Attachable: false,
+			Ingress:    false,
+			ConfigOnly: false,
+			Options: map[string]string{
+				"encryption": "false",
+				"com.docker.network.bridge.enable_ip_masquerade": "false",
+				"com.docker.network.bridge.default_bridge":       "false",
+				"com.docker.network.host_ipv4":                   a.DefaultMapping.Ip,
+				"com.docker.network.driver.mtu":                  strconv.Itoa(int(cfg.Docker.Network.NetworkMTU)),
+			},
+		}); err != nil {
+			return err
 		}
 	}
 
