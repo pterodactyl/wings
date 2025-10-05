@@ -37,7 +37,7 @@ type DockerNetworkConfiguration struct {
 	Mode       string                  `default:"pterodactyl_nw" yaml:"network_mode"`
 	IsInternal bool                    `default:"false" yaml:"is_internal"`
 	EnableICC  bool                    `default:"true" yaml:"enable_icc"`
-	NetworkMTU int64                   `default:"1500" yaml:"network_mtu"`
+	NetworkMTU int64                   `default:"1400" yaml:"network_mtu"`
 	Interfaces dockerNetworkInterfaces `yaml:"interfaces"`
 }
 
