@@ -172,6 +172,7 @@ func (e *Environment) Create() error {
 	}
 	labels["Service"] = "Pterodactyl"
 	labels["ContainerType"] = "server_process"
+	labels["ServerUUID"] = e.Id
 
 	conf := &container.Config{
 		Hostname:     e.Id,

@@ -409,6 +409,7 @@ func (ip *InstallationProcess) Execute() (string, error) {
 		Labels: map[string]string{
 			"Service":       "Pterodactyl",
 			"ContainerType": "server_installer",
+			"ServerUUID":    ip.Server.ID(),
 		},
 	}
 
