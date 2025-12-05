@@ -266,6 +266,15 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 		if err := fs.IsIgnored(p); err != nil {
 			return nil
 		}
+
+		// Handle symlinks
+		if f.Mode()&iofs.ModeSymlink != 0 {
+			if err := fs.Symlink(f.LinkTarget, p); err != nil {
+				return wrapError(err, opts.FileName)
+			}
+			return nil
+		}
+
 		r, err := f.Open()
 		if err != nil {
 			return err

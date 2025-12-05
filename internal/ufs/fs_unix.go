@@ -272,6 +272,30 @@ func (fs *UnixFS) OpenFileat(dirfd int, name string, flag int, mode FileMode) (F
 	return os.NewFile(uintptr(fd), name), nil
 }
 
+// Readlinkat reads the destination of the named symbolic link.
+//
+// If the file is not a symbolic link, it will return an error.
+// This is like Readlink but allows passing an existing directory file
+// descriptor rather than needing to resolve one.
+//
+// If there is an error, it will be of type *PathError.
+func (fs *UnixFS) Readlinkat(dirfd int, name string) (string, error) {
+	// Automatically guess the buffer size
+	for size := 128; ; size *= 2 {
+		buf := make([]byte, size)
+		n, err := unix.Readlinkat(dirfd, name, buf)
+		if err != nil {
+			return "", err
+		}
+
+		if n < size {
+			return string(buf[:n]), nil
+		}
+
+		// Continue if buffer size is too small
+	}
+}
+
 // ReadDir reads the named directory,
 //
 // returning all its directory entries sorted by filename.

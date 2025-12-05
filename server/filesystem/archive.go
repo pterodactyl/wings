@@ -282,7 +282,7 @@ func (a *Archive) addToArchive(dirfd int, name, relative string, entry ufs.DirEn
 		// the logs, but we're not going to stop the backup. There are far too many cases of
 		// symlinks causing all sorts of unnecessary pain in this process. Sucks to suck if
 		// it doesn't work.
-		target, err = os.Readlink(s.Name())
+		target, err = a.Filesystem.unixFS.Readlinkat(dirfd, name)
 		if err != nil {
 			// Ignore the not exist errors specifically, since there is nothing important about that.
 			if !os.IsNotExist(err) {
