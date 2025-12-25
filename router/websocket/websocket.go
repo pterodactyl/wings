@@ -287,6 +287,10 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 		}
 	}
 
+	if h.server.IsSuspended() {
+		return server.ErrSuspended
+	}
+
 	switch m.Event {
 	case AuthenticationEvent:
 		{

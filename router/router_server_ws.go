@@ -3,11 +3,11 @@ package router
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	ws "github.com/gorilla/websocket"
-
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/websocket"
 )
@@ -25,6 +25,12 @@ func getServerWebsocket(c *gin.Context) {
 	manager := middleware.ExtractManager(c)
 	s, _ := manager.Get(c.Param("server"))
 
+	if s.IsSuspended() {
+		c.AbortWithStatusJSON(http.StatusConflict, gin.H{"error": "Server is suspended and will not accept websocket connections."})
+
+		return
+	}
+
 	// Create a context that can be canceled when the user disconnects from this
 	// socket that will also cancel listeners running in separate threads. If the
 	// connection itself is terminated listeners using this context will also be
@@ -37,17 +43,12 @@ func getServerWebsocket(c *gin.Context) {
 		middleware.CaptureAndAbort(c, err)
 		return
 	}
-	defer handler.Connection.Close()
 
 	// Track this open connection on the server so that we can close them all programmatically
 	// if the server is deleted.
 	s.Websockets().Push(handler.Uuid(), &cancel)
 	handler.Logger().Debug("opening connection to server websocket")
-
-	defer func() {
-		s.Websockets().Remove(handler.Uuid())
-		handler.Logger().Debug("closing connection to server websocket")
-	}()
+	defer s.Websockets().Remove(handler.Uuid())
 
 	// If the server is deleted we need to send a close message to the connected client
 	// so that they disconnect since there will be no more events sent along. Listen for
@@ -56,6 +57,10 @@ func getServerWebsocket(c *gin.Context) {
 	go func() {
 		select {
 		case <-ctx.Done():
+			handler.Logger().Debug("closing connection to server websocket")
+			if err := handler.Connection.Close(); err != nil {
+				handler.Logger().WithError(err).Error("failed to close websocket connection")
+			}
 			break
 		case <-s.Context().Done():
 			_ = handler.Connection.WriteControl(ws.CloseMessage, ws.FormatCloseMessage(ws.CloseGoingAway, "server deleted"), time.Now().Add(time.Second*5))

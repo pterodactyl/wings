@@ -199,6 +199,11 @@ func (s *Server) Sync() error {
 
 	s.SyncWithEnvironment()
 
+	// If the server is suspended immediately disconnect all open websocket connections.
+	if s.IsSuspended() {
+		s.Websockets().CancelAll()
+	}
+
 	return nil
 }
 
