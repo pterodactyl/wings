@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	ws "github.com/gorilla/websocket"
@@ -50,20 +49,27 @@ func getServerWebsocket(c *gin.Context) {
 	handler.Logger().Debug("opening connection to server websocket")
 	defer s.Websockets().Remove(handler.Uuid())
 
-	// If the server is deleted we need to send a close message to the connected client
-	// so that they disconnect since there will be no more events sent along. Listen for
-	// the request context being closed to break this loop, otherwise this routine will
-	// be left hanging in the background.
 	go func() {
 		select {
+		// When the main context is canceled (through disconnect, server deletion, or server
+		// suspension) close the connection itself.
 		case <-ctx.Done():
 			handler.Logger().Debug("closing connection to server websocket")
 			if err := handler.Connection.Close(); err != nil {
 				handler.Logger().WithError(err).Error("failed to close websocket connection")
 			}
 			break
+		}
+	}()
+
+	go func() {
+		select {
+		// If the server is deleted we need to send a close message to the connected client
+		// so that they disconnect since there will be no more events sent along. Listen for
+		// the request context being closed to break this loop, otherwise this routine will
+		// be left hanging in the background.
 		case <-s.Context().Done():
-			_ = handler.Connection.WriteControl(ws.CloseMessage, ws.FormatCloseMessage(ws.CloseGoingAway, "server deleted"), time.Now().Add(time.Second*5))
+			cancel()
 			break
 		}
 	}()
