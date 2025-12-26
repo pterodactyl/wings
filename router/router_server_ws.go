@@ -102,7 +102,7 @@ func getServerWebsocket(c *gin.Context) {
 		go func(msg websocket.Message) {
 			if err := handler.HandleInbound(ctx, msg); err != nil {
 				if errors.Is(err, server.ErrSuspended) {
-					_ = handler.Connection.WriteMessage(ws.CloseMessage, ws.FormatCloseMessage(4409, "server is suspended"))
+					cancel()
 				} else {
 					_ = handler.SendErrorJson(msg, err)
 				}
