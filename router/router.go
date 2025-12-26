@@ -57,12 +57,12 @@ func Configure(m *wserver.Manager, client remote.Client) *gin.Engine {
 	// All the routes beyond this mount will use an authorization middleware
 	// and will not be accessible without the correct Authorization header provided.
 	protected := router.Use(middleware.RequireAuthorization())
-	protected.POST("/api/revoke", postRevokeUserAccess)
 	protected.POST("/api/update", postUpdateConfiguration)
 	protected.GET("/api/system", getSystemInformation)
 	protected.GET("/api/servers", getAllServers)
 	protected.POST("/api/servers", postCreateServer)
 	protected.DELETE("/api/transfers/:server", deleteTransfer)
+	protected.POST("/api/deauthorize-user", postDeauthorizeUser)
 
 	// These are server specific routes, and require that the request be authorized, and
 	// that the server exist on the Daemon.

@@ -156,7 +156,7 @@ func postUpdateConfiguration(c *gin.Context) {
 	})
 }
 
-func postRevokeUserAccess(c *gin.Context) {
+func postDeauthorizeUser(c *gin.Context) {
 	var data struct {
 		User    string   `json:"user"`
 		Servers []string `json:"servers"`
