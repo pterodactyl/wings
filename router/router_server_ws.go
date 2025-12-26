@@ -3,12 +3,13 @@ package router
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 
+	"emperror.dev/errors"
 	"github.com/gin-gonic/gin"
 	ws "github.com/gorilla/websocket"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/websocket"
+	"github.com/pterodactyl/wings/server"
 )
 
 var expectedCloseCodes = []int{
@@ -23,12 +24,6 @@ var expectedCloseCodes = []int{
 func getServerWebsocket(c *gin.Context) {
 	manager := middleware.ExtractManager(c)
 	s, _ := manager.Get(c.Param("server"))
-
-	if s.IsSuspended() {
-		c.AbortWithStatusJSON(http.StatusConflict, gin.H{"error": "Server is suspended and will not accept websocket connections."})
-
-		return
-	}
 
 	// Create a context that can be canceled when the user disconnects from this
 	// socket that will also cancel listeners running in separate threads. If the
@@ -64,6 +59,8 @@ func getServerWebsocket(c *gin.Context) {
 
 	go func() {
 		select {
+		case <-ctx.Done():
+			return
 		// If the server is deleted we need to send a close message to the connected client
 		// so that they disconnect since there will be no more events sent along. Listen for
 		// the request context being closed to break this loop, otherwise this routine will
@@ -73,6 +70,16 @@ func getServerWebsocket(c *gin.Context) {
 			break
 		}
 	}()
+
+	// Due to how websockets are handled we need to connect to the socket
+	// and _then_ abort it if the server is suspended. You cannot capture
+	// the HTTP response in the websocket client, thus we connect and then
+	// immediately close with failure.
+	if s.IsSuspended() {
+		_ = handler.Connection.WriteMessage(ws.CloseMessage, ws.FormatCloseMessage(4409, "server is suspended"))
+
+		return
+	}
 
 	for {
 		j := websocket.Message{}
@@ -94,7 +101,11 @@ func getServerWebsocket(c *gin.Context) {
 
 		go func(msg websocket.Message) {
 			if err := handler.HandleInbound(ctx, msg); err != nil {
-				_ = handler.SendErrorJson(msg, err)
+				if errors.Is(err, server.ErrSuspended) {
+					_ = handler.Connection.WriteMessage(ws.CloseMessage, ws.FormatCloseMessage(4409, "server is suspended"))
+				} else {
+					_ = handler.SendErrorJson(msg, err)
+				}
 			}
 		}(j)
 	}
