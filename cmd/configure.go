@@ -125,7 +125,7 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Printf("%+v", req.Header)
-	fmt.Printf(req.URL.String())
+	fmt.Println(req.URL.String())
 
 	res, err := c.Do(req)
 	if err != nil {
