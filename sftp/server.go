@@ -165,7 +165,7 @@ func (c *SFTPServer) Handle(conn *ssh.ServerConn, srv *server.Server, channel ss
 		return errors.WithStackIf(err)
 	}
 
-	ctx := srv.Sftp().ContextFor(handler.User())
+	ctx := srv.Sftp().Context(handler.User())
 	rs := sftp.NewRequestServer(channel, handler.Handlers())
 
 	go func() {

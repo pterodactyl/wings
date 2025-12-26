@@ -69,7 +69,7 @@ type Server struct {
 	// Tracks open websocket connections for the server.
 	wsBag       *WebsocketBag
 	wsBagLocker sync.Mutex
-	sftpBag     *SFTPConnectionBag
+	sftpBag     *system.ContextBag
 
 	sinks map[system.SinkName]*system.SinkPool
 
