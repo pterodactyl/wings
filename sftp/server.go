@@ -129,7 +129,7 @@ func (c *SFTPServer) AcceptInbound(conn net.Conn, config *ssh.ServerConfig) erro
 		// If its not a session channel we just move on because its not something we
 		// know how to handle at this point.
 		if ch.ChannelType() != "session" {
-			ch.Reject(ssh.UnknownChannelType, "unknown channel type")
+			_ = ch.Reject(ssh.UnknownChannelType, "unknown channel type")
 			continue
 		}
 
@@ -143,37 +143,41 @@ func (c *SFTPServer) AcceptInbound(conn net.Conn, config *ssh.ServerConfig) erro
 				// Channels have a type that is dependent on the protocol. For SFTP
 				// this is "subsystem" with a payload that (should) be "sftp". Discard
 				// anything else we receive ("pty", "shell", etc)
-				req.Reply(req.Type == "subsystem" && string(req.Payload[4:]) == "sftp", nil)
+				_ = req.Reply(req.Type == "subsystem" && string(req.Payload[4:]) == "sftp", nil)
 			}
 		}(requests)
 
-		// If no UUID has been set on this inbound request then we can assume we
-		// have screwed up something in the authentication code. This is a sanity
-		// check, but should never be encountered (ideally...).
-		//
-		// This will also attempt to match a specific server out of the global server
-		// store and return nil if there is no match.
-		uuid := sconn.Permissions.Extensions["uuid"]
-		srv := c.manager.Find(func(s *server.Server) bool {
-			if uuid == "" {
-				return false
+		if srv, ok := c.manager.Get(sconn.Permissions.Extensions["uuid"]); ok {
+			if err := c.Handle(sconn, srv, channel); err != nil {
+				return err
 			}
-			return s.ID() == uuid
-		})
-		if srv == nil {
-			continue
 		}
+	}
 
-		// Spin up a SFTP server instance for the authenticated user's server allowing
-		// them access to the underlying filesystem.
-		handler, err := NewHandler(sconn, srv)
-		if err != nil {
-			return errors.WithStackIf(err)
-		}
-		rs := sftp.NewRequestServer(channel, handler.Handlers())
-		if err := rs.Serve(); err == io.EOF {
+	return nil
+}
+
+// Handle spins up a SFTP server instance for the authenticated user's server allowing
+// them access to the underlying filesystem.
+func (c *SFTPServer) Handle(conn *ssh.ServerConn, srv *server.Server, channel ssh.Channel) error {
+	handler, err := NewHandler(conn, srv)
+	if err != nil {
+		return errors.WithStackIf(err)
+	}
+
+	ctx := srv.Sftp().ContextFor(handler.User())
+	rs := sftp.NewRequestServer(channel, handler.Handlers())
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			srv.Log().WithField("user", conn.User()).Warn("sftp: terminating active session")
 			_ = rs.Close()
 		}
+	}()
+
+	if err := rs.Serve(); err == io.EOF {
+		_ = rs.Close()
 	}
 
 	return nil

@@ -155,3 +155,32 @@ func postUpdateConfiguration(c *gin.Context) {
 		Applied: true,
 	})
 }
+
+func postRevokeUserAccess(c *gin.Context) {
+	var data struct {
+		User    string   `json:"user"`
+		Servers []string `json:"servers"`
+	}
+
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
+
+	// todo: disconnect websockets more gracefully
+	m := middleware.ExtractManager(c)
+	if len(data.Servers) > 0 {
+		for _, uuid := range data.Servers {
+			if s, ok := m.Get(uuid); ok {
+				s.Websockets().CancelAll()
+				s.Sftp().CancelFor(data.User)
+			}
+		}
+	} else {
+		for _, s := range m.All() {
+			s.Websockets().CancelAll()
+			s.Sftp().CancelFor(data.User)
+		}
+	}
+
+	c.Status(http.StatusNoContent)
+}

@@ -69,6 +69,7 @@ type Server struct {
 	// Tracks open websocket connections for the server.
 	wsBag       *WebsocketBag
 	wsBagLocker sync.Mutex
+	sftpBag     *SFTPConnectionBag
 
 	sinks map[system.SinkName]*system.SinkPool
 
@@ -199,9 +200,11 @@ func (s *Server) Sync() error {
 
 	s.SyncWithEnvironment()
 
-	// If the server is suspended immediately disconnect all open websocket connections.
+	// If the server is suspended immediately disconnect all open websocket connections
+	// and any connected SFTP clients.
 	if s.IsSuspended() {
 		s.Websockets().CancelAll()
+		s.Sftp().CancelAll()
 	}
 
 	return nil
