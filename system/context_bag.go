@@ -11,8 +11,7 @@ type ctxHolder struct {
 }
 
 type ContextBag struct {
-	sync.Mutex
-
+	mu    sync.Mutex
 	ctx   context.Context
 	items map[string]ctxHolder
 }
@@ -26,8 +25,8 @@ func NewContextBag(ctx context.Context) *ContextBag {
 // This context is shared between all callers until the cancel function is called
 // by calling Cancel or CancelAll.
 func (cb *ContextBag) Context(key string) context.Context {
-	cb.Lock()
-	defer cb.Unlock()
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 
 	if _, ok := cb.items[key]; !ok {
 		ctx, cancel := context.WithCancel(cb.ctx)
@@ -38,8 +37,8 @@ func (cb *ContextBag) Context(key string) context.Context {
 }
 
 func (cb *ContextBag) Cancel(key string) {
-	cb.Lock()
-	defer cb.Unlock()
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 
 	if v, ok := cb.items[key]; ok {
 		v.cancel()
@@ -48,8 +47,8 @@ func (cb *ContextBag) Cancel(key string) {
 }
 
 func (cb *ContextBag) CancelAll() {
-	cb.Lock()
-	defer cb.Unlock()
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 
 	for _, v := range cb.items {
 		v.cancel()
