@@ -24,14 +24,27 @@ var wingsBootTime = time.Now()
 // This is used to allow the Panel to revoke tokens en-masse for a given user & server
 // combination since the JTI for tokens is just MD5(user.id + server.uuid). When a server
 // is booted this listing is fetched from the panel and the Websocket is dynamically updated.
+//
+// deprecated: prefer use of userDenylist
 var denylist sync.Map
+var userDenylist sync.Map
 
 // Adds a JTI to the denylist by marking any JWTs generated before the current time as
 // being invalid if they use the same JTI.
+//
+// deprecated: prefer the use of DenyForServer
 func DenyJTI(jti string) {
 	log.WithField("jti", jti).Debugf("adding \"%s\" to JTI denylist", jti)
 
 	denylist.Store(jti, time.Now())
+}
+
+// DenyForServer adds a user UUID to the denylist marking any existing JWTs issued
+// to the user as being invalid. This is associated with the user.
+func DenyForServer(s string, u string) {
+	log.WithField("user_uuid", u).WithField("server_uuid", s).Debugf("denying all JWTs created at or before current time for user \"%s\"", u)
+
+	userDenylist.Store(strings.Join([]string{s, u}, ":"), time.Now())
 }
 
 // WebsocketPayload defines the JWT payload for a websocket connection. This JWT is passed along to
@@ -79,7 +92,16 @@ func (p *WebsocketPayload) Denylisted() bool {
 
 	// Finally, if the token was issued before a time that is currently denied for this
 	// token instance, ignore the permissions response.
+	//
+	// This list is deprecated, but we maintain the check here so that custom instances
+	// are able to continue working. We'll remove it in a future release.
 	if t, ok := denylist.Load(p.JWTID); ok {
+		if p.IssuedAt.Time.Before(t.(time.Time)) {
+			return true
+		}
+	}
+
+	if t, ok := userDenylist.Load(strings.Join([]string{p.ServerUUID, p.UserUUID}, ":")); ok {
 		if p.IssuedAt.Time.Before(t.(time.Time)) {
 			return true
 		}

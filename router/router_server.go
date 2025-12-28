@@ -246,7 +246,8 @@ func deleteServer(c *gin.Context) {
 // Adds any of the JTIs passed through in the body to the deny list for the websocket
 // preventing any JWT generated before the current time from being used to connect to
 // the socket or send along commands.
-// @deprecated superceded by /api/revoke
+//
+// deprecated: prefer /api/deauthorize-user
 func postServerDenyWSTokens(c *gin.Context) {
 	var data struct {
 		JTIs []string `json:"jtis"`

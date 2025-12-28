@@ -8,6 +8,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/router/tokens"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/router/middleware"
@@ -171,12 +172,14 @@ func postDeauthorizeUser(c *gin.Context) {
 	if len(data.Servers) > 0 {
 		for _, uuid := range data.Servers {
 			if s, ok := m.Get(uuid); ok {
+				tokens.DenyForServer(s.ID(), data.User)
 				s.Websockets().CancelAll()
 				s.Sftp().Cancel(data.User)
 			}
 		}
 	} else {
 		for _, s := range m.All() {
+			tokens.DenyForServer(s.ID(), data.User)
 			s.Websockets().CancelAll()
 			s.Sftp().Cancel(data.User)
 		}
