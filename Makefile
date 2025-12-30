@@ -3,6 +3,7 @@ GIT_HEAD = $(shell git rev-parse HEAD | head -c8)
 build:
 	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -gcflags "all=-trimpath=$(pwd)" -o build/wings_linux_amd64 -v wings.go
 	GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -gcflags "all=-trimpath=$(pwd)" -o build/wings_linux_arm64 -v wings.go
+	GOOS=linux GOARCH=ppc64le go build -ldflags="-s -w" -gcflags "all=-trimpath=$(pwd)" -o build/wings_linux_ppc64le -v wings.go
 
 debug:
 	go build -ldflags="-X github.com/pterodactyl/wings/system.Version=$(GIT_HEAD)"

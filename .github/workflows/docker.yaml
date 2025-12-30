@@ -59,7 +59,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/ppc64le
           build-args: |
             VERSION=${{ steps.build_info.outputs.version_tag }}
           labels: ${{ steps.docker_meta.outputs.labels }}
@@ -72,7 +72,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/ppc64le
           build-args: |
             VERSION=dev-${{ steps.build_info.outputs.short_sha }}
           labels: ${{ steps.docker_meta.outputs.labels }}
