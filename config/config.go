@@ -119,6 +119,11 @@ type RemoteQueryConfiguration struct {
 	// 50 servers is likely just as quick as two for 100 or one for 400, and will certainly
 	// be less likely to cause performance issues on the Panel.
 	BootServersPerPage int `default:"50" yaml:"boot_servers_per_page"`
+
+	// Custom headers to add to all requests made to the Panel API.
+	//
+	// Useful for adding authentication (Zero Trust) headers (e.g. Service Token).
+	CustomHeaders map[string]string `default:"{}" yaml:"custom_headers"`
 }
 
 // SystemConfiguration defines basic system configuration settings.

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/internal/models"
 
 	"emperror.dev/errors"
@@ -109,6 +110,12 @@ func (c *client) requestOnce(ctx context.Context, method, path string, body io.R
 	req.Header.Set("Accept", "application/vnd.pterodactyl.v1+json")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s.%s", c.tokenId, c.token))
+
+	if config.Get().RemoteQuery.CustomHeaders != nil {
+		for k, v := range config.Get().RemoteQuery.CustomHeaders {
+			req.Header.Set(k, v)
+		}
+	}
 
 	// Call all opts functions to allow modifying the request
 	for _, o := range opts {
