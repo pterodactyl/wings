@@ -6,14 +6,18 @@ on:
 jobs:
   release:
     name: Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+      - name: Code checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
-          go-version: "1.24.1"
+          go-version: 1.24.11
+
       - name: Build release binaries
         env:
           CGO_ENABLED: 0
@@ -22,6 +26,7 @@ jobs:
           chmod 755 dist/wings_linux_amd64
           GOARCH=arm64 go build -o dist/wings_linux_arm64 -v -trimpath -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${{ github.ref_name }}" github.com/pterodactyl/wings
           chmod 755 dist/wings_linux_arm64
+
       - name: Create release branch
         env:
           VERSION: ${{ github.ref_name }}
@@ -35,9 +40,11 @@ jobs:
           git add system/const.go
           git commit -m "ci(release): bump version"
           git push
+
       - name: write changelog
         run: |
           sed -n "/^## ${{ github.ref_name }}/,/^## /{/^## /b;p}" CHANGELOG.md > ./RELEASE_CHANGELOG
+
       - uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

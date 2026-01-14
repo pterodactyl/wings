@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.12.1
+### Added
+* Add mount for /etc/machine-id for servers for Hytale ([#292](https://github.com/pterodactyl/wings/pull/292))
+
 ## v1.12.0
 ### Fixed
 * [CVE-2025-68954](https://github.com/pterodactyl/panel/security/advisories/GHSA-8c39-xppg-479c)

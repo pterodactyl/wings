@@ -197,9 +197,9 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	for _, serv := range manager.All() {
 		s := serv
 
-		// For each server we encounter make sure the root data directory exists.
-		if err := s.EnsureDataDirectoryExists(); err != nil {
-			s.Log().Error("could not create root data directory for server: not loading server...")
+		// For each server ensure the minimal environment is configured for the server.
+		if err := s.CreateEnvironment(); err != nil {
+			s.Log().Error("could create base environment for server...")
 			continue
 		}
 
