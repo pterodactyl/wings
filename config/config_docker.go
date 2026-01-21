@@ -48,6 +48,22 @@ type DockerConfiguration struct {
 	// for containers run through the daemon.
 	Network DockerNetworkConfiguration `json:"network" yaml:"network"`
 
+	// Devices defines additional devices that should be passed through to all
+	// containers managed by Wings.
+	//
+	// Each entry should be in the format:
+	//   "/host/path:/container/path:permissions"
+	//
+	// The permissions segment is optional and will default to "rwm" when not
+	// provided. For example, to expose KVM to all containers you can use:
+	//   "/dev/kvm:/dev/kvm:rwm"
+	//
+	// This maps directly to Docker's DeviceMapping definition.
+	//
+	// If this list is empty, Wings will automatically add KVM (`/dev/kvm`) to
+	// containers when it exists on the host.
+	Devices []string `json:"devices" yaml:"devices"`
+
 	// Domainname is the Docker domainname for all containers.
 	Domainname string `default:"" json:"domainname" yaml:"domainname"`
 
