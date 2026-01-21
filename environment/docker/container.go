@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -258,6 +259,9 @@ func (e *Environment) Create() error {
 		NetworkMode: networkMode,
 		UsernsMode:  container.UsernsMode(cfg.Docker.UsernsMode),
 	}
+	
+	// Attach device mappings (e.g. /dev/kvm) via container resources.
+	hostConf.Resources.Devices = convertDevices(cfg.Docker.Devices)
 
 	if _, err := e.client.ContainerCreate(ctx, conf, hostConf, nil, nil, e.Id); err != nil {
 		return errors.Wrap(err, "environment/docker: failed to create container")
@@ -449,5 +453,54 @@ func (e *Environment) convertMounts() []mount.Mount {
 			ReadOnly: m.ReadOnly,
 		}
 	}
+	return out
+}
+
+// convertDevices converts a list of Docker device strings into DeviceMapping
+// structs that can be attached to a container's HostConfig.
+//
+// Each device string should be in the form:
+//   "/host/path:/container/path:permissions"
+//
+// The permissions segment is optional and will default to "rwm" when omitted.
+func convertDevices(devices []string) []container.DeviceMapping {
+	// If no devices were explicitly configured, but /dev/kvm exists on the host,
+	// pass it through by default. This is a safe no-op on systems without KVM.
+	if len(devices) == 0 {
+		if _, err := os.Stat("/dev/kvm"); err == nil {
+			devices = []string{"/dev/kvm:/dev/kvm:rwm"}
+		}
+	}
+
+	out := make([]container.DeviceMapping, 0, len(devices))
+	for _, d := range devices {
+		if d == "" {
+			continue
+		}
+
+		parts := strings.Split(d, ":")
+		if len(parts) < 2 {
+			// Invalid device definition; skip it rather than erroring out.
+			continue
+		}
+
+		hostPath := parts[0]
+		containerPath := parts[1]
+		if hostPath == "" || containerPath == "" {
+			continue
+		}
+
+		perms := "rwm"
+		if len(parts) >= 3 && parts[2] != "" {
+			perms = parts[2]
+		}
+
+		out = append(out, container.DeviceMapping{
+			PathOnHost:        hostPath,
+			PathInContainer:   containerPath,
+			CgroupPermissions: perms,
+		})
+	}
+
 	return out
 }
