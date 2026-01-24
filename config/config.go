@@ -353,6 +353,16 @@ type Configuration struct {
 
 	// IgnorePanelConfigUpdates causes confiuration updates that are sent by the panel to be ignored.
 	IgnorePanelConfigUpdates bool `json:"ignore_panel_config_updates" yaml:"ignore_panel_config_updates"`
+
+	VictoriaLogs struct {
+		Enabled       bool   `default:"false" yaml:"enabled"`
+		URL           string `default:"http://localhost:9482" yaml:"url"`
+		Username      string `yaml:"username"`
+		Password      string `yaml:"password"`
+		Environment   string `default:"production" yaml:"environment"`
+		BatchSize     int    `default:"200" yaml:"batch_size"`
+		FlushInterval int    `default:"3" yaml:"flush_interval"`
+	} `yaml:"victorialogs"`
 }
 
 // NewAtPath creates a new struct and set the path where it should be stored.

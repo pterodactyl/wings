@@ -36,6 +36,7 @@ import (
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/sftp"
 	"github.com/pterodactyl/wings/system"
+	"github.com/pterodactyl/wings/victorialogs"
 )
 
 var (
@@ -152,6 +153,21 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	if err := environment.ConfigureDocker(cmd.Context()); err != nil {
 		log.WithField("error", err).Fatal("failed to configure docker environment")
 		return
+	}
+
+	vlConfig := config.Get().VictoriaLogs
+	if err := victorialogs.InitGlobal(
+		vlConfig.Enabled,
+		vlConfig.URL,
+		vlConfig.Username,
+		vlConfig.Password,
+		vlConfig.Environment,
+		vlConfig.BatchSize,
+		time.Duration(vlConfig.FlushInterval)*time.Second,
+	); err != nil {
+		log.WithField("error", err).Error("failed to initialize VictoriaLogs client")
+	} else if vlConfig.Enabled {
+		log.WithField("url", vlConfig.URL).Info("VictoriaLogs logging enabled for game server containers")
 	}
 
 	if err := config.WriteToDisk(config.Get()); err != nil {
@@ -271,8 +287,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	// Wait until all the servers are ready to go before we fire up the SFTP and HTTP servers.
 	pool.StopWait()
 	defer func() {
-		// Cancel the context on all the running servers at this point, even though the
-		// program is just shutting down.
+		victorialogs.CloseGlobal()
 		for _, s := range manager.All() {
 			s.CtxCancel()
 		}
@@ -288,7 +303,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	go func() {
 		// Run the SFTP server.
 		if err := sftp.New(manager).Run(); err != nil {
-			log.WithError(err).Fatal("failed to initialize the sftp server")
+			log.WithError(err).Error("failed to initialize the sftp server")
 			return
 		}
 	}()

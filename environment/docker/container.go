@@ -89,6 +89,15 @@ func (e *Environment) Attach(ctx context.Context) error {
 		if err := system.ScanReader(e.stream.Reader, func(v []byte) {
 			e.logCallbackMx.Lock()
 			defer e.logCallbackMx.Unlock()
+
+			if vlClient := victorialogs.GetGlobal(); vlClient != nil {
+				serverName := ""
+				if e.Configuration != nil {
+					serverName = e.Configuration.GetEnvironmentVariable("SERVER_NAME")
+				}
+				vlClient.Log(e.Id, e.Id, serverName, string(v), nil)
+			}
+
 			e.logCallback(v)
 		}); err != nil && err != io.EOF {
 			log.WithField("error", err).WithField("container_id", e.Id).Warn("error processing scanner line in console output")
