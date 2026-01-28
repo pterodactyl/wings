@@ -84,3 +84,17 @@ func (c *Configuration) EnvironmentVariables() []string {
 
 	return c.environmentVariables
 }
+
+// GetEnvironmentVariable returns the value of a specific environment variable by key.
+func (c *Configuration) GetEnvironmentVariable(key string) string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	prefix := key + "="
+	for _, env := range c.environmentVariables {
+		if len(env) > len(prefix) && env[:len(prefix)] == prefix {
+			return env[len(prefix):]
+		}
+	}
+	return ""
+}

@@ -21,6 +21,7 @@ import (
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/system"
+	"github.com/pterodactyl/wings/victorialogs"
 )
 
 var ErrNotAttached = errors.Sentinel("not attached to instance")
