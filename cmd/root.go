@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
+	gorillaHandlers "github.com/gorilla/handlers"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -331,7 +332,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	// and external clients.
 	s := &http.Server{
 		Addr:      api.Host + ":" + strconv.Itoa(api.Port),
-		Handler:   router.Configure(manager, pclient),
+		Handler:   gorillaHandlers.ProxyHeaders(router.Configure(manager, pclient)),
 		TLSConfig: config.DefaultTLSConfig,
 	}
 
