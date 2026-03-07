@@ -87,6 +87,7 @@ func TestArchive_Stream(t *testing.T) {
 	})
 }
 
+// FIXED: Remove the problematic nil check that causes issues with empty directories
 func getFiles(f iofs.ReadDirFS, name string) ([]string, error) {
 	var v []string
 
@@ -107,10 +108,13 @@ func getFiles(f iofs.ReadDirFS, name string) ([]string, error) {
 				return nil, err
 			}
 
-			if files == nil {
-				return nil, nil
-			}
-
+			// FIXED: Removed the problematic nil check
+			// The original code had:
+			//   if files == nil {
+			//       return nil, nil
+			//   }
+			// This caused the function to bail out when encountering empty directories
+			// Instead, just append whatever we got (even if it's nil/empty)
 			v = append(v, files...)
 			continue
 		}

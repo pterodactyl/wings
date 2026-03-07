@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strconv"
+	"strings"
 	"time"
 
 	"emperror.dev/errors"
@@ -51,15 +51,33 @@ func (s *S3Backup) WithLogContext(c map[string]interface{}) {
 func (s *S3Backup) Generate(ctx context.Context, fsys *filesystem.Filesystem, ignore string) (*ArchiveDetails, error) {
 	defer s.Remove()
 
-	a := &filesystem.Archive{
-		Filesystem: fsys,
-		Ignore:     ignore,
+	// Use our new ZIP-based BackupArchive from filesystem package (NOT the tar-based Archive)
+	ba := &filesystem.BackupArchive{
+		BaseDirectory: "/",
+		Ignore:        ignore,
+		Filesystem:    fsys,
 	}
 
 	s.log().WithField("path", s.Path()).Info("creating backup for server")
-	if err := a.Create(ctx, s.Path()); err != nil {
+
+	// Create the backup file
+	f, err := os.OpenFile(s.Path(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
+
+	// Apply write limiting if configured
+	var writer io.Writer = f
+	if writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024); writeLimit > 0 {
+		writer = ratelimit.Writer(f, ratelimit.NewBucketWithRate(float64(writeLimit), writeLimit))
+	}
+
+	// Stream the ZIP backup to the file
+	if err := ba.Stream(ctx, writer); err != nil {
+		return nil, err
+	}
+
 	s.log().Info("created backup successfully")
 
 	rc, err := os.Open(s.Path())
@@ -79,8 +97,8 @@ func (s *S3Backup) Generate(ctx context.Context, fsys *filesystem.Filesystem, ig
 	return ad, nil
 }
 
-// Restore will read from the provided reader assuming that it is a gzipped
-// tar reader. When a file is encountered in the archive the callback function
+// Restore will read from the provided reader assuming that it is a ZIP
+// reader. When a file is encountered in the archive the callback function
 // will be triggered. If the callback returns an error the entire process is
 // stopped, otherwise this function will run until all files have been written.
 //
@@ -93,7 +111,10 @@ func (s *S3Backup) Restore(ctx context.Context, r io.Reader, callback RestoreCal
 	if writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024); writeLimit > 0 {
 		reader = ratelimit.Reader(r, ratelimit.NewBucketWithRate(float64(writeLimit), writeLimit))
 	}
-	if err := format.Extract(ctx, reader, func(ctx context.Context, f archives.FileInfo) error {
+
+	// Use ZIP format for restoration instead of tar.gz
+	zipFormat := archives.Zip{}
+	if err := zipFormat.Extract(ctx, reader, func(ctx context.Context, f archives.FileInfo) error {
 		r, err := f.Open()
 		if err != nil {
 			return err
@@ -162,90 +183,64 @@ type s3FileUploader struct {
 }
 
 // newS3FileUploader returns a new file uploader instance.
-func newS3FileUploader(file io.ReadCloser) *s3FileUploader {
+func newS3FileUploader(rc io.ReadCloser) *s3FileUploader {
 	return &s3FileUploader{
-		ReadCloser: file,
-		// We purposefully use a super high timeout on this request since we need to upload
-		// a 5GB file. This assumes at worst a 10Mbps connection for uploading. While technically
-		// you could go slower we're targeting mostly hosted servers that should have 100Mbps
-		// connections anyways.
-		client: &http.Client{Timeout: time.Hour * 2},
+		ReadCloser:    rc,
+		client:        &http.Client{Timeout: time.Hour * 6},
+		uploadedParts: make([]remote.BackupPart, 0),
 	}
 }
 
-// backoff returns a new expoential backoff implementation using a context that
-// will also stop the backoff if it is canceled.
-func (fu *s3FileUploader) backoff(ctx context.Context) backoff.BackOffContext {
-	b := backoff.NewExponentialBackOff()
-	b.Multiplier = 2
-	b.MaxElapsedTime = time.Minute
-
-	return backoff.WithContext(b, ctx)
-}
-
-// uploadPart attempts to upload a given S3 file part to the S3 system. If a
-// 5xx error is returned from the endpoint this will continue with an exponential
-// backoff to try and successfully upload the part.
-//
-// Once uploaded the ETag is returned to the caller.
 func (fu *s3FileUploader) uploadPart(ctx context.Context, part string, size int64) (string, error) {
-	r, err := http.NewRequestWithContext(ctx, http.MethodPut, part, nil)
+	var r io.Reader
+	r = io.LimitReader(fu, size)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, part, r)
 	if err != nil {
-		return "", errors.Wrap(err, "backup: could not create request for S3")
-	}
-
-	r.ContentLength = size
-	r.Header.Add("Content-Length", strconv.Itoa(int(size)))
-	r.Header.Add("Content-Type", "application/x-gzip")
-
-	// Limit the reader to the size of the part.
-	r.Body = Reader{Reader: io.LimitReader(fu.ReadCloser, size)}
-
-	var etag string
-	err = backoff.Retry(func() error {
-		res, err := fu.client.Do(r)
-		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-				return backoff.Permanent(err)
-			}
-			// Don't use a permanent error here, if there is a temporary resolution error with
-			// the URL due to DNS issues we want to keep re-trying.
-			return errors.Wrap(err, "backup: S3 HTTP request failed")
-		}
-		_ = res.Body.Close()
-
-		if res.StatusCode != http.StatusOK {
-			err := errors.New(fmt.Sprintf("backup: failed to put S3 object: [HTTP/%d] %s", res.StatusCode, res.Status))
-			// Only attempt a backoff retry if this error is because of a 5xx error from
-			// the S3 endpoint. Any 4xx error should be treated as an error that a retry
-			// would not fix.
-			if res.StatusCode >= http.StatusInternalServerError {
-				return err
-			}
-			return backoff.Permanent(err)
-		}
-
-		// Get the ETag from the uploaded part, this should be sent with the
-		// CompleteMultipartUpload request.
-		etag = res.Header.Get("ETag")
-
-		return nil
-	}, fu.backoff(ctx))
-	if err != nil {
-		if v, ok := err.(*backoff.PermanentError); ok {
-			return "", v.Unwrap()
-		}
 		return "", err
 	}
-	return etag, nil
-}
+	req.ContentLength = size
 
-// Reader provides a wrapper around an existing io.Reader
-// but implements io.Closer in order to satisfy an io.ReadCloser.
-type Reader struct {
-	io.Reader
-}
+	// Exponential backoff loop for handling S3 uploads. This will attempt to upload
+	// a given part up to 3 times with a backoff.
+	bo := backoff.NewExponentialBackOff()
+	bo.Multiplier = 1.5
+	bo.MaxInterval = time.Second * 15
+	bo.MaxElapsedTime = time.Minute * 2
 
-func (Reader) Close() error {
-	return nil
+	var res *http.Response
+	err = backoff.Retry(func() error {
+		r, err := fu.client.Do(req)
+		if err != nil {
+			return err
+		}
+		res = r
+		// Don't retry if we were able to connect and got a response. The error handling
+		// can occur below, but if we're communicating with S3 we shouldn't blindly retry.
+		return nil
+	}, backoff.WithContext(bo, ctx))
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	// Handle non-successful status codes and attempt to return a better error. Check
+	// if the context has been canceled and don't return a malformed XML if that is
+	// the case.
+	if res.StatusCode != http.StatusOK {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		return "", fmt.Errorf("failed to upload part; got status %d; %s", res.StatusCode, func() string {
+			b, _ := io.ReadAll(res.Body)
+			return string(b)
+		}())
+	}
+
+	if res.Header.Get("ETag") == "" {
+		return "", errors.New("s3: received an empty etag on uploaded part")
+	}
+
+	// AWS returns the ETag in quotes, so we need to remove them.
+	return strings.Trim(res.Header.Get("ETag"), `"`), nil
 }

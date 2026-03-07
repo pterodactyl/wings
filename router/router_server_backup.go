@@ -147,11 +147,11 @@ func postServerRestoreBackup(c *gin.Context) {
 		middleware.CaptureAndAbort(c, err)
 		return
 	}
-	// Don't allow content types that we know are going to give us problems.
-	if res.Header.Get("Content-Type") == "" || !strings.Contains("application/x-gzip application/gzip", res.Header.Get("Content-Type")) {
+	// CHANGE: Updated content type validation for ZIP files instead of gzip
+	if res.Header.Get("Content-Type") == "" || !strings.Contains("application/zip application/x-zip-compressed", res.Header.Get("Content-Type")) {
 		_ = res.Body.Close()
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": "The provided backup link is not a supported content type. \"" + res.Header.Get("Content-Type") + "\" is not application/x-gzip.",
+			"error": "The provided backup link is not a supported content type. \"" + res.Header.Get("Content-Type") + "\" is not application/zip.",
 		})
 		return
 	}

@@ -60,15 +60,33 @@ func (b *LocalBackup) WithLogContext(c map[string]interface{}) {
 // Generate generates a backup of the selected files and pushes it to the
 // defined location for this instance.
 func (b *LocalBackup) Generate(ctx context.Context, fsys *filesystem.Filesystem, ignore string) (*ArchiveDetails, error) {
-	a := &filesystem.Archive{
-		Filesystem: fsys,
-		Ignore:     ignore,
+	// Use our new ZIP-based BackupArchive from filesystem package (NOT the tar-based Archive)
+	ba := &filesystem.BackupArchive{
+		BaseDirectory: "/",
+		Ignore:        ignore,
+		Filesystem:    fsys,
 	}
 
 	b.log().WithField("path", b.Path()).Info("creating backup for server")
-	if err := a.Create(ctx, b.Path()); err != nil {
+
+	// Create the backup file
+	f, err := os.OpenFile(b.Path(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
+
+	// Apply write limiting if configured
+	var writer io.Writer = f
+	if writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024); writeLimit > 0 {
+		writer = ratelimit.Writer(f, ratelimit.NewBucketWithRate(float64(writeLimit), writeLimit))
+	}
+
+	// Stream the ZIP backup to the file
+	if err := ba.Stream(ctx, writer); err != nil {
+		return nil, err
+	}
+
 	b.log().Info("created backup successfully")
 
 	ad, err := b.Details(ctx, nil)
@@ -93,7 +111,10 @@ func (b *LocalBackup) Restore(ctx context.Context, _ io.Reader, callback Restore
 	if writeLimit := int64(config.Get().System.Backups.WriteLimit * 1024 * 1024); writeLimit > 0 {
 		reader = ratelimit.Reader(f, ratelimit.NewBucketWithRate(float64(writeLimit), writeLimit))
 	}
-	if err := format.Extract(ctx, reader, func(ctx context.Context, f archives.FileInfo) error {
+
+	// Use ZIP format for restoration instead of tar.gz
+	zipFormat := archives.Zip{}
+	if err := zipFormat.Extract(ctx, reader, func(ctx context.Context, f archives.FileInfo) error {
 		r, err := f.Open()
 		if err != nil {
 			return err

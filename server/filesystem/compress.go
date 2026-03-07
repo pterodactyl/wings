@@ -27,26 +27,36 @@ import (
 //
 // All paths are relative to the dir that is passed in as the first argument,
 // and the compressed file will be placed at that location named
-// `archive-{date}.tar.gz`.
+// `archive-{date}.zip`.
 func (fs *Filesystem) CompressFiles(dir string, paths []string) (ufs.FileInfo, error) {
-	a := &Archive{Filesystem: fs, BaseDirectory: dir, Files: paths}
+	// Use our new ZIP-based BackupArchive (NOT the tar-based Archive)
+	ba := &BackupArchive{
+		Filesystem:    fs,
+		BaseDirectory: dir,
+		Files:         paths,
+	}
+
 	d := path.Join(
 		dir,
-		fmt.Sprintf("archive-%s.tar.gz", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")),
+		fmt.Sprintf("archive-%s.zip", strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "")),
 	)
+
 	f, err := fs.unixFS.OpenFile(d, ufs.O_WRONLY|ufs.O_CREATE, 0o644)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
+
 	cw := ufs.NewCountedWriter(f)
-	if err := a.Stream(context.Background(), cw); err != nil {
+	if err := ba.Stream(context.Background(), cw); err != nil {
 		return nil, err
 	}
+
 	if !fs.unixFS.CanFit(cw.BytesWritten()) {
 		_ = fs.unixFS.Remove(d)
 		return nil, newFilesystemError(ErrCodeDiskSpace, nil)
 	}
+
 	fs.unixFS.Add(cw.BytesWritten())
 	return f.Stat()
 }
@@ -165,7 +175,8 @@ func (fs *Filesystem) DecompressFile(ctx context.Context, dir string, file strin
 
 // ExtractStreamUnsafe .
 func (fs *Filesystem) ExtractStreamUnsafe(ctx context.Context, dir string, r io.Reader) error {
-	format, input, err := archives.Identify(ctx, "archive.tar.gz", r)
+	// Update to identify ZIP format instead of tar.gz by default
+	format, input, err := archives.Identify(ctx, "archive.zip", r)
 	if err != nil {
 		if errors.Is(err, archives.NoMatch) {
 			return newFilesystemError(ErrCodeUnknownArchive, err)

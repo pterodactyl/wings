@@ -1,8 +1,13 @@
 package system
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"os"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/acobaugh/osrelease"
 	"github.com/docker/docker/api/types"
@@ -47,12 +52,13 @@ type DockerRunc struct {
 }
 
 type System struct {
-	Architecture  string `json:"architecture"`
-	CPUThreads    int    `json:"cpu_threads"`
-	MemoryBytes   int64  `json:"memory_bytes"`
-	KernelVersion string `json:"kernel_version"`
-	OS            string `json:"os"`
-	OSType        string `json:"os_type"`
+	Architecture    string `json:"architecture"`
+	CPUThreads      int    `json:"cpu_threads"`
+	MemoryBytes     int64  `json:"memory_bytes"`
+	MemoryUsedBytes int64  `json:"memory_used_bytes"`
+	KernelVersion   string `json:"kernel_version"`
+	OS              string `json:"os"`
+	OSType          string `json:"os_type"`
 }
 
 func GetSystemInformation() (*Information, error) {
@@ -89,6 +95,8 @@ func GetSystemInformation() (*Information, error) {
 		break
 	}
 
+	totalMemoryBytes, usedMemoryBytes := getSystemMemoryUsage(info.MemTotal)
+
 	return &Information{
 		Version: Version,
 		Docker: DockerInformation{
@@ -112,14 +120,65 @@ func GetSystemInformation() (*Information, error) {
 			},
 		},
 		System: System{
-			Architecture:  runtime.GOARCH,
-			CPUThreads:    runtime.NumCPU(),
-			MemoryBytes:   info.MemTotal,
-			KernelVersion: k.String(),
-			OS:            os,
-			OSType:        runtime.GOOS,
+			Architecture:    runtime.GOARCH,
+			CPUThreads:      runtime.NumCPU(),
+			MemoryBytes:     totalMemoryBytes,
+			MemoryUsedBytes: usedMemoryBytes,
+			KernelVersion:   k.String(),
+			OS:              os,
+			OSType:          runtime.GOOS,
 		},
 	}, nil
+}
+
+func getSystemMemoryUsage(fallbackTotal int64) (int64, int64) {
+	total := fallbackTotal
+	used := int64(0)
+
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return total, used
+	}
+
+	var memTotal int64
+	var memAvailable int64
+
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "MemTotal:") {
+			memTotal = parseMeminfoKiBLine(line)
+			continue
+		}
+
+		if strings.HasPrefix(line, "MemAvailable:") {
+			memAvailable = parseMeminfoKiBLine(line)
+		}
+	}
+
+	if memTotal > 0 {
+		total = memTotal
+	}
+
+	if memTotal > 0 && memAvailable > 0 && memAvailable <= memTotal {
+		used = memTotal - memAvailable
+	}
+
+	return total, used
+}
+
+func parseMeminfoKiBLine(line string) int64 {
+	fields := strings.Fields(line)
+	if len(fields) < 2 {
+		return 0
+	}
+
+	kib, err := strconv.ParseInt(fields[1], 10, 64)
+	if err != nil || kib < 0 {
+		return 0
+	}
+
+	return kib * 1024
 }
 
 func GetDockerInfo(ctx context.Context) (types.Version, system.Info, error) {

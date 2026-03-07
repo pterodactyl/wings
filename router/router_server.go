@@ -248,6 +248,7 @@ func deleteServer(c *gin.Context) {
 // the socket or send along commands.
 //
 // deprecated: prefer /api/deauthorize-user
+
 func postServerDenyWSTokens(c *gin.Context) {
 	var data struct {
 		JTIs []string `json:"jtis"`

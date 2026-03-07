@@ -133,9 +133,10 @@ func NewBadPathResolution(path string, resolved string) error {
 // wrapError wraps the provided error as a Filesystem error and attaches the
 // provided resolved source to it. If the error is already a Filesystem error
 // no action is taken.
-func wrapError(err error, resolved string) error {
-	if err == nil || IsFilesystemError(err) {
-		return err
+
+func wrapError(err error, fileName string) error {
+	if err == nil {
+		return nil
 	}
-	return errors.WithStackDepth(&Error{code: ErrCodeUnknownError, err: err, resolved: resolved}, 1)
+	return errors.Wrapf(err, "failed to extract file: %s", fileName)
 }

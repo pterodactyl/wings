@@ -396,7 +396,7 @@ func postServerCreateDirectory(c *gin.Context) {
 }
 
 func postServerCompressFiles(c *gin.Context) {
-	s := ExtractServer(c)
+	s := middleware.ExtractServer(c)
 
 	var data struct {
 		RootPath string   `json:"root"`
@@ -429,7 +429,7 @@ func postServerCompressFiles(c *gin.Context) {
 
 	c.JSON(http.StatusOK, &filesystem.Stat{
 		FileInfo: f,
-		Mimetype: "application/tar+gzip",
+		Mimetype: "application/zip", // Updated from "application/tar+gzip"
 	})
 }
 
