@@ -215,7 +215,10 @@ func (f *ConfigurationFile) Parse(file ufs.File) error {
 		err = f.parseIniFile(file)
 	case Xml:
 		err = f.parseXmlFile(file)
+	default:
+		return errors.Errorf("parser: unknown parser type %q", f.Parser)
 	}
+
 	return err
 }
 
