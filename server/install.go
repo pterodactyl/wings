@@ -17,6 +17,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
+	"github.com/pterodactyl/wings/environment/docker"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
@@ -232,12 +233,55 @@ func (ip *InstallationProcess) writeScriptToDisk() error {
 	return nil
 }
 
-// Pulls the docker image to be used for the installation container.
+// Pulls the docker image to be used for the installation container when
+// docker.image_pull_policy requires it. If there is an error while pulling from
+// the source but the image already exists locally, we log a warning and continue.
 func (ip *InstallationProcess) pullInstallationImage() error {
+	img := ip.Script.ContainerImage
+
+	// Images prefixed with a ~ are local images that we do not need to try and pull.
+	if strings.HasPrefix(img, "~") {
+		return nil
+	}
+
+	policy := config.Get().Docker.ImagePullPolicy
+	if policy == "" {
+		policy = config.ImagePullPolicyAlways
+	}
+
+	// Give it up to 15 minutes to pull the image
+	ctx, cancel := context.WithTimeout(ip.Server.Context(), 15*time.Minute)
+	defer cancel()
+
+	switch policy {
+	case config.ImagePullPolicyNever:
+		// check if the image exists and if not return an error
+		exists, err := docker.ImageExistsLocally(ctx, ip.client, img)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			// The image doesn't exist locally so return an error
+			return errors.Errorf("server/install: image %q is not present locally (docker.image_pull_policy is Never)", img)
+		}
+		return nil
+	case config.ImagePullPolicyIfNotPresent:
+		// check if the image exists and if not pull it
+		exists, err := docker.ImageExistsLocally(ctx, ip.client, img)
+		if err != nil {
+			return err
+		}
+		if exists {
+			// The image is already pulled so return
+			return nil
+		}
+		// the image doesn't exist yet so proceed to pull it
+	}
+
 	// Get a registry auth configuration from the config.
 	var registryAuth *config.RegistryConfiguration
 	for registry, c := range config.Get().Docker.Registries {
-		if !strings.HasPrefix(ip.Script.ContainerImage, registry) {
+		if !strings.HasPrefix(img, registry) {
 			continue
 		}
 
@@ -258,23 +302,23 @@ func (ip *InstallationProcess) pullInstallationImage() error {
 		imagePullOptions.RegistryAuth = b64
 	}
 
-	r, err := ip.client.ImagePull(ip.Server.Context(), ip.Script.ContainerImage, imagePullOptions)
+	r, err := ip.client.ImagePull(ctx, img, imagePullOptions)
 	if err != nil {
-		images, ierr := ip.client.ImageList(ip.Server.Context(), image.ListOptions{})
+		images, ierr := ip.client.ImageList(ctx, image.ListOptions{})
 		if ierr != nil {
 			// Well damn, something has gone really wrong here, just go ahead and abort there
 			// isn't much anything we can do to try and self-recover from this.
 			return ierr
 		}
 
-		for _, img := range images {
-			for _, t := range img.RepoTags {
-				if t != ip.Script.ContainerImage {
+		for _, img2 := range images {
+			for _, t := range img2.RepoTags {
+				if t != img {
 					continue
 				}
 
 				log.WithFields(log.Fields{
-					"image": ip.Script.ContainerImage,
+					"image": img,
 					"err":   err.Error(),
 				}).Warn("unable to pull requested image from remote source, however the image exists locally")
 
@@ -284,11 +328,11 @@ func (ip *InstallationProcess) pullInstallationImage() error {
 			}
 		}
 
-		return err
+		return errors.Wrapf(err, "failed to pull %q installation container image", img)
 	}
 	defer r.Close()
 
-	log.WithField("image", ip.Script.ContainerImage).Debug("pulling docker image... this could take a bit of time")
+	log.WithField("image", img).Debug("pulling docker image... this could take a bit of time")
 
 	// Block continuation until the image has been pulled successfully.
 	scanner := bufio.NewScanner(r)
