@@ -67,7 +67,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 		}
 	}
 
-	ad, err := b.Generate(s.Context(), s.Filesystem(), ignored)
+	ad, err := b.Generate(s.Context(), s.Filesystem().Path(), ignored)
 	if err != nil {
 		if err := s.notifyPanelOfBackup(b.Identifier(), &backup.ArchiveDetails{}, false); err != nil {
 			s.Log().WithFields(log.Fields{
@@ -153,13 +153,27 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	s.Log().Debug("starting file writing process for backup restoration")
 	err = b.Restore(s.Context(), reader, func(file string, info fs.FileInfo, r io.ReadCloser) error {
 		defer r.Close()
-		s.Events().Publish(DaemonMessageEvent, "(restoring): "+file)
-		// TODO: since this will be called a lot, it may be worth adding an optimized
-		// Write with Chtimes method to the UnixFS that is able to re-use the
-		// same dirfd and file name.
-		if err := s.Filesystem().Write(file, r, info.Size(), info.Mode()); err != nil {
-			return err
+		if file == "." {
+			return nil
 		}
+
+		s.Events().Publish(DaemonMessageEvent, "(restoring): "+file)
+		if info.IsDir() {
+			if err := s.Filesystem().Mkdir(file, info.Mode().Perm()); err != nil {
+				if !errors.Is(err, os.ErrExist) {
+					return errors.WithStack(err)
+				}
+			}
+		} else {
+			if !info.Mode().IsRegular() {
+				return nil
+			}
+
+			if err := s.Filesystem().Write(file, r, info.Size(), info.Mode().Perm()); err != nil {
+				return errors.WithStack(err)
+			}
+		}
+
 		atime := info.ModTime()
 		return s.Filesystem().Chtimes(file, atime, atime)
 	})

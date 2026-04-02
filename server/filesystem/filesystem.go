@@ -1,15 +1,16 @@
 package filesystem
 
 import (
-	"fmt"
+	"bufio"
 	"io"
+	fs2 "io/fs"
 	"os"
+	"path"
 	"path/filepath"
-	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"emperror.dev/errors"
@@ -18,248 +19,257 @@ import (
 	ignore "github.com/sabhiram/go-gitignore"
 
 	"github.com/pterodactyl/wings/config"
-	"github.com/pterodactyl/wings/internal/ufs"
+	"github.com/pterodactyl/wings/system"
 )
 
 type Filesystem struct {
-	unixFS *ufs.Quota
-
 	mu                sync.RWMutex
 	lastLookupTime    *usageLookupTime
-	lookupInProgress  atomic.Bool
+	lookupInProgress  *system.AtomicBool
+	diskUsed          int64
 	diskCheckInterval time.Duration
 	denylist          *ignore.GitIgnore
+
+	// The maximum amount of disk space (in bytes) that this Filesystem instance can use.
+	diskLimit int64
+
+	// The root data directory path for this Filesystem instance.
+	root     *os.Root
+	rootPath string
 
 	isTest bool
 }
 
 // New creates a new Filesystem instance for a given server.
-func New(root string, size int64, denylist []string) (*Filesystem, error) {
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return nil, err
-	}
-	unixFS, err := ufs.NewUnixFS(root, config.UseOpenat2())
+func New(path string, size int64, denylist []string) (*Filesystem, error) {
+	r, err := os.OpenRoot(path)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "server/filesystem: failed to open root")
 	}
-	quota := ufs.NewQuota(unixFS, size)
 
-	return &Filesystem{
-		unixFS: quota,
-
+	fs := &Filesystem{
+		root:              r,
+		rootPath:          path,
+		diskLimit:         size,
 		diskCheckInterval: time.Duration(config.Get().System.DiskCheckInterval),
 		lastLookupTime:    &usageLookupTime{},
+		lookupInProgress:  system.NewAtomicBool(false),
 		denylist:          ignore.CompileIgnoreLines(denylist...),
-	}, nil
+	}
+
+	return fs, nil
+}
+
+// normalize takes the input path, runs it through filepath.Clean and trims any
+// leading forward slashes (since the os.Root method calls will fail otherwise).
+// If the resulting path is an empty string, "." is returned which os.Root will
+// understand as the base directory.
+func normalize(path string) string {
+	c := strings.TrimLeft(filepath.Clean(path), string(filepath.Separator))
+	if c == "" {
+		return "."
+	}
+	return c
 }
 
 // Path returns the root path for the Filesystem instance.
 func (fs *Filesystem) Path() string {
-	return fs.unixFS.BasePath()
+	return fs.rootPath
 }
 
-// ReadDir reads directory entries.
-func (fs *Filesystem) ReadDir(path string) ([]ufs.DirEntry, error) {
-	return fs.unixFS.ReadDir(path)
-}
-
-// ReadDirStat is like ReadDir except that it returns FileInfo for each entry
-// instead of just a DirEntry.
-func (fs *Filesystem) ReadDirStat(path string) ([]ufs.FileInfo, error) {
-	return ufs.ReadDirMap(fs.unixFS.UnixFS, path, func(e ufs.DirEntry) (ufs.FileInfo, error) {
-		return e.Info()
-	})
+// Close closes the underlying os.Root instance for the server.
+func (fs *Filesystem) Close() error {
+	if err := fs.root.Close(); err != nil {
+		return errors.Wrap(err, "server/filesystem: failed to close root")
+	}
+	return nil
 }
 
 // File returns a reader for a file instance as well as the stat information.
-func (fs *Filesystem) File(p string) (ufs.File, Stat, error) {
-	f, err := fs.unixFS.Open(p)
+func (fs *Filesystem) File(p string) (*os.File, Stat, error) {
+	p = normalize(p)
+	st, err := fs.Stat(p)
 	if err != nil {
-		return nil, Stat{}, err
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, Stat{}, newFilesystemError(ErrNotExist, err)
+		}
+		return nil, Stat{}, errors.WithStackIf(err)
 	}
-	st, err := statFromFile(f)
+	if st.IsDir() {
+		return nil, Stat{}, newFilesystemError(ErrCodeIsDirectory, nil)
+	}
+	f, err := fs.root.Open(p)
 	if err != nil {
-		_ = f.Close()
-		return nil, Stat{}, err
+		return nil, Stat{}, errors.WithStackIf(err)
 	}
 	return f, st, nil
 }
 
-func (fs *Filesystem) UnixFS() *ufs.UnixFS {
-	return fs.unixFS.UnixFS
-}
-
 // Touch acts by creating the given file and path on the disk if it is not present
-// already. If  it is present, the file is opened using the defaults which will truncate
+// already. If it is present, the file is opened using the defaults which will truncate
 // the contents. The opened file is then returned to the caller.
-func (fs *Filesystem) Touch(p string, flag int) (ufs.File, error) {
-	return fs.unixFS.Touch(p, flag, 0o644)
+func (fs *Filesystem) Touch(p string, flag int, mode os.FileMode) (*os.File, error) {
+	p = normalize(p)
+	o := &fileOpener{root: fs.root}
+	f, err := o.open(p, flag, mode)
+	if err == nil {
+		return f, nil
+	}
+	if f != nil {
+		_ = f.Close()
+	}
+	// If the error is not because it doesn't exist then we just need to bail at this point.
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, errors.Wrap(err, "server/filesystem: touch: failed to open file handle")
+	}
+	// Only create and chown the directory if it doesn't exist.
+	if _, err := fs.root.Stat(filepath.Dir(p)); errors.Is(err, os.ErrNotExist) {
+		// Create the path leading up to the file we're trying to create, setting the final perms
+		// on it as we go.
+		if err := fs.root.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return nil, errors.WrapIf(err, "server/filesystem: touch: failed to create directory tree")
+		}
+		if err := fs.Chown(filepath.Dir(p)); err != nil {
+			return nil, errors.WrapIf(err, "server/filesystem: touch: failed to chown directory tree")
+		}
+	}
+	// Try to open the file now that we have created the pathing necessary for it, and then
+	// Chown that file so that the permissions don't mess with things.
+	f, err = o.open(p, flag, mode)
+	if err != nil {
+		return nil, errors.Wrap(err, "server/filesystem: touch: failed to open file handle")
+	}
+	_ = fs.Chown(p)
+	return f, nil
 }
 
 // Writefile writes a file to the system. If the file does not already exist one
 // will be created. This will also properly recalculate the disk space used by
 // the server when writing new files or modifying existing ones.
 //
-// DEPRECATED: use `Write` instead.
+// deprecated 1.12.1 prefer the use of Filesystem.Write()
 func (fs *Filesystem) Writefile(p string, r io.Reader) error {
+	p = normalize(p)
 	var currentSize int64
-	st, err := fs.unixFS.Stat(p)
-	if err != nil && !errors.Is(err, ufs.ErrNotExist) {
+	// If the file does not exist on the system already go ahead and create the pathway
+	// to it and an empty file. We'll then write to it later on after this completes.
+	stat, err := fs.root.Stat(p)
+	if err != nil && !os.IsNotExist(err) {
 		return errors.Wrap(err, "server/filesystem: writefile: failed to stat file")
 	} else if err == nil {
-		if st.IsDir() {
-			// TODO: resolved
-			return errors.WithStack(&Error{code: ErrCodeIsDirectory, resolved: ""})
+		if stat.IsDir() {
+			return errors.WithStack(&Error{code: ErrCodeIsDirectory, resolved: stat.Name()})
 		}
-		currentSize = st.Size()
+		currentSize = stat.Size()
 	}
 
-	// Touch the file and return the handle to it at this point. This will
-	// create or truncate the file, and create any necessary parent directories
-	// if they are missing.
-	file, err := fs.unixFS.Touch(p, ufs.O_RDWR|ufs.O_TRUNC, 0o644)
-	if err != nil {
-		return fmt.Errorf("error touching file: %w", err)
-	}
-	defer file.Close()
-
-	// Do not use CopyBuffer here, it is wasteful as the file implements
-	// io.ReaderFrom, which causes it to not use the buffer anyways.
-	n, err := io.Copy(file, r)
-
-	// Adjust the disk usage to account for the old size and the new size of the file.
-	fs.unixFS.Add(n - currentSize)
-
-	if err := fs.chownFile(p); err != nil {
-		return fmt.Errorf("error chowning file: %w", err)
-	}
-	// Return the error from io.Copy.
-	return err
-}
-
-func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode ufs.FileMode) error {
-	var currentSize int64
-	st, err := fs.unixFS.Stat(p)
-	if err != nil && !errors.Is(err, ufs.ErrNotExist) {
-		return errors.Wrap(err, "server/filesystem: writefile: failed to stat file")
-	} else if err == nil {
-		if st.IsDir() {
-			// TODO: resolved
-			return errors.WithStack(&Error{code: ErrCodeIsDirectory, resolved: ""})
-		}
-		currentSize = st.Size()
-	}
-
+	br := bufio.NewReader(r)
 	// Check that the new size we're writing to the disk can fit. If there is currently
 	// a file we'll subtract that current file size from the size of the buffer to determine
 	// the amount of new data we're writing (or amount we're removing if smaller).
-	if err := fs.HasSpaceFor(newSize - currentSize); err != nil {
+	if err := fs.HasSpaceFor(int64(br.Size()) - currentSize); err != nil {
 		return err
 	}
 
-	// Touch the file and return the handle to it at this point. This will
-	// create or truncate the file, and create any necessary parent directories
-	// if they are missing.
-	file, err := fs.unixFS.Touch(p, ufs.O_RDWR|ufs.O_TRUNC, mode)
+	// Touch the file and return the handle to it at this point. This will create the file,
+	// any necessary directories, and set the proper owner of the file.
+	file, err := fs.Touch(p, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	if newSize == 0 {
-		// Subtract the previous size of the file if the new size is 0.
-		fs.unixFS.Add(-currentSize)
-	} else {
-		// Do not use CopyBuffer here, it is wasteful as the file implements
-		// io.ReaderFrom, which causes it to not use the buffer anyways.
-		var n int64
-		n, err = io.Copy(file, io.LimitReader(r, newSize))
+	buf := make([]byte, 1024*4)
+	sz, err := io.CopyBuffer(file, r, buf)
 
-		// Adjust the disk usage to account for the old size and the new size of the file.
-		fs.unixFS.Add(n - currentSize)
-	}
+	// Adjust the disk usage to account for the old size and the new size of the file.
+	fs.addDisk(sz - currentSize)
 
-	if err := fs.chownFile(p); err != nil {
-		return err
-	}
-	// Return any remaining error.
-	return err
+	return fs.Chown(p)
 }
 
-// CreateDirectory creates a new directory (name) at a specified path (p) for
-// the server.
-func (fs *Filesystem) CreateDirectory(name string, p string) error {
-	return fs.unixFS.MkdirAll(filepath.Join(p, name), 0o755)
-}
-
-func (fs *Filesystem) Rename(oldpath, newpath string) error {
-	return fs.unixFS.Rename(oldpath, newpath)
-}
-
-func (fs *Filesystem) Symlink(oldpath, newpath string) error {
-	return fs.unixFS.Symlink(oldpath, newpath)
-}
-
-func (fs *Filesystem) chownFile(name string) error {
-	if fs.isTest {
-		return nil
-	}
-
-	uid := config.Get().System.User.Uid
-	gid := config.Get().System.User.Gid
-	return fs.unixFS.Lchown(name, uid, gid)
-}
-
-// Chown recursively iterates over a file or directory and sets the permissions on all of the
-// underlying files. Iterate over all of the files and directories. If it is a file just
-// go ahead and perform the chown operation. Otherwise dig deeper into the directory until
-// we've run out of directories to dig into.
-func (fs *Filesystem) Chown(p string) error {
-	if fs.isTest {
-		return nil
-	}
-
-	uid := config.Get().System.User.Uid
-	gid := config.Get().System.User.Gid
-
-	dirfd, name, closeFd, err := fs.unixFS.SafePath(p)
-	defer closeFd()
-	if err != nil {
-		return err
-	}
-
-	// Start by just chowning the initial path that we received.
-	if err := fs.unixFS.Lchownat(dirfd, name, uid, gid); err != nil {
-		return errors.Wrap(err, "server/filesystem: chown: failed to chown path")
-	}
-
-	// If this is not a directory we can now return from the function, there is nothing
-	// left that we need to do.
-	if st, err := fs.unixFS.Lstatat(dirfd, name); err != nil || !st.IsDir() {
-		return nil
-	}
-
-	// This walker is probably some of the most efficient code in Wings. It has
-	// an internally re-used buffer for listing directory entries and doesn't
-	// need to check if every individual path it touches is safe as the code
-	// doesn't traverse symlinks, is immune to symlink timing attacks, and
-	// gives us a dirfd and file name to make a direct syscall with.
-	if err := fs.unixFS.WalkDirat(dirfd, name, func(dirfd int, name, _ string, info ufs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if err := fs.unixFS.Lchownat(dirfd, name, uid, gid); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return fmt.Errorf("server/filesystem: chown: failed to chown during walk function: %w", err)
+func (fs *Filesystem) Mkdir(p string, mode os.FileMode) error {
+	if err := fs.root.Mkdir(normalize(p), mode); err != nil {
+		return errors.Wrap(err, "server/filesystem: mkdir: failed to make directory")
 	}
 	return nil
 }
 
-func (fs *Filesystem) Chmod(path string, mode ufs.FileMode) error {
-	return fs.unixFS.Chmod(path, mode)
+// Write writes a file to the disk.
+func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode os.FileMode) error {
+	st, err := fs.root.Stat(normalize(p))
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return errors.Wrap(err, "server/filesystem: write: failed to stat file")
+		}
+	}
+
+	var c int64
+	if err == nil {
+		if st.IsDir() {
+			return errors.WithStack(&Error{code: ErrCodeIsDirectory, resolved: normalize(p)})
+		}
+		c = st.Size()
+	}
+
+	if err := fs.HasSpaceFor(newSize - c); err != nil {
+		return err
+	}
+
+	f, err := fs.Touch(p, os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode)
+	if err != nil {
+		return errors.Wrap(err, "server/filesystem: write: failed to touch file")
+	}
+	defer f.Close()
+
+	if newSize == 0 {
+		fs.addDisk(-c)
+	} else {
+		// Do not use CopyBuffer here; it is wasteful as the file implements
+		// io.ReaderFrom, which causes it to not use the buffer anyway.
+		n, err := io.Copy(f, io.LimitReader(r, newSize))
+		// Always adjust the disk to account for cases where a partial copy occurs
+		// and there is some new content on the disk.
+		fs.addDisk(n - c)
+		if err != nil {
+			return errors.Wrap(err, "server/filesystem: write: failed to write file")
+		}
+	}
+
+	// todo: might be unnecessary due to the `fs.Touch` call already doing this?
+	return fs.Chown(p)
+}
+
+// CreateDirectory creates a new directory ("name") at a specified path ("p") for the server.
+func (fs *Filesystem) CreateDirectory(name string, p string) error {
+	return fs.root.MkdirAll(path.Join(normalize(p), name), 0o755)
+}
+
+// Rename moves (or renames) a file or directory.
+func (fs *Filesystem) Rename(from string, to string) error {
+	to = normalize(to)
+	from = normalize(from)
+
+	if from == "." || to == "." {
+		return os.ErrExist
+	}
+
+	// If the target file or directory already exists the rename function will
+	// fail, so just bail out now.
+	if _, err := fs.root.Stat(to); err == nil {
+		return os.ErrExist
+	}
+
+	d := strings.TrimLeft(filepath.Dir(to), "/")
+	// Ensure that the directory we're moving into exists correctly on the system. Only do this if
+	// we're not at the root directory level.
+	if d != "" {
+		if err := fs.root.MkdirAll(d, 0o755); err != nil {
+			return errors.Wrap(err, "server/filesystem: failed to create directory tree")
+		}
+	}
+
+	return fs.root.Rename(from, to)
 }
 
 // Begin looping up to 50 times to try and create a unique copy file name. This will take
@@ -270,7 +280,7 @@ func (fs *Filesystem) Chmod(path string, mode ufs.FileMode) error {
 // Could probably make this more efficient by checking if there are any files matching the copy
 // pattern, and trying to find the highest number and then incrementing it by one rather than
 // looping endlessly.
-func (fs *Filesystem) findCopySuffix(dirfd int, name, extension string) (string, error) {
+func (fs *Filesystem) findCopySuffix(dir string, name string, extension string) (string, error) {
 	var i int
 	suffix := " copy"
 
@@ -282,10 +292,11 @@ func (fs *Filesystem) findCopySuffix(dirfd int, name, extension string) (string,
 		n := name + suffix + extension
 		// If we stat the file and it does not exist that means we're good to create the copy. If it
 		// does exist, we'll just continue to the next loop and try again.
-		if _, err := fs.unixFS.Lstatat(dirfd, n); err != nil {
-			if !errors.Is(err, ufs.ErrNotExist) {
+		if _, err := fs.Stat(path.Join(dir, n)); err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
 				return "", err
 			}
+
 			break
 		}
 
@@ -297,201 +308,272 @@ func (fs *Filesystem) findCopySuffix(dirfd int, name, extension string) (string,
 	return name + suffix + extension, nil
 }
 
-// Copy copies a given file to the same location and appends a suffix to the
-// file to indicate that it has been copied.
+// Copies a given file to the same location and appends a suffix to the file to indicate that
+// it has been copied.
 func (fs *Filesystem) Copy(p string) error {
-	dirfd, name, closeFd, err := fs.unixFS.SafePath(p)
-	defer closeFd()
+	p = normalize(p)
+	s, err := fs.root.Stat(p)
 	if err != nil {
 		return err
-	}
-	source, err := fs.unixFS.OpenFileat(dirfd, name, ufs.O_RDONLY, 0)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-	info, err := source.Stat()
-	if err != nil {
-		return err
-	}
-	if info.IsDir() || !info.Mode().IsRegular() {
+	} else if s.IsDir() || !s.Mode().IsRegular() {
 		// If this is a directory or not a regular file, just throw a not-exist error
 		// since anything calling this function should understand what that means.
-		return ufs.ErrNotExist
+		return os.ErrNotExist
 	}
-	currentSize := info.Size()
 
 	// Check that copying this file wouldn't put the server over its limit.
-	if err := fs.HasSpaceFor(currentSize); err != nil {
+	if err := fs.HasSpaceFor(s.Size()); err != nil {
 		return err
 	}
 
-	base := info.Name()
+	base := filepath.Base(p)
+	relative := strings.TrimSuffix(strings.TrimPrefix(p, fs.Path()), base)
 	extension := filepath.Ext(base)
-	baseName := strings.TrimSuffix(base, extension)
+	name := strings.TrimSuffix(base, extension)
 
 	// Ensure that ".tar" is also counted as apart of the file extension.
 	// There might be a better way to handle this for other double file extensions,
 	// but this is a good workaround for now.
-	if strings.HasSuffix(baseName, ".tar") {
+	if strings.HasSuffix(name, ".tar") {
 		extension = ".tar" + extension
-		baseName = strings.TrimSuffix(baseName, ".tar")
+		name = strings.TrimSuffix(name, ".tar")
 	}
 
-	newName, err := fs.findCopySuffix(dirfd, baseName, extension)
+	source, err := fs.root.Open(p)
 	if err != nil {
 		return err
 	}
-	dst, err := fs.unixFS.OpenFileat(dirfd, newName, ufs.O_WRONLY|ufs.O_CREATE, info.Mode())
+	defer source.Close()
+
+	n, err := fs.findCopySuffix(relative, name, extension)
 	if err != nil {
 		return err
 	}
 
-	// Do not use CopyBuffer here, it is wasteful as the file implements
-	// io.ReaderFrom, which causes it to not use the buffer anyways.
-	n, err := io.Copy(dst, io.LimitReader(source, currentSize))
-	fs.unixFS.Add(n)
+	return fs.Writefile(path.Join(relative, n), source)
+}
 
-	if !fs.isTest {
-		if err := fs.unixFS.Lchownat(dirfd, newName, config.Get().System.User.Uid, config.Get().System.User.Gid); err != nil {
-			return err
-		}
+// Symlink creates a symbolic link between the source and target paths. [os.Root].Symlink
+// allows for the creation of a symlink that targets a file outside the root directory.
+// This isn't the end of the world because the read is blocked through this system, and
+// within a container it would just point to something in the readonly filesystem.
+//
+// There are also valid use-cases where a symlink might need to point to a file outside
+// the server data directory for a server to operate correctly. Since everything in the
+// filesystem runs through os.Root though we're protected from accidentally reading a
+// sensitive file on the _host_ OS.
+func (fs *Filesystem) Symlink(source, target string) error {
+	source = normalize(source)
+	target = normalize(target)
+
+	// os.Root#Symlink allows for the creation of a symlink that targets a file outside
+	// the root directory. This isn't the end of the world because the read is blocked
+	// through this system, and within a container it would just point to something in the
+	// readonly filesystem.
+	//
+	// However, just to avoid this propagating everywhere, *attempt* to block anything that
+	// would be pointing to a location outside the root directory.
+	if _, err := fs.root.Stat(source); err != nil {
+		return errors.Wrap(err, "server/filesystem: symlink: failed to stat source")
 	}
-	// Return the error from io.Copy.
-	return err
+
+	// Yes -- this gap between the stat and symlink allows a TOCTOU vulnerability to exist,
+	// but again we're layering this with the remaining logic that prevents this filesystem
+	// from reading any symlinks or acting on any file that points outside the root as defined
+	// by os.Root. The check above is mostly to prevent stupid mistakes or basic attempts to
+	// get around this. If someone *really* wants to make these symlinks, they can. They can
+	// also just create them from the running server process, and we still need to rely on our
+	// own internal FS logic to detect and block those reads, which it does. Therefore, I am
+	// not deeply concerned with this.
+	if err := fs.root.Symlink(source, target); err != nil {
+		return errors.Wrap(err, "server/filesystem: symlink: failed to create symlink")
+	}
+
+	return nil
+}
+
+// ReadDir returns all the contents of the given directory.
+func (fs *Filesystem) ReadDir(p string) ([]fs2.DirEntry, error) {
+	d, ok := fs.root.FS().(fs2.ReadDirFS)
+	if !ok {
+		return []fs2.DirEntry{}, errors.New("server/filesystem: readdir: could not init root fs")
+	}
+
+	e, err := d.ReadDir(normalize(p))
+	if err != nil {
+		return []fs2.DirEntry{}, errors.Wrap(err, "server/filesystem: readdir: failed to read directory")
+	}
+
+	return e, nil
 }
 
 // TruncateRootDirectory removes _all_ files and directories from a server's
 // data directory and resets the used disk space to zero.
 func (fs *Filesystem) TruncateRootDirectory() error {
-	if err := os.RemoveAll(fs.Path()); err != nil {
-		return err
-	}
-	if err := os.Mkdir(fs.Path(), 0o755); err != nil {
-		return err
-	}
-	_ = fs.unixFS.Close()
-	unixFS, err := ufs.NewUnixFS(fs.Path(), config.UseOpenat2())
+	err := filepath.WalkDir(fs.rootPath, func(path string, d fs2.DirEntry, err error) error {
+		p := normalize(strings.TrimPrefix(path, fs.rootPath))
+		if p == "." {
+			return nil
+		}
+
+		if err := fs.root.RemoveAll(p); err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return filepath.SkipDir
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return err
+		go func() {
+			// If there was an error, re-calculate the disk usage right away to account
+			// for any partially removed files.
+			_, _ = fs.updateCachedDiskUsage()
+		}()
+
+		return errors.Wrap(err, "server/filesystem: truncate: failed to walk root directory")
 	}
-	var limit int64
-	if fs.isTest {
-		limit = 0
-	} else {
-		limit = fs.unixFS.Limit()
-	}
-	fs.unixFS = ufs.NewQuota(unixFS, limit)
+
+	// Set the disk space back to zero.
+	fs.addDisk(fs.diskUsed * -1)
+
 	return nil
 }
 
 // Delete removes a file or folder from the system. Prevents the user from
 // accidentally (or maliciously) removing their root server data directory.
 func (fs *Filesystem) Delete(p string) error {
-	return fs.unixFS.RemoveAll(p)
-}
-
-//type fileOpener struct {
-//	fs   *Filesystem
-//	busy uint
-//}
-//
-//// Attempts to open a given file up to "attempts" number of times, using a backoff. If the file
-//// cannot be opened because of a "text file busy" error, we will attempt until the number of attempts
-//// has been exhaused, at which point we will abort with an error.
-//func (fo *fileOpener) open(path string, flags int, perm ufs.FileMode) (ufs.File, error) {
-//	for {
-//		f, err := fo.fs.unixFS.OpenFile(path, flags, perm)
-//
-//		// If there is an error because the text file is busy, go ahead and sleep for a few
-//		// hundred milliseconds and then try again up to three times before just returning the
-//		// error back to the caller.
-//		//
-//		// Based on code from: https://github.com/golang/go/issues/22220#issuecomment-336458122
-//		if err != nil && fo.busy < 3 && strings.Contains(err.Error(), "text file busy") {
-//			time.Sleep(100 * time.Millisecond << fo.busy)
-//			fo.busy++
-//			continue
-//		}
-//
-//		return f, err
-//	}
-//}
-
-// ListDirectory lists the contents of a given directory and returns stat
-// information about each file and folder within it.
-func (fs *Filesystem) ListDirectory(p string) ([]Stat, error) {
-	// Read entries from the path on the filesystem, using the mapped reader, so
-	// we can map the DirEntry slice into a Stat slice with mimetype information.
-	out, err := ufs.ReadDirMap(fs.unixFS.UnixFS, p, func(e ufs.DirEntry) (Stat, error) {
-		info, err := e.Info()
-		if err != nil {
-			return Stat{}, err
-		}
-
-		var d string
-		if e.Type().IsDir() {
-			d = "inode/directory"
-		} else {
-			d = "application/octet-stream"
-		}
-		var m *mimetype.MIME
-		if e.Type().IsRegular() {
-			// TODO: I should probably find a better way to do this.
-			eO := e.(interface {
-				Open() (ufs.File, error)
-			})
-			f, err := eO.Open()
-			if err != nil {
-				return Stat{}, err
-			}
-			m, err = mimetype.DetectReader(f)
-			if err != nil {
-				log.Error(err.Error())
-			}
-			_ = f.Close()
-		}
-
-		st := Stat{FileInfo: info, Mimetype: d}
-		if m != nil {
-			st.Mimetype = m.String()
-		}
-		return st, nil
-	})
-	if err != nil {
-		return nil, err
+	p = normalize(p)
+	if p == "." {
+		return errors.New("server/filesystem: delete: cannot delete root directory")
 	}
 
-	// Sort entries alphabetically.
-	slices.SortStableFunc(out, func(a, b Stat) int {
-		switch {
-		case a.Name() == b.Name():
-			return 0
-		case a.Name() > b.Name():
-			return 1
-		default:
-			return -1
+	st, err := fs.root.Lstat(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
 		}
+		return errors.Wrap(err, "server/filesystem: delete: failed to stat file")
+	}
+
+	if st.IsDir() {
+		if s, err := fs.DirectorySize(p); err == nil {
+			fs.addDisk(-s)
+		}
+	} else {
+		fs.addDisk(-st.Size())
+	}
+
+	return fs.root.RemoveAll(p)
+}
+
+type fileOpener struct {
+	busy uint
+	root *os.Root
+}
+
+// Attempts to open a given file up to "attempts" number of times, using a backoff. If the file
+// cannot be opened because of a "text file busy" error, we will attempt until the number of attempts
+// has been exhaused, at which point we will abort with an error.
+func (fo *fileOpener) open(path string, flags int, mode os.FileMode) (*os.File, error) {
+	for {
+		f, err := fo.root.OpenFile(path, flags, mode)
+
+		// If there is an error because the text file is busy, go ahead and sleep for a few
+		// hundred milliseconds and then try again up to three times before just returning the
+		// error back to the caller.
+		//
+		// Based on code from: https://github.com/golang/go/issues/22220#issuecomment-336458122
+		if err != nil && fo.busy < 3 && strings.Contains(err.Error(), "text file busy") {
+			time.Sleep(100 * time.Millisecond << fo.busy)
+			fo.busy++
+			continue
+		}
+
+		return f, err
+	}
+}
+
+// ListDirectory lists the contents of a given directory and returns stat information
+// about each file and folder within it. If you only need to know the contents of the
+// directory and do not need mimetype information, call [Filesystem.ReadDir] directly
+// instead.
+func (fs *Filesystem) ListDirectory(p string) ([]Stat, error) {
+	files, err := fs.ReadDir(p)
+	if err != nil {
+		return []Stat{}, err
+	}
+
+	var wg sync.WaitGroup
+
+	// You must initialize the output of this directory as a non-nil value otherwise
+	// when it is marshaled into a JSON object you'll just get 'null' back, which will
+	// break the panel badly.
+	out := make([]Stat, len(files))
+
+	// Iterate over all the files and directories returned and perform an async process
+	// to get the mime-type for them all.
+	for i, file := range files {
+		wg.Add(1)
+
+		go func(idx int, d fs2.DirEntry) {
+			defer wg.Done()
+
+			fi, err := d.Info()
+			if err != nil {
+				log.WithField("error", err).WithField("path", filepath.Join(p, d.Name())).Warn("failed to retrieve directory entry info")
+				return
+			}
+
+			if fi.IsDir() {
+				out[idx] = Stat{FileInfo: fi, Mimetype: "inode/directory"}
+				return
+			}
+
+			st := Stat{FileInfo: fi, Mimetype: "application/octet-stream"}
+
+			// Don't try to detect the type on a pipe — this will just hang the application,
+			// and you'll never get a response back.
+			//
+			// @see https://github.com/pterodactyl/panel/issues/4059
+			if fi.Mode()&os.ModeNamedPipe == 0 {
+				if f, err := fs.root.Open(normalize(filepath.Join(p, d.Name()))); err != nil {
+					if !IsPathError(err) && !IsLinkError(err) {
+						log.WithField("error", err).WithField("path", filepath.Join(p, d.Name())).Warn("error opening file for mimetype detection")
+					}
+				} else {
+					if m, err := mimetype.DetectReader(f); err == nil {
+						st.Mimetype = m.String()
+					} else {
+						log.WithField("error", err).WithField("path", filepath.Join(p, d.Name())).Warn("failed to detect mimetype for file")
+					}
+					_ = f.Close()
+				}
+			}
+
+			out[idx] = st
+		}(i, file)
+	}
+
+	wg.Wait()
+
+	// Sort the output alphabetically to begin with since we've run the output
+	// through an asynchronous process and the order is gonna be very random.
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Name() == out[j].Name() || out[i].Name() > out[j].Name() {
+			return true
+		}
+		return false
 	})
 
-	// Sort folders before other file types.
-	slices.SortStableFunc(out, func(a, b Stat) int {
-		switch {
-		case a.IsDir() && b.IsDir():
-			return 0
-		case a.IsDir():
-			return -1
-		default:
-			return 1
-		}
+	// Then, sort it so that directories are listed first in the output. Everything
+	// will continue to be alphabetized at this point.
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].IsDir()
 	})
 
 	return out, nil
-}
-
-func (fs *Filesystem) Chtimes(path string, atime, mtime time.Time) error {
-	if fs.isTest {
-		return nil
-	}
-	return fs.unixFS.Chtimes(path, atime, mtime)
 }

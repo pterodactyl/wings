@@ -257,11 +257,11 @@ func (s *Server) ReadLogfile(len int) ([]string, error) {
 // for the server is setup, and that all of the necessary files are created.
 func (s *Server) CreateEnvironment() error {
 	// Ensure the data directory exists before getting too far through this process.
-	if err := s.EnsureDataDirectoryExists(); err != nil {
+	if _, err := s.EnsureDataDirectoryExists(); err != nil {
 		return err
 	}
 
-	cfg := config.Get()
+	cfg := *config.Get()
 	if cfg.System.MachineID.Enable {
 		// Hytale wants a machine-id in order to encrypt tokens for the server. So
 		// write a machine-id file for the server that contains the server's UUID
@@ -269,7 +269,7 @@ func (s *Server) CreateEnvironment() error {
 		p := filepath.Join(cfg.System.MachineID.Directory, s.ID())
 		machineID := append(bytes.ReplaceAll([]byte(s.ID()), []byte{'-'}, []byte{}), '\n')
 		if err := os.WriteFile(p, machineID, 0o644); err != nil {
-			return fmt.Errorf("failed to write machine-id (at '%s') for server '%s': %w", p, s.ID(), err)
+			return errors.Wrap(err, "server: failed to write machine-id to disk")
 		}
 	}
 
@@ -295,21 +295,25 @@ func (s *Server) Filesystem() *filesystem.Filesystem {
 
 // EnsureDataDirectoryExists ensures that the data directory for the server
 // instance exists.
-func (s *Server) EnsureDataDirectoryExists() error {
-	if _, err := os.Lstat(s.fs.Path()); err != nil {
-		if os.IsNotExist(err) {
-			s.Log().Debug("server: creating root directory and setting permissions")
-			if err := os.MkdirAll(s.fs.Path(), 0o700); err != nil {
-				return errors.WithStack(err)
-			}
-			if err := s.fs.Chown("/"); err != nil {
-				s.Log().WithField("error", err).Warn("server: failed to chown server data directory")
-			}
-		} else {
-			return errors.WrapIf(err, "server: failed to stat server root directory")
+func (s *Server) EnsureDataDirectoryExists() (string, error) {
+	c := *config.Get()
+	path := filepath.Join(c.System.Data, s.ID())
+
+	if _, err := os.Lstat(path); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return path, errors.Wrap(err, "server: failed to stat server root directory")
+		}
+
+		if err := os.MkdirAll(path, 0o700); err != nil {
+			return path, errors.Wrap(err, "server: failed to create root directory")
+		}
+
+		if err := os.Chown(path, c.System.User.Uid, c.System.User.Gid); err != nil {
+			return path, errors.Wrap(err, "server: failed to chown newly created root directory")
 		}
 	}
-	return nil
+
+	return path, nil
 }
 
 // OnStateChange sets the state of the server internally. This function handles crash detection as

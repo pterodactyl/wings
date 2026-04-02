@@ -121,7 +121,7 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 	if !h.can(permission) {
 		return nil, sftp.ErrSSHFxPermissionDenied
 	}
-	f, err := h.fs.Touch(request.Filepath, os.O_RDWR|os.O_TRUNC)
+	f, err := h.fs.Touch(request.Filepath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		l.WithField("flags", request.Flags).WithField("error", err).Error("failed to open existing file on system")
 		return nil, sftp.ErrSSHFxFailure
@@ -213,8 +213,6 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 		}
 		h.events.MustLog(server.ActivitySftpCreateDirectory, FileAction{Entity: request.Filepath})
 		break
-	// Support creating symlinks between files. The source and target must resolve within
-	// the server home directory.
 	case "Symlink":
 		if !h.can(PermissionFileCreate) {
 			return sftp.ErrSSHFxPermissionDenied
@@ -265,14 +263,23 @@ func (h *Handler) Filelist(request *sftp.Request) (sftp.ListerAt, error) {
 
 	switch request.Method {
 	case "List":
-		entries, err := h.fs.ReadDirStat(request.Filepath)
+		d, err := h.fs.ReadDir(request.Filepath)
 		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil, sftp.ErrSSHFxNoSuchFile
+			}
 			h.logger.WithField("source", request.Filepath).WithField("error", err).Error("error while listing directory")
 			return nil, sftp.ErrSSHFxFailure
 		}
-		return ListerAt(entries), nil
+		files := make([]os.FileInfo, len(d))
+		for _, entry := range d {
+			if i, err := entry.Info(); err == nil {
+				files = append(files, i)
+			}
+		}
+		return ListerAt(files), nil
 	case "Stat":
-		st, err := h.fs.Stat(request.Filepath)
+		st, err := h.fs.Stat2(request.Filepath)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return nil, sftp.ErrSSHFxNoSuchFile
@@ -280,7 +287,7 @@ func (h *Handler) Filelist(request *sftp.Request) (sftp.ListerAt, error) {
 			h.logger.WithField("source", request.Filepath).WithField("error", err).Error("error performing stat on file")
 			return nil, sftp.ErrSSHFxFailure
 		}
-		return ListerAt([]os.FileInfo{st.FileInfo}), nil
+		return ListerAt([]os.FileInfo{st}), nil
 	default:
 		return nil, sftp.ErrSSHFxOpUnsupported
 	}

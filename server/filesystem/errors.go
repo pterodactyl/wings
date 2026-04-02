@@ -2,12 +2,10 @@ package filesystem
 
 import (
 	"fmt"
-	"path/filepath"
+	"os"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
-
-	"github.com/pterodactyl/wings/internal/ufs"
 )
 
 type ErrorCode string
@@ -16,7 +14,6 @@ const (
 	ErrCodeIsDirectory    ErrorCode = "E_ISDIR"
 	ErrCodeDiskSpace      ErrorCode = "E_NODISK"
 	ErrCodeUnknownArchive ErrorCode = "E_UNKNFMT"
-	ErrCodePathResolution ErrorCode = "E_BADPATH"
 	ErrCodeDenylistFile   ErrorCode = "E_DENYLIST"
 	ErrCodeUnknownError   ErrorCode = "E_UNKNOWN"
 	ErrNotExist           ErrorCode = "E_NOTEXIST"
@@ -64,12 +61,6 @@ func (e *Error) Error() string {
 			r = "<empty>"
 		}
 		return fmt.Sprintf("filesystem: file access prohibited: [%s] is on the denylist", r)
-	case ErrCodePathResolution:
-		r := e.resolved
-		if r == "" {
-			r = "<empty>"
-		}
-		return fmt.Sprintf("filesystem: server path [%s] resolves to a location outside the server root: %s", e.path, r)
 	case ErrNotExist:
 		return "filesystem: does not exist"
 	case ErrCodeUnknownError:
@@ -87,31 +78,7 @@ func (e *Error) Unwrap() error {
 
 // Generates an error logger instance with some basic information.
 func (fs *Filesystem) error(err error) *log.Entry {
-	return log.WithField("subsystem", "filesystem").WithField("root", fs.Path()).WithField("error", err)
-}
-
-// Handle errors encountered when walking through directories.
-//
-// If there is a path resolution error just skip the item entirely. Only return this for a
-// directory, otherwise return nil. Returning this error for a file will stop the walking
-// for the remainder of the directory. This is assuming an FileInfo struct was even returned.
-func (fs *Filesystem) handleWalkerError(err error, f ufs.FileInfo) error {
-	if !IsErrorCode(err, ErrCodePathResolution) {
-		return err
-	}
-	if f != nil && f.IsDir() {
-		return filepath.SkipDir
-	}
-	return nil
-}
-
-// IsFilesystemError checks if the given error is one of the Filesystem errors.
-func IsFilesystemError(err error) bool {
-	var fserr *Error
-	if err != nil && errors.As(err, &fserr) {
-		return true
-	}
-	return false
+	return log.WithField("subsystem", "filesystem").WithField("root", fs.root).WithField("error", err)
 }
 
 // IsErrorCode checks if "err" is a filesystem Error type. If so, it will then
@@ -125,17 +92,12 @@ func IsErrorCode(err error, code ErrorCode) bool {
 	return false
 }
 
-// NewBadPathResolution returns a new BadPathResolution error.
-func NewBadPathResolution(path string, resolved string) error {
-	return errors.WithStackDepth(&Error{code: ErrCodePathResolution, path: path, resolved: resolved}, 1)
+func IsPathError(err error) bool {
+	var pe *os.PathError
+	return errors.As(err, &pe)
 }
 
-// wrapError wraps the provided error as a Filesystem error and attaches the
-// provided resolved source to it. If the error is already a Filesystem error
-// no action is taken.
-func wrapError(err error, resolved string) error {
-	if err == nil || IsFilesystemError(err) {
-		return err
-	}
-	return errors.WithStackDepth(&Error{code: ErrCodeUnknownError, err: err, resolved: resolved}, 1)
+func IsLinkError(err error) bool {
+	var le *os.LinkError
+	return errors.As(err, &le)
 }

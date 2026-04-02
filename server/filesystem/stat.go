@@ -1,18 +1,17 @@
 package filesystem
 
 import (
-	"encoding/json"
-	"io"
+	"os"
 	"strconv"
 	"time"
 
+	"emperror.dev/errors"
 	"github.com/gabriel-vasile/mimetype"
-
-	"github.com/pterodactyl/wings/internal/ufs"
+	"github.com/goccy/go-json"
 )
 
 type Stat struct {
-	ufs.FileInfo
+	os.FileInfo
 	Mimetype string
 }
 
@@ -33,31 +32,38 @@ func (s *Stat) MarshalJSON() ([]byte, error) {
 		Created:  s.CTime().Format(time.RFC3339),
 		Modified: s.ModTime().Format(time.RFC3339),
 		Mode:     s.Mode().String(),
-		// Using `&ModePerm` on the file's mode will cause the mode to only have the permission values, and nothing else.
-		ModeBits:  strconv.FormatUint(uint64(s.Mode()&ufs.ModePerm), 8),
+		// Using `&os.ModePerm` on the file's mode will cause the mode to only have the permission values, and nothing else.
+		ModeBits:  strconv.FormatUint(uint64(s.Mode()&os.ModePerm), 8),
 		Size:      s.Size(),
 		Directory: s.IsDir(),
 		File:      !s.IsDir(),
-		Symlink:   s.Mode().Type()&ufs.ModeSymlink != 0,
+		Symlink:   s.Mode().Type()&os.ModeSymlink != 0,
 		Mime:      s.Mimetype,
 	})
 }
 
-func statFromFile(f ufs.File) (Stat, error) {
-	s, err := f.Stat()
+// Stat stats a file or folder and returns the base stat object from go along
+// with the MIME data that can be used for editing files.
+func (fs *Filesystem) Stat(p string) (Stat, error) {
+	p = normalize(p)
+	s, err := fs.root.Stat(p)
 	if err != nil {
-		return Stat{}, err
+		return Stat{}, errors.Wrap(err, "server/filesystem: stat: failed to stat file")
 	}
+
 	var m *mimetype.MIME
 	if !s.IsDir() {
+		f, err := fs.root.Open(p)
+		if err != nil {
+			return Stat{}, errors.Wrap(err, "server/filesystem: stat: failed to open file")
+		}
+		defer f.Close()
 		m, err = mimetype.DetectReader(f)
 		if err != nil {
-			return Stat{}, err
-		}
-		if _, err := f.Seek(0, io.SeekStart); err != nil {
-			return Stat{}, err
+			return Stat{}, errors.Wrap(err, "server/filesystem: stat: failed to detect mimetype")
 		}
 	}
+
 	st := Stat{
 		FileInfo: s,
 		Mimetype: "inode/directory",
@@ -65,20 +71,14 @@ func statFromFile(f ufs.File) (Stat, error) {
 	if m != nil {
 		st.Mimetype = m.String()
 	}
+
 	return st, nil
 }
 
-// Stat stats a file or folder and returns the base stat object from go along
-// with the MIME data that can be used for editing files.
-func (fs *Filesystem) Stat(p string) (Stat, error) {
-	f, err := fs.unixFS.Open(p)
+func (fs *Filesystem) Stat2(p string) (os.FileInfo, error) {
+	st, err := fs.root.Stat(normalize(p))
 	if err != nil {
-		return Stat{}, err
-	}
-	defer f.Close()
-	st, err := statFromFile(f)
-	if err != nil {
-		return Stat{}, err
+		return st, errors.Wrap(err, "server/filesystem: stat2: failed to stat file")
 	}
 	return st, nil
 }

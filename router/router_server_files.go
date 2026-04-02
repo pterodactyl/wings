@@ -30,8 +30,7 @@ import (
 // getServerFileContents returns the contents of a file on the server.
 func getServerFileContents(c *gin.Context) {
 	s := middleware.ExtractServer(c)
-	p := strings.TrimLeft(c.Query("file"), "/")
-	f, st, err := s.Filesystem().File(p)
+	f, st, err := s.Filesystem().File(c.Query("file"))
 	if err != nil {
 		middleware.CaptureAndAbort(c, err)
 		return
@@ -129,6 +128,7 @@ func putServerRenameFiles(c *gin.Context) {
 				}
 				if err := fs.Rename(pf, pt); err != nil {
 					// Return nil if the error is an is not exists.
+					// NOTE: os.IsNotExist() does not work if the error is wrapped.
 					if errors.Is(err, os.ErrNotExist) {
 						s.Log().WithField("error", err).
 							WithField("from_path", pf).
@@ -438,9 +438,15 @@ func postServerCompressFiles(c *gin.Context) {
 		return
 	}
 
-	f, err := s.Filesystem().CompressFiles(data.RootPath, data.Files)
+	f, err := s.Filesystem().CompressFiles(c.Request.Context(), data.RootPath, data.Files)
 	if err != nil {
-		middleware.CaptureAndAbort(c, err)
+		if errors.Is(err, filesystem.ErrNoSpaceAvailable) {
+			c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+				"error": "This server does not have enough available disk space to generate a compressed archive.",
+			})
+		} else {
+			middleware.CaptureAndAbort(c, err)
+		}
 		return
 	}
 
@@ -464,17 +470,6 @@ func postServerDecompressFiles(c *gin.Context) {
 
 	s := middleware.ExtractServer(c)
 	lg := middleware.ExtractLogger(c).WithFields(log.Fields{"root_path": data.RootPath, "file": data.File})
-	lg.Debug("checking if space is available for file decompression")
-	err := s.Filesystem().SpaceAvailableForDecompression(context.Background(), data.RootPath, data.File)
-	if err != nil {
-		if filesystem.IsErrorCode(err, filesystem.ErrCodeUnknownArchive) {
-			lg.WithField("error", err).Warn("failed to decompress file: unknown archive format")
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "The archive provided is in a format Wings does not understand."})
-			return
-		}
-		middleware.CaptureAndAbort(c, err)
-		return
-	}
 
 	lg.Info("starting file decompression")
 	if err := s.Filesystem().DecompressFile(context.Background(), data.RootPath, data.File); err != nil {
@@ -638,7 +633,6 @@ func handleFileUpload(p string, s *server.Server, header *multipart.FileHeader) 
 	if err := s.Filesystem().IsIgnored(p); err != nil {
 		return err
 	}
-
 	if err := s.Filesystem().Write(p, file, header.Size, 0o644); err != nil {
 		return err
 	}

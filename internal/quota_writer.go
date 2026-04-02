@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: Copyright (c) 2024 Matthew Penner
 
-package ufs
+package internal
 
 import (
 	"io"
+	"os"
 	"sync/atomic"
 )
 
 // CountedWriter is a writer that counts the amount of data written to the
 // underlying writer.
 type CountedWriter struct {
-	File
-
+	file    *os.File
 	counter atomic.Int64
 	err     error
 }
 
 // NewCountedWriter returns a new countedWriter that counts the amount of bytes
 // written to the underlying writer.
-func NewCountedWriter(f File) *CountedWriter {
-	return &CountedWriter{File: f}
+func NewCountedWriter(f *os.File) *CountedWriter {
+	return &CountedWriter{file: f}
 }
 
 // BytesWritten returns the amount of bytes that have been written to the
@@ -46,7 +46,7 @@ func (w *CountedWriter) Write(p []byte) (int, error) {
 	}
 
 	// Write is a very simple operation for us to handle.
-	n, err := w.File.Write(p)
+	n, err := w.file.Write(p)
 	w.counter.Add(int64(n))
 	w.err = err
 
@@ -59,7 +59,7 @@ func (w *CountedWriter) Write(p []byte) (int, error) {
 
 func (w *CountedWriter) ReadFrom(r io.Reader) (n int64, err error) {
 	cr := NewCountedReader(r)
-	n, err = w.File.ReadFrom(cr)
+	n, err = w.file.ReadFrom(cr)
 	w.counter.Add(n)
 	return
 }

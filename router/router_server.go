@@ -225,20 +225,25 @@ func deleteServer(c *gin.Context) {
 	// done in a separate process since failure is not the end of the world and can be
 	// manually cleaned up after the fact.
 	//
-	// In addition, servers with large amounts of files can take some time to finish deleting,
+	// In addition, servers with large numbers of files can take some time to finish deleting,
 	// so we don't want to block the HTTP call while waiting on this.
-	go func(s *server.Server) {
-		fs := s.Filesystem()
-		p := fs.Path()
-		_ = fs.UnixFS().Close()
+	p := s.Filesystem().Path()
+	go func(p string) {
 		if err := os.RemoveAll(p); err != nil {
 			log.WithFields(log.Fields{"path": p, "error": err}).Warn("failed to remove server files during deletion process")
 		}
-	}(s)
+	}(p)
+
+	if err := s.Filesystem().Close(); err != nil {
+		log.WithFields(log.Fields{"server": s.ID(), "error": err}).Warn("failed to close filesystem root")
+	}
 
 	middleware.ExtractManager(c).Remove(func(server *server.Server) bool {
 		return server.ID() == s.ID()
 	})
+
+	// Deallocate the reference to this server.
+	s = nil
 
 	c.Status(http.StatusNoContent)
 }

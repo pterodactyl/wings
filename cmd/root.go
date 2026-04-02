@@ -199,7 +199,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 
 		// For each server ensure the minimal environment is configured for the server.
 		if err := s.CreateEnvironment(); err != nil {
-			s.Log().Error("could create base environment for server...")
+			s.Log().WithField("error", err).Error("could not create base environment for server...")
 			continue
 		}
 

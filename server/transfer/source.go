@@ -4,13 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"time"
 
+	"emperror.dev/errors"
 	"github.com/pterodactyl/wings/internal/progress"
 )
 
@@ -23,7 +24,13 @@ func (t *Transfer) PushArchiveToTarget(url, token string) ([]byte, error) {
 	t.SendMessage("Preparing to stream server data to destination...")
 	t.SetStatus(StatusProcessing)
 
-	a, err := t.Archive()
+	r, err := os.OpenRoot(t.Server.Filesystem().Path())
+	if err != nil {
+		return nil, errors.Wrap(err, "server/transfer: failed to open root directory")
+	}
+	defer r.Close()
+
+	a, err := t.Archive(r)
 	if err != nil {
 		t.Error(err, "Failed to get archive for transfer.")
 		return nil, errors.New("failed to get archive for transfer")

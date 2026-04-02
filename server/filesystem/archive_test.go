@@ -15,49 +15,39 @@ import (
 
 func TestArchive_Stream(t *testing.T) {
 	g := Goblin(t)
-	fs, rfs := NewFs()
+	fs := NewFs()
 
 	g.Describe("Archive", func() {
 		g.AfterEach(func() {
-			// Reset the filesystem after each run.
-			_ = fs.TruncateRootDirectory()
+			fs.reset()
 		})
 
 		g.It("creates archive with intended files", func() {
 			g.Assert(fs.CreateDirectory("test", "/")).IsNil()
 			g.Assert(fs.CreateDirectory("test2", "/")).IsNil()
 
-			r := strings.NewReader("hello, world!\n")
-			err := fs.Write("test/file.txt", r, r.Size(), 0o644)
+			err := fs.Writefile("test/file.txt", strings.NewReader("hello, world!\n"))
 			g.Assert(err).IsNil()
 
-			r = strings.NewReader("hello, world!\n")
-			err = fs.Write("test2/file.txt", r, r.Size(), 0o644)
+			err = fs.Writefile("test2/file.txt", strings.NewReader("hello, world!\n"))
 			g.Assert(err).IsNil()
 
-			r = strings.NewReader("hello, world!\n")
-			err = fs.Write("test_file.txt", r, r.Size(), 0o644)
+			err = fs.Writefile("test_file.txt", strings.NewReader("hello, world!\n"))
 			g.Assert(err).IsNil()
 
-			r = strings.NewReader("hello, world!\n")
-			err = fs.Write("test_file.txt.old", r, r.Size(), 0o644)
+			err = fs.Writefile("test_file.txt.old", strings.NewReader("hello, world!\n"))
 			g.Assert(err).IsNil()
 
-			a := &Archive{
-				Filesystem: fs,
-				Files: []string{
-					"test",
-					"test_file.txt",
-				},
+			archivePath := filepath.Join(fs.rootPath, "../archive.tar.gz")
+			f, err := os.Create(archivePath)
+			if err != nil {
+				panic(err)
 			}
+			defer f.Close()
 
-			// Create the archive.
-			archivePath := filepath.Join(rfs.root, "archive.tar.gz")
-			g.Assert(a.Create(context.Background(), archivePath)).IsNil()
+			a, err := NewArchive(fs.root, ".", WithMatching([]string{"test", "test_file.txt"}))
 
-			// Ensure the archive exists.
-			_, err = os.Stat(archivePath)
-			g.Assert(err).IsNil()
+			g.Assert(a.Create(context.Background(), f)).IsNil()
 
 			// Open the archive.
 			genericFs, err := archives.FileSystem(context.Background(), archivePath, nil)
@@ -83,6 +73,55 @@ func TestArchive_Stream(t *testing.T) {
 			sort.Strings(files)
 
 			g.Assert(files).Equal(expected)
+		})
+
+		g.It("does not archive files outside of root", func() {
+			if err := os.MkdirAll(filepath.Join(fs.rootPath, "../outer"), 0o755); err != nil {
+				panic(err)
+			}
+
+			fs.write("test.txt", []byte("test"))
+			fs.write("../danger-1.txt", []byte("danger"))
+			fs.write("../outer/danger-2.txt", []byte("danger"))
+
+			if err := os.Symlink("../danger-1.txt", filepath.Join(fs.rootPath, "symlink.txt")); err != nil {
+				panic(err)
+			}
+
+			if err := os.Symlink("../outer", filepath.Join(fs.rootPath, "danger-dir")); err != nil {
+				panic(err)
+			}
+
+			archivePath := filepath.Join(fs.rootPath, "../archive.tar.gz")
+			f, err := os.Create(archivePath)
+			if err != nil {
+				panic(err)
+			}
+			defer f.Close()
+
+			a, err := NewArchive(fs.root, ".")
+			if err != nil {
+				panic(err)
+			}
+
+			err = a.Create(context.Background(), f)
+			g.Assert(err).IsNil()
+
+			// Open the archive.
+			genericFs, err := archives.FileSystem(context.Background(), archivePath, nil)
+			g.Assert(err).IsNil()
+
+			// Assert that we are opening an archive.
+			afs, ok := genericFs.(iofs.ReadDirFS)
+			g.Assert(ok).IsTrue()
+
+			// Get the names of the files recursively from the archive.
+			files, err := getFiles(afs, ".")
+			g.Assert(err).IsNil()
+			// We expect the actual symlinks themselves, but not the contents of the directory
+			// or the file itself. We're storing the symlinked file in the archive so that
+			// expanding it back is the same, but you won't have the inner contents.
+			g.Assert(files).Equal([]string{"danger-dir", "symlink.txt", "test.txt"})
 		})
 	})
 }

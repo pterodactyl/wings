@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 
@@ -18,7 +19,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/pterodactyl/wings/config"
-	"github.com/pterodactyl/wings/internal/ufs"
 )
 
 // The file parsing options that are available for a server configuration file.
@@ -161,14 +161,14 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 	iv, err := jsonparser.GetString(data, "if_value")
 	// We only check keypath here since match & replace_with should be present on all of
 	// them, however if_value is optional.
-	if err != nil && err != jsonparser.KeyPathNotFoundError {
+	if err != nil && !errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return err
 	}
 	cfr.IfValue = iv
 
 	rw, dt, _, err := jsonparser.Get(data, "replace_with")
 	if err != nil {
-		if err != jsonparser.KeyPathNotFoundError {
+		if !errors.Is(err, jsonparser.KeyPathNotFoundError) {
 			return err
 		}
 
@@ -190,7 +190,7 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 
 // Parse parses a given configuration file and updates all the values within
 // as defined in the API response from the Panel.
-func (f *ConfigurationFile) Parse(file ufs.File) error {
+func (f *ConfigurationFile) Parse(file *os.File) error {
 	// log.WithField("path", path).WithField("parser", f.Parser.String()).Debug("parsing server configuration file")
 
 	// What the fuck is going on here?
@@ -220,7 +220,7 @@ func (f *ConfigurationFile) Parse(file ufs.File) error {
 }
 
 // Parses an xml file.
-func (f *ConfigurationFile) parseXmlFile(file ufs.File) error {
+func (f *ConfigurationFile) parseXmlFile(file *os.File) error {
 	doc := etree.NewDocument()
 	if _, err := doc.ReadFrom(file); err != nil {
 		return err
@@ -299,7 +299,7 @@ func (f *ConfigurationFile) parseXmlFile(file ufs.File) error {
 }
 
 // Parses an ini file.
-func (f *ConfigurationFile) parseIniFile(file ufs.File) error {
+func (f *ConfigurationFile) parseIniFile(file *os.File) error {
 	// Wrap the file in a NopCloser so the ini package doesn't close the file.
 	cfg, err := ini.Load(io.NopCloser(file))
 	if err != nil {
@@ -380,7 +380,7 @@ func (f *ConfigurationFile) parseIniFile(file ufs.File) error {
 // Parses a json file updating any matching key/value pairs. If a match is not found, the
 // value is set regardless in the file. See the commentary in parseYamlFile for more details
 // about what is happening during this process.
-func (f *ConfigurationFile) parseJsonFile(file ufs.File) error {
+func (f *ConfigurationFile) parseJsonFile(file *os.File) error {
 	b, err := io.ReadAll(file)
 	if err != nil {
 		return err
@@ -407,7 +407,7 @@ func (f *ConfigurationFile) parseJsonFile(file ufs.File) error {
 
 // Parses a yaml file and updates any matching key/value pairs before persisting
 // it back to the disk.
-func (f *ConfigurationFile) parseYamlFile(file ufs.File) error {
+func (f *ConfigurationFile) parseYamlFile(file *os.File) error {
 	b, err := io.ReadAll(file)
 	if err != nil {
 		return err
@@ -456,7 +456,7 @@ func (f *ConfigurationFile) parseYamlFile(file ufs.File) error {
 // Parses a text file using basic find and replace. This is a highly inefficient method of
 // scanning a file and performing a replacement. You should attempt to use anything other
 // than this function where possible.
-func (f *ConfigurationFile) parseTextFile(file ufs.File) error {
+func (f *ConfigurationFile) parseTextFile(file *os.File) error {
 	b := bytes.NewBuffer(nil)
 	s := bufio.NewScanner(file)
 	var replaced bool
@@ -518,7 +518,7 @@ func (f *ConfigurationFile) parseTextFile(file ufs.File) error {
 //
 // @see https://github.com/pterodactyl/panel/issues/2308 (original)
 // @see https://github.com/pterodactyl/panel/issues/3009 ("bug" introduced as result)
-func (f *ConfigurationFile) parsePropertiesFile(file ufs.File) error {
+func (f *ConfigurationFile) parsePropertiesFile(file *os.File) error {
 	b, err := io.ReadAll(file)
 	if err != nil {
 		return err
