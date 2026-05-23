@@ -1,0 +1,47 @@
+name: Build Custom Wings
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Binary
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        goos: [linux]
+        goarch: [amd64, arm64]
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.11'
+
+      - name: Download modules
+        env:
+          CGO_ENABLED: 0
+        run: go mod download
+
+      - name: Build wings
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+          SRC_PATH: github.com/pterodactyl/wings
+        run: |
+          go build -v -trimpath \
+            -ldflags="-s -w -X ${SRC_PATH}/system.Version=custom-${GITHUB_SHA:0:7}" \
+            -o dist/wings \
+            ${SRC_PATH}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wings_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: dist/wings
