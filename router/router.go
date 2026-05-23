@@ -11,7 +11,19 @@ import (
 wserver "github.com/pterodactyl/wings/server"
 
 restic "github.com/pterodactyl/wings/internal/api/restic"
+	"regexp"
+
+	"emperror.dev/errors"
+	"github.com/apex/log"
+	"github.com/gin-gonic/gin"
+
+	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/remote"
+	"github.com/pterodactyl/wings/router/middleware"
+	wserver "github.com/pterodactyl/wings/server"
 )
+
+var tokenRegex = regexp.MustCompile(`([?|&]token=)([^&]+)($|&)`)
 
 // Configure configures the routing infrastructure for this daemon instance.
 func Configure(m *wserver.Manager, client remote.Client) *gin.Engine {
@@ -36,7 +48,7 @@ func Configure(m *wserver.Manager, client remote.Client) *gin.Engine {
 			"status":     params.StatusCode,
 			"latency":    params.Latency,
 			"request_id": params.Keys["request_id"],
-		}).Debugf("%s %s", params.MethodColor()+params.Method+params.ResetColor(), params.Path)
+		}).Debugf("%s %s", params.Method, tokenRegex.ReplaceAllString(params.Path, "$1***$3"))
 
 		return ""
 	}))
