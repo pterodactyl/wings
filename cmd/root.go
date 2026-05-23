@@ -205,10 +205,6 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 
 		pool.Submit(func() {
 			s.Log().Info("configuring server environment and restoring to previous state")
-			var st string
-			if state, exists := states[s.ID()]; exists {
-				st = state
-			}
 
 			// Use a timed context here to avoid booting issues where Docker hangs for a
 			// specific container that would cause Wings to be un-bootable until the entire
