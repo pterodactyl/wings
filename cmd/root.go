@@ -167,8 +167,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		log.WithField("server", s.ID()).Info("finished loading configuration for server")
 	}
 
-	states, err := manager.ReadStates()
-	if err != nil {
+	if _, err := manager.ReadStates(); err != nil {
 		log.WithField("error", err).Error("failed to retrieve locally cached server states from disk, assuming all servers in offline state")
 	}
 
