@@ -14,6 +14,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/icza/dyno"
 	"github.com/magiconair/properties"
+	"golang.org/x/sys/unix"
 	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v3"
 
@@ -191,9 +192,23 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 // Parse parses a given configuration file and updates all the values within
 // as defined in the API response from the Panel.
 func (f *ConfigurationFile) Parse(file ufs.File) error {
-	// log.WithField("path", path).WithField("parser", f.Parser.String()).Debug("parsing server configuration file")
+	// Acquire an exclusive lock on the file to prevent race conditions
+	// where the server process might read the file while we're updating it.
+	fd := file.Fd()
+	if err := unix.Flock(int(fd), unix.LOCK_EX); err != nil {
+		return errors.Wrap(err, "parser: failed to acquire exclusive lock on configuration file")
+	}
+	// Ensure we unlock the file when we're done
+	defer func() {
+		if unlockErr := unix.Flock(int(fd), unix.LOCK_UN); unlockErr != nil {
+			log.WithError(unlockErr).WithField("file_name", f.FileName).Warn("failed to unlock configuration file")
+		}
+	}()
 
-	// What the fuck is going on here?
+	// Marshal the daemon configuration to JSON for resolving {{config.*}} placeholders.
+	// This JSON representation is used by LookupConfigurationValue to look up nested
+	// configuration values (e.g., {{config.docker.interface}}) when processing config
+	// file replacements.
 	if mb, err := json.Marshal(config.Get()); err != nil {
 		return err
 	} else {
@@ -216,6 +231,7 @@ func (f *ConfigurationFile) Parse(file ufs.File) error {
 	case Xml:
 		err = f.parseXmlFile(file)
 	}
+
 	return err
 }
 
