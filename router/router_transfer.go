@@ -31,7 +31,7 @@ func postTransfers(c *gin.Context) {
 	if len(auth) != 2 || auth[0] != "Bearer" {
 		c.Header("WWW-Authenticate", "Bearer")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-			"error": "The required authorization heads were not present in the request.",
+			"error": "The required authorization headers were not present in the request.",
 		})
 		return
 	}
@@ -39,6 +39,11 @@ func postTransfers(c *gin.Context) {
 	token := tokens.TransferPayload{}
 	if err := tokens.ParseToken([]byte(auth[1]), &token); err != nil {
 		middleware.CaptureAndAbort(c, err)
+		return
+	}
+
+	if !token.HasScope(tokens.ServerTransfer) {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden."})
 		return
 	}
 

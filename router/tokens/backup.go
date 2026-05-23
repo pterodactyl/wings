@@ -6,6 +6,7 @@ import (
 
 type BackupPayload struct {
 	jwt.Payload
+	Scoped
 
 	ServerUuid string `json:"server_uuid"`
 	BackupUuid string `json:"backup_uuid"`

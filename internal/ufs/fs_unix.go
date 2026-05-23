@@ -90,7 +90,7 @@ func (fs *UnixFS) Chmodat(dirfd int, name string, mode FileMode) error {
 }
 
 func (fs *UnixFS) fchmodat(op string, dirfd int, name string, mode FileMode) error {
-	return ensurePathError(unix.Fchmodat(dirfd, name, uint32(mode), 0), op, name)
+	return ensurePathError(unix.Fchmodat(dirfd, name, uint32(mode), AT_SYMLINK_NOFOLLOW), op, name)
 }
 
 // Chown changes the numeric uid and gid of the named file.

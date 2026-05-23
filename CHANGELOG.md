@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.12.2
+### Fixed
+* Fixes a bug where `fs.Chmod` would change the symlink target possibly allowing a malicious user to modify files outside their home directory.
+* Improved error handling when downloading files to not log as a 500-level error, preferring a 400-level response.
+* Fixes JWT verification logic to confirm that the token has the required scopes for the target subsystem.
+
 ## v1.12.1
 ### Added
 * Add mount for /etc/machine-id for servers for Hytale ([#292](https://github.com/pterodactyl/wings/pull/292))
