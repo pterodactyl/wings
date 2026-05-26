@@ -340,6 +340,7 @@ func (c *SFTPServer) handle(sconn *ssh.ServerConn, chans <-chan ssh.NewChannel, 
 	defer sconn.Close()
 	go ssh.DiscardRequests(reqs)
 
+	var wg sync.WaitGroup
 	for ch := range chans {
 		// If its not a session channel we just move on because its not something we
 		// know how to handle at this point.
@@ -369,11 +370,16 @@ func (c *SFTPServer) handle(sconn *ssh.ServerConn, chans <-chan ssh.NewChannel, 
 			}
 		}(requests)
 
-		if err := c.Handle(sconn, srv, channel); err != nil {
-			return err
-		}
+		wg.Add(1)
+		go func(srv *server.Server, channel ssh.Channel) {
+			defer wg.Done()
+			if err := c.Handle(sconn, srv, channel); err != nil {
+				log.WithField("error", err).WithField("user", sconn.User()).Error("sftp: failed to handle session")
+			}
+		}(srv, channel)
 	}
 
+	wg.Wait()
 	return nil
 }
 
