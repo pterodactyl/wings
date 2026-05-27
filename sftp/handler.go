@@ -196,17 +196,25 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 	if !h.can(permission) {
 		return nil, sftp.ErrSSHFxPermissionDenied
 	}
-	if exists && flags.Creat && flags.Excl {
+	openFlags := os.O_RDWR | os.O_TRUNC
+	if flags.Creat && flags.Excl {
 		// SSH_FXF_CREAT with SSH_FXF_EXCL is an exclusive create request.
-		return nil, os.ErrExist
+		if exists {
+			return nil, os.ErrExist
+		}
+		openFlags = os.O_RDWR | os.O_CREATE | os.O_EXCL
 	}
 	slot := h.openFile()
 	if slot == nil {
 		return nil, sftp.ErrSSHFxFailure
 	}
-	f, err := h.fs.Touch(request.Filepath, os.O_RDWR|os.O_TRUNC)
+	f, err := h.fs.Touch(request.Filepath, openFlags)
 	if err != nil {
 		slot.close()
+		if errors.Is(err, os.ErrExist) {
+			// Preserve exclusive-create semantics if the file appeared after the pre-check.
+			return nil, os.ErrExist
+		}
 		l.WithField("flags", request.Flags).WithField("error", err).Error("failed to open existing file on system")
 		return nil, sftp.ErrSSHFxFailure
 	}
