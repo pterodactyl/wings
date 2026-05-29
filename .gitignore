@@ -1,0 +1,54 @@
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+.idea/*
+
+# Test binary, build with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
+.glide/
+
+# dep related files and folders
+/vendor*
+
+# ignore logfiles (/* so the .gitkeep override works)
+/logs/*
+
+# ignore configuration file
+/config.yml
+/config*.yml
+/config.yaml
+/config*.yaml
+
+# Ignore Vagrant stuff
+/.vagrant
+
+# Builds by gox
+/build
+
+# Go Coverage tool
+/coverage.out
+
+# The built executable
+wings
+wings.exe
+
+# IDE/Editor files (VS Code)
+/.vscode
+
+# test files
+test_*/
+
+# Keep all gitkeep files (This needs to stay at the bottom)
+!.gitkeep
+debug
+.DS_Store
+*.pprof
+*.pdf
+pprof.*

@@ -1,0 +1,76 @@
+name: Push
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04]
+        go: ["1.24.11", "1.25.5"]
+        goos: [linux]
+        goarch: [amd64, arm64]
+    permissions:
+      contents: read
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: go mod download
+        env:
+          CGO_ENABLED: 0
+        run: |
+          go mod download
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+          SRC_PATH: github.com/pterodactyl/wings
+        run: |
+          go build -v -trimpath -ldflags="-s -w -X ${SRC_PATH}/system.Version=dev-${GITHUB_SHA:0:7}" -o dist/wings ${SRC_PATH}
+          go build -v -trimpath -ldflags="-X ${SRC_PATH}/system.Version=dev-${GITHUB_SHA:0:7}" -o dist/wings_debug ${SRC_PATH}
+          chmod 755 dist/*
+
+      - name: go test
+        if: ${{ matrix.goarch == 'amd64' }}
+        env:
+          CGO_ENABLED: 0
+        run: |
+          go test $(go list ./...)
+
+      - name: go test -race
+        if: ${{ matrix.goarch == 'amd64' }}
+        env:
+          CGO_ENABLED: 1
+        run: |
+          go test -race $(go list ./...)
+
+      - name: Upload Release Artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: ${{ (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') && matrix.go == '1.24.11' }}
+        with:
+          name: wings_linux_${{ matrix.goarch }}
+          path: dist/wings
+
+      - name: Upload Debug Artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: ${{ (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') && matrix.go == '1.24.11' }}
+        with:
+          name: wings_linux_${{ matrix.goarch }}_debug
+          path: dist/wings_debug
