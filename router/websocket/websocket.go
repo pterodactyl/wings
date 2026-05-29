@@ -74,7 +74,7 @@ func NewTokenPayload(token []byte) (*tokens.WebsocketPayload, error) {
 		return nil, ErrJwtOnDenylist
 	}
 
-	if !payload.HasPermission(PermissionConnect) {
+	if !payload.HasPermission(PermissionConnect) || !payload.HasScope(tokens.Websocket) {
 		return nil, ErrJwtNoConnectPerm
 	}
 
@@ -213,7 +213,7 @@ func (h *Handler) TokenValid() error {
 		return ErrJwtOnDenylist
 	}
 
-	if !j.HasPermission(PermissionConnect) {
+	if !j.HasPermission(PermissionConnect) || !j.HasScope(tokens.Websocket) {
 		return ErrJwtNoConnectPerm
 	}
 
