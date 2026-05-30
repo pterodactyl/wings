@@ -237,7 +237,7 @@ func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplac
 
 	// Look for the key in the configuration file, and if found return that value to the
 	// calling function.
-	match, _, _, err := jsonparser.Get(f.configuration, path...)
+	match, dataType, _, err := jsonparser.Get(f.configuration, path...)
 	if err != nil {
 		if err != jsonparser.KeyPathNotFoundError {
 			return string(match), err
@@ -248,7 +248,12 @@ func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplac
 		// If there is no key, keep the original value intact, that way it is obvious there
 		// is a replace issue at play.
 		return string(match), nil
-	} else {
-		return configMatchRegex.ReplaceAllString(cfr.ReplaceWith.String(), string(match)), nil
 	}
+
+	// Only substitute scalar values, not whole objects or arrays.
+	if dataType == jsonparser.Object || dataType == jsonparser.Array {
+		return cfr.ReplaceWith.String(), nil
+	}
+
+	return configMatchRegex.ReplaceAllString(cfr.ReplaceWith.String(), string(match)), nil
 }

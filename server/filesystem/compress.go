@@ -258,12 +258,17 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 
 	// Decompress and extract archive
 	return ex.Extract(ctx, opts.Reader, func(ctx context.Context, f archives.FileInfo) error {
-		if f.IsDir() {
+		p := filepath.Join(opts.Directory, f.NameInArchive)
+		// If it is ignored, just don't do anything with the entry and skip over it.
+		if err := fs.IsIgnored(p); err != nil {
 			return nil
 		}
-		p := filepath.Join(opts.Directory, f.NameInArchive)
-		// If it is ignored, just don't do anything with the file and skip over it.
-		if err := fs.IsIgnored(p); err != nil {
+		// Create directories explicitly; an empty one has no file to create it
+		// implicitly and would otherwise be dropped during extraction.
+		if f.IsDir() {
+			if err := fs.unixFS.MkdirAll(p, 0o755); err != nil {
+				return wrapError(err, opts.FileName)
+			}
 			return nil
 		}
 		r, err := f.Open()

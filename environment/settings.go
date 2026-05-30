@@ -3,6 +3,7 @@ package environment
 import (
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 
 	"github.com/apex/log"
@@ -107,9 +108,13 @@ func (l Limits) AsContainerResources() container.Resources {
 		Memory:            l.BoundedMemoryLimit(),
 		MemoryReservation: l.MemoryLimit * 1024 * 1024,
 		MemorySwap:        l.ConvertedSwap(),
-		BlkioWeight:       l.IoWeight,
 		OomKillDisable:    &l.OOMDisabled,
 		PidsLimit:         &pids,
+	}
+
+	// Only set the block IO weight when the host's cgroup hierarchy can honor it.
+	if blkioWeightSupported() {
+		resources.BlkioWeight = l.IoWeight
 	}
 
 	// If the CPU Limit is not set, don't send any of these fields through. Providing
@@ -129,6 +134,26 @@ func (l Limits) AsContainerResources() container.Resources {
 	}
 
 	return resources
+}
+
+// blkioWeightSupported reports whether the host's cgroup hierarchy can honor a
+// container block IO weight. On cgroup v2 the io.weight knob must be present or
+// runc fails container creation; cgroup v1/hybrid always supports it.
+func blkioWeightSupported() bool {
+	// cgroup v1/hybrid honors the weight via blkio.weight; only v2 needs probing.
+	if _, err := os.Stat("/sys/fs/cgroup/cgroup.controllers"); err != nil {
+		return true
+	}
+	// On v2 the knob lives on the delegated child cgroups, not the root.
+	for _, p := range []string{
+		"/sys/fs/cgroup/system.slice/io.weight",
+		"/sys/fs/cgroup/io.weight",
+	} {
+		if _, err := os.Stat(p); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 type Variables map[string]interface{}
