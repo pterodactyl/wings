@@ -188,13 +188,28 @@ func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type templatableConfig struct {
+	Docker struct {
+		Interface string `json:"interface"`
+		Network   struct {
+			Interface string `json:"interface"`
+		} `json:"network"`
+	} `json:"docker"`
+}
+
+func newTemplatableConfig(c *config.Configuration) templatableConfig {
+	var t templatableConfig
+	t.Docker.Interface = c.Docker.Network.Interface
+	t.Docker.Network.Interface = c.Docker.Network.Interface
+	return t
+}
+
 // Parse parses a given configuration file and updates all the values within
 // as defined in the API response from the Panel.
 func (f *ConfigurationFile) Parse(file ufs.File) error {
 	// log.WithField("path", path).WithField("parser", f.Parser.String()).Debug("parsing server configuration file")
 
-	// What the fuck is going on here?
-	if mb, err := json.Marshal(config.Get()); err != nil {
+	if mb, err := json.Marshal(newTemplatableConfig(config.Get())); err != nil {
 		return err
 	} else {
 		f.configuration = mb
