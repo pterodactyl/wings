@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.12.3
+### Fixed
+* Support properly restricting configuration in egg templating
+
 ## v1.12.2
 ### Fixed
 * Fixes a bug where `fs.Chmod` would change the symlink target possibly allowing a malicious user to modify files outside their home directory.

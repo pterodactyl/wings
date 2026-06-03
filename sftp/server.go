@@ -143,7 +143,8 @@ func (c *SFTPServer) AcceptInbound(conn net.Conn, config *ssh.ServerConfig) erro
 				// Channels have a type that is dependent on the protocol. For SFTP
 				// this is "subsystem" with a payload that (should) be "sftp". Discard
 				// anything else we receive ("pty", "shell", etc)
-				_ = req.Reply(req.Type == "subsystem" && string(req.Payload[4:]) == "sftp", nil)
+				ok := req.Type == "subsystem" && len(req.Payload) >= 4 && string(req.Payload[4:]) == "sftp"
+				_ = req.Reply(ok, nil)
 			}
 		}(requests)
 
