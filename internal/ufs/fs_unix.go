@@ -90,7 +90,23 @@ func (fs *UnixFS) Chmodat(dirfd int, name string, mode FileMode) error {
 }
 
 func (fs *UnixFS) fchmodat(op string, dirfd int, name string, mode FileMode) error {
-	return ensurePathError(unix.Fchmodat(dirfd, name, uint32(mode), AT_SYMLINK_NOFOLLOW), op, name)
+	m := uint32(syscallMode(mode))
+	err := unix.Fchmodat(dirfd, name, m, AT_SYMLINK_NOFOLLOW)
+	if errors.Is(err, unix.EOPNOTSUPP) || errors.Is(err, unix.ENOTSUP) {
+		// Kernels < 6.6 don't support AT_SYMLINK_NOFOLLOW, since it's only
+		// available via fchmodat2. Fall back to our existing openat2 (RESOLVE_BENEATH)
+		// with O_NOFOLLOW to reject final-component symlinks, then fchmod the fd
+		// directly. No TOCTOU since fchmod operates on the pinned inode
+		// O_NONBLOCK prevents blocking on FIFOs
+		// O_NOFOLLOW is forced by fs.openat, just kept for readability
+		fd, oerr := fs.openat(dirfd, name, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
+		if oerr != nil {
+			return ensurePathError(oerr, op, name)
+		}
+		defer func() { _ = unix.Close(fd) }()
+		err = unix.Fchmod(fd, m)
+	}
+	return ensurePathError(err, op, name)
 }
 
 // Chown changes the numeric uid and gid of the named file.
@@ -256,7 +272,7 @@ func (fs *UnixFS) openFile(name string, flag int, mode FileMode) (int, error) {
 	dirfd, name, closeFd, err := fs.safePath(name)
 	defer closeFd()
 	if err != nil {
-		return 0, err
+		return -1, err
 	}
 	return fs.openat(dirfd, name, flag, mode)
 }
@@ -660,7 +676,7 @@ func (fs *UnixFS) openat(dirfd int, name string, flag int, mode FileMode) (int, 
 		flag |= O_NOFOLLOW
 	}
 
-	var fd int
+	fd := -1
 	for {
 		var err error
 		if fs.useOpenat2 {
@@ -675,7 +691,14 @@ func (fs *UnixFS) openat(dirfd int, name string, flag int, mode FileMode) (int, 
 		if err == unix.EINTR {
 			continue
 		}
-		return 0, err
+		return -1, err
+	}
+
+	failAfterOpen := func(err error) (int, error) {
+		if fd >= 0 {
+			_ = unix.Close(fd)
+		}
+		return -1, err
 	}
 
 	// If we are using openat2, we don't need the additional security checks.
@@ -690,7 +713,7 @@ func (fs *UnixFS) openat(dirfd int, name string, flag int, mode FileMode) (int, 
 	finalPath, err := filepath.EvalSymlinks(filepath.Join("/proc/self/fd/", strconv.Itoa(fd)))
 	if err != nil {
 		if !errors.Is(err, ErrNotExist) {
-			return fd, fmt.Errorf("failed to evaluate symlink: %w", convertErrorType(err))
+			return failAfterOpen(fmt.Errorf("failed to evaluate symlink: %w", convertErrorType(err)))
 		}
 
 		// The target of one of the symlinks (EvalSymlinks is recursive)
@@ -698,7 +721,7 @@ func (fs *UnixFS) openat(dirfd int, name string, flag int, mode FileMode) (int, 
 		// that for further validation instead.
 		var pErr *PathError
 		if !errors.As(err, &pErr) {
-			return fd, fmt.Errorf("failed to evaluate symlink: %w", convertErrorType(err))
+			return failAfterOpen(fmt.Errorf("failed to evaluate symlink: %w", convertErrorType(err)))
 		}
 
 		// Update the final path to whatever directory or path didn't exist while
@@ -714,15 +737,19 @@ func (fs *UnixFS) openat(dirfd int, name string, flag int, mode FileMode) (int, 
 		if fs.useOpenat2 {
 			op = "openat2"
 		}
-		return fd, &PathError{
+		return failAfterOpen(&PathError{
 			Op:   op,
 			Path: name,
 			Err:  ErrBadPathResolution,
-		}
+		})
+	}
+
+	if err != nil {
+		return failAfterOpen(err)
 	}
 
 	// Return the file descriptor and any potential error.
-	return fd, err
+	return fd, nil
 }
 
 // _openat is a wrapper around unix.Openat. This method should never be directly
