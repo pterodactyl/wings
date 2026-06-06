@@ -3,9 +3,11 @@ package server
 import (
 	"runtime"
 
+	"emperror.dev/errors"
 	"github.com/gammazero/workerpool"
 
 	"github.com/pterodactyl/wings/internal/ufs"
+	"github.com/pterodactyl/wings/parser"
 )
 
 // UpdateConfigurationFiles updates all the defined configuration files for
@@ -20,6 +22,13 @@ func (s *Server) UpdateConfigurationFiles() {
 		f := cf
 
 		pool.Submit(func() {
+			if f.Parser == parser.File {
+				if _, err := s.Filesystem().UnixFS().Stat(f.FileName); errors.Is(err, ufs.ErrNotExist) {
+					s.Log().WithField("file_name", f.FileName).Debug("skipping text configuration file that does not exist yet")
+					return
+				}
+			}
+
 			file, err := s.Filesystem().UnixFS().Touch(f.FileName, ufs.O_RDWR|ufs.O_CREATE, 0o644)
 			if err != nil {
 				s.Log().WithField("file_name", f.FileName).WithField("error", err).Error("failed to open file for configuration")
