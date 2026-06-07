@@ -275,6 +275,9 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 			if err := fs.unixFS.MkdirAll(p, 0o755); err != nil {
 				return wrapError(err, opts.FileName)
 			}
+			if err := fs.chownRecursiveParents(p); err != nil {
+				return wrapError(err, opts.FileName)
+		}
 			return nil
 		}
 		r, err := f.Open()
