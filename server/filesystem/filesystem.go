@@ -182,6 +182,9 @@ func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode ufs.FileM
 	if err := fs.chownFile(p); err != nil {
 		return err
 	}
+	if err := fs.chownRecursiveParents(filepath.Dir(p)); err != nil {
+		return err
+	}
 	// Return any remaining error.
 	return err
 }
@@ -189,7 +192,11 @@ func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode ufs.FileM
 // CreateDirectory creates a new directory (name) at a specified path (p) for
 // the server.
 func (fs *Filesystem) CreateDirectory(name string, p string) error {
-	return fs.unixFS.MkdirAll(filepath.Join(p, name), 0o755)
+	fullPath := filepath.Join(p, name)
+	if err := fs.unixFS.MkdirAll(fullPath, 0o755); err != nil {
+		return err
+	}
+	return fs.Chown(fullPath)
 }
 
 func (fs *Filesystem) Rename(oldpath, newpath string) error {
@@ -198,6 +205,31 @@ func (fs *Filesystem) Rename(oldpath, newpath string) error {
 
 func (fs *Filesystem) Symlink(oldpath, newpath string) error {
 	return fs.unixFS.Symlink(oldpath, newpath)
+}
+
+// chownRecursiveParents chowns a path and all its parent directories up to the root.
+// This is useful when creating files or directories that may have created new parent dirs.
+func (fs *Filesystem) chownRecursiveParents(p string) error {
+	if fs.isTest {
+		return nil
+	}
+
+	uid := config.Get().System.User.Uid
+	gid := config.Get().System.User.Gid
+
+	current := p
+	for current != "." && current != "" {
+		if err := fs.unixFS.Lchown(current, uid, gid); err != nil {
+			return err
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			break  // Reached root
+		}
+		current = parent
+	}
+
+	return nil
 }
 
 func (fs *Filesystem) chownFile(name string) error {
