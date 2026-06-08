@@ -157,6 +157,10 @@ func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode ufs.FileM
 		return err
 	}
 
+	// Fetch all directories that are due to be created by Touch so
+	// we can chown them after Touch creates them.
+	createdDirs, _ := fs.pendingDirs(filepath.Dir(p))
+
 	// Touch the file and return the handle to it at this point. This will
 	// create or truncate the file, and create any necessary parent directories
 	// if they are missing.
@@ -182,6 +186,14 @@ func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode ufs.FileM
 	if err := fs.chownFile(p); err != nil {
 		return err
 	}
+
+	// Chown any parent directories that Touch created above so they are owned
+	// by the server user instead of the user Wings runs as.
+	for _, dir := range createdDirs {
+		if err := fs.chownFile(dir); err != nil {
+			return err
+		}
+	}
 	// Return any remaining error.
 	return err
 }
@@ -189,7 +201,7 @@ func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode ufs.FileM
 // CreateDirectory creates a new directory (name) at a specified path (p) for
 // the server.
 func (fs *Filesystem) CreateDirectory(name string, p string) error {
-	return fs.unixFS.MkdirAll(filepath.Join(p, name), 0o755)
+	return fs.mkdirAll(filepath.Join(p, name), 0o755)
 }
 
 func (fs *Filesystem) Rename(oldpath, newpath string) error {
@@ -208,6 +220,24 @@ func (fs *Filesystem) chownFile(name string) error {
 	uid := config.Get().System.User.Uid
 	gid := config.Get().System.User.Gid
 	return fs.unixFS.Lchown(name, uid, gid)
+}
+
+// pendingDirs returns the directories along path p that do not yet exist, from
+// deepest to shallowest. It is used to discover exactly which directories a
+// following MkdirAll or Touch will create, so only those can be chowned without
+// re-touching directories that already exist.
+func (fs *Filesystem) pendingDirs(p string) ([]string, error) {
+	var pending []string
+	for cur := filepath.Clean(p); cur != "." && cur != "/" && cur != ""; cur = filepath.Dir(cur) {
+		if _, err := fs.unixFS.Lstat(cur); err == nil {
+			// This directory (and therefore every parent of it) already exists.
+			break
+		} else if !errors.Is(err, ufs.ErrNotExist) {
+			return nil, err
+		}
+		pending = append(pending, cur)
+	}
+	return pending, nil
 }
 
 // Chown recursively iterates over a file or directory and sets the permissions on all of the
