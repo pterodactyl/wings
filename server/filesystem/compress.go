@@ -272,12 +272,22 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 		// Create directories explicitly; an empty one has no file to create it
 		// implicitly and would otherwise be dropped during extraction.
 		if f.IsDir() {
+			// Fetch all directories that are due to be created by MkdirAll so
+			// we can chown them after Touch creates them.
+			createdDirs, _ := fs.pendingDirs(p)
+
 			if err := fs.unixFS.MkdirAll(p, 0o755); err != nil {
 				return wrapError(err, opts.FileName)
 			}
-			if err := fs.chownRecursiveParents(p); err != nil {
-				return wrapError(err, opts.FileName)
-		}
+			
+			// Chown any parent directories that Touch created above so they are owned
+			// by the server user instead of the user Wings runs as.
+			for _, dir := range createdDirs {
+				if err := fs.chownFile(dir); err != nil {
+					return wrapError(err, opts.FileName)
+				}
+			}
+			
 			return nil
 		}
 		r, err := f.Open()
