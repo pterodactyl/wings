@@ -240,6 +240,21 @@ func (fs *Filesystem) pendingDirs(p string) ([]string, error) {
 	return pending, nil
 }
 
+// mkdirAll creates the directory p along with any missing parents, then chowns
+// every directory it created to the server user.
+func (fs *Filesystem) mkdirAll(p string, mode ufs.FileMode) error {
+	created, _ := fs.pendingDirs(p)
+	if err := fs.unixFS.MkdirAll(p, mode); err != nil {
+		return err
+	}
+	for _, dir := range created {
+		if err := fs.chownFile(dir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Chown recursively iterates over a file or directory and sets the permissions on all of the
 // underlying files. Iterate over all of the files and directories. If it is a file just
 // go ahead and perform the chown operation. Otherwise dig deeper into the directory until
