@@ -74,13 +74,14 @@ type Filesystem interface {
 	Mkdir(name string, perm FileMode) error
 
 	// MkdirAll creates a directory named path, along with any necessary
-	// parents, and returns nil, or else returns an error.
+	// parents, and returns the directories it created, or else returns an
+	// error.
 	//
-	// The permission bits perm (before umask) are used for all
-	// directories that MkdirAll creates.
-	// If path is already a directory, MkdirAll does nothing
-	// and returns nil.
-	MkdirAll(path string, perm FileMode) error
+	// The returned directories are ordered from shallowest to deepest. The
+	// permission bits perm (before umask) are used for all directories that
+	// MkdirAll creates. If path is already a directory, MkdirAll does nothing
+	// and returns no created directories.
+	MkdirAll(path string, perm FileMode) ([]string, error)
 
 	// Open opens the named file for reading.
 	//

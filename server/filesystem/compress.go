@@ -272,7 +272,7 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 		// Create directories explicitly; an empty one has no file to create it
 		// implicitly and would otherwise be dropped during extraction.
 		if f.IsDir() {
-			if err := fs.unixFS.MkdirAll(p, 0o755); err != nil {
+			if err := fs.mkdirAll(p, 0o755); err != nil {
 				return wrapError(err, opts.FileName)
 			}
 			return nil

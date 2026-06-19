@@ -157,6 +157,14 @@ func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode ufs.FileM
 		return err
 	}
 
+	// Ensure the parent directories exist and are owned by the server user
+	// before creating the file. Touch would create any missing parents
+	// implicitly, but as the user Wings runs as; creating them here lets us
+	// chown the ones we add.
+	if err := fs.mkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return err
+	}
+
 	// Touch the file and return the handle to it at this point. This will
 	// create or truncate the file, and create any necessary parent directories
 	// if they are missing.
@@ -189,7 +197,7 @@ func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode ufs.FileM
 // CreateDirectory creates a new directory (name) at a specified path (p) for
 // the server.
 func (fs *Filesystem) CreateDirectory(name string, p string) error {
-	return fs.unixFS.MkdirAll(filepath.Join(p, name), 0o755)
+	return fs.mkdirAll(filepath.Join(p, name), 0o755)
 }
 
 func (fs *Filesystem) Rename(oldpath, newpath string) error {
@@ -208,6 +216,22 @@ func (fs *Filesystem) chownFile(name string) error {
 	uid := config.Get().System.User.Uid
 	gid := config.Get().System.User.Gid
 	return fs.unixFS.Lchown(name, uid, gid)
+}
+
+// mkdirAll creates the directory p along with any missing parents, chowning
+// every directory it creates to the server user so they are not left owned by
+// the user Wings runs as.
+func (fs *Filesystem) mkdirAll(p string, mode ufs.FileMode) error {
+	created, err := fs.unixFS.MkdirAll(p, mode)
+	if err != nil {
+		return err
+	}
+	for _, dir := range created {
+		if err := fs.chownFile(dir); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Chown recursively iterates over a file or directory and sets the permissions on all of the
