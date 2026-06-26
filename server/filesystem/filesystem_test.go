@@ -111,6 +111,72 @@ func TestFilesystem_Openfile(t *testing.T) {
 	})
 }
 
+func TestFilesystem_Touch(t *testing.T) {
+	g := Goblin(t)
+	fs, _ := NewFs()
+
+	g.Describe("Touch", func() {
+		g.It("enforces disk limits while writing to the returned handle", func() {
+			fs.SetDiskLimit(10)
+
+			f, err := fs.Touch("quota.txt", ufs.O_RDWR|ufs.O_TRUNC)
+			g.Assert(err).IsNil()
+			defer f.Close()
+
+			n, err := f.WriteAt([]byte("1234567890"), 0)
+			g.Assert(err).IsNil()
+			g.Assert(n).Equal(10)
+			g.Assert(fs.CachedUsage()).Equal(int64(10))
+
+			n, err = f.WriteAt([]byte("1"), 10)
+			g.Assert(err).IsNotNil()
+			g.Assert(n).Equal(0)
+			g.Assert(IsErrorCode(err, ErrCodeDiskSpace)).IsTrue()
+			g.Assert(fs.CachedUsage()).Equal(int64(10))
+		})
+
+		g.It("enforces disk limits while sequentially writing to the returned handle", func() {
+			fs.SetDiskLimit(10)
+
+			f, err := fs.Touch("quota.txt", ufs.O_RDWR|ufs.O_TRUNC)
+			g.Assert(err).IsNil()
+			defer f.Close()
+
+			n, err := f.Write([]byte("1234567890"))
+			g.Assert(err).IsNil()
+			g.Assert(n).Equal(10)
+
+			n, err = f.Write([]byte("1"))
+			g.Assert(err).IsNotNil()
+			g.Assert(n).Equal(0)
+			g.Assert(IsErrorCode(err, ErrCodeDiskSpace)).IsTrue()
+			g.Assert(fs.CachedUsage()).Equal(int64(10))
+		})
+
+		g.It("updates disk usage when a truncated file is closed smaller", func() {
+			r := bytes.NewReader([]byte("1234567890"))
+			err := fs.Write("quota.txt", r, r.Size(), 0o644)
+			g.Assert(err).IsNil()
+			g.Assert(fs.CachedUsage()).Equal(int64(10))
+
+			f, err := fs.Touch("quota.txt", ufs.O_RDWR|ufs.O_TRUNC)
+			g.Assert(err).IsNil()
+
+			n, err := f.WriteAt([]byte("1234"), 0)
+			g.Assert(err).IsNil()
+			g.Assert(n).Equal(4)
+
+			err = f.Close()
+			g.Assert(err).IsNil()
+			g.Assert(fs.CachedUsage()).Equal(int64(4))
+		})
+
+		g.AfterEach(func() {
+			_ = fs.TruncateRootDirectory()
+		})
+	})
+}
+
 func TestFilesystem_Writefile(t *testing.T) {
 	g := Goblin(t)
 	fs, _ := NewFs()

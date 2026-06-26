@@ -35,6 +35,25 @@ type Handler struct {
 	ro          bool
 }
 
+type quotaWriterAt struct {
+	io.WriterAt
+}
+
+func (w quotaWriterAt) WriteAt(p []byte, off int64) (int, error) {
+	n, err := w.WriterAt.WriteAt(p, off)
+	if filesystem.IsErrorCode(err, filesystem.ErrCodeDiskSpace) {
+		return n, ErrSSHQuotaExceeded
+	}
+	return n, err
+}
+
+func (w quotaWriterAt) Close() error {
+	if c, ok := w.WriterAt.(io.Closer); ok {
+		return c.Close()
+	}
+	return nil
+}
+
 // NewHandler returns a new connection handler for the SFTP server. This allows a given user
 // to access the underlying filesystem.
 func NewHandler(sc *ssh.ServerConn, srv *server.Server) (*Handler, error) {
@@ -98,7 +117,7 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 	l := h.logger.WithField("source", request.Filepath)
 	// If the user doesn't have enough space left on the server it should respond with an
 	// error since we won't be letting them write this file to the disk.
-	if !h.fs.HasSpaceAvailable(true) {
+	if !h.fs.HasSpaceAvailable(false) {
 		return nil, ErrSSHQuotaExceeded
 	}
 
@@ -134,7 +153,7 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 		event = server.ActivitySftpCreate
 	}
 	h.events.MustLog(event, FileAction{Entity: request.Filepath})
-	return f, nil
+	return quotaWriterAt{WriterAt: f}, nil
 }
 
 // Filecmd hander for basic SFTP system calls related to files, but not anything to do with reading
