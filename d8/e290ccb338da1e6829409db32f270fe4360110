@@ -1,0 +1,34 @@
+environment/docker/container.go
+  s_3638838034c22c::t_aab626b3cf42aa 364
+  s_3638838034c22c::t_53725fdda1587f 363
+server/install.go
+  s_3638838034c22c::t_aab626b3cf42aa 238
+  s_3638838034c22c::t_53725fdda1587f 237
+config/config_docker_test.go
+  s_3638838034c22c::t_ff8c22a142b98d 52-54,82-94,96-97
+  s_3638838034c22c::t_560a2e48924659 95
+  s_3638838034c22c::t_53725fdda1587f 65
+  s_3638838034c22c::t_aab626b3cf42aa 1-19,24-51,60-64,66-81,98-99
+  s_3638838034c22c::t_960508c324f3fd 20-23,55-59
+config/config_docker.go
+  s_3638838034c22c::t_960508c324f3fd 111-113,182-185,187
+  s_3638838034c22c::t_aab626b3cf42aa 8,126,129,159,189,193-194
+  s_3638838034c22c::t_53725fdda1587f 6,10,114-125,127-128,130-158,160-181,186,188,190-192,195-196
+  s_3638838034c22c::t_05ee78172a7788 197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "d8e290ccb338da1e6829409db32f270fe4360110",
+  "prompts": {},
+  "sessions": {
+    "s_3638838034c22c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0f8e-1b31-7162-a52a-ae54c64a91b9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
