@@ -1,0 +1,35 @@
+server/filesystem/filesystem_test.go
+  s_3638838034c22c::t_58d8bc0df35e1b 7,251-261
+  s_3638838034c22c::t_636ffcf8db7094 183
+  s_1e4e38747bb289::t_46db71a62a50cf 262-263
+internal/ufs/fs_quota.go
+  s_3638838034c22c::t_da7cedb555b49d 101,105-109
+internal/ufs/fs_quota_test.go
+  s_3638838034c22c::t_8c42c2cb99929f 1-29
+server/filesystem/compress.go
+  s_3638838034c22c::t_fd6f33709553de 8,47,136-145,148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "34b0b44fe4d3b4716a47f252fb33952dd7e67a2e",
+  "prompts": {},
+  "sessions": {
+    "s_1e4e38747bb289": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eeba9-96ae-7c60-b5b5-4878fed3fe57",
+        "model": "gpt-5.5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    },
+    "s_3638838034c22c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0f8e-1b31-7162-a52a-ae54c64a91b9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
