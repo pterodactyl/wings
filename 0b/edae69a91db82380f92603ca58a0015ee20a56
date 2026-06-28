@@ -1,0 +1,26 @@
+server/install.go
+  s_3638838034c22c::t_5116e6ee8ffb35 146-152,159-161,170-176,200
+server/state_test.go
+  s_3638838034c22c::t_5116e6ee8ffb35 1-47
+sftp/handler_test.go
+  s_3638838034c22c::t_5116e6ee8ffb35 4-5,8-9,12-17,24-29,59-114,117-138
+  s_3638838034c22c::t_d8d2cc6407a6bb 1-3,6-7,10-11,18-23,30-58,115-116,139-140
+sftp/handler.go
+  s_3638838034c22c::t_5116e6ee8ffb35 40,44-47,161,316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "0bedae69a91db82380f92603ca58a0015ee20a56",
+  "prompts": {},
+  "sessions": {
+    "s_3638838034c22c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0f8e-1b31-7162-a52a-ae54c64a91b9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
