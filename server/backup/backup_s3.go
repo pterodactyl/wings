@@ -38,6 +38,9 @@ func NewS3(client remote.Client, uuid string, ignore string) *S3Backup {
 
 // Remove removes a backup from the system.
 func (s *S3Backup) Remove() error {
+	if err := s.validateIdentifier(); err != nil {
+		return err
+	}
 	return os.Remove(s.Path())
 }
 
@@ -49,6 +52,9 @@ func (s *S3Backup) WithLogContext(c map[string]interface{}) {
 // Generate creates a new backup on the disk, moves it into the S3 bucket via
 // the provided presigned URL, and then deletes the backup from the disk.
 func (s *S3Backup) Generate(ctx context.Context, fsys *filesystem.Filesystem, ignore string) (*ArchiveDetails, error) {
+	if err := s.validateIdentifier(); err != nil {
+		return nil, err
+	}
 	defer s.Remove()
 
 	a := &filesystem.Archive{

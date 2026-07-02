@@ -170,8 +170,7 @@ func (fs *UnixFS) Chtimesat(dirfd int, name string, atime, mtime time.Time) erro
 	set(0, atime)
 	set(1, mtime)
 
-	// This does support `AT_SYMLINK_NOFOLLOW` as well if needed.
-	return ensurePathError(unix.UtimesNanoAt(dirfd, name, utimes[0:], 0), "chtimes", name)
+	return ensurePathError(unix.UtimesNanoAt(dirfd, name, utimes[0:], AT_SYMLINK_NOFOLLOW), "chtimes", name)
 }
 
 // Create creates or truncates the named file. If the file already exists,
@@ -207,17 +206,17 @@ func (fs *UnixFS) mkdirat(op string, dirfd int, name string, mode FileMode) erro
 }
 
 // MkdirAll creates a directory named path, along with any necessary
-// parents, and returns nil, or else returns an error.
+// parents, and returns the directories it created, or else returns an error.
 //
-// The permission bits perm (before umask) are used for all
-// directories that MkdirAll creates.
-// If path is already a directory, MkdirAll does nothing
-// and returns nil.
-func (fs *UnixFS) MkdirAll(name string, mode FileMode) error {
+// The returned directories are ordered from shallowest to deepest. The
+// permission bits perm (before umask) are used for all directories that
+// MkdirAll creates. If path is already a directory, MkdirAll does nothing and
+// returns no created directories.
+func (fs *UnixFS) MkdirAll(name string, mode FileMode) ([]string, error) {
 	// Ensure name is somewhat clean before continuing.
 	name, err := fs.unsafePath(name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	return fs.mkdirAll(name, mode)
 }
@@ -471,7 +470,7 @@ func (fs *UnixFS) Rename(oldpath, newpath string) error {
 		if !errors.As(err, &pathErr) {
 			return err
 		}
-		if err := fs.MkdirAll(pathErr.Path, 0o755); err != nil {
+		if _, err := fs.MkdirAll(pathErr.Path, 0o755); err != nil {
 			return err
 		}
 		newdirfd, newname, closeFd2, err = fs.safePath(newpath)
@@ -623,7 +622,7 @@ func (fs *UnixFS) TouchPath(path string) (int, string, func(), error, bool) {
 	if !errors.As(err, &pathErr) {
 		return dirfd, name, closeFd, err, false
 	}
-	if err := fs.MkdirAll(pathErr.Path, 0o755); err != nil {
+	if _, err := fs.MkdirAll(pathErr.Path, 0o755); err != nil {
 		return dirfd, name, closeFd, err, false
 	}
 

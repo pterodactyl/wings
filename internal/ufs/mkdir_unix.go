@@ -11,7 +11,11 @@
 package ufs
 
 // mkdirAll is a recursive Mkdir implementation that properly handles symlinks.
-func (fs *UnixFS) mkdirAll(name string, mode FileMode) error {
+//
+// It returns the directories it created, ordered from shallowest to deepest, so
+// callers can act on exactly the paths that were new (for example to change
+// their ownership). Directories that already existed are not included.
+func (fs *UnixFS) mkdirAll(name string, mode FileMode) ([]string, error) {
 	// Fast path: if we can tell whether path is a directory or file, stop with success or error.
 	dir, err := fs.Lstat(name)
 	if err == nil {
@@ -20,13 +24,13 @@ func (fs *UnixFS) mkdirAll(name string, mode FileMode) error {
 			// to check instead.
 			dir, err = fs.Stat(name)
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 		if dir.IsDir() {
-			return nil
+			return nil, nil
 		}
-		return &PathError{Op: "mkdir", Path: name, Err: ErrNotDirectory}
+		return nil, &PathError{Op: "mkdir", Path: name, Err: ErrNotDirectory}
 	}
 
 	// Slow path: make sure parent exists and then call Mkdir for path.
@@ -40,11 +44,12 @@ func (fs *UnixFS) mkdirAll(name string, mode FileMode) error {
 		j--
 	}
 
+	var created []string
 	if j > 1 {
 		// Create parent.
-		err = fs.mkdirAll(name[:j-1], mode)
+		created, err = fs.mkdirAll(name[:j-1], mode)
 		if err != nil {
-			return err
+			return created, err
 		}
 	}
 
@@ -55,9 +60,9 @@ func (fs *UnixFS) mkdirAll(name string, mode FileMode) error {
 		// double-checking that directory doesn't exist.
 		dir, err1 := fs.Lstat(name)
 		if err1 == nil && dir.IsDir() {
-			return nil
+			return created, nil
 		}
-		return err
+		return created, err
 	}
-	return nil
+	return append(created, name), nil
 }

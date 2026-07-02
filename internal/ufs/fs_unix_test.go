@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/pterodactyl/wings/internal/ufs"
 )
@@ -164,7 +165,7 @@ func TestUnixFS(t *testing.T) {
 	}
 
 	// Create multiple nested directories.
-	if err := fs.MkdirAll("ima_directory/ima_directory/ima_directory/ima_directory", 0o755); err != nil {
+	if _, err := fs.MkdirAll("ima_directory/ima_directory/ima_directory/ima_directory", 0o755); err != nil {
 		t.Error(err)
 		return
 	}
@@ -174,7 +175,7 @@ func TestUnixFS(t *testing.T) {
 	}
 
 	// Test creating a directory under a symlink with a pre-existing directory.
-	if err := fs.MkdirAll("ima_bad_link/ima_directory/ima_bad_directory/ima_bad_directory", 0o755); err == nil {
+	if _, err := fs.MkdirAll("ima_bad_link/ima_directory/ima_bad_directory/ima_bad_directory", 0o755); err == nil {
 		t.Error("expected an error")
 		return
 	}
@@ -280,15 +281,56 @@ func TestUnixFS_Lchown(t *testing.T) {
 }
 
 func TestUnixFS_Chtimes(t *testing.T) {
-	t.Parallel()
-	fs, err := newTestUnixFS()
+	tmpDir := t.TempDir()
+	root := filepath.Join(tmpDir, "root")
+	if err := os.Mkdir(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fs, err := ufs.NewUnixFS(root, false)
 	if err != nil {
 		t.Fatal(err)
-		return
 	}
-	defer fs.Cleanup()
 
-	// TODO: implement
+	regular := filepath.Join(root, "regular")
+	if err := os.WriteFile(regular, []byte("regular"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	regularTime := time.Unix(1_700_100_000, 0)
+	if err := fs.Chtimes("regular", regularTime, regularTime); err != nil {
+		t.Fatal(err)
+	}
+	regularStat, err := os.Lstat(regular)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regularStat.ModTime().Equal(regularTime) {
+		t.Fatalf("expected regular file mtime to be %s, got %s", regularTime, regularStat.ModTime())
+	}
+
+	target := filepath.Join(tmpDir, "target")
+	if err := os.WriteFile(target, []byte("target"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	original := time.Unix(1_700_000_000, 0)
+	if err := os.Chtimes(target, original, original); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+
+	changed := original.Add(-24 * time.Hour)
+	if err := fs.Chtimes("link", changed, changed); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err := os.Lstat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.ModTime().Equal(original) {
+		t.Fatalf("expected target mtime to remain %s, got %s", original, st.ModTime())
+	}
 }
 
 func TestUnixFS_Create(t *testing.T) {
@@ -324,12 +366,59 @@ func TestUnixFS_MkdirAll(t *testing.T) {
 	}
 	defer fs.Cleanup()
 
-	if err := fs.MkdirAll("/a/bunch/of/directories", 0o755); err != nil {
-		t.Error(err)
-		return
-	}
+	t.Run("creates and reports every missing directory", func(t *testing.T) {
+		created, err := fs.MkdirAll("/a/bunch/of/directories", 0o755)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	// TODO: stat sanity check
+		want := []string{"a", "a/bunch", "a/bunch/of", "a/bunch/of/directories"}
+		if !slices.Equal(created, want) {
+			t.Errorf("created = %v, want %v", created, want)
+		}
+
+		// Sanity check that everything we reported actually exists on disk.
+		for _, dir := range want {
+			st, err := os.Lstat(filepath.Join(fs.Root, dir))
+			if err != nil {
+				t.Errorf("Lstat %q: %v", dir, err)
+				continue
+			}
+			if !st.IsDir() {
+				t.Errorf("%q is not a directory", dir)
+			}
+		}
+	})
+
+	t.Run("only reports the directories it creates", func(t *testing.T) {
+		if _, err := fs.MkdirAll("partial/exists", 0o755); err != nil {
+			t.Fatalf("seeding directories: %v", err)
+		}
+
+		created, err := fs.MkdirAll("partial/exists/and/more", 0o755)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := []string{"partial/exists/and", "partial/exists/and/more"}
+		if !slices.Equal(created, want) {
+			t.Errorf("created = %v, want %v", created, want)
+		}
+	})
+
+	t.Run("reports nothing when the directory already exists", func(t *testing.T) {
+		if _, err := fs.MkdirAll("already/here", 0o755); err != nil {
+			t.Fatalf("seeding directories: %v", err)
+		}
+
+		created, err := fs.MkdirAll("already/here", 0o755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(created) != 0 {
+			t.Errorf("created = %v, want no directories", created)
+		}
+	})
 }
 
 func TestUnixFS_Open(t *testing.T) {

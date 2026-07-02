@@ -35,6 +35,30 @@ type Handler struct {
 	ro          bool
 }
 
+type quotaWriterAt struct {
+	io.WriterAt
+	server *server.Server
+}
+
+func (w quotaWriterAt) WriteAt(p []byte, off int64) (int, error) {
+	if w.server != nil && w.server.IsInProtectedState() {
+		return 0, sftp.ErrSSHFxPermissionDenied
+	}
+
+	n, err := w.WriterAt.WriteAt(p, off)
+	if filesystem.IsErrorCode(err, filesystem.ErrCodeDiskSpace) {
+		return n, ErrSSHQuotaExceeded
+	}
+	return n, err
+}
+
+func (w quotaWriterAt) Close() error {
+	if c, ok := w.WriterAt.(io.Closer); ok {
+		return c.Close()
+	}
+	return nil
+}
+
 // NewHandler returns a new connection handler for the SFTP server. This allows a given user
 // to access the underlying filesystem.
 func NewHandler(sc *ssh.ServerConn, srv *server.Server) (*Handler, error) {
@@ -98,7 +122,7 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 	l := h.logger.WithField("source", request.Filepath)
 	// If the user doesn't have enough space left on the server it should respond with an
 	// error since we won't be letting them write this file to the disk.
-	if !h.fs.HasSpaceAvailable(true) {
+	if !h.fs.HasSpaceAvailable(false) {
 		return nil, ErrSSHQuotaExceeded
 	}
 
@@ -134,7 +158,7 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 		event = server.ActivitySftpCreate
 	}
 	h.events.MustLog(event, FileAction{Entity: request.Filepath})
-	return f, nil
+	return quotaWriterAt{WriterAt: f, server: h.server}, nil
 }
 
 // Filecmd hander for basic SFTP system calls related to files, but not anything to do with reading
@@ -289,7 +313,7 @@ func (h *Handler) Filelist(request *sftp.Request) (sftp.ListerAt, error) {
 // Determines if a user has permission to perform a specific action on the SFTP server. These
 // permissions are defined and returned by the Panel API.
 func (h *Handler) can(permission string) bool {
-	if h.server.IsSuspended() {
+	if h.server.IsSuspended() || h.server.IsInProtectedState() {
 		return false
 	}
 	for _, p := range h.permissions {

@@ -3,8 +3,11 @@ package config
 import (
 	"encoding/base64"
 	"encoding/json"
+	"net/url"
 	"sort"
+	"strings"
 
+	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/registry"
 )
@@ -103,6 +106,93 @@ func (c DockerConfiguration) ContainerLogConfig() container.LogConfig {
 		Type:   c.LogConfig.Type,
 		Config: c.LogConfig.Config,
 	}
+}
+
+// RegistryCredentialsForImage returns registry credentials for an image only
+// when the configured registry and image reference share the same registry
+// identity.
+func (c DockerConfiguration) RegistryCredentialsForImage(img string) (string, *RegistryConfiguration) {
+	named, err := reference.ParseNormalizedNamed(img)
+	if err != nil {
+		return "", nil
+	}
+
+	imageDomain := strings.ToLower(reference.Domain(named))
+	imagePath := reference.Path(named)
+	var matchedRegistry string
+	var matchedCredentials RegistryConfiguration
+	matchedScore := -1
+
+	for registry, cfg := range c.Registries {
+		domain, path, ok := parseDockerRegistryReference(registry)
+		if !ok || domain != imageDomain || !registryPathMatchesImage(path, imagePath) {
+			continue
+		}
+
+		score := len(domain) + len(path)
+		if score > matchedScore {
+			matchedRegistry = registry
+			matchedCredentials = cfg
+			matchedScore = score
+		}
+	}
+
+	if matchedScore == -1 {
+		return "", nil
+	}
+
+	return matchedRegistry, &matchedCredentials
+}
+
+func parseDockerRegistryReference(registry string) (string, string, bool) {
+	registry = strings.TrimSpace(registry)
+	if registry == "" {
+		return "", "", false
+	}
+
+	if u, err := url.Parse(registry); err == nil && u.Host != "" {
+		p := strings.Trim(u.Path, "/")
+		if p == "" || p == "v1" || p == "v2" {
+			registry = u.Host
+		} else {
+			registry = u.Host + "/" + p
+		}
+	}
+
+	registry = strings.Trim(registry, "/")
+	if registry == "" {
+		return "", "", false
+	}
+
+	hasPath := strings.Contains(registry, "/")
+	ref := registry
+	if !hasPath {
+		ref += "/wings"
+	}
+
+	named, err := reference.ParseNormalizedNamed(ref)
+	if err != nil {
+		return "", "", false
+	}
+
+	path := ""
+	if hasPath {
+		path = reference.Path(named)
+	}
+	domain := strings.ToLower(reference.Domain(named))
+	if domain == "docker.io" && (path == "v1" || path == "v2") {
+		path = ""
+	}
+
+	return domain, path, true
+}
+
+func registryPathMatchesImage(registryPath string, imagePath string) bool {
+	if registryPath == "" {
+		return true
+	}
+
+	return imagePath == registryPath || strings.HasPrefix(imagePath, registryPath+"/")
 }
 
 // RegistryConfiguration defines the authentication credentials for a given

@@ -8,9 +8,11 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"strings"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	"github.com/google/uuid"
 	"github.com/mholt/archives"
 	"golang.org/x/sync/errgroup"
 
@@ -91,13 +93,37 @@ func (b *Backup) Identifier() string {
 	return b.Uuid
 }
 
+func (b *Backup) normalizedIdentifier() (string, error) {
+	parsed, err := uuid.Parse(b.Identifier())
+	if err != nil || len(b.Identifier()) != len(parsed.String()) || parsed.String() != strings.ToLower(b.Identifier()) {
+		return "", errors.New("backup: identifier must be a valid UUID")
+	}
+	return parsed.String(), nil
+}
+
+func (b *Backup) validateIdentifier() error {
+	identifier, err := b.normalizedIdentifier()
+	if err != nil {
+		return err
+	}
+	b.Uuid = identifier
+	return nil
+}
+
 // Path returns the path for this specific backup.
 func (b *Backup) Path() string {
-	return path.Join(config.Get().System.BackupDirectory, b.Identifier()+".tar.gz")
+	identifier, err := b.normalizedIdentifier()
+	if err != nil {
+		identifier = path.Base(b.Identifier())
+	}
+	return path.Join(config.Get().System.BackupDirectory, identifier+".tar.gz")
 }
 
 // Size returns the size of the generated backup.
 func (b *Backup) Size() (int64, error) {
+	if err := b.validateIdentifier(); err != nil {
+		return 0, err
+	}
 	st, err := os.Stat(b.Path())
 	if err != nil {
 		return 0, err
@@ -108,6 +134,9 @@ func (b *Backup) Size() (int64, error) {
 
 // Checksum returns the SHA256 checksum of a backup.
 func (b *Backup) Checksum() ([]byte, error) {
+	if err := b.validateIdentifier(); err != nil {
+		return nil, err
+	}
 	h := sha1.New()
 
 	f, err := os.Open(b.Path())

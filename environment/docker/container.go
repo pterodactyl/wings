@@ -360,16 +360,9 @@ func (e *Environment) ensureImageExists(img string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 
-	// Get a registry auth configuration from the config.
-	var registryAuth *config.RegistryConfiguration
-	for registry, c := range config.Get().Docker.Registries {
-		if !strings.HasPrefix(img, registry) {
-			continue
-		}
-
+	registry, registryAuth := config.Get().Docker.RegistryCredentialsForImage(img)
+	if registryAuth != nil {
 		log.WithField("registry", registry).Debug("using authentication for registry")
-		registryAuth = &c
-		break
 	}
 
 	// Get the ImagePullOptions.
