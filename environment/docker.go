@@ -48,6 +48,11 @@ func ConfigureDocker(ctx context.Context) error {
 		if err := createDockerNetwork(ctx, cli); err != nil {
 			return err
 		}
+
+		resource, err = cli.NetworkInspect(ctx, nw.Name, network.InspectOptions{})
+		if err != nil {
+			return err
+		}
 	}
 
 	config.Update(func(c *config.Configuration) {
@@ -65,7 +70,41 @@ func ConfigureDocker(ctx context.Context) error {
 			c.Docker.Network.ISPN = false
 		}
 	})
+
+	bridgeName := bridgeNameFromResource(resource, nw)
+	if nw.RestrictOutbound {
+		if bridgeName == "" {
+			return errors.Errorf("environment/docker: restrict_outbound is enabled but network driver %q does not have a bridge interface", resource.Driver)
+		}
+		if err := ConfigureEgressFirewall(bridgeName, nw.AllowedOutboundPorts); err != nil {
+			return err
+		}
+	} else {
+		if bridgeName != "" {
+			if err := ClearEgressFirewall(bridgeName); err != nil {
+				log.WithError(err).Warn("failed to clear container egress firewall rules")
+			}
+		}
+	}
+
 	return nil
+}
+
+// bridgeNameFromResource extracts the host bridge interface name for a Docker
+// network. Bridge networks created by Wings set the
+// "com.docker.network.bridge.name" option to "pterodactyl0". Non-bridge drivers
+// return an empty string because egress filtering is not applicable there.
+func bridgeNameFromResource(resource network.Inspect, nw config.DockerNetworkConfiguration) string {
+	switch resource.Driver {
+	case "host", "overlay", "weavemesh":
+		return ""
+	}
+
+	if name := resource.Options["com.docker.network.bridge.name"]; name != "" {
+		return name
+	}
+
+	return "pterodactyl0"
 }
 
 // Creates a new network on the machine if one does not exist already.

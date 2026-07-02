@@ -42,6 +42,16 @@ type DockerNetworkConfiguration struct {
 	EnableICC  bool                    `default:"true" yaml:"enable_icc"`
 	NetworkMTU int64                   `default:"1500" yaml:"network_mtu"`
 	Interfaces dockerNetworkInterfaces `yaml:"interfaces"`
+
+	// RestrictOutbound, when enabled, blocks all outbound traffic from server
+	// containers except for the ports listed in AllowedOutboundPorts. This is
+	// useful for free/shared nodes to prevent DDoS/abuse while still allowing
+	// HTTP(S) downloads and DNS resolution.
+	RestrictOutbound bool `default:"false" yaml:"restrict_outbound" json:"restrict_outbound"`
+
+	// AllowedOutboundPorts defines the destination ports that are allowed when
+	// RestrictOutbound is enabled. Defaults to DNS (53), HTTP (80), and HTTPS (443).
+	AllowedOutboundPorts []int `default:"[53,80,443]" yaml:"allowed_outbound_ports" json:"allowed_outbound_ports"`
 }
 
 // DockerConfiguration defines the docker configuration used by the daemon when

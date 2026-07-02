@@ -56,6 +56,9 @@ type Server struct {
 	// started, and then cached here.
 	procConfig *remote.ProcessConfiguration
 
+	// scanner is the AI startup command scanner instance shared across all servers.
+	scanner *AiScanner
+
 	// Tracks the installation process for this server and prevents a server from running
 	// two installer processes at the same time. This also allows us to cancel a running
 	// installation process, for example when a server is deleted from the panel while the
@@ -120,6 +123,11 @@ func (s *Server) CleanupForDestroy() {
 // ID returns the UUID for the server instance.
 func (s *Server) ID() string {
 	return s.Config().GetUuid()
+}
+
+// SetAiScanner assigns the AI scanner instance to this server.
+func (s *Server) SetAiScanner(scanner *AiScanner) {
+	s.scanner = scanner
 }
 
 // Id returns the UUID for the server instance. This function is deprecated

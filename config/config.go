@@ -252,6 +252,32 @@ type SystemConfiguration struct {
 
 	Transfers Transfers `yaml:"transfers"`
 
+	// DiskCleanup controls automatic cleanup of system directories when disk
+	// usage exceeds a configured threshold. This is useful for free/shared nodes
+	// where disk space is limited and old server data or backups should be purged
+	// automatically.
+	DiskCleanup DiskCleanupConfigGroup `yaml:"disk_cleanup"`
+
+	// ServerKiller controls an emergency mechanism that stops or kills running
+	// server containers when disk usage crosses configured thresholds. This is
+	// useful for free/shared nodes where a full disk would take the entire node
+	// offline.
+	ServerKiller ResourceKillerConfig `yaml:"server_killer"`
+
+	// MemoryKiller controls an emergency mechanism that stops or kills running
+	// server containers when system memory usage crosses configured thresholds.
+	MemoryKiller ResourceKillerConfig `yaml:"memory_killer"`
+
+	// AiScanner controls an AI-driven check of server startup commands using
+	// OpenRouter. If a command is classified as dangerous the server UUID is
+	// banned and the container is terminated.
+	AiScanner AiScannerConfig `yaml:"ai_scanner"`
+
+	// TelegramNotifications controls a shared Telegram bot used to send alerts
+	// from the disk cleanup, server killer, memory killer, and AI scanner
+	// subsystems.
+	TelegramNotifications TelegramNotificationsConfig `yaml:"telegram_notifications"`
+
 	OpenatMode string `default:"auto" yaml:"openat_mode"`
 }
 
@@ -303,6 +329,180 @@ type Transfers struct {
 	//
 	// Defaults to 0 (unlimited)
 	DownloadLimit int `default:"0" yaml:"download_limit"`
+}
+
+// DiskCleanupConfigGroup groups the disk cleanup settings for the directories
+// managed by Wings that can grow unbounded.
+type DiskCleanupConfigGroup struct {
+	Volumes DiskCleanupConfig `yaml:"volumes"`
+	Backups DiskCleanupConfig `yaml:"backups"`
+}
+
+// DiskCleanupConfig defines the threshold-based cleanup behavior for a single
+// directory.
+type DiskCleanupConfig struct {
+	// Enabled determines if automatic cleanup is active for this directory.
+	Enabled bool `default:"false" yaml:"enabled"`
+
+	// Interval is the number of seconds between cleanup checks.
+	Interval int `default:"120" yaml:"interval"`
+
+	// Threshold is the disk usage percentage that triggers cleanup.
+	Threshold int `default:"90" yaml:"threshold"`
+
+	// Target is the disk usage percentage the cleanup tries to reach.
+	Target int `default:"80" yaml:"target"`
+}
+
+// IsValid returns true if the cleanup configuration is enabled and the values
+// form a sane range: 0 < Target < Threshold < 100.
+func (c DiskCleanupConfig) IsValid() bool {
+	if !c.Enabled {
+		return false
+	}
+	return c.Threshold > c.Target && c.Target > 0 && c.Threshold < 100
+}
+
+// ResourceKillerConfig controls an emergency mechanism that stops or kills
+// running server containers when a system resource crosses configured
+// thresholds. It is used for both disk-based and memory-based killers.
+type ResourceKillerConfig struct {
+	// Enabled determines if the killer is active.
+	Enabled bool `default:"false" yaml:"enabled"`
+
+	// Interval is the number of seconds between usage checks.
+	Interval int `default:"60" yaml:"interval"`
+
+	// Path is an optional path used by resource-specific killers (e.g. the disk
+	// killer monitors this path). For memory it is ignored.
+	Path string `default:"" yaml:"path"`
+
+	// Soft defines the first-level response: kill/stop N running servers.
+	Soft ResourceKillerThreshold `yaml:"soft"`
+
+	// Hard defines the last-resort response: kill/stop all running servers.
+	Hard ResourceKillerThreshold `yaml:"hard"`
+}
+
+// ResourceKillerThreshold defines a single threshold and the action to take when
+// it is crossed.
+type ResourceKillerThreshold struct {
+	// Threshold is the resource usage percentage that triggers this action.
+	Threshold int `default:"0" yaml:"threshold"`
+
+	// Count is the number of running servers to act on. A value of -1 means all
+	// running servers. For the hard threshold this should normally be -1.
+	Count int `default:"0" yaml:"count"`
+
+	// Action is the power action to apply: "stop" (graceful) or "kill" (SIGKILL).
+	Action string `default:"kill" yaml:"action"`
+
+	// Order determines which servers are acted on first when Count is limited.
+	// Valid values are "oldest" (default) and "newest", based on directory mtime.
+	Order string `default:"oldest" yaml:"order"`
+}
+
+// IsValid returns true if the threshold configuration is sane.
+func (c ResourceKillerConfig) IsValid() bool {
+	if !c.Enabled {
+		return true
+	}
+	if c.Interval <= 0 {
+		return false
+	}
+	if !c.Soft.isValid() {
+		return false
+	}
+	if !c.Hard.isValid() {
+		return false
+	}
+	if c.Hard.Threshold > 0 && c.Hard.Threshold <= c.Soft.Threshold {
+		return false
+	}
+	return true
+}
+
+func (t ResourceKillerThreshold) isValid() bool {
+	if t.Threshold <= 0 || t.Threshold >= 100 {
+		return false
+	}
+	if t.Action != "stop" && t.Action != "kill" {
+		return false
+	}
+	if t.Order != "" && t.Order != "oldest" && t.Order != "newest" {
+		return false
+	}
+	if t.Count != -1 && t.Count <= 0 {
+		return false
+	}
+	return true
+}
+
+// AiScannerConfig controls the AI-driven startup command scanner.
+type AiScannerConfig struct {
+	// Enabled determines if the scanner is active.
+	Enabled bool `default:"false" yaml:"enabled"`
+
+	// OpenRouterApiKey is the API key for OpenRouter.
+	OpenRouterApiKey string `yaml:"openrouter_api_key"`
+
+	// OpenRouterModel is the model identifier to use.
+	OpenRouterModel string `default:"openai/gpt-3.5-turbo" yaml:"openrouter_model"`
+
+	// StartupHangSeconds is how long the server process must be running before
+	// its startup command is analyzed.
+	StartupHangSeconds int `default:"30" yaml:"startup_hang_seconds"`
+
+	// DangerThreshold is the minimum danger level (0-10) that triggers a ban.
+	DangerThreshold int `default:"7" yaml:"danger_threshold"`
+
+	// RulesPath is the file where dangerous command rules are cached.
+	RulesPath string `default:"/etc/pterodactyl/ai-rules.json" yaml:"rules_path"`
+
+	// BansPath is the file where banned server UUIDs are stored.
+	BansPath string `default:"/etc/pterodactyl/ai-bans.json" yaml:"bans_path"`
+}
+
+// IsValid returns true if the AI scanner is enabled and has the minimum
+// required configuration.
+func (c AiScannerConfig) IsValid() bool {
+	if !c.Enabled {
+		return true
+	}
+	return c.OpenRouterApiKey != "" &&
+		c.StartupHangSeconds > 0 &&
+		c.DangerThreshold > 0 &&
+		c.DangerThreshold <= 10
+}
+
+// TelegramNotificationsConfig controls a shared Telegram bot used for alerts.
+type TelegramNotificationsConfig struct {
+	// Enabled determines if Telegram notifications are active.
+	Enabled bool `default:"false" yaml:"enabled"`
+
+	// BotToken is the token for the Telegram bot.
+	BotToken string `yaml:"bot_token"`
+
+	// ChatId is the target chat ID.
+	ChatId string `yaml:"chat_id"`
+
+	// ThreadId is an optional message thread ID (topic) for group chats.
+	ThreadId int `yaml:"thread_id"`
+}
+
+// IsValid returns true if Telegram notifications are enabled and configured.
+func (c TelegramNotificationsConfig) IsValid() bool {
+	return c.Enabled && c.BotToken != "" && c.ChatId != ""
+}
+
+// AsSystemConfig converts the configuration into the format used by the
+// system notification helpers.
+func (c TelegramNotificationsConfig) AsSystemConfig() system.TelegramConfig {
+	return system.TelegramConfig{
+		BotToken: c.BotToken,
+		ChatId:   c.ChatId,
+		ThreadId: c.ThreadId,
+	}
 }
 
 type ConsoleThrottles struct {

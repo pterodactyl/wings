@@ -149,9 +149,16 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		return
 	}
 
+	aiScanner := server.NewAiScanner(config.Get().System.AiScanner)
+	manager.SetAiScanner(aiScanner)
+
 	if err := environment.ConfigureDocker(cmd.Context()); err != nil {
 		log.WithField("error", err).Fatal("failed to configure docker environment")
 		return
+	}
+
+	if config.Get().Docker.Network.RestrictOutbound {
+		server.SyncFirewallWhitelist(manager)
 	}
 
 	if err := config.WriteToDisk(config.Get()); err != nil {

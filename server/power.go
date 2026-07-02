@@ -126,15 +126,31 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 			return ErrIsRunning
 		}
 
+		if s.scanner != nil && s.scanner.IsBanned(s.ID()) {
+			return ErrServerBanned
+		}
+
 		// Run the pre-boot logic for the server before processing the environment start.
 		if err := s.onBeforeStart(); err != nil {
 			return err
 		}
 
-		return s.Environment.Start(s.Context())
+		if err := s.Environment.Start(s.Context()); err != nil {
+			return err
+		}
+
+		if s.scanner != nil && s.scanner.IsEnabled() {
+			go s.scanner.ScheduleCheck(s, s.Config().Invocation)
+		}
+
+		go UpdateServerFirewallWhitelist(s)
+
+		return nil
 	case PowerActionStop:
 		fallthrough
 	case PowerActionRestart:
+		RemoveServerFirewallWhitelist(s)
+
 		// We're specifically waiting for the process to be stopped here, otherwise the lock is
 		// released too soon, and you can rack up all sorts of issues.
 		if err := s.Environment.WaitForStop(s.Context(), time.Minute*10, true); err != nil {
@@ -160,6 +176,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 
 		return s.Environment.Start(s.Context())
 	case PowerActionTerminate:
+		RemoveServerFirewallWhitelist(s)
 		return s.Environment.Terminate(s.Context(), "SIGKILL")
 	}
 

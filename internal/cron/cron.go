@@ -41,6 +41,10 @@ func Scheduler(ctx context.Context, m *server.Manager) (*gocron.Scheduler, error
 		max:     config.Get().System.ActivitySendCount,
 	}
 
+	diskCleanup := newDiskCleanupCron(m)
+	serverKiller := newServerKillerCron(m)
+	memoryKiller := newMemoryKillerCron(m)
+
 	s := gocron.NewScheduler(location)
 	l := log.WithField("subsystem", "cron")
 
@@ -68,6 +72,58 @@ func Scheduler(ctx context.Context, m *server.Manager) (*gocron.Scheduler, error
 			}
 		}
 	})
+
+	cleanupCfg := config.Get().System.DiskCleanup
+	cleanupInterval := time.Duration(0)
+	if cleanupCfg.Volumes.Enabled {
+		cleanupInterval = time.Duration(cleanupCfg.Volumes.Interval) * time.Second
+	}
+	if cleanupCfg.Backups.Enabled {
+		bi := time.Duration(cleanupCfg.Backups.Interval) * time.Second
+		if cleanupInterval == 0 || bi < cleanupInterval {
+			cleanupInterval = bi
+		}
+	}
+	if cleanupInterval > 0 {
+		_, _ = s.Tag("disk-cleanup").Every(cleanupInterval).Do(func() {
+			l.WithField("cron", "disk-cleanup").Debug("running disk cleanup check")
+			if err := diskCleanup.Run(ctx); err != nil {
+				if errors.Is(err, ErrCronRunning) {
+					l.WithField("cron", "disk-cleanup").Warn("disk cleanup is already running, skipping...")
+				} else {
+					l.WithField("cron", "disk-cleanup").WithField("error", err).Error("disk cleanup failed to execute")
+				}
+			}
+		})
+	}
+
+	killerCfg := config.Get().System.ServerKiller
+	if killerCfg.Enabled {
+		_, _ = s.Tag("server-killer").Every(time.Duration(killerCfg.Interval) * time.Second).Do(func() {
+			l.WithField("cron", "server-killer").Debug("running server killer check")
+			if err := serverKiller.Run(ctx); err != nil {
+				if errors.Is(err, ErrCronRunning) {
+					l.WithField("cron", "server-killer").Warn("server killer is already running, skipping...")
+				} else {
+					l.WithField("cron", "server-killer").WithField("error", err).Error("server killer failed to execute")
+				}
+			}
+		})
+	}
+
+	memKillerCfg := config.Get().System.MemoryKiller
+	if memKillerCfg.Enabled {
+		_, _ = s.Tag("memory-killer").Every(time.Duration(memKillerCfg.Interval) * time.Second).Do(func() {
+			l.WithField("cron", "memory-killer").Debug("running memory killer check")
+			if err := memoryKiller.Run(ctx); err != nil {
+				if errors.Is(err, ErrCronRunning) {
+					l.WithField("cron", "memory-killer").Warn("memory killer is already running, skipping...")
+				} else {
+					l.WithField("cron", "memory-killer").WithField("error", err).Error("memory killer failed to execute")
+				}
+			}
+		})
+	}
 
 	return s, nil
 }

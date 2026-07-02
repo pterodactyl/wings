@@ -23,9 +23,10 @@ import (
 )
 
 type Manager struct {
-	mu      sync.RWMutex
-	client  remote.Client
-	servers []*Server
+	mu        sync.RWMutex
+	client    remote.Client
+	aiScanner *AiScanner
+	servers   []*Server
 }
 
 // NewManager returns a new server manager instance. This will boot up all the
@@ -50,6 +51,17 @@ func NewEmptyManager(client remote.Client) *Manager {
 // Panel API.
 func (m *Manager) Client() remote.Client {
 	return m.client
+}
+
+// SetAiScanner sets the AI scanner instance shared by all servers in the
+// manager.
+func (m *Manager) SetAiScanner(scanner *AiScanner) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.aiScanner = scanner
+	for _, s := range m.servers {
+		s.SetAiScanner(scanner)
+	}
 }
 
 // Len returns the count of servers stored in the manager instance.
@@ -222,6 +234,8 @@ func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, 
 		s.Environment = env
 		s.StartEventListeners()
 	}
+
+	s.SetAiScanner(m.aiScanner)
 
 	// If the server's data directory exists, force disk usage calculation.
 	if _, err := os.Stat(s.Filesystem().Path()); err == nil {

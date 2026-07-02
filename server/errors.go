@@ -10,6 +10,7 @@ var (
 	ErrServerIsInstalling   = errors.New("server is currently installing")
 	ErrServerIsTransferring = errors.New("server is currently being transferred")
 	ErrServerIsRestoring    = errors.New("server is currently being restored")
+	ErrServerBanned         = errors.New("server is banned by AI scanner")
 )
 
 type crashTooFrequent struct{}

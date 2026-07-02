@@ -1,9 +1,6 @@
 name: Build Custom Wings
 
 on:
-  push:
-    branches:
-      - '**'
   workflow_dispatch:
 
 jobs:
