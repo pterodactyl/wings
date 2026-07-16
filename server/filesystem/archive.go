@@ -298,10 +298,8 @@ func (a *Archive) addToArchive(dirfd int, name, relative string, entry ufs.DirEn
 		return errors.WrapIff(err, "failed to get tar#FileInfoHeader for '%s'", name)
 	}
 
-	// Fix the header name if the file is not a symlink.
-	if s.Mode()&fs.ModeSymlink == 0 {
-		header.Name = relative
-	}
+	// Fix the header name
+	header.Name = relative
 
 	// Write the tar FileInfoHeader to the archive.
 	if err := a.w.WriteHeader(header); err != nil {
