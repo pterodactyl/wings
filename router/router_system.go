@@ -8,6 +8,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/gin-gonic/gin"
+	"github.com/pterodactyl/wings/router/tokens"
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/router/middleware"
@@ -154,4 +155,35 @@ func postUpdateConfiguration(c *gin.Context) {
 	c.JSON(http.StatusOK, postUpdateConfigurationResponse{
 		Applied: true,
 	})
+}
+
+func postDeauthorizeUser(c *gin.Context) {
+	var data struct {
+		User    string   `json:"user"`
+		Servers []string `json:"servers"`
+	}
+
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
+
+	// todo: disconnect websockets more gracefully
+	m := middleware.ExtractManager(c)
+	if len(data.Servers) > 0 {
+		for _, uuid := range data.Servers {
+			if s, ok := m.Get(uuid); ok {
+				tokens.DenyForServer(s.ID(), data.User)
+				s.Websockets().CancelAll()
+				s.Sftp().Cancel(data.User)
+			}
+		}
+	} else {
+		for _, s := range m.All() {
+			tokens.DenyForServer(s.ID(), data.User)
+			s.Websockets().CancelAll()
+			s.Sftp().Cancel(data.User)
+		}
+	}
+
+	c.Status(http.StatusNoContent)
 }

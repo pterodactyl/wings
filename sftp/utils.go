@@ -3,6 +3,7 @@ package sftp
 import (
 	"io"
 	"os"
+	"reflect"
 )
 
 const (
@@ -29,6 +30,23 @@ func (l ListerAt) ListAt(f []os.FileInfo, offset int64) (int, error) {
 }
 
 type fxErr uint32
+
+func (e fxErr) As(target interface{}) bool {
+	// pkg/sftp checks errors against its private fxerr type before writing status packets.
+	v := reflect.ValueOf(target)
+	if v.Kind() != reflect.Ptr || v.IsNil() {
+		return false
+	}
+
+	elem := v.Elem()
+	t := elem.Type()
+	if elem.Kind() != reflect.Uint32 || t.PkgPath() != "github.com/pkg/sftp" || t.Name() != "fxerr" {
+		return false
+	}
+
+	elem.SetUint(uint64(e))
+	return true
+}
 
 func (e fxErr) Error() string {
 	switch e {

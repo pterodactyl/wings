@@ -16,7 +16,7 @@ dependencies, and allowing users to authenticate with the same credentials they 
 ## Sponsors
 
 I would like to extend my sincere thanks to the following sponsors for helping fund Pterodactyl's development.
-[Interested in becoming a sponsor?](https://github.com/sponsors/matthewpi)
+[Interested in becoming a sponsor?](https://github.com/sponsors/pterodactyl)
 
 | Company                                                                           | About                                                                                                                                                                                                                                           |
 |-----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

@@ -25,6 +25,13 @@ func (s *Server) Websockets() *WebsocketBag {
 	return s.wsBag
 }
 
+func (w *WebsocketBag) Len() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return len(w.conns)
+}
+
 // Push adds a new websocket connection to the end of the stack.
 func (w *WebsocketBag) Push(u uuid.UUID, cancel *context.CancelFunc) {
 	w.mu.Lock()

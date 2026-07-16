@@ -1,11 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -69,6 +71,7 @@ type Server struct {
 	// Tracks open websocket connections for the server.
 	wsBag       *WebsocketBag
 	wsBagLocker sync.Mutex
+	sftpBag     *system.ContextBag
 
 	sinks map[system.SinkName]*system.SinkPool
 
@@ -199,6 +202,16 @@ func (s *Server) Sync() error {
 
 	s.SyncWithEnvironment()
 
+	// If the server is suspended immediately disconnect all open websocket connections
+	// and any connected SFTP clients. We don't need to worry about revoking any JWTs
+	// here since they'll be blocked from re-connecting to the websocket anyways. This
+	// just forces the client to disconnect and attempt to reconnect (rather than waiting
+	// on them to send a message and hit that disconnect logic).
+	if s.IsSuspended() {
+		s.Websockets().CancelAll()
+		s.Sftp().CancelAll()
+	}
+
 	return nil
 }
 
@@ -246,6 +259,18 @@ func (s *Server) CreateEnvironment() error {
 	// Ensure the data directory exists before getting too far through this process.
 	if err := s.EnsureDataDirectoryExists(); err != nil {
 		return err
+	}
+
+	cfg := config.Get()
+	if cfg.System.MachineID.Enable {
+		// Hytale wants a machine-id in order to encrypt tokens for the server. So
+		// write a machine-id file for the server that contains the server's UUID
+		// without any dashes.
+		p := filepath.Join(cfg.System.MachineID.Directory, s.ID())
+		machineID := append(bytes.ReplaceAll([]byte(s.ID()), []byte{'-'}, []byte{}), '\n')
+		if err := os.WriteFile(p, machineID, 0o644); err != nil {
+			return fmt.Errorf("failed to write machine-id (at '%s') for server '%s': %w", p, s.ID(), err)
+		}
 	}
 
 	return s.Environment.Create()

@@ -6,6 +6,8 @@ import (
 
 type FilePayload struct {
 	jwt.Payload
+	Scoped
+
 	FilePath   string `json:"file_path"`
 	ServerUuid string `json:"server_uuid"`
 	UniqueId   string `json:"unique_id"`

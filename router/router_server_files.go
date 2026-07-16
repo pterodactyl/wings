@@ -328,13 +328,15 @@ func postServerPullRemoteFile(c *gin.Context) {
 	download := func() error {
 		s.Log().WithField("download_id", dl.Identifier).WithField("url", u.String()).Info("starting pull of remote file to disk")
 		if err := dl.Execute(); err != nil {
-			s.Log().WithField("download_id", dl.Identifier).WithField("error", err).Error("failed to pull remote file")
+			if !downloader.IsDownloadError(err) {
+				s.Log().WithField("download_id", dl.Identifier).WithField("error", err).Error("failed to pull remote file")
+			}
 			return err
-		} else {
-			s.Log().WithField("download_id", dl.Identifier).Info("completed pull of remote file")
 		}
+		s.Log().WithField("download_id", dl.Identifier).Info("completed pull of remote file")
 		return nil
 	}
+
 	if !data.Foreground {
 		go func() {
 			_ = download()
@@ -346,6 +348,21 @@ func postServerPullRemoteFile(c *gin.Context) {
 	}
 
 	if err := download(); err != nil {
+		if downloader.IsDownloadError(err) {
+			var message = "The URL or IP address provided could not be resolved to a valid destination."
+			if errors.Is(err, downloader.ErrDownloadFailed) {
+				s.Log().WithField("identifier", dl.Identifier).WithField("error", err).Warn("failed to download remote file")
+
+				message = "An error was encountered while trying to download this file. Please try again later."
+			}
+
+			c.JSON(http.StatusBadRequest, gin.H{
+				"identifier": dl.Identifier,
+				"message":    message,
+			})
+
+			return
+		}
 		middleware.CaptureAndAbort(c, err)
 		return
 	}
@@ -558,7 +575,7 @@ func postServerUploadFiles(c *gin.Context) {
 	}
 
 	s, ok := manager.Get(token.ServerUuid)
-	if !ok || !token.IsUniqueRequest() {
+	if !ok || !token.IsUniqueRequest() || !token.HasScope(tokens.FileUpload) {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"error": "The requested resource was not found on this server.",
 		})

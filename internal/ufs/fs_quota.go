@@ -4,6 +4,7 @@
 package ufs
 
 import (
+	"math"
 	"sync/atomic"
 )
 
@@ -67,14 +68,33 @@ func (fs *Quota) SetUsage(newUsage int64) int64 {
 
 // Add adds `i` to the tracked usage total.
 func (fs *Quota) Add(i int64) int64 {
-	usage := fs.Usage()
+	for {
+		usage := fs.Usage()
+		var next int64
 
-	// If adding `i` to the usage will put us below 0, cap it. (`i` can be negative)
-	if usage+i < 0 {
-		fs.usage.Store(0)
-		return 0
+		switch {
+		case i > 0:
+			if usage > math.MaxInt64-i {
+				next = math.MaxInt64
+			} else {
+				next = usage + i
+			}
+		case i < 0:
+			if i == math.MinInt64 {
+				next = 0
+			} else if usage <= -i {
+				next = 0
+			} else {
+				next = usage + i
+			}
+		default:
+			return usage
+		}
+
+		if fs.usage.CompareAndSwap(usage, next) {
+			return next
+		}
 	}
-	return fs.usage.Add(i)
 }
 
 // CanFit checks if the given size can fit in the filesystem without exceeding
@@ -98,14 +118,15 @@ func (fs *Quota) CanFit(size int64) bool {
 		return true
 	}
 
-	// If the current usage + the requested size are under the limit of the
-	// filesystem, allow it.
-	if usage+size <= limit {
+	if size <= 0 {
 		return true
 	}
 
-	// Welp, the size would exceed the limit of the filesystem, deny it.
-	return false
+	if usage >= limit {
+		return false
+	}
+
+	return size <= limit-usage
 }
 
 // Remove removes the named file or (empty) directory.

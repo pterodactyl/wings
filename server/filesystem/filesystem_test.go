@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -111,9 +112,92 @@ func TestFilesystem_Openfile(t *testing.T) {
 	})
 }
 
-func TestFilesystem_Writefile(t *testing.T) {
+func TestFilesystem_Touch(t *testing.T) {
 	g := Goblin(t)
 	fs, _ := NewFs()
+
+	g.Describe("Touch", func() {
+		g.It("enforces disk limits while writing to the returned handle", func() {
+			fs.SetDiskLimit(10)
+
+			f, err := fs.Touch("quota.txt", ufs.O_RDWR|ufs.O_TRUNC)
+			g.Assert(err).IsNil()
+			defer f.Close()
+
+			n, err := f.WriteAt([]byte("1234567890"), 0)
+			g.Assert(err).IsNil()
+			g.Assert(n).Equal(10)
+			g.Assert(fs.CachedUsage()).Equal(int64(10))
+
+			n, err = f.WriteAt([]byte("1"), 10)
+			g.Assert(err).IsNotNil()
+			g.Assert(n).Equal(0)
+			g.Assert(IsErrorCode(err, ErrCodeDiskSpace)).IsTrue()
+			g.Assert(fs.CachedUsage()).Equal(int64(10))
+		})
+
+		g.It("enforces disk limits while sequentially writing to the returned handle", func() {
+			fs.SetDiskLimit(10)
+
+			f, err := fs.Touch("quota.txt", ufs.O_RDWR|ufs.O_TRUNC)
+			g.Assert(err).IsNil()
+			defer f.Close()
+
+			n, err := f.Write([]byte("1234567890"))
+			g.Assert(err).IsNil()
+			g.Assert(n).Equal(10)
+
+			n, err = f.Write([]byte("1"))
+			g.Assert(err).IsNotNil()
+			g.Assert(n).Equal(0)
+			g.Assert(IsErrorCode(err, ErrCodeDiskSpace)).IsTrue()
+			g.Assert(fs.CachedUsage()).Equal(int64(10))
+		})
+
+		g.It("updates disk usage when a truncated file is closed smaller", func() {
+			r := bytes.NewReader([]byte("1234567890"))
+			err := fs.Write("quota.txt", r, r.Size(), 0o644)
+			g.Assert(err).IsNil()
+			g.Assert(fs.CachedUsage()).Equal(int64(10))
+
+			f, err := fs.Touch("quota.txt", ufs.O_RDWR|ufs.O_TRUNC)
+			g.Assert(err).IsNil()
+
+			n, err := f.WriteAt([]byte("1234"), 0)
+			g.Assert(err).IsNil()
+			g.Assert(n).Equal(4)
+
+			err = f.Close()
+			g.Assert(err).IsNil()
+			g.Assert(fs.CachedUsage()).Equal(int64(4))
+		})
+
+		g.It("does not reset disk usage after a failed huge-offset write", func() {
+			const usage = int64(5 * 1024 * 1024)
+			fs.SetDiskLimit(10 * 1024 * 1024)
+			fs.unixFS.SetUsage(usage)
+
+			f, err := fs.Touch("quota.txt", ufs.O_RDWR|ufs.O_TRUNC)
+			g.Assert(err).IsNil()
+
+			n, err := f.WriteAt([]byte("x"), math.MaxInt64)
+			g.Assert(err).IsNotNil()
+			g.Assert(n).Equal(0)
+
+			err = f.Close()
+			g.Assert(err).IsNil()
+			g.Assert(fs.CachedUsage()).Equal(usage)
+		})
+
+		g.AfterEach(func() {
+			_ = fs.TruncateRootDirectory()
+		})
+	})
+}
+
+func TestFilesystem_Writefile(t *testing.T) {
+	g := Goblin(t)
+	fs, rfs := NewFs()
 
 	g.Describe("Open and WriteFile", func() {
 		buf := &bytes.Buffer{}
@@ -179,6 +263,19 @@ func TestFilesystem_Writefile(t *testing.T) {
 			err = fs.Write("test.txt", r, int64(len(b)), 0o644)
 			g.Assert(err).IsNotNil()
 			g.Assert(IsErrorCode(err, ErrCodeDiskSpace)).IsTrue()
+		})
+
+		g.It("cannot write a file whose claimed size overflows the quota check", func() {
+			fs.SetDiskLimit(1024)
+			fs.unixFS.SetUsage(1)
+
+			r := bytes.NewReader([]byte("small body"))
+			err := fs.Write("overflow.txt", r, math.MaxInt64, 0o644)
+			g.Assert(err).IsNotNil()
+			g.Assert(IsErrorCode(err, ErrCodeDiskSpace)).IsTrue()
+
+			_, err = rfs.StatServerFile("overflow.txt")
+			g.Assert(errors.Is(err, os.ErrNotExist)).IsTrue("err is not os.ErrNotExist")
 		})
 
 		g.It("truncates the file when writing new contents", func() {

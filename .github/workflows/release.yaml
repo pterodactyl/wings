@@ -1,71 +1,56 @@
 name: Release
-
 on:
   push:
     tags:
       - "v*"
-
 jobs:
   release:
     name: Release
     runs-on: ubuntu-24.04
     permissions:
-      contents: write # write is required to create releases and push.
-
+      contents: write
     steps:
       - name: Code checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Setup Go
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
-          go-version: "1.23.7"
+          go-version: 1.24.11
 
       - name: Build release binaries
         env:
           CGO_ENABLED: 0
-          REF: ${{ github.ref }}
         run: |
-          GOARCH=amd64 go build -o dist/wings_linux_amd64 -v -trimpath -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" github.com/pterodactyl/wings
+          GOARCH=amd64 go build -o dist/wings_linux_amd64 -v -trimpath -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${{ github.ref_name }}" github.com/pterodactyl/wings
           chmod 755 dist/wings_linux_amd64
-          GOARCH=arm64 go build -o dist/wings_linux_arm64 -v -trimpath -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${REF:11}" github.com/pterodactyl/wings
+          GOARCH=arm64 go build -o dist/wings_linux_arm64 -v -trimpath -ldflags="-s -w -X github.com/pterodactyl/wings/system.Version=${{ github.ref_name }}" github.com/pterodactyl/wings
           chmod 755 dist/wings_linux_arm64
-
-      - name: Extract changelog
-        env:
-          REF: ${{ github.ref }}
-        run: |
-          sed -n "/^## ${REF:10}/,/^## /{/^## /b;p}" CHANGELOG.md > ./RELEASE_CHANGELOG
-
-      - name: Create checksum and add to changelog
-        run: |
-          SUM=`cd dist && sha256sum wings_linux_amd64`
-          SUM2=`cd dist && sha256sum wings_linux_arm64`
-          echo -e "\n#### SHA256 Checksum\n\`\`\`\n$SUM\n$SUM2\n\`\`\`\n" >> ./RELEASE_CHANGELOG
-          echo -e "$SUM\n$SUM2" > checksums.txt
 
       - name: Create release branch
         env:
-          REF: ${{ github.ref }}
+          VERSION: ${{ github.ref_name }}
         run: |
-          BRANCH=release/${REF:10}
+          BRANCH=release/${{ env.VERSION }}
           git config --local user.email "ci@pterodactyl.io"
           git config --local user.name "Pterodactyl CI"
           git checkout -b $BRANCH
           git push -u origin $BRANCH
-          sed -i "s/var Version = \".*\"/var Version = \"${REF:11}\"/" system/const.go
+          sed -i "s/var Version = \".*\"/var Version = \"${VERSION:1}\"/" system/const.go
           git add system/const.go
-          git commit -m "bump version for release"
+          git commit -m "ci(release): bump version"
           git push
 
-      - name: Create release
-        uses: softprops/action-gh-release@6da8fa9354ddfdc4aeace5fc48d7f679b5214090 # v2.4.1
+      - name: write changelog
+        run: |
+          sed -n "/^## ${{ github.ref_name }}/,/^## /{/^## /b;p}" CHANGELOG.md > ./RELEASE_CHANGELOG
+
+      - uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           draft: true
-          prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+          prerelease: ${{ contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
           body_path: ./RELEASE_CHANGELOG
           files: |
             dist/*
-            checksums.txt

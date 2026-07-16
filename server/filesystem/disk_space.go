@@ -208,6 +208,32 @@ func (fs *Filesystem) HasSpaceFor(size int64) error {
 	return nil
 }
 
+func (fs *Filesystem) reserveDisk(size int64) error {
+	if size <= 0 {
+		return nil
+	}
+
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	if err := fs.HasSpaceFor(size); err != nil {
+		return err
+	}
+	fs.unixFS.Add(size)
+	return nil
+}
+
+func (fs *Filesystem) adjustDisk(size int64) int64 {
+	if size == 0 {
+		return fs.CachedUsage()
+	}
+
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	return fs.unixFS.Add(size)
+}
+
 // Updates the disk usage for the Filesystem instance.
 func (fs *Filesystem) addDisk(i int64) int64 {
 	return fs.unixFS.Add(i)

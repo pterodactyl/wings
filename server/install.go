@@ -143,12 +143,22 @@ func (s *Server) IsInstalling() bool {
 	return s.installing.Load()
 }
 
+func (s *Server) SetInstalling(state bool) {
+	s.installing.Store(state)
+	if state {
+		s.Sftp().CancelAll()
+	}
+}
+
 func (s *Server) IsTransferring() bool {
 	return s.transferring.Load()
 }
 
 func (s *Server) SetTransferring(state bool) {
 	s.transferring.Store(state)
+	if state {
+		s.Sftp().CancelAll()
+	}
 }
 
 func (s *Server) IsRestoring() bool {
@@ -157,6 +167,13 @@ func (s *Server) IsRestoring() bool {
 
 func (s *Server) SetRestoring(state bool) {
 	s.restoring.Store(state)
+	if state {
+		s.Sftp().CancelAll()
+	}
+}
+
+func (s *Server) IsInProtectedState() bool {
+	return s.IsInstalling() || s.IsTransferring() || s.IsRestoring()
 }
 
 // RemoveContainer removes the installation container for the server.
@@ -180,6 +197,7 @@ func (ip *InstallationProcess) Run() error {
 	if !ip.Server.installing.SwapIf(true) {
 		return errors.New("install: cannot obtain installation lock")
 	}
+	ip.Server.Sftp().CancelAll()
 
 	// We now have an exclusive lock on this installation process. Ensure that whenever this
 	// process is finished that the semaphore is released so that other processes and be executed
@@ -234,16 +252,9 @@ func (ip *InstallationProcess) writeScriptToDisk() error {
 
 // Pulls the docker image to be used for the installation container.
 func (ip *InstallationProcess) pullInstallationImage() error {
-	// Get a registry auth configuration from the config.
-	var registryAuth *config.RegistryConfiguration
-	for registry, c := range config.Get().Docker.Registries {
-		if !strings.HasPrefix(ip.Script.ContainerImage, registry) {
-			continue
-		}
-
+	registry, registryAuth := config.Get().Docker.RegistryCredentialsForImage(ip.Script.ContainerImage)
+	if registryAuth != nil {
 		log.WithField("registry", registry).Debug("using authentication for registry")
-		registryAuth = &c
-		break
 	}
 
 	// Get the ImagePullOptions.

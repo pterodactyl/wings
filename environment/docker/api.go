@@ -77,8 +77,10 @@ func (e *Environment) ContainerInspect(ctx context.Context) (types.ContainerJSON
 		if res == nil {
 			return st, errdefs.Unknown(err)
 		}
+		_ = res.Body.Close()
 		return st, errdefs.FromStatusCode(err, res.StatusCode)
 	}
+	defer res.Body.Close()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
