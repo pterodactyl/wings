@@ -20,6 +20,7 @@ type dockerNetworkInterfaces struct {
 	V6 struct {
 		Subnet  string `default:"fdba:17c8:6c94::/64"`
 		Gateway string `default:"fdba:17c8:6c94::1011"`
+		Enabled bool   `default:"true" yaml:"enabled"`
 	}
 }
 
