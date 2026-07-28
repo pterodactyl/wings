@@ -429,7 +429,7 @@ func initLogging() {
 	if config.Get().Debug {
 		log.SetLevel(log.DebugLevel)
 	}
-	log.SetHandler(multi.New(cli.Default, cli.New(w.File, false)))
+	log.SetHandler(multi.New(cli.Default, cli.New(w, false)))
 	log.WithField("path", p).Info("writing log files to disk")
 }
 
