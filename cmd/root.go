@@ -133,6 +133,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	pclient := remote.New(
 		config.Get().PanelLocation,
 		remote.WithCredentials(t.ID, t.Token),
+    remote.WithCustomHeader(config.Get().RemoteQuery.CustomHeaders),
 		remote.WithHttpClient(&http.Client{
 			Timeout: time.Second * time.Duration(config.Get().RemoteQuery.Timeout),
 		}),

@@ -41,6 +41,7 @@ type client struct {
 	tokenId     string
 	token       string
 	maxAttempts int
+	customHeaders map[string]string
 }
 
 // New returns a new HTTP request client that is used for making authenticated
@@ -65,6 +66,13 @@ func WithCredentials(id, token string) ClientOption {
 	return func(c *client) {
 		c.tokenId = id
 		c.token = token
+	}
+}
+
+// WithCustomHeader sets custom headers to be used when making remote requests.
+func WithCustomHeader(headers map[string]string) ClientOption {
+	return func(c *client) {
+		c.customHeaders = headers
 	}
 }
 
@@ -109,6 +117,10 @@ func (c *client) requestOnce(ctx context.Context, method, path string, body io.R
 	req.Header.Set("Accept", "application/vnd.pterodactyl.v1+json")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s.%s", c.tokenId, c.token))
+	
+	for cHeaderKey, cHeaderValue  := range c.customHeaders {
+		req.Header.Set(cHeaderKey, cHeaderValue)
+	} 
 
 	// Call all opts functions to allow modifying the request
 	for _, o := range opts {
