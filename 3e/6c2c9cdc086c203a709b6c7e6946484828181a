@@ -1,0 +1,27 @@
+config/config.go
+  s_c7a2f4f68590db::t_7c2e296f1332b6 420-421,423-426,428-435,444,447
+config/config_token_test.go
+  s_c7a2f4f68590db::t_b2649f64f2c711 1-60
+remote/http_test.go
+  s_c7a2f4f68590db::t_a93ba2f3afc502 38-59
+router/router_server_backup_test.go
+  s_c7a2f4f68590db::t_1e7a3cc270438e 30,87-91
+router/router_system_test.go
+  s_c7a2f4f68590db::t_48abbaa94483d9 1-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "3e6c2c9cdc086c203a709b6c7e6946484828181a",
+  "prompts": {},
+  "sessions": {
+    "s_c7a2f4f68590db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fec55-9128-7143-a148-71fba274e4be",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
