@@ -1,0 +1,21 @@
+sftp/handler.go
+  s_c7a2f4f68590db::t_ae320e78afc35a 26,165-187,206-208
+sftp/handler_test.go
+  s_c7a2f4f68590db::t_ae320e78afc35a 4,9,143-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "da1a216cfff5867fa66be32cb1edb93e37fd71ff",
+  "prompts": {},
+  "sessions": {
+    "s_c7a2f4f68590db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fec55-9128-7143-a148-71fba274e4be",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
