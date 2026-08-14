@@ -95,7 +95,7 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 		_ = b.Remove()
 
 		s.Log().WithField("error", notifyError).Info("failed to notify panel of successful backup state")
-		return err
+		return notifyError
 	} else {
 		s.Log().WithField("backup", b.Identifier()).Info("notified panel of successful backup state")
 	}
