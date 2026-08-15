@@ -66,6 +66,7 @@ func (a *Allocations) Bindings() nat.PortMap {
 // server to operate on a local address while still being accessible by other containers.
 func (a *Allocations) DockerBindings() nat.PortMap {
 	iface := config.Get().Docker.Network.Interface
+	disableBinding := config.Get().Docker.Network.DisableInterfaceBinding
 
 	out := a.Bindings()
 	// Loop over all the bindings for this container, and convert any that reference 127.0.0.1
@@ -73,6 +74,15 @@ func (a *Allocations) DockerBindings() nat.PortMap {
 	// trying to do when creating servers.
 	for p, binds := range out {
 		for i, alloc := range binds {
+			// If interface binding is disabled, set HostIP to empty string
+			if disableBinding {
+				out[p][i] = nat.PortBinding{
+					HostIP:   "",
+					HostPort: alloc.HostPort,
+				}
+				continue
+			}
+
 			if alloc.HostIP != "127.0.0.1" {
 				continue
 			}

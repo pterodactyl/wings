@@ -28,6 +28,10 @@ type DockerNetworkConfiguration struct {
 	// with any other interfaces in use by Docker or on the system.
 	Interface string `default:"172.18.0.1" json:"interface" yaml:"interface"`
 
+	// DisableInterfaceBinding determines whether containers should bind to a specific
+	// interface. If true, containers will bind to all interfaces.
+	DisableInterfaceBinding bool `default:"false" json:"disable_interface_binding" yaml:"disable_interface_binding"`
+
 	// The DNS settings for containers.
 	Dns []string `default:"[\"1.1.1.1\", \"1.0.0.1\"]"`
 
