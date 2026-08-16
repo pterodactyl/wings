@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os/exec"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -40,6 +41,14 @@ var diagnosticsArgs struct {
 	ReviewBeforeUpload bool
 	HastebinURL        string
 	LogLines           int
+}
+
+func redactWithProtocol(input string) string {
+	if diagnosticsArgs.IncludeEndpoints {
+		return input
+	}
+	re := regexp.MustCompile(`(https?://)[^/\s:]+`)
+	return re.ReplaceAllString(input, "${1}{redacted}")
 }
 
 func newDiagnosticsCommand() *cobra.Command {
@@ -96,6 +105,7 @@ func diagnosticsCmdRun(*cobra.Command, []string) {
 
 	output := &strings.Builder{}
 	fmt.Fprintln(output, "Pterodactyl Wings - Diagnostics Report")
+
 	printHeader(output, "Versions")
 	fmt.Fprintln(output, "               Wings:", system.Version)
 	if dockerErr == nil {
@@ -112,7 +122,7 @@ func diagnosticsCmdRun(*cobra.Command, []string) {
 	if err := config.FromFile(config.DefaultLocation); err != nil {
 	}
 	cfg := config.Get()
-	fmt.Fprintln(output, "      Panel Location:", redact(cfg.PanelLocation))
+	fmt.Fprintln(output, "      Panel Location:", redactWithProtocol(cfg.PanelLocation))
 	fmt.Fprintln(output, "")
 	fmt.Fprintln(output, "  Internal Webserver:", redact(cfg.Api.Host), ":", cfg.Api.Port)
 	fmt.Fprintln(output, "         SSL Enabled:", cfg.Api.Ssl.Enabled)
