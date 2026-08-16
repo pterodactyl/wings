@@ -282,7 +282,7 @@ func (a *Archive) addToArchive(dirfd int, name, relative string, entry ufs.DirEn
 		// the logs, but we're not going to stop the backup. There are far too many cases of
 		// symlinks causing all sorts of unnecessary pain in this process. Sucks to suck if
 		// it doesn't work.
-		target, err = os.Readlink(s.Name())
+		target, err = a.Filesystem.unixFS.Readlinkat(dirfd, name)
 		if err != nil {
 			// Ignore the not exist errors specifically, since there is nothing important about that.
 			if !os.IsNotExist(err) {
@@ -298,10 +298,8 @@ func (a *Archive) addToArchive(dirfd int, name, relative string, entry ufs.DirEn
 		return errors.WrapIff(err, "failed to get tar#FileInfoHeader for '%s'", name)
 	}
 
-	// Fix the header name if the file is not a symlink.
-	if s.Mode()&fs.ModeSymlink == 0 {
-		header.Name = relative
-	}
+	// Fix the header name
+	header.Name = relative
 
 	// Write the tar FileInfoHeader to the archive.
 	if err := a.w.WriteHeader(header); err != nil {
