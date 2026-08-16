@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -19,6 +20,7 @@ import (
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/internal/ufs"
+	"github.com/pterodactyl/wings/server/filesystem"
 )
 
 // The file parsing options that are available for a server configuration file.
@@ -625,4 +627,52 @@ func (f *ConfigurationFile) parsePropertiesFile(file ufs.File) error {
 		return errors.Wrap(err, "parser: failed to write properties file to disk")
 	}
 	return nil
+}
+
+// MatchPattern takes a filesystem, root path, and pattern to match files against,
+// returning a list of matched file paths. It supports wildcard patterns using
+// standard filepath matching rules.
+func MatchPattern(fs *filesystem.Filesystem, rootPath, pattern string) ([]string, error) {
+	var results []string
+
+	// Separate the pattern into parts
+	parts := strings.Split(pattern, string(filepath.Separator))
+
+	// If the pattern has multiple parts (e.g., logs/*.txt), process recursively
+	if len(parts) > 1 {
+		currentDir := rootPath
+		for i, part := range parts {
+			if i == len(parts)-1 {
+				// Last part is the file pattern
+				entries, err := fs.ListDirectory(currentDir)
+				// If directory don't exist, just ignore.
+				if err != nil {
+					return nil, nil
+				}
+
+				for _, entry := range entries {
+					if matched, _ := filepath.Match(part, entry.Name()); matched {
+						results = append(results, filepath.Join(currentDir, entry.Name()))
+					}
+				}
+			} else {
+				// Intermediate parts: enter the directory if it exists
+				currentDir = filepath.Join(currentDir, part)
+			}
+		}
+	} else {
+		// Simple pattern (e.g., *.txt) - match in the rootPath
+		entries, err := fs.ListDirectory(rootPath)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, entry := range entries {
+			if matched, _ := filepath.Match(pattern, entry.Name()); matched {
+				results = append(results, filepath.Join(rootPath, entry.Name()))
+			}
+		}
+	}
+
+	return results, nil
 }
