@@ -285,7 +285,7 @@ type Backups struct {
 	//
 	// "none" -> no compression will be applied
 	// "best_speed" -> uses gzip level 1 for fast speed
-	// "best_compression" -> uses gzip level 9 for minimal disk space useage
+	// "best_compression" -> uses gzip level 9 for minimal disk space usage
 	//
 	// Defaults to "best_speed" (level 1)
 	CompressionLevel string `default:"best_speed" yaml:"compression_level"`
