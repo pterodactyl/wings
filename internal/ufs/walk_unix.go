@@ -44,7 +44,7 @@ func (fs *UnixFS) walkDir(b []byte, parentfd int, name, relative string, d DirEn
 	}
 
 	dirfd, err := fs.openat(parentfd, name, O_DIRECTORY|O_RDONLY, 0)
-	if dirfd != 0 {
+	if dirfd >= 0 {
 		defer unix.Close(dirfd)
 	}
 	if err != nil {
