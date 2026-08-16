@@ -231,6 +231,9 @@ type SystemConfiguration struct {
 	// ActivitySendCount is the number of activity events to send per batch.
 	ActivitySendCount int `default:"100" yaml:"activity_send_count"`
 
+	// Should send sftp.read to activity log
+	ActivitySendSftpRead bool `default:"false" yaml:"activity_send_sftp_read"`
+
 	// If set to true, file permissions for a server will be checked when the process is
 	// booted. This can cause boot delays if the server has a large amount of files. In most
 	// cases disabling this should not have any major impact unless external processes are
