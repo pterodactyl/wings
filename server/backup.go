@@ -13,6 +13,7 @@ import (
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server/backup"
+	"github.com/pterodactyl/wings/server/filesystem"
 )
 
 // Notifies the panel of a backup's state and returns an error if one is encountered
@@ -43,13 +44,16 @@ func (s *Server) getServerwideIgnoredFiles() (string, error) {
 		return "", err
 	}
 	defer f.Close()
-	if st.Mode()&os.ModeSymlink != 0 || st.Size() > 32*1024 {
-		// Don't read a symlinked ignore file, or a file larger than 32KiB in size.
+	if st.Mode()&os.ModeSymlink != 0 || st.Size() > filesystem.MaxIgnoreLength {
+		// Don't read a symlinked ignore file, or a file larger than the maximum list size.
 		return "", nil
 	}
 	b, err := io.ReadAll(f)
 	if err != nil {
 		return "", err
+	}
+	if err := filesystem.ValidateIgnore(string(b)); err != nil {
+		return "", errors.WrapIf(err, "backup: invalid .pteroignore file")
 	}
 	return string(b), nil
 }

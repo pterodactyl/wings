@@ -19,6 +19,7 @@ import (
 	"github.com/pterodactyl/wings/internal/models"
 	"github.com/pterodactyl/wings/remote"
 	wserver "github.com/pterodactyl/wings/server"
+	"github.com/pterodactyl/wings/server/filesystem"
 )
 
 func init() {
@@ -194,6 +195,23 @@ func TestPostServerRestoreBackupRejectsLoopbackDownloadURL(t *testing.T) {
 	case <-hit:
 		t.Fatal("expected loopback server not to receive restore download request")
 	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestPostServerBackupRejectsInvalidIgnoreList(t *testing.T) {
+	client := backupTestRemoteClient{}
+	backupID := "11111111-1111-1111-1111-111111111111"
+	ignore := strings.Repeat("*a", filesystem.MaxIgnorePatternWildcards+1)
+	c, w, s := newBackupRestoreContext(t, client, backupID, fmt.Sprintf(`{"adapter":"wings","uuid":%q,"ignore":%q}`, backupID, ignore))
+	defer s.CtxCancel()
+
+	postServerBackup(c)
+
+	if c.Writer.Status() != http.StatusBadRequest {
+		t.Fatalf("expected invalid ignore list to be rejected, got status %d body %s", c.Writer.Status(), w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "wildcards") {
+		t.Fatalf("expected error to describe the wildcard limit, got body %s", w.Body.String())
 	}
 }
 

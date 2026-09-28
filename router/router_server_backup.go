@@ -21,6 +21,7 @@ import (
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/server"
 	"github.com/pterodactyl/wings/server/backup"
+	"github.com/pterodactyl/wings/server/filesystem"
 )
 
 var blockedBackupRestorePrefixes = []netip.Prefix{
@@ -50,6 +51,11 @@ func postServerBackup(c *gin.Context) {
 	}
 	backupUuid, ok := parseBackupUuid(c, data.Uuid)
 	if !ok {
+		return
+	}
+
+	if err := filesystem.ValidateIgnore(data.Ignore); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
