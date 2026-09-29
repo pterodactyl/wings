@@ -33,6 +33,14 @@ func getServerFileContents(c *gin.Context) {
 	p := strings.TrimLeft(c.Query("file"), "/")
 	f, st, err := s.Filesystem().File(p)
 	if err != nil {
+		// If the error is that the file does not exist return a 404 error.
+		if errors.Is(err, os.ErrNotExist) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+				"error": "The requested file was not found on the server.",
+			})
+			return
+		}
+
 		middleware.CaptureAndAbort(c, err)
 		return
 	}
@@ -79,6 +87,14 @@ func getServerListDirectory(c *gin.Context) {
 	s := ExtractServer(c)
 	dir := c.Query("directory")
 	if stats, err := s.Filesystem().ListDirectory(dir); err != nil {
+		// If the error is that the folder does not exist return a 404 error.
+		if errors.Is(err, os.ErrNotExist) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+				"error": "The requested directory was not found on the server.",
+			})
+			return
+		}
+
 		middleware.CaptureAndAbort(c, err)
 	} else {
 		c.JSON(http.StatusOK, stats)
