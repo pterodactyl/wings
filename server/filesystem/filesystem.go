@@ -19,6 +19,9 @@ import (
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/internal/ufs"
+
+	"path"
+	
 )
 
 type Filesystem struct {
@@ -531,4 +534,28 @@ func (fs *Filesystem) Chtimes(path string, atime, mtime time.Time) error {
 		return nil
 	}
 	return fs.unixFS.Chtimes(path, atime, mtime)
+}
+
+// WalkDirectory recursively walks a directory and applies the callback function to each file.
+func WalkDirectory(fs *Filesystem, dir string, fn func(string, Stat, error) error) error {
+	files, err := fs.ListDirectory(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		fullPath := path.Join(dir, file.Name())
+
+		if err := fn(fullPath, file, nil); err != nil {
+			return err
+		}
+
+		if file.IsDir() {
+			if err := WalkDirectory(fs, fullPath, fn); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

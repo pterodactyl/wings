@@ -74,6 +74,86 @@ func getServerFileContents(c *gin.Context) {
 	}
 }
 
+type SearchResult struct {
+	File    string `json:"file"`
+	Line    int    `json:"line"`
+	Snippet string `json:"snippet"`
+}
+
+
+// postServerSearchFiles handles fuzzy file content search
+func postServerSearchFiles(c *gin.Context) {
+	s := middleware.ExtractServer(c)
+	maxResults := 100
+
+	var data struct {
+		Query string `json:"query"`
+	}
+
+	if err := c.BindJSON(&data); err != nil {
+		return
+	}
+
+	if data.Query == "" {
+		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "No search query was provided.",
+		})
+		return
+	}
+
+	var results []SearchResult
+
+	err := filesystem.WalkDirectory(s.Filesystem(), "/", func(p string, info filesystem.Stat, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		// Skip large files (> 5MB) for performance
+		if info.Size() > 5*1024*1024 {
+			return nil
+		}
+
+		f, _, err := s.Filesystem().File(p)
+		if err != nil {
+			return nil // Skip files we can't read
+		}
+		defer f.Close()
+
+		scanner := bufio.NewScanner(f)
+		lineNum := 1
+		for scanner.Scan() {
+			line := scanner.Text()
+			haystack := line
+			needle := data.Query
+
+
+			if strings.Contains(haystack, needle) {
+				results = append(results, SearchResult{
+					File:    p,
+					Line:    lineNum,
+					Snippet: line,
+				})
+				if len(results) >= maxResults {
+					return io.EOF // Stop early when limit reached
+				}
+			}
+			lineNum++
+		}
+		return nil
+	})
+
+	if err != nil && err != io.EOF {
+		middleware.CaptureAndAbort(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, results)
+}
+
 // Returns the contents of a directory for a server.
 func getServerListDirectory(c *gin.Context) {
 	s := ExtractServer(c)
