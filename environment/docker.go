@@ -91,7 +91,7 @@ func createDockerNetwork(ctx context.Context, cli *client.Client) error {
 			"com.docker.network.bridge.enable_icc":           strconv.FormatBool(nw.EnableICC),
 			"com.docker.network.bridge.enable_ip_masquerade": "true",
 			"com.docker.network.bridge.host_binding_ipv4":    "0.0.0.0",
-			"com.docker.network.bridge.name":                 "pterodactyl0",
+			"com.docker.network.bridge.name":                 nw.Name,
 			"com.docker.network.driver.mtu":                  strconv.FormatInt(nw.NetworkMTU, 10),
 		},
 	})
