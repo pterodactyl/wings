@@ -1,0 +1,40 @@
+
+## <summary>policy for wings</summary>
+
+########################################
+## <summary>
+##	Execute wings_exec_t in the wings domain.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`wings_domtrans',`
+	gen_require(`
+		type wings_t, wings_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, wings_exec_t, wings_t)
+')
+
+######################################
+## <summary>
+##	Execute wings in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`wings_exec',`
+	gen_require(`
+		type wings_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, wings_exec_t)
+')
