@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"regexp"
 	"time"
@@ -160,6 +161,23 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 
 	if err = config.WriteToDisk(cfg); err != nil {
 		panic(err)
+	}
+
+	// Ask user if they want to restart Wings after config
+	var restartWings bool
+	survey.AskOne(&survey.Confirm{
+    	Message: "Restart Wings to apply changes?",
+    	Default: true,
+	}, &restartWings)
+
+	if restartWings {
+    	fmt.Println("Restarting Wings...")
+    	err := exec.Command("systemctl", "restart", "wings").Run()
+    	if err != nil {
+        	fmt.Println("Failed to restart Wings:", err)
+        	os.Exit(1)
+    	}
+    	fmt.Println("Wings restarted successfully.")
 	}
 
 	fmt.Println("Successfully configured wings.")
