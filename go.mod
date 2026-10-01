@@ -46,6 +46,7 @@ require (
 	golang.org/x/crypto v0.46.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.39.0
+	golang.org/x/text v0.32.0
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -132,7 +133,6 @@ require (
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/term v0.38.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gotest.tools/v3 v3.0.2 // indirect

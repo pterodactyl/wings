@@ -7,9 +7,12 @@ import (
 	"compress/gzip"
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	. "github.com/franela/goblin"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 // Given an archive named test.{ext}, with the following file structure:
@@ -121,6 +124,73 @@ func zipWithEmptyDir() ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// A GBK path like the CustomNPCs dialog archive must survive the disk check
+// and land on disk as UTF-8. UTF-8 stored without the ZIP flag stays UTF-8.
+func TestFilesystem_DecompressLegacyZipNames(t *testing.T) {
+	fs, rfs := NewFs()
+	t.Cleanup(func() { _ = fs.TruncateRootDirectory() })
+	fs.SetDiskLimit(10 * 1024 * 1024)
+
+	t.Run("gbk directory", func(t *testing.T) {
+		dir := mustEncode(t, simplifiedchinese.GB18030, "world/customnpcs/dialogs/河北每日/")
+		file := mustEncode(t, simplifiedchinese.GB18030, "world/customnpcs/dialogs/河北每日/对话.txt")
+		data, err := buildRawZip([]rawZipEntry{
+			{name: dir, dir: true},
+			{name: file, body: []byte("dialog-body")},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := rfs.CreateServerFile("legacy.zip", data); err != nil {
+			t.Fatal(err)
+		}
+		if err := fs.SpaceAvailableForDecompression(context.Background(), "/", "legacy.zip"); err != nil {
+			t.Fatalf("space check: %v", err)
+		}
+		if err := fs.DecompressFile(context.Background(), "/", "legacy.zip"); err != nil {
+			t.Fatalf("decompress: %v", err)
+		}
+		st, err := rfs.StatServerFile("world/customnpcs/dialogs/河北每日")
+		if err != nil {
+			t.Fatalf("stat dir: %v", err)
+		}
+		if !st.IsDir() {
+			t.Fatal("河北每日 is not a directory")
+		}
+		got, err := os.ReadFile(filepath.Join(rfs.root, "server", "world/customnpcs/dialogs/河北每日/对话.txt"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != "dialog-body" {
+			t.Fatalf("body = %q", got)
+		}
+		_ = fs.TruncateRootDirectory()
+	})
+
+	t.Run("utf-8 without flag", func(t *testing.T) {
+		data, err := buildRawZip([]rawZipEntry{
+			{name: "中文.txt", body: []byte("plain"), utf8: true},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		data = clearZipUTF8Flag(t, data)
+		if err := rfs.CreateServerFile("utf8.zip", data); err != nil {
+			t.Fatal(err)
+		}
+		if err := fs.DecompressFile(context.Background(), "/", "utf8.zip"); err != nil {
+			t.Fatalf("decompress: %v", err)
+		}
+		got, err := os.ReadFile(filepath.Join(rfs.root, "server", "中文.txt"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != "plain" {
+			t.Fatalf("body = %q", got)
+		}
+	})
 }
 
 // tarGzWithEmptyDir builds a tar.gz holding one file and an empty directory ("empty/").
