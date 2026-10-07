@@ -49,7 +49,7 @@ func Test_Utils(t *testing.T) {
 			b = NewAtomicBool(false)
 		})
 
-		g.It("initalizes with the provided start value", func() {
+		g.It("initializes with the provided start value", func() {
 			b = NewAtomicBool(true)
 			g.Assert(b.Load()).IsTrue()
 
