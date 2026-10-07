@@ -98,32 +98,32 @@ func postTransfers(c *gin.Context) {
 		// Remove the transfer from the list of incoming transfers.
 		transfer.Incoming().Remove(trnsfr)
 
+		status := "success"
 		if !successful {
-			trnsfr.Server.Events().Publish(server.TransferStatusEvent, "failure")
+			status = "failure"
+
 			manager.Remove(func(match *server.Server) bool {
 				return match.ID() == trnsfr.Server.ID()
 			})
+
+			// Only delete the files if the transfer actually failed, otherwise we could have
+			// unrecoverable data-loss.
+			go func(trnsfr *transfer.Transfer) {
+				trnsfr.Log().Debug("cleaning up leftover files")
+				
+				_ = trnsfr.Server.Filesystem().UnixFS().Close()
+				if err := os.RemoveAll(trnsfr.Server.Filesystem().Path()); err != nil && !os.IsNotExist(err) {
+					trnsfr.Log().WithError(err).Warn("failed to delete local server files")
+				}
+			}(trnsfr)
 		}
 
 		if err := manager.Client().SetTransferStatus(context.Background(), trnsfr.Server.ID(), successful); err != nil {
-			// Only delete the files if the transfer actually failed, otherwise we could have
-			// unrecoverable data-loss.
-			if !successful && err != nil {
-				// Delete all extracted files.
-				go func(trnsfr *transfer.Transfer) {
-					_ = trnsfr.Server.Filesystem().UnixFS().Close()
-					if err := os.RemoveAll(trnsfr.Server.Filesystem().Path()); err != nil && !os.IsNotExist(err) {
-						trnsfr.Log().WithError(err).Warn("failed to delete local server files")
-					}
-				}(trnsfr)
-			}
-
-			trnsfr.Log().WithField("status", successful).WithError(err).Error("failed to set transfer status on panel")
-			return
+			trnsfr.Log().WithField("status", status).WithError(err).Error("failed to set transfer status on panel")
 		}
 
 		trnsfr.Server.SetTransferring(false)
-		trnsfr.Server.Events().Publish(server.TransferStatusEvent, "success")
+		trnsfr.Server.Events().Publish(server.TransferStatusEvent, status)
 	}(ctx, trnsfr)
 
 	mediaType, params, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
