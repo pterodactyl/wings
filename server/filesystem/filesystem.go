@@ -217,7 +217,18 @@ func (fs *Filesystem) Rename(oldpath, newpath string) error {
 }
 
 func (fs *Filesystem) Symlink(oldpath, newpath string) error {
-	return fs.unixFS.Symlink(oldpath, newpath)
+	// Ensure the parent directory exists; the symlink may be created before
+	// anything else has populated it (e.g. archive extraction).
+	if err := fs.mkdirAll(filepath.Dir(newpath), 0o755); err != nil {
+		return err
+	}
+	if err := fs.unixFS.Symlink(oldpath, newpath); err != nil {
+		return err
+	}
+	if err := fs.chownFile(newpath); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (fs *Filesystem) chownFile(name string) error {
