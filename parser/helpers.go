@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bytes"
 	"regexp"
 	"strconv"
 	"strings"
@@ -188,8 +187,7 @@ func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path st
 	// Check if we are replacing instead of overwriting.
 	if strings.HasPrefix(cfr.IfValue, "regex:") {
 		// Doing a regex replacement requires an existing value.
-		// TODO: Do we try passing an empty string to the regex?
-		if c.ExistsP(path) {
+		if !c.ExistsP(path) {
 			return gabs.ErrNotFound
 		}
 
@@ -200,18 +198,28 @@ func (cfr *ConfigurationFileReplacement) SetAtPathway(c *gabs.Container, path st
 			return nil
 		}
 
-		v := strings.Trim(c.Path(path).String(), "\"")
-		if r.Match([]byte(v)) {
+		v := valueAtPath(c, path)
+		if r.MatchString(v) {
 			return setValueAtPath(c, path, r.ReplaceAllString(v, value))
 		}
 		return nil
 	}
 
-	if c.ExistsP(path) && !bytes.Equal(c.Bytes(), []byte(cfr.IfValue)) {
+	if c.ExistsP(path) && valueAtPath(c, path) != cfr.IfValue {
 		return nil
 	}
 
 	return setValueAtPath(c, path, cfr.getKeyValue(value))
+}
+
+// Returns the value at the path as plain text: strings without their JSON quotes, and
+// numbers and booleans as written, so they compare against an if_value directly.
+func valueAtPath(c *gabs.Container, path string) string {
+	if s, ok := c.Path(path).Data().(string); ok {
+		return s
+	}
+
+	return c.Path(path).String()
 }
 
 // Looks up a configuration value on the Daemon given a dot-notated syntax.

@@ -148,6 +148,26 @@ func (f *ConfigurationFile) UnmarshalJSON(data []byte) error {
 
 // ConfigurationFileReplacement defines a single find/replace instance for a
 // given server configuration file.
+// Reads a key as text. The Panel encodes a numeric key such as "25565" as a JSON number,
+// so numbers and booleans are accepted alongside strings.
+func scalarString(data []byte, key string) (string, error) {
+	value, dataType, _, err := jsonparser.Get(data, key)
+	if err != nil {
+		return "", err
+	}
+
+	switch dataType {
+	case jsonparser.String:
+		return jsonparser.ParseString(value)
+	case jsonparser.Number, jsonparser.Boolean:
+		return string(value), nil
+	case jsonparser.Null:
+		return "", nil
+	default:
+		return "", errors.New("parser: " + key + " must be a string, number, or boolean")
+	}
+}
+
 type ConfigurationFileReplacement struct {
 	Match       string       `json:"match"`
 	IfValue     string       `json:"if_value"`
@@ -157,14 +177,14 @@ type ConfigurationFileReplacement struct {
 // UnmarshalJSON handles unmarshaling the JSON representation into a struct that
 // provides more useful data to this functionality.
 func (cfr *ConfigurationFileReplacement) UnmarshalJSON(data []byte) error {
-	m, err := jsonparser.GetString(data, "match")
+	m, err := scalarString(data, "match")
 	if err != nil {
 		return err
 	}
 
 	cfr.Match = m
 
-	iv, err := jsonparser.GetString(data, "if_value")
+	iv, err := scalarString(data, "if_value")
 	// We only check keypath here since match & replace_with should be present on all of
 	// them, however if_value is optional.
 	if err != nil && err != jsonparser.KeyPathNotFoundError {
