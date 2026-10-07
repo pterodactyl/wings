@@ -89,6 +89,9 @@ func (fs *Filesystem) archiverFileSystem(ctx context.Context, p string) (iofs.FS
 				_ = f.Close()
 				return nil, nil, err
 			}
+			// Decode legacy names before the first Open. The zip FS index is
+			// built lazily, and fs.ValidPath rejects names that are not UTF-8.
+			normalizeZipNames(reader.File)
 			return reader, f, nil
 		case archives.Extraction:
 			return &archives.ArchiveFS{Stream: io.NewSectionReader(f, 0, info.Size()), Format: ff, Context: ctx}, f, nil
@@ -273,9 +276,17 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 		return nil
 	}
 
+	// One legacy encoding for the whole zip. Extract leaves NonUTF8 names
+	// unchanged when Zip.TextEncoding is unset, so decode them here.
+	decoded := zipArchiveNames(opts)
+
 	// Decompress and extract archive
 	return ex.Extract(ctx, opts.Reader, func(ctx context.Context, f archives.FileInfo) error {
-		p := filepath.Join(opts.Directory, f.NameInArchive)
+		name := archiveEntryName(f, decoded)
+		if name == "" || name == "." {
+			return nil
+		}
+		p := filepath.Join(opts.Directory, name)
 		// If it is ignored, just don't do anything with the entry and skip over it.
 		if err := fs.IsIgnored(p); err != nil {
 			return nil
