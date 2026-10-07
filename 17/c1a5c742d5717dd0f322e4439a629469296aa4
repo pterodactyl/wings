@@ -1,0 +1,23 @@
+parser/helpers_test.go
+  s_0c078e69478431::t_566a461b33980f 1-134
+parser/helpers.go
+  s_0c078e69478431::t_5d115be7c6cc4f 190,201-202,208,215-224
+parser/parser.go
+  s_0c078e69478431::t_fccd3b9892650f 151-170,180,187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "17c1a5c742d5717dd0f322e4439a629469296aa4",
+  "prompts": {},
+  "sessions": {
+    "s_0c078e69478431": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "712c1fd7-2642-4677-8ee0-0f91d015a28e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
