@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -125,6 +126,7 @@ func (c *SFTPServer) AcceptInbound(conn net.Conn, config *ssh.ServerConfig) erro
 	defer sconn.Close()
 	go ssh.DiscardRequests(reqs)
 
+	var wg sync.WaitGroup
 	for ch := range chans {
 		// If its not a session channel we just move on because its not something we
 		// know how to handle at this point.
@@ -148,13 +150,22 @@ func (c *SFTPServer) AcceptInbound(conn net.Conn, config *ssh.ServerConfig) erro
 			}
 		}(requests)
 
-		if srv, ok := c.manager.Get(sconn.Permissions.Extensions["uuid"]); ok {
-			if err := c.Handle(sconn, srv, channel); err != nil {
-				return err
-			}
+		srv, ok := c.manager.Get(sconn.Permissions.Extensions["uuid"])
+		if !ok {
+			_ = channel.Close()
+			continue
 		}
+
+		wg.Add(1)
+		go func(srv *server.Server, channel ssh.Channel) {
+			defer wg.Done()
+			if err := c.Handle(sconn, srv, channel); err != nil {
+				log.WithField("error", err).WithField("user", sconn.User()).Error("sftp: failed to handle session")
+			}
+		}(srv, channel)
 	}
 
+	wg.Wait()
 	return nil
 }
 
