@@ -65,26 +65,36 @@ func (a *Allocations) Bindings() nat.PortMap {
 // any reference to 127.0.0.1 with the IP of the pterodactyl0 network interface which will allow the
 // server to operate on a local address while still being accessible by other containers.
 func (a *Allocations) DockerBindings() nat.PortMap {
-	iface := config.Get().Docker.Network.Interface
+	nw := config.Get().Docker.Network
 
 	out := a.Bindings()
 	// Loop over all the bindings for this container, and convert any that reference 127.0.0.1
 	// to use the pterodactyl0 network interface IP, as that is the true local for what people are
 	// trying to do when creating servers.
 	for p, binds := range out {
+		if nw.ISPN {
+			filtered := binds[:0]
+			for _, alloc := range binds {
+				if alloc.HostIP != "127.0.0.1" {
+					filtered = append(filtered, alloc)
+				}
+			}
+			if len(filtered) == 0 {
+				delete(out, p)
+			} else {
+				out[p] = filtered
+			}
+			continue
+		}
+
 		for i, alloc := range binds {
 			if alloc.HostIP != "127.0.0.1" {
 				continue
 			}
 
-			// If using ISPN just delete the local allocation from the server.
-			if config.Get().Docker.Network.ISPN {
-				out[p] = append(out[p][:i], out[p][i+1:]...)
-			} else {
-				out[p][i] = nat.PortBinding{
-					HostIP:   iface,
-					HostPort: alloc.HostPort,
-				}
+			out[p][i] = nat.PortBinding{
+				HostIP:   nw.Interface,
+				HostPort: alloc.HostPort,
 			}
 		}
 	}
