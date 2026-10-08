@@ -1,0 +1,23 @@
+.github/workflows/lint.yaml
+  s_f493535ac28c9e::t_a0048df06b3f93 1-33
+.golangci.yml
+  s_f493535ac28c9e::t_a0048df06b3f93 1-31
+Makefile
+  s_f493535ac28c9e::t_a0048df06b3f93 19-22,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "65ac710bf8f9804176adcb535d5d512d57793dac",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
