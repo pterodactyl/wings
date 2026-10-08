@@ -1,0 +1,58 @@
+server/filesystem/disk_space.go
+  s_f493535ac28c9e::t_a0048df06b3f93 136-137,145-151,163-172,174,227-230,243-246,250-265
+  s_f493535ac28c9e::t_8aeb0aa89daec8 266-267
+server/backup/backup.go
+  s_f493535ac28c9e::t_a0048df06b3f93 5,135,140
+server/filesystem/compress.go
+  s_f493535ac28c9e::t_a0048df06b3f93 31,33-51,54-61,63,65-66,68-69,71,74-77,80-82,90,94,96-107,109-110,115-140,143-144,147-157,254-255,260-262
+server/filesystem/quota_file.go
+  s_f493535ac28c9e::t_a0048df06b3f93 60-62,76,81
+server/filesystem/path_denylist_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-28
+server/filesystem/path.go
+  s_f493535ac28c9e::t_a0048df06b3f93 4,20-27
+server/filesystem/archive.go
+  s_f493535ac28c9e::t_a0048df06b3f93 88,144
+server/filesystem/norace_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-7
+server/filesystem/fifo_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-71
+internal/ufs/removeall_unix.go
+  s_f493535ac28c9e::t_a0048df06b3f93 180,234,246-247
+internal/ufs/fs_unix.go
+  s_f493535ac28c9e::t_a0048df06b3f93 662-668,687-693,741-757
+internal/ufs/walk_unix.go
+  s_f493535ac28c9e::t_a0048df06b3f93 142,145,240
+server/filesystem/filesystem.go
+  s_f493535ac28c9e::t_a0048df06b3f93 27-39,50,177-181,184-188,207-208,214-216,375-377,380-382,396-412,419,436
+server/filesystem/race_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-7
+server/filesystem/ignore_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 4,114-160
+  s_f493535ac28c9e::t_c2cfe0b7407c51 161
+server/filesystem/ignore.go
+  s_f493535ac28c9e::t_a0048df06b3f93 107-111,113-115,126-143
+server/filesystem/quota_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-290
+internal/ufs/removeall_unix_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-53
+server/filesystem/compress_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 10-11,13,104-210,214
+  s_f493535ac28c9e::t_79894fca27a39f 211-213,215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "83da6647f287861602fa546d38cf19f0c6737c14",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
