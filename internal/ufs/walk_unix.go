@@ -139,10 +139,10 @@ func nameFromDirent(de *unix.Dirent) (name []byte) {
 	// SliceHeader was mainly deprecated due to it being misused for avoiding
 	// allocations when converting a byte slice to a string, ref;
 	// https://go.dev/issue/53003
-	sh := (*reflect.SliceHeader)(unsafe.Pointer(&name))
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&name)) //nolint:gosec,staticcheck // audited, deprecation tracked by the TODO above
 	sh.Cap = ml
 	sh.Len = ml
-	sh.Data = uintptr(unsafe.Pointer(&de.Name[0]))
+	sh.Data = uintptr(unsafe.Pointer(&de.Name[0])) //nolint:gosec // audited, see above
 
 	if index := bytes.IndexByte(name, 0); index >= 0 {
 		// Found NULL byte; set slice's cap and len accordingly.
@@ -237,6 +237,7 @@ func (fs *UnixFS) readDir(fd int, name, relative string, b []byte) ([]DirEntry, 
 		}
 
 		// "Go is like C, except that you just put `unsafe` all over the place".
+		//nolint:gosec // bounded by the size of sde
 		copy((*[unsafe.Sizeof(unix.Dirent{})]byte)(unsafe.Pointer(&sde))[:], workBuffer)
 		workBuffer = workBuffer[sde.Reclen:] // advance buffer for next iteration through loop
 

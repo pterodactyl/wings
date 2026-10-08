@@ -85,7 +85,7 @@ type Archive struct {
 func (a *Archive) Create(ctx context.Context, dst string) error {
 	// Using os.OpenFile here is expected, as long as `dst` is not a user
 	// provided path.
-	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // dst is never user provided, see above
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (a *Archive) Stream(ctx context.Context, w io.Writer) error {
 		}
 		// Time each evaluation and abort if the patterns prove disproportionately
 		// expensive for this server's file tree.
-		budget := newIgnoreMatchBudget()
+		budget := newIgnoreMatchBudget(ignorePatternCount(a.Ignore))
 		callback = a.callback(func(_ int, _, relative string, _ ufs.DirEntry) error {
 			start := time.Now()
 			skip := i.MatchesPath(relative)

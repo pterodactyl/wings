@@ -2,7 +2,7 @@ package backup
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // see Checksum
 	"encoding/hex"
 	"io"
 	"io/fs"
@@ -132,12 +132,12 @@ func (b *Backup) Size() (int64, error) {
 	return st.Size(), nil
 }
 
-// Checksum returns the SHA256 checksum of a backup.
+// Checksum returns the SHA1 checksum of a backup.
 func (b *Backup) Checksum() ([]byte, error) {
 	if err := b.validateIdentifier(); err != nil {
 		return nil, err
 	}
-	h := sha1.New()
+	h := sha1.New() //nolint:gosec // integrity checksum; the Panel expects checksum_type "sha1"
 
 	f, err := os.Open(b.Path())
 	if err != nil {

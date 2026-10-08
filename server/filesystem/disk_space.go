@@ -133,14 +133,21 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	// Obtain an exclusive lock on this process so that we don't unintentionally run it at the same
 	// time as another running process. Once the lock is available it'll read from the cache for the
 	// second call rather than hitting the disk in parallel.
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
+	fs.lookupMu.Lock()
+	defer fs.lookupMu.Unlock()
 
 	// Signal that we're currently updating the disk size so that other calls to the disk checking
 	// functions can determine if they should queue up additional calls to this function. Ensure that
 	// we always set this back to "false" when this process is done executing.
 	fs.lookupInProgress.Store(true)
 	defer fs.lookupInProgress.Store(false)
+
+	// Writes are not blocked while walking the directory, so keep track of the space reserved for
+	// writes that are in progress at any point during the walk.
+	fs.mu.Lock()
+	fs.walking = true
+	fs.walkReserved = fs.reserved
+	fs.mu.Unlock()
 
 	// If there is no size its either because there is no data (in which case running this function
 	// will have effectively no impact), or there is nothing in the cache, in which case we need to
@@ -153,9 +160,18 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	// error encountered.
 	fs.lastLookupTime.Set(time.Now())
 
-	fs.unixFS.SetUsage(size)
+	// The walk may or may not have seen the data written by writes that are still in progress, so
+	// add the space reserved for them. Otherwise, a write that started before the walk could write
+	// past the disk limit. Writes that finished during the walk are not added, since the walk has
+	// usually already counted them, and counting them twice could make the server appear to be
+	// over its limit. Either error is corrected by the next walk.
+	fs.mu.Lock()
+	usage := size + fs.walkReserved
+	fs.unixFS.SetUsage(usage)
+	fs.walking = false
+	fs.mu.Unlock()
 
-	return size, err
+	return usage, err
 }
 
 // DirectorySize calculates the size of a directory and its descendants.
@@ -208,6 +224,10 @@ func (fs *Filesystem) HasSpaceFor(size int64) error {
 	return nil
 }
 
+// reserveDisk reserves space for a write that is about to happen, returning an
+// error if there is not enough space available. Writes happening at the same time
+// therefore cannot each use the space that is left. Every reservation must be
+// followed by a call to releaseDisk once the write is finished.
 func (fs *Filesystem) reserveDisk(size int64) error {
 	if size <= 0 {
 		return nil
@@ -220,7 +240,29 @@ func (fs *Filesystem) reserveDisk(size int64) error {
 		return err
 	}
 	fs.unixFS.Add(size)
+	fs.reserved += size
+	if fs.walking {
+		fs.walkReserved += size
+	}
 	return nil
+}
+
+// releaseDisk finishes a write that reserved space with reserveDisk, replacing
+// the reserved space with the amount the write actually changed the disk usage
+// by.
+func (fs *Filesystem) releaseDisk(reserved int64, used int64) {
+	if reserved < 0 {
+		reserved = 0
+	}
+
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	fs.reserved -= reserved
+	if fs.walking {
+		fs.walkReserved = max(fs.walkReserved-reserved, 0)
+	}
+	fs.unixFS.Add(used - reserved)
 }
 
 func (fs *Filesystem) adjustDisk(size int64) int64 {

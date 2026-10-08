@@ -104,12 +104,15 @@ func escapeIgnorePattern(line string) (string, int) {
 
 // The limits above bound the size of a pattern list but not the cost of evaluating it,
 // which also grows with the length of every path in the server. Each archive may spend
-// ignoreMatchBaseBudget matching patterns plus ignoreMatchPerFileBudget for every file
-// evaluated, so a large server with an ordinary list never trips the budget: a typical
-// list costs well under 0.1ms per file whereas a worst-case list costs several milliseconds.
+// ignoreMatchBaseBudget matching patterns plus, for every file evaluated,
+// ignoreMatchPerFileBudget and ignoreMatchPerPatternBudget for each pattern in the list,
+// so a large server with an ordinary list never trips the budget: an ordinary pattern
+// costs around a microsecond per file, far below the budget, whereas the most expensive
+// list the limits allow can exceed it.
 const (
-	ignoreMatchBaseBudget    = 5 * time.Second
-	ignoreMatchPerFileBudget = 2 * time.Millisecond
+	ignoreMatchBaseBudget       = 5 * time.Second
+	ignoreMatchPerFileBudget    = 250 * time.Microsecond
+	ignoreMatchPerPatternBudget = 4 * time.Microsecond
 )
 
 // ignoreMatchBudget tracks the time an archive has spent evaluating its ignore patterns.
@@ -120,8 +123,24 @@ type ignoreMatchBudget struct {
 	files   int64
 }
 
-func newIgnoreMatchBudget() *ignoreMatchBudget {
-	return &ignoreMatchBudget{base: ignoreMatchBaseBudget, perFile: ignoreMatchPerFileBudget}
+// newIgnoreMatchBudget returns the budget for evaluating a pattern list containing the
+// given number of patterns.
+func newIgnoreMatchBudget(patterns int) *ignoreMatchBudget {
+	return &ignoreMatchBudget{
+		base:    ignoreMatchBaseBudget,
+		perFile: ignoreMatchPerFileBudget + time.Duration(patterns)*ignoreMatchPerPatternBudget,
+	}
+}
+
+// ignorePatternCount returns the number of patterns in a pattern list.
+func ignorePatternCount(s string) int {
+	var n int
+	for _, line := range strings.Split(s, "\n") {
+		if isIgnorePattern(line) {
+			n++
+		}
+	}
+	return n
 }
 
 // track records the time spent evaluating one more file and returns an error, including

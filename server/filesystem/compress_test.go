@@ -7,7 +7,10 @@ import (
 	"compress/gzip"
 	"context"
 	"os"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	. "github.com/franela/goblin"
 )
@@ -93,6 +96,118 @@ func TestFilesystem_DecompressFileEmptyDirectory(t *testing.T) {
 		}
 
 		g.AfterEach(func() {
+			_ = fs.TruncateRootDirectory()
+		})
+	})
+}
+
+// deepArchive builds a zip or tar.gz archive holding the given number of files,
+// all nested in the same deep directory.
+func deepArchive(format string, entries int, depth int) ([]byte, error) {
+	var buf bytes.Buffer
+	prefix := strings.Repeat("a/", depth)
+	content := []byte("hello")
+	if format == "zip" {
+		zw := zip.NewWriter(&buf)
+		for i := 0; i < entries; i++ {
+			w, err := zw.Create(prefix + "f" + strconv.Itoa(i) + ".txt")
+			if err != nil {
+				return nil, err
+			}
+			if _, err := w.Write(content); err != nil {
+				return nil, err
+			}
+		}
+		if err := zw.Close(); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	}
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	for i := 0; i < entries; i++ {
+		h := &tar.Header{Name: prefix + "f" + strconv.Itoa(i) + ".txt", Typeflag: tar.TypeReg, Mode: 0o644, Size: int64(len(content)), Format: tar.FormatPAX}
+		if err := tw.WriteHeader(h); err != nil {
+			return nil, err
+		}
+		if _, err := tw.Write(content); err != nil {
+			return nil, err
+		}
+	}
+	if err := tw.Close(); err != nil {
+		return nil, err
+	}
+	if err := gw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// Checking the size of an archive takes time in proportion to the archive, however
+// deeply nested its entries are.
+func TestFilesystem_SpaceAvailableForDecompressionDeepArchive(t *testing.T) {
+	g := Goblin(t)
+	fs, rfs := NewFs()
+
+	g.Describe("SpaceAvailableForDecompression", func() {
+		for _, ext := range []string{"zip", "rar", "tar", "tar.gz"} {
+			g.It("reads the files in a "+ext, func() {
+				c, err := os.ReadFile("./testdata/test." + ext)
+				g.Assert(err).IsNil()
+				g.Assert(rfs.CreateServerFile("./test."+ext, c)).IsNil()
+
+				fs.SetDiskLimit(1024 * 1024 * 1024)
+				g.Assert(fs.SpaceAvailableForDecompression(context.Background(), "/", "test."+ext)).IsNil()
+			})
+		}
+
+		for _, format := range []string{"zip", "tar.gz"} {
+			g.It("rejects a "+format+" holding more than the space available", func() {
+				// Ten files of five bytes each.
+				b, err := deepArchive(format, 10, 1)
+				g.Assert(err).IsNil()
+				g.Assert(rfs.CreateServerFile("full."+format, b)).IsNil()
+
+				usage, err := fs.DiskUsage(false)
+				g.Assert(err).IsNil()
+				fs.SetDiskLimit(usage + 49)
+				err = fs.SpaceAvailableForDecompression(context.Background(), "/", "full."+format)
+				g.Assert(IsErrorCode(err, ErrCodeDiskSpace)).IsTrue()
+
+				fs.SetDiskLimit(usage + 50)
+				g.Assert(fs.SpaceAvailableForDecompression(context.Background(), "/", "full."+format)).IsNil()
+			})
+		}
+
+		for _, format := range []string{"zip", "tar.gz"} {
+			g.It("checks deeply nested entries in a "+format+" in linear time", func() {
+				g.Timeout(time.Minute)
+				fs.SetDiskLimit(1024 * 1024 * 1024)
+
+				b, err := deepArchive(format, 400, 2000)
+				g.Assert(err).IsNil()
+				g.Assert(rfs.CreateServerFile("deep."+format, b)).IsNil()
+
+				start := time.Now()
+				g.Assert(fs.SpaceAvailableForDecompression(context.Background(), "/", "deep."+format)).IsNil()
+				if d := time.Since(start); d > time.Second {
+					g.Failf("checking the archive took %s", d)
+				}
+			})
+
+			g.It("rejects entries in a "+format+" with names that are too long", func() {
+				fs.SetDiskLimit(1024 * 1024 * 1024)
+
+				b, err := deepArchive(format, 1, 4000)
+				g.Assert(err).IsNil()
+				g.Assert(rfs.CreateServerFile("long."+format, b)).IsNil()
+
+				g.Assert(fs.SpaceAvailableForDecompression(context.Background(), "/", "long."+format) == nil).IsFalse()
+			})
+		}
+
+		g.AfterEach(func() {
+			fs.SetDiskLimit(0)
 			_ = fs.TruncateRootDirectory()
 		})
 	})

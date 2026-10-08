@@ -659,6 +659,13 @@ func (fs *UnixFS) openat(dirfd int, name string, flag int, mode FileMode) (int, 
 		flag |= O_NOFOLLOW
 	}
 
+	// Open everything without blocking and refuse anything that is not a regular
+	// file or a directory. Paths opened with O_PATH are never read or written.
+	checkType := flag&unix.O_PATH == 0
+	if checkType {
+		flag |= unix.O_NONBLOCK
+	}
+
 	var fd int
 	for {
 		var err error
@@ -675,6 +682,13 @@ func (fs *UnixFS) openat(dirfd int, name string, flag int, mode FileMode) (int, 
 			continue
 		}
 		return 0, err
+	}
+
+	if checkType {
+		if err := checkOpenedType(fd, name); err != nil {
+			_ = unix.Close(fd)
+			return 0, err
+		}
 	}
 
 	// If we are using openat2, we don't need the additional security checks.
@@ -722,6 +736,23 @@ func (fs *UnixFS) openat(dirfd int, name string, flag int, mode FileMode) (int, 
 
 	// Return the file descriptor and any potential error.
 	return fd, err
+}
+
+// checkOpenedType returns an error if the file descriptor opened without
+// blocking is not a regular file or a directory, and otherwise switches it back
+// to blocking mode.
+func checkOpenedType(fd int, name string) error {
+	var st unix.Stat_t
+	if err := unix.Fstat(fd, &st); err != nil {
+		return convertErrorType(&PathError{Op: "fstat", Path: name, Err: err})
+	}
+	if t := st.Mode & unix.S_IFMT; t != unix.S_IFREG && t != unix.S_IFDIR {
+		return &PathError{Op: "openat", Path: name, Err: ErrNotRegular}
+	}
+	if err := unix.SetNonblock(fd, false); err != nil {
+		return convertErrorType(&PathError{Op: "fcntl", Path: name, Err: err})
+	}
+	return nil
 }
 
 // _openat is a wrapper around unix.Openat. This method should never be directly

@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -109,6 +110,54 @@ func TestIgnore(t *testing.T) {
 			err := b.track(5 * time.Millisecond)
 			g.Assert(err).IsNotNil()
 			g.Assert(strings.Contains(err.Error(), "5ms spent over 1 files (5ms per file)")).IsTrue()
+		})
+
+		// The budget for each file is exceeded by the most expensive list allowed, while
+		// leaving plenty of room for an ordinary one.
+		g.It("is exceeded by the most expensive list allowed but not by a typical one", func() {
+			cost := func(lines []string) time.Duration {
+				i, err := compileIgnore(strings.Join(lines, "\n"))
+				g.Assert(err).IsNil()
+				start := time.Now()
+				for n := 0; n < 20; n++ {
+					i.MatchesPath("aaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaa")
+				}
+				return time.Since(start) / 20
+			}
+
+			worst := make([]string, MaxIgnorePatterns)
+			for n := range worst {
+				worst[n] = "*" + strings.Repeat("a*", MaxIgnorePatternWildcards-1) + strconv.Itoa(n)
+			}
+			worstCost := cost(worst)
+			if budget := newIgnoreMatchBudget(len(worst)).perFile; worstCost <= budget {
+				g.Failf("the most expensive list costs %s per file, within the budget of %s", worstCost, budget)
+			}
+
+			// The longest list of ordinary patterns allowed must fit within its budget. The
+			// race detector slows matching down by far more than the budget allows for.
+			if !raceEnabled {
+				ordinary := make([]string, MaxIgnorePatterns)
+				for n := range ordinary {
+					ordinary[n] = []string{"dir" + strconv.Itoa(n) + "/", "*.ext" + strconv.Itoa(n), "plugins/*/cache" + strconv.Itoa(n) + "/"}[n%3]
+				}
+				i, err := compileIgnore(strings.Join(ordinary, "\n"))
+				g.Assert(err).IsNil()
+				start := time.Now()
+				for n := 0; n < 20; n++ {
+					i.MatchesPath("plugins/Essentials/userdata/0123456789abcdef.yml")
+				}
+				if c, budget := time.Since(start)/20, newIgnoreMatchBudget(len(ordinary)).perFile; c > budget {
+					g.Failf("the longest ordinary list costs %s per file, over its budget of %s", c, budget)
+				}
+			}
+
+			// Compared against the most expensive list rather than the budget itself,
+			// since the race detector slows down both by a large amount.
+			typical := []string{"*.log", "logs/", "cache/", "*.tmp", "world/region/*.mca", "plugins/*/data/", "!plugins/keep/data/"}
+			if c := cost(typical); c*50 > worstCost {
+				g.Failf("a typical list costs %s per file, compared to %s for the most expensive list", c, worstCost)
+			}
 		})
 	})
 }
