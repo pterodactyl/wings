@@ -1,0 +1,44 @@
+router/router_transfer.go
+  s_839a04683f9f74::t_16c6209d6175b5 49
+router/middleware/middleware.go
+  s_839a04683f9f74::t_770c568951b545 186,191-208
+  s_839a04683f9f74::t_6c89a09c84d5eb 8
+  s_01f4a6969ae96f::t_e75cbe028015c6 209
+router/router_server_files.go
+  s_839a04683f9f74::t_00fe35fed5bd37 584
+cmd/root.go
+  s_839a04683f9f74::t_397745e0031c6a 333-337
+router/router_timeout_test.go
+  s_839a04683f9f74::t_afac0f25afaf3f 12
+  s_839a04683f9f74::t_8f79a206813e9c 1-11,13-113,115-132
+  s_839a04683f9f74::t_5a2288ebe60a2c 114
+router/router.go
+  s_839a04683f9f74::t_042fdadc0ba6b5 5,19-30,36
+router/router_download.go
+  s_839a04683f9f74::t_be7b9066408093 92
+  s_839a04683f9f74::t_f9a1070fd7e131 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "381598eae03fefb692a562a2f811374cd73fb757",
+  "prompts": {},
+  "sessions": {
+    "s_01f4a6969ae96f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a11a09-bbb9-7cc3-ab54-abdc83e48bd3",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    },
+    "s_839a04683f9f74": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8dea3e76-cf48-4619-b073-5681eb04cc31",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
