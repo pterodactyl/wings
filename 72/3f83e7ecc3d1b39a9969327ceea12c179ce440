@@ -1,0 +1,56 @@
+server/configuration.go
+  s_f493535ac28c9e::t_a0048df06b3f93 24-26,30-33,77-83
+  s_f493535ac28c9e::t_5610bcb0d23b12 84
+server/mounts_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-258
+server/install.go
+  s_f493535ac28c9e::t_a0048df06b3f93 243
+server/listeners.go
+  s_f493535ac28c9e::t_a0048df06b3f93 185-187
+environment/docker/power.go
+  s_f493535ac28c9e::t_a0048df06b3f93 240-241,243-244
+environment/docker/environment.go
+  s_f493535ac28c9e::t_a0048df06b3f93 8,59-63
+environment/docker/container.go
+  s_f493535ac28c9e::t_a0048df06b3f93 28-31,71,80-85,111-157,363-367,371-376,381,385-388
+server/mounts.go
+  s_f493535ac28c9e::t_a0048df06b3f93 4-6,9,11,74-96,107-114,116-117,122,131,137-227
+server/configuration_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-103
+server/manager.go
+  s_f493535ac28c9e::t_a0048df06b3f93 95-108,171,179,198-201,212-214,282,287-289
+  s_f493535ac28c9e::t_61c40d7b840718 290
+server/installer/installer.go
+  s_f493535ac28c9e::t_a0048df06b3f93 41
+environment/docker/command_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-73
+server/websockets.go
+  s_f493535ac28c9e::t_a0048df06b3f93 47-63
+server/server.go
+  s_f493535ac28c9e::t_a0048df06b3f93 16,226,233-241,245-247
+  s_f493535ac28c9e::t_7d5f56f3180be5 276,392
+server/listeners_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-55
+server/manager_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-122
+environment/docker/cgroup_burst.go
+  s_f493535ac28c9e::t_a0048df06b3f93 85
+system/context_bag.go
+  s_f493535ac28c9e::t_a0048df06b3f93 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "723f83e7ecc3d1b39a9969327ceea12c179ce440",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
