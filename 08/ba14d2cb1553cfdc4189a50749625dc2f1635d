@@ -1,0 +1,55 @@
+server/mounts.go
+  s_f493535ac28c9e::t_a0048df06b3f93 4-6,9,11,74-97,108-116,118-119,124,133,139-232
+server/configuration_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-103
+environment/docker/environment.go
+  s_f493535ac28c9e::t_a0048df06b3f93 8,59-63
+server/configuration.go
+  s_f493535ac28c9e::t_a0048df06b3f93 24-26,30-33,77-83
+  s_f493535ac28c9e::t_0f6760394bf1e8 84
+system/context_bag.go
+  s_f493535ac28c9e::t_a0048df06b3f93 32
+server/manager_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-122
+server/installer/installer.go
+  s_f493535ac28c9e::t_a0048df06b3f93 41
+environment/docker/container.go
+  s_f493535ac28c9e::t_a0048df06b3f93 28-31,71,80-86,112-158,364-370,374-379,384,388-391
+server/server.go
+  s_f493535ac28c9e::t_a0048df06b3f93 16,226,233-242,246-248,277,393
+server/install.go
+  s_f493535ac28c9e::t_a0048df06b3f93 243
+environment/docker/command_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-73
+server/listeners.go
+  s_f493535ac28c9e::t_a0048df06b3f93 185-189
+server/mounts_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-258
+environment/docker/power.go
+  s_f493535ac28c9e::t_a0048df06b3f93 240-242,244-245
+environment/docker/cgroup_burst.go
+  s_f493535ac28c9e::t_a0048df06b3f93 85
+server/manager.go
+  s_f493535ac28c9e::t_a0048df06b3f93 95-108,171,179,198-201,212-214,282,287-289
+  s_f493535ac28c9e::t_d0b19b535bb1f8 290
+server/websockets.go
+  s_f493535ac28c9e::t_a0048df06b3f93 47-63
+server/listeners_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "08ba14d2cb1553cfdc4189a50749625dc2f1635d",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
