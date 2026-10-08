@@ -109,28 +109,31 @@ func diagnosticsCmdRun(*cobra.Command, []string) {
 	}
 
 	printHeader(output, "Wings Configuration")
+	var cfg *config.Configuration
 	if err := config.FromFile(config.DefaultLocation); err != nil {
+		fmt.Fprintln(output, "Failed to load configuration:", err)
+	} else {
+		cfg = config.Get()
+		fmt.Fprintln(output, "      Panel Location:", redact(cfg.PanelLocation))
+		fmt.Fprintln(output, "")
+		fmt.Fprintln(output, "  Internal Webserver:", redact(cfg.Api.Host), ":", cfg.Api.Port)
+		fmt.Fprintln(output, "         SSL Enabled:", cfg.Api.Ssl.Enabled)
+		fmt.Fprintln(output, "     SSL Certificate:", redact(cfg.Api.Ssl.CertificateFile))
+		fmt.Fprintln(output, "             SSL Key:", redact(cfg.Api.Ssl.KeyFile))
+		fmt.Fprintln(output, "")
+		fmt.Fprintln(output, "         SFTP Server:", redact(cfg.System.Sftp.Address), ":", cfg.System.Sftp.Port)
+		fmt.Fprintln(output, "      SFTP Read-Only:", cfg.System.Sftp.ReadOnly)
+		fmt.Fprintln(output, "")
+		fmt.Fprintln(output, "      Root Directory:", cfg.System.RootDirectory)
+		fmt.Fprintln(output, "      Logs Directory:", cfg.System.LogDirectory)
+		fmt.Fprintln(output, "      Data Directory:", cfg.System.Data)
+		fmt.Fprintln(output, "   Archive Directory:", cfg.System.ArchiveDirectory)
+		fmt.Fprintln(output, "    Backup Directory:", cfg.System.BackupDirectory)
+		fmt.Fprintln(output, "")
+		fmt.Fprintln(output, "            Username:", cfg.System.Username)
+		fmt.Fprintln(output, "         Server Time:", time.Now().Format(time.RFC1123Z))
+		fmt.Fprintln(output, "          Debug Mode:", cfg.Debug)
 	}
-	cfg := config.Get()
-	fmt.Fprintln(output, "      Panel Location:", redact(cfg.PanelLocation))
-	fmt.Fprintln(output, "")
-	fmt.Fprintln(output, "  Internal Webserver:", redact(cfg.Api.Host), ":", cfg.Api.Port)
-	fmt.Fprintln(output, "         SSL Enabled:", cfg.Api.Ssl.Enabled)
-	fmt.Fprintln(output, "     SSL Certificate:", redact(cfg.Api.Ssl.CertificateFile))
-	fmt.Fprintln(output, "             SSL Key:", redact(cfg.Api.Ssl.KeyFile))
-	fmt.Fprintln(output, "")
-	fmt.Fprintln(output, "         SFTP Server:", redact(cfg.System.Sftp.Address), ":", cfg.System.Sftp.Port)
-	fmt.Fprintln(output, "      SFTP Read-Only:", cfg.System.Sftp.ReadOnly)
-	fmt.Fprintln(output, "")
-	fmt.Fprintln(output, "      Root Directory:", cfg.System.RootDirectory)
-	fmt.Fprintln(output, "      Logs Directory:", cfg.System.LogDirectory)
-	fmt.Fprintln(output, "      Data Directory:", cfg.System.Data)
-	fmt.Fprintln(output, "   Archive Directory:", cfg.System.ArchiveDirectory)
-	fmt.Fprintln(output, "    Backup Directory:", cfg.System.BackupDirectory)
-	fmt.Fprintln(output, "")
-	fmt.Fprintln(output, "            Username:", cfg.System.Username)
-	fmt.Fprintln(output, "         Server Time:", time.Now().Format(time.RFC1123Z))
-	fmt.Fprintln(output, "          Debug Mode:", cfg.Debug)
 
 	printHeader(output, "Docker: Info")
 	if dockerErr == nil {
@@ -171,7 +174,7 @@ func diagnosticsCmdRun(*cobra.Command, []string) {
 		if cfg != nil {
 			p = path.Join(cfg.System.LogDirectory, "wings.log")
 		}
-		if c, err := exec.Command("tail", "-n", strconv.Itoa(diagnosticsArgs.LogLines), p).Output(); err != nil {
+		if c, err := exec.Command("tail", "-n", strconv.Itoa(diagnosticsArgs.LogLines), p).Output(); err != nil { //nolint:gosec // fixed binary, no shell; path comes from the operator's config
 			fmt.Fprintln(output, "No logs found or an error occurred.")
 		} else {
 			fmt.Fprintf(output, "%s\n", string(c))
@@ -180,14 +183,15 @@ func diagnosticsCmdRun(*cobra.Command, []string) {
 		fmt.Fprintln(output, "Logs redacted.")
 	}
 
-	if !diagnosticsArgs.IncludeEndpoints {
+	if !diagnosticsArgs.IncludeEndpoints && cfg != nil {
 		s := output.String()
 		output.Reset()
-		s = strings.ReplaceAll(s, cfg.PanelLocation, "{redacted}")
-		s = strings.ReplaceAll(s, cfg.Api.Host, "{redacted}")
-		s = strings.ReplaceAll(s, cfg.Api.Ssl.CertificateFile, "{redacted}")
-		s = strings.ReplaceAll(s, cfg.Api.Ssl.KeyFile, "{redacted}")
-		s = strings.ReplaceAll(s, cfg.System.Sftp.Address, "{redacted}")
+		for _, v := range []string{cfg.PanelLocation, cfg.Api.Host, cfg.Api.Ssl.CertificateFile, cfg.Api.Ssl.KeyFile, cfg.System.Sftp.Address} {
+			// Replacing an empty string would insert the placeholder between every character.
+			if v != "" {
+				s = strings.ReplaceAll(s, v, "{redacted}")
+			}
+		}
 		output.WriteString(s)
 	}
 
@@ -231,9 +235,13 @@ func uploadToHastebin(hbUrl, content string) (string, error) {
 	}
 	u.Path = path.Join(u.Path, "documents")
 	res, err := http.Post(u.String(), "text/plain", r)
-	if err != nil || res.StatusCode < 200 || res.StatusCode >= 300 {
+	if err != nil {
 		fmt.Println("Failed to upload report to ", u.String(), err)
 		return "", err
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		fmt.Println("Failed to upload report to ", u.String(), res.Status)
+		return "", errors.New("unexpected response status: " + res.Status)
 	}
 	pres := make(map[string]interface{})
 	body, err := io.ReadAll(res.Body)

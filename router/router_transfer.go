@@ -46,6 +46,7 @@ func postTransfers(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden."})
 		return
 	}
+	middleware.ClearDeadlines(c)
 
 	manager := middleware.ExtractManager(c)
 	u, err := uuid.Parse(token.Subject)
@@ -61,6 +62,14 @@ func postTransfers(c *gin.Context) {
 	)
 	trnsfr := transfer.Incoming().Get(u.String())
 	if trnsfr == nil {
+		// A server that already exists on this instance cannot be transferred to it.
+		if _, ok := manager.Get(u.String()); ok {
+			c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+				"error": "A server with this identifier already exists on this instance.",
+			})
+			return
+		}
+
 		// TODO: should this use the request context?
 		trnsfr = transfer.New(c, nil)
 
@@ -72,15 +81,21 @@ func postTransfers(c *gin.Context) {
 			StartOnCompletion: false,
 		})
 		if err != nil {
-			if err := manager.Client().SetTransferStatus(context.Background(), trnsfr.Server.ID(), false); err != nil {
-				trnsfr.Log().WithField("status", false).WithError(err).Error("failed to set transfer status")
+			if err := manager.Client().SetTransferStatus(context.Background(), u.String(), false); err != nil {
+				log.WithField("server", u.String()).WithField("status", false).WithError(err).Error("failed to set transfer status")
 			}
 			middleware.CaptureAndAbort(c, err)
 			return
 		}
 
 		i.Server().SetTransferring(true)
-		manager.Add(i.Server())
+		if !manager.AddIfMissing(i.Server()) {
+			i.Server().CleanupForDestroy()
+			c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+				"error": "A server with this identifier already exists on this instance.",
+			})
+			return
+		}
 
 		// We add the transfer to the list of transfers once we have a server instance to use.
 		trnsfr.Server = i.Server()

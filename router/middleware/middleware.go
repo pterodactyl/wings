@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -182,8 +183,18 @@ func RequireAuthorization() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "You are not authorized to access this endpoint."})
 			return
 		}
+		ClearDeadlines(c)
 		c.Next()
 	}
+}
+
+// ClearDeadlines removes the deadlines the server applies to requests that have
+// not authenticated, so that an authenticated request is able to send and
+// receive large bodies, such as file uploads, downloads and server transfers.
+func ClearDeadlines(c *gin.Context) {
+	rc := http.NewResponseController(c.Writer)
+	_ = rc.SetReadDeadline(time.Time{})
+	_ = rc.SetWriteDeadline(time.Time{})
 }
 
 // RemoteDownloadEnabled checks if remote downloads are enabled for this instance

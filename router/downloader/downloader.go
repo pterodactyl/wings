@@ -3,20 +3,24 @@ package downloader
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"mime"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"emperror.dev/errors"
+	"github.com/apex/log"
 	"github.com/google/uuid"
 
+	"github.com/pterodactyl/wings/config"
+	wnet "github.com/pterodactyl/wings/internal/network"
 	"github.com/pterodactyl/wings/server"
 )
 
@@ -26,33 +30,32 @@ func init() {
 	dialer := &net.Dialer{
 		LocalAddr: nil,
 		Timeout:   time.Second * 30,
+		// Check every address immediately before connecting to it, since the
+		// destination is resolved again when dialing.
+		ControlContext: checkConnection,
 	}
 
 	trnspt := http.DefaultTransport.(*http.Transport).Clone()
+	// Always connect directly, so that every destination is checked.
+	trnspt.Proxy = nil
 	trnspt.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		c, err := dialer.DialContext(ctx, network, addr)
+		host, _, err := net.SplitHostPort(addr)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-
-		ipStr, _, err := net.SplitHostPort(c.RemoteAddr().String())
-		if err != nil {
-			return c, errors.WithStack(err)
+		// Refuse the destination if any of its addresses are internal, or if it
+		// cannot be resolved.
+		ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+		if err != nil || len(ips) == 0 {
+			log.WithField("host", host).WithField("error", err).Debug("downloader: failed to resolve remote file host")
+			return nil, errors.WithStack(ErrInvalidIPAddress)
 		}
-		ip := net.ParseIP(ipStr)
-		if ip == nil {
-			return c, errors.WithStack(ErrInvalidIPAddress)
-		}
-		if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() {
-			return c, errors.WithStack(ErrInternalResolution)
-		}
-		for _, block := range internalRanges {
-			if !block.Contains(ip) {
-				continue
+		for _, ip := range ips {
+			if isBlocked(host, ip) {
+				return nil, errors.WithStack(ErrInternalResolution)
 			}
-			return c, errors.WithStack(ErrInternalResolution)
 		}
-		return c, nil
+		return dialer.DialContext(context.WithValue(ctx, dialHostKey{}, host), network, addr)
 	}
 
 	client = &http.Client{
@@ -73,6 +76,34 @@ func init() {
 	}
 }
 
+// dialHostKey is the context key for the host name a connection is being made
+// to, which is checked against the allowlist when the connection is made.
+type dialHostKey struct{}
+
+// checkConnection is called with the address a connection is about to be made
+// to, and refuses to connect to any internal address.
+func checkConnection(ctx context.Context, _ string, address string, _ syscall.RawConn) error {
+	ipStr, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	ip, err := netip.ParseAddr(ipStr)
+	if err != nil {
+		return errors.WithStack(ErrInternalResolution)
+	}
+	host, _ := ctx.Value(dialHostKey{}).(string)
+	if isBlocked(host, ip) {
+		return errors.WithStack(ErrInternalResolution)
+	}
+	return nil
+}
+
+// isBlocked reports whether connecting to the address, resolved from the host,
+// is refused because it is internal and not allowed by the operator.
+func isBlocked(host string, ip netip.Addr) bool {
+	return wnet.IsInternal(ip) && !wnet.IsAllowed(config.Get().Api.RemoteDownloadAllowlist, host, ip)
+}
+
 var instance = &Downloader{
 	// Tracks all the active downloads.
 	downloadCache: make(map[string]*Download),
@@ -80,18 +111,6 @@ var instance = &Downloader{
 	// primarily used to make things quicker and keep the code a little more
 	// legible throughout here.
 	serverCache: make(map[string][]string),
-}
-
-// Internal IP ranges that should be blocked if the resource requested resolves within.
-var internalRanges = []*net.IPNet{
-	mustParseCIDR("127.0.0.1/8"),
-	mustParseCIDR("10.0.0.0/8"),
-	mustParseCIDR("172.16.0.0/12"),
-	mustParseCIDR("192.168.0.0/16"),
-	mustParseCIDR("169.254.0.0/16"),
-	mustParseCIDR("::1/128"),
-	mustParseCIDR("fe80::/10"),
-	mustParseCIDR("fc00::/7"),
 }
 
 const (
@@ -162,8 +181,7 @@ func ByID(dlid string) *Download {
 	return instance.find(dlid)
 }
 
-//goland:noinspection GoVetCopyLock
-func (dl Download) MarshalJSON() ([]byte, error) {
+func (dl *Download) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Identifier string
 		Progress   float64
@@ -227,6 +245,9 @@ func (dl *Download) Execute() error {
 	}
 
 	p := dl.Path()
+	if err := dl.server.Filesystem().IsIgnored(p); err != nil {
+		return err
+	}
 	dl.server.Log().WithField("path", p).Debug("writing remote file to disk")
 
 	// Write the file while tracking the progress, Write will check that the
@@ -328,14 +349,6 @@ func (d *Downloader) remove(dlID string) {
 		}
 		d.serverCache[sID] = out
 	}
-}
-
-func mustParseCIDR(ip string) *net.IPNet {
-	_, block, err := net.ParseCIDR(ip)
-	if err != nil {
-		panic(fmt.Errorf("downloader: failed to parse CIDR: %s", err))
-	}
-	return block
 }
 
 func IsDownloadError(err error) bool {

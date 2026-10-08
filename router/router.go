@@ -1,7 +1,10 @@
 package router
 
 import (
+	"crypto/tls"
+	"net/http"
 	"regexp"
+	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -14,6 +17,44 @@ import (
 )
 
 var tokenRegex = regexp.MustCompile(`([?|&]token=)([^&]+)($|&)`)
+
+// Timeouts for the HTTP server.
+var (
+	// ReadHeaderTimeout is the time a client has to send the request headers.
+	ReadHeaderTimeout = 10 * time.Second
+	// IdleTimeout is the time an idle keep-alive connection is kept open.
+	IdleTimeout = 2 * time.Minute
+	// unauthenticatedTimeout is the time a client has to send the rest of its
+	// request, and to read the response, if it has not authenticated.
+	unauthenticatedTimeout = 30 * time.Second
+)
+
+// NewServer returns an HTTP server for the handler with the timeouts used by
+// Wings.
+func NewServer(addr string, handler http.Handler, tlsConfig *tls.Config) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           limitUnauthenticated(handler, unauthenticatedTimeout),
+		TLSConfig:         tlsConfig,
+		ReadHeaderTimeout: ReadHeaderTimeout,
+		IdleTimeout:       IdleTimeout,
+		// Pass "OPTIONS *" requests to the handler like any other request.
+		DisableGeneralOptionsHandler: true,
+	}
+}
+
+// limitUnauthenticated sets a deadline for reading the request and writing the
+// response before any other code handles the request. middleware.ClearDeadlines
+// removes the deadline once a request is authenticated.
+func limitUnauthenticated(next http.Handler, timeout time.Duration) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rc := http.NewResponseController(w)
+		deadline := time.Now().Add(timeout)
+		_ = rc.SetReadDeadline(deadline)
+		_ = rc.SetWriteDeadline(deadline)
+		next.ServeHTTP(w, r)
+	})
+}
 
 // Configure configures the routing infrastructure for this daemon instance.
 func Configure(m *wserver.Manager, client remote.Client) *gin.Engine {
@@ -51,7 +92,7 @@ func Configure(m *wserver.Manager, client remote.Client) *gin.Engine {
 	// This route is special it sits above all the other requests because we are
 	// using a JWT to authorize access to it, therefore it needs to be publicly
 	// accessible.
-	router.GET("/api/servers/:server/ws", middleware.ServerExists(), getServerWebsocket)
+	router.GET("/api/servers/:server/ws", middleware.ServerExists(), getServerWebsocket(maxWebsocketConnections, websocketAuthenticationTimeout))
 
 	// This request is called by another daemon when a server is going to be transferred out.
 	// This request does not need the AuthorizationMiddleware as the panel should never call it
