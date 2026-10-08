@@ -7,11 +7,14 @@ import (
 	"encoding/pem"
 	"io"
 	"net"
+	"net/netip"
 	"os"
 	"path"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -20,6 +23,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/pterodactyl/wings/config"
+	"github.com/pterodactyl/wings/internal/network"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/server"
 )
@@ -29,12 +33,125 @@ import (
 // server and sending a flood of usernames.
 var validUsernameRegexp = regexp.MustCompile(`^(?i)(.+)\.([a-z0-9]{8})$`)
 
+// connectionLimits are the limits applied to connections.
+type connectionLimits struct {
+	// handshakeTimeout is the amount of time a connection has to complete the
+	// handshake and authenticate.
+	handshakeTimeout time.Duration
+	// maxPending is the maximum number of connections that may be handshaking
+	// at once.
+	maxPending int
+	// maxPendingPerIP is the maximum number of connections from a single IP
+	// address, or IPv6 /64 network, that may be handshaking at once.
+	maxPendingPerIP int
+	// maxPerUser is the maximum number of authenticated connections a single
+	// user may have open at once.
+	maxPerUser int
+}
+
+// defaultLimits are the connection limits used by the SFTP server. The time
+// allowed to authenticate matches the default LoginGraceTime of OpenSSH.
+var defaultLimits = connectionLimits{
+	handshakeTimeout: 2 * time.Minute,
+	maxPending:       128,
+	maxPendingPerIP:  16,
+	maxPerUser:       32,
+}
+
 //goland:noinspection GoNameStartsWithPackageName
 type SFTPServer struct {
 	manager  *server.Manager
 	BasePath string
 	ReadOnly bool
 	Listen   string
+	// MaxConnections is the maximum number of connections that may be open at
+	// once, or zero for no limit.
+	MaxConnections int
+
+	limits   connectionLimits
+	pending  connectionCounter
+	sessions connectionCounter
+	// Dropped connections are logged separately for each reason, so that one
+	// reason does not hide the other.
+	droppedPending droppedLog
+	droppedUser    droppedLog
+}
+
+// connectionCounter counts open connections in total and by a key, such as the
+// address or the user they belong to.
+type connectionCounter struct {
+	mu    sync.Mutex
+	total int
+	byKey map[string]int
+}
+
+// acquire counts a new connection for the key, returning false if that would
+// exceed either limit. A limit of zero is not enforced.
+func (cc *connectionCounter) acquire(key string, maxTotal int, maxPerKey int) bool {
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
+	if cc.byKey == nil {
+		cc.byKey = make(map[string]int)
+	}
+	if (maxTotal > 0 && cc.total >= maxTotal) || (maxPerKey > 0 && cc.byKey[key] >= maxPerKey) {
+		return false
+	}
+	cc.total++
+	cc.byKey[key]++
+	return true
+}
+
+func (cc *connectionCounter) release(key string) {
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
+	cc.total--
+	if cc.byKey[key] <= 1 {
+		delete(cc.byKey, key)
+	} else {
+		cc.byKey[key]--
+	}
+}
+
+// droppedLog limits how often dropped connections are logged.
+type droppedLog struct {
+	mu    sync.Mutex
+	last  time.Time
+	count int
+}
+
+func (d *droppedLog) log(message string, key string) {
+	d.mu.Lock()
+	d.count++
+	if time.Since(d.last) < time.Second*10 {
+		d.mu.Unlock()
+		return
+	}
+	count := d.count
+	d.count = 0
+	d.last = time.Now()
+	d.mu.Unlock()
+	log.WithField("key", key).WithField("dropped", count).Warn("sftp: " + message)
+}
+
+// connectionKey returns the key used to limit connections from the address. All
+// of the addresses in an IPv6 /64 network belong to the same user, so they share
+// a key.
+func connectionKey(addr net.Addr) string {
+	host, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return addr.String()
+	}
+	ip, err := netip.ParseAddr(host)
+	if err != nil {
+		return host
+	}
+	ip = ip.Unmap().WithZone("")
+	if ip.Is6() {
+		if p, err := ip.Prefix(64); err == nil {
+			return p.String()
+		}
+	}
+	return ip.String()
 }
 
 func New(m *server.Manager) *SFTPServer {
@@ -44,7 +161,24 @@ func New(m *server.Manager) *SFTPServer {
 		BasePath: cfg.Data,
 		ReadOnly: cfg.Sftp.ReadOnly,
 		Listen:   cfg.Sftp.Address + ":" + strconv.Itoa(cfg.Sftp.Port),
+		limits:   configuredLimits(cfg.Sftp),
 	}
+}
+
+// configuredLimits returns the default connection limits with any overrides
+// from the configuration applied.
+func configuredLimits(cfg config.SftpConfiguration) connectionLimits {
+	limits := defaultLimits
+	if cfg.MaxConnectionsPerUser > 0 {
+		limits.maxPerUser = cfg.MaxConnectionsPerUser
+	}
+	if cfg.MaxAuthenticatingConnectionsPerIP > 0 {
+		limits.maxPendingPerIP = cfg.MaxAuthenticatingConnectionsPerIP
+		// Every connection may come from the address of a proxy, so the limit for
+		// all addresses must allow at least as many.
+		limits.maxPending = max(limits.maxPending, limits.maxPendingPerIP)
+	}
+	return limits
 }
 
 // Run starts the SFTP server and add a persistent listener to handle inbound
@@ -98,30 +232,100 @@ func (c *SFTPServer) Run() error {
 	if err != nil {
 		return err
 	}
+	if c.MaxConnections > 0 {
+		listener = network.LimitListener(listener, c.MaxConnections, "sftp")
+	}
 
 	public := string(ssh.MarshalAuthorizedKey(private.PublicKey()))
 	log.WithField("listen", c.Listen).WithField("public_key", strings.Trim(public, "\n")).Info("sftp server listening for connections")
 
+	return c.serve(listener, conf)
+}
+
+// serve accepts connections on the listener until it is closed.
+func (c *SFTPServer) serve(listener net.Listener, conf *ssh.ServerConfig) error {
+	var delay time.Duration
 	for {
-		if conn, _ := listener.Accept(); conn != nil {
-			go func(conn net.Conn) {
-				defer conn.Close()
-				if err := c.AcceptInbound(conn, conf); err != nil {
-					log.WithField("error", err).WithField("ip", conn.RemoteAddr().String()).Error("sftp: failed to accept inbound connection")
-				}
-			}(conn)
+		conn, err := listener.Accept()
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return err
+			}
+			// Accept fails immediately while the process is out of file descriptors,
+			// so back off rather than spinning on it.
+			if delay == 0 {
+				delay = 5 * time.Millisecond
+			} else {
+				delay *= 2
+			}
+			if delay > time.Second {
+				delay = time.Second
+			}
+			log.WithField("error", err).WithField("retry_in", delay).Error("sftp: failed to accept connection")
+			time.Sleep(delay)
+			continue
 		}
+		delay = 0
+
+		key := connectionKey(conn.RemoteAddr())
+		if !c.pending.acquire(key, c.limits.maxPending, c.limits.maxPendingPerIP) {
+			c.droppedPending.log("too many unauthenticated connections, dropping connections", key)
+			_ = conn.Close()
+			continue
+		}
+
+		go func(conn net.Conn, key string) {
+			defer conn.Close()
+			sconn, chans, reqs, err := handshake(conn, conf, c.limits.handshakeTimeout)
+			c.pending.release(key)
+			if err != nil {
+				log.WithField("error", err).WithField("ip", conn.RemoteAddr().String()).Error("sftp: failed to accept inbound connection")
+				return
+			}
+			user := sconn.User()
+			if !c.sessions.acquire(user, 0, c.limits.maxPerUser) {
+				c.droppedUser.log("too many connections for user, dropping connections", user)
+				_ = sconn.Close()
+				return
+			}
+			defer c.sessions.release(user)
+			if err := c.handle(sconn, chans, reqs); err != nil {
+				log.WithField("error", err).WithField("ip", conn.RemoteAddr().String()).Error("sftp: failed to accept inbound connection")
+			}
+		}(conn, key)
 	}
+}
+
+// handshake performs the SSH handshake, including authentication, on the
+// connection. The connection is closed if this does not complete in time.
+func handshake(conn net.Conn, config *ssh.ServerConfig, timeout time.Duration) (*ssh.ServerConn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+		return nil, nil, nil, errors.WithStack(err)
+	}
+	sconn, chans, reqs, err := ssh.NewServerConn(conn, config)
+	if err != nil {
+		return nil, nil, nil, errors.WithStack(err)
+	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		_ = sconn.Close()
+		return nil, nil, nil, errors.WithStack(err)
+	}
+	return sconn, chans, reqs, nil
 }
 
 // AcceptInbound handles an inbound connection to the instance and determines if we should
 // serve the request or not.
 func (c *SFTPServer) AcceptInbound(conn net.Conn, config *ssh.ServerConfig) error {
 	// Before beginning a handshake must be performed on the incoming net.Conn
-	sconn, chans, reqs, err := ssh.NewServerConn(conn, config)
+	sconn, chans, reqs, err := handshake(conn, config, defaultLimits.handshakeTimeout)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
+	return c.handle(sconn, chans, reqs)
+}
+
+// handle serves the channels of an authenticated connection.
+func (c *SFTPServer) handle(sconn *ssh.ServerConn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) error {
 	defer sconn.Close()
 	go ssh.DiscardRequests(reqs)
 
@@ -191,7 +395,7 @@ func (c *SFTPServer) generateED25519PrivateKey() error {
 	if err != nil {
 		return errors.Wrap(err, "sftp: failed to generate ED25519 private key")
 	}
-	if err := os.MkdirAll(path.Dir(c.PrivateKeyPath()), 0o755); err != nil {
+	if err := os.MkdirAll(path.Dir(c.PrivateKeyPath()), 0o700); err != nil {
 		return errors.Wrap(err, "sftp: could not create internal sftp data directory")
 	}
 	o, err := os.OpenFile(c.PrivateKeyPath(), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)

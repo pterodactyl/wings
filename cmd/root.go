@@ -6,8 +6,9 @@ import (
 	"errors"
 	"fmt"
 	log2 "log"
+	"net"
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" //nolint:gosec // only served on localhost with --pprof; nothing else uses http.DefaultServeMux
 	"os"
 	"path"
 	"path/filepath"
@@ -30,6 +31,7 @@ import (
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/internal/cron"
 	"github.com/pterodactyl/wings/internal/database"
+	"github.com/pterodactyl/wings/internal/network"
 	"github.com/pterodactyl/wings/loggers/cli"
 	"github.com/pterodactyl/wings/remote"
 	"github.com/pterodactyl/wings/router"
@@ -98,7 +100,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	if ok, _ := cmd.Flags().GetBool("ignore-certificate-errors"); ok {
 		log.Warn("running with --ignore-certificate-errors: TLS certificate host chains and name will not be verified")
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, //nolint:gosec // opt-in via --ignore-certificate-errors
 		}
 	}
 
@@ -285,9 +287,14 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 		s.StartAsync()
 	}
 
+	httpConnections, sftpConnections := connectionLimits()
+	log.WithFields(log.Fields{"http": httpConnections, "sftp": sftpConnections}).Info("limiting the number of open connections, raise the open file limit for Wings to allow more")
+
 	go func() {
 		// Run the SFTP server.
-		if err := sftp.New(manager).Run(); err != nil {
+		srv := sftp.New(manager)
+		srv.MaxConnections = sftpConnections
+		if err := srv.Run(); err != nil {
 			log.WithError(err).Fatal("failed to initialize the sftp server")
 			return
 		}
@@ -304,12 +311,12 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 
 	sys := config.Get().System
 	// Ensure the archive directory exists.
-	if err := os.MkdirAll(sys.ArchiveDirectory, 0o755); err != nil {
+	if err := os.MkdirAll(sys.ArchiveDirectory, 0o700); err != nil {
 		log.WithField("error", err).Error("failed to create archive directory")
 	}
 
 	// Ensure the backup directory exists.
-	if err := os.MkdirAll(sys.BackupDirectory, 0o755); err != nil {
+	if err := os.MkdirAll(sys.BackupDirectory, 0o700); err != nil {
 		log.WithField("error", err).Error("failed to create backup directory")
 	}
 
@@ -329,11 +336,12 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 
 	// Create a new HTTP server instance to handle inbound requests from the Panel
 	// and external clients.
-	s := &http.Server{
-		Addr:      api.Host + ":" + strconv.Itoa(api.Port),
-		Handler:   router.Configure(manager, pclient),
-		TLSConfig: config.DefaultTLSConfig,
+	s := router.NewServer(api.Host+":"+strconv.Itoa(api.Port), router.Configure(manager, pclient), config.DefaultTLSConfig)
+	listener, err := net.Listen("tcp", s.Addr)
+	if err != nil {
+		log.WithField("error", err).Fatal("failed to configure HTTP server")
 	}
+	listener = network.LimitListener(listener, httpConnections, "http")
 
 	profile, _ := cmd.Flags().GetBool("pprof")
 	if profile {
@@ -345,7 +353,11 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 
 		profilePort, _ := cmd.Flags().GetInt("pprof-port")
 		go func() {
-			http.ListenAndServe(fmt.Sprintf("localhost:%d", profilePort), nil)
+			srv := &http.Server{
+				Addr:              fmt.Sprintf("localhost:%d", profilePort),
+				ReadHeaderTimeout: time.Second * 10,
+			}
+			_ = srv.ListenAndServe()
 		}()
 	}
 
@@ -365,12 +377,12 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 
 		// Start the autocert server.
 		go func() {
-			if err := http.ListenAndServe(":http", m.HTTPHandler(nil)); err != nil {
+			if err := router.NewServer(":http", m.HTTPHandler(nil), nil).ListenAndServe(); err != nil {
 				log.WithError(err).Error("failed to serve autocert http server")
 			}
 		}()
 		// Start the main http server with TLS using autocert.
-		if err := s.ListenAndServeTLS("", ""); err != nil {
+		if err := s.ServeTLS(listener, "", ""); err != nil {
 			log.WithFields(log.Fields{"auto_tls": true, "tls_hostname": tlshostname, "error": err}).Fatal("failed to configure HTTP server using auto-tls")
 		}
 		return
@@ -379,15 +391,35 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	// Check if main http server should run with TLS. Otherwise, reset the TLS
 	// config on the server and then serve it over normal HTTP.
 	if api.Ssl.Enabled {
-		if err := s.ListenAndServeTLS(api.Ssl.CertificateFile, api.Ssl.KeyFile); err != nil {
+		if err := s.ServeTLS(listener, api.Ssl.CertificateFile, api.Ssl.KeyFile); err != nil {
 			log.WithFields(log.Fields{"auto_tls": false, "error": err}).Fatal("failed to configure HTTPS server")
 		}
 		return
 	}
 	s.TLSConfig = nil
-	if err := s.ListenAndServe(); err != nil {
+	if err := s.Serve(listener); err != nil {
 		log.WithField("error", err).Fatal("failed to configure HTTP server")
 	}
+}
+
+// connectionLimits returns the number of connections the HTTP and SFTP servers
+// may each have open at once. Every connection uses a file descriptor, so the
+// limits are based on the open file limit for the process, leaving room for
+// everything else Wings does. Raise the open file limit to allow more.
+func connectionLimits() (int, int) {
+	var rl syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rl); err != nil {
+		return 3072, 1024
+	}
+	limit := rl.Cur
+	if limit > 1<<20 {
+		limit = 1 << 20
+	}
+	available := int(limit) - 1024
+	if available < int(limit)/2 {
+		available = int(limit) / 2
+	}
+	return available * 3 / 4, available / 4
 }
 
 // Reads the configuration from the disk and then sets up the global singleton
