@@ -1,0 +1,33 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  golangci-lint:
+    name: golangci-lint
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # only-new-issues reads the pull request diff.
+      pull-requests: read
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+        with:
+          go-version: "1.24.11"
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.11.4
+          # Only fail on issues introduced by the change, not the existing backlog.
+          only-new-issues: true

@@ -1,0 +1,31 @@
+version: "2"
+
+# Wings only builds for Linux; run with GOOS=linux (see `make lint`) so the
+# _linux/_unix files are type-checked and linted.
+
+linters:
+  # errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
+  enable:
+    - gosec
+  settings:
+    gosec:
+      excludes:
+        - G104 # unhandled errors, already reported by errcheck
+        - G115 # integer overflow on conversion, too noisy for stat/syscall code
+  exclusions:
+    generated: lax
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+
+formatters:
+  enable:
+    - gofmt
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

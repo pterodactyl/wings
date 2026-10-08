@@ -16,7 +16,11 @@ rmdebug:
 
 cross-build: clean build compress
 
+# Wings only targets Linux, so lint as Linux to cover the _linux/_unix files.
+lint:
+	GOOS=linux golangci-lint run ./...
+
 clean:
 	rm -rf build/wings_*
 
-.PHONY: all build compress clean
+.PHONY: all build compress clean lint
