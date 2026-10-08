@@ -1,0 +1,23 @@
+config/config_docker.go
+  s_f493535ac28c9e::t_a0048df06b3f93 236
+cmd/configure.go
+  s_f493535ac28c9e::t_a0048df06b3f93 51,153-155,158
+config/config.go
+  s_f493535ac28c9e::t_a0048df06b3f93 72-79,103-107,395-453,649,655,680,692,701,773,780,956
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f8c657a5d0041739d656c04078412019aad0585a",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
