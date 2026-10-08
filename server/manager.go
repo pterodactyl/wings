@@ -92,6 +92,20 @@ func (m *Manager) Add(s *Server) {
 	m.mu.Unlock()
 }
 
+// AddIfMissing adds an item to the collection store unless a server with the
+// same ID is already present, returning false if it was not added.
+func (m *Manager) AddIfMissing(s *Server) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, v := range m.servers {
+		if v.ID() == s.ID() {
+			return false
+		}
+	}
+	m.servers = append(m.servers, s)
+	return true
+}
+
 // Get returns a single server instance and a boolean value indicating if it was
 // found in the global collection or not.
 func (m *Manager) Get(uuid string) (*Server, bool) {
@@ -154,7 +168,7 @@ func (m *Manager) PersistStates() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	if err := os.WriteFile(config.Get().System.GetStatesPath(), data, 0o644); err != nil {
+	if err := os.WriteFile(config.Get().System.GetStatesPath(), data, 0o600); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
@@ -162,7 +176,7 @@ func (m *Manager) PersistStates() error {
 
 // ReadStates returns the state of the servers.
 func (m *Manager) ReadStates() (map[string]string, error) {
-	f, err := os.OpenFile(config.Get().System.GetStatesPath(), os.O_RDONLY|os.O_CREATE, 0o644)
+	f, err := os.OpenFile(config.Get().System.GetStatesPath(), os.O_RDONLY|os.O_CREATE, 0o600)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -181,10 +195,10 @@ func (m *Manager) ReadStates() (map[string]string, error) {
 	return out, nil
 }
 
-// InitServer initializes a server using a data byte array. This will be
-// marshaled into the given struct using a YAML marshaler. This will also
-// configure the given environment for a server.
-func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, error) {
+// InitServer initializes the server with the given uuid using a data byte
+// array. This will be marshaled into the given struct using a YAML marshaler.
+// This will also configure the given environment for a server.
+func (m *Manager) InitServer(uuid string, data remote.ServerConfigurationResponse) (*Server, error) {
 	s, err := New(m.client)
 	if err != nil {
 		return nil, err
@@ -194,6 +208,9 @@ func (m *Manager) InitServer(data remote.ServerConfigurationResponse) (*Server, 
 	// remaining functionality in this call.
 	if err := s.SyncWithConfiguration(data); err != nil {
 		return nil, errors.WithStackIf(err)
+	}
+	if s.ID() != uuid {
+		return nil, errors.New("server: configuration returned by the Panel is for a different server")
 	}
 
 	s.fs, err = filesystem.New(filepath.Join(config.Get().System.Data, s.ID()), s.DiskSpace(), s.Config().Egg.FileDenylist)
@@ -262,12 +279,15 @@ func (m *Manager) init(ctx context.Context) error {
 				log.WithField("server", data.Uuid).WithField("error", err).Error("failed to parse server configuration from API response, skipping...")
 				return
 			}
-			s, err := m.InitServer(d)
+			s, err := m.InitServer(data.Uuid, d)
 			if err != nil {
 				log.WithField("server", data.Uuid).WithField("error", err).Error("failed to load server, skipping...")
 				return
 			}
-			m.Add(s)
+			if !m.AddIfMissing(s) {
+				s.CleanupForDestroy()
+				log.WithField("server", data.Uuid).Error("server was returned by the API more than once, skipping...")
+			}
 		})
 	}
 

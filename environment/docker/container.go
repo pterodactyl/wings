@@ -25,6 +25,10 @@ import (
 
 var ErrNotAttached = errors.Sentinel("not attached to instance")
 
+// commandWriteTimeout is the amount of time allowed for a command to be written
+// to the input of a server process.
+var commandWriteTimeout = time.Second * 10
+
 // A custom console writer that allows us to keep a function blocked until the
 // given stream is properly closed. This does nothing special, only exists to
 // make a noop io.Writer.
@@ -64,7 +68,7 @@ func (e *Environment) Attach(ctx context.Context) error {
 		e.SetStream(&st)
 	}
 
-	go func() {
+	go func() { //nolint:gosec // polling intentionally outlives ctx, see below
 		// Don't use the context provided to the function, that'll cause the polling to
 		// exit unexpectedly. We want a custom context for this, the one passed to the
 		// function is to avoid a hang situation when trying to attach to a container.
@@ -72,8 +76,13 @@ func (e *Environment) Attach(ctx context.Context) error {
 		defer cancel()
 		defer e.stream.Close()
 		defer func() {
-			e.SetState(environment.ProcessOfflineState)
 			e.SetStream(nil)
+			// The stream can end without the container stopping, in which case it is
+			// attached to again rather than treating the server as stopped.
+			if e.reattach() {
+				return
+			}
+			e.SetState(environment.ProcessOfflineState)
 		}()
 
 		go func() {
@@ -97,6 +106,53 @@ func (e *Environment) Attach(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+// reattach is called when the attached stream ends, and attaches to the
+// container again if it is still running, returning true if the container is
+// still running. If that keeps happening, or attaching fails, the container is
+// terminated rather than left running without being managed.
+func (e *Environment) reattach() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	c, err := e.ContainerInspect(ctx)
+	if err != nil || c.State == nil || !c.State.Running {
+		return false
+	}
+
+	e.mu.Lock()
+	if time.Since(e.reattachedAt) > time.Minute*5 {
+		e.reattachedAt = time.Now()
+		e.reattachedCount = 0
+	}
+	e.reattachedCount++
+	count := e.reattachedCount
+	e.mu.Unlock()
+
+	if count <= 3 {
+		e.log().Warn("lost the attached stream for a running container, attaching again")
+		err := e.Attach(ctx)
+		if err == nil {
+			return true
+		}
+		// The container may have only just stopped, in which case it is handled like
+		// any other stop so that crash detection still applies.
+		if c, ierr := e.ContainerInspect(ctx); ierr == nil && c.State != nil && !c.State.Running {
+			return false
+		}
+		e.log().WithField("error", err).Error("failed to attach to running container")
+	}
+
+	e.log().Error("unable to stay attached to running container, terminating it")
+	// Attaching may have used up the time allowed by ctx, which would leave the
+	// container running without being managed.
+	tctx, tcancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer tcancel()
+	if err := e.Terminate(tctx, "SIGKILL"); err != nil {
+		e.log().WithField("error", err).Error("failed to terminate container")
+	}
+	return true
 }
 
 // InSituUpdate performs an in-place update of the Docker container's resource
@@ -304,21 +360,32 @@ func (e *Environment) Destroy() error {
 // instance. There is no confirmation that this data is sent successfully, only
 // that it gets pushed into the stdin.
 func (e *Environment) SendCommand(c string) error {
-	if !e.IsAttached() {
-		return errors.Wrap(ErrNotAttached, "environment/docker: cannot send command to container")
+	// Commands may not contain control characters, other than tabs.
+	if strings.ContainsFunc(c, func(r rune) bool {
+		return (r < 0x20 && r != '\t' && r != '\n' && r != '\r') || r == 0x7f
+	}) {
+		return errors.New("environment/docker: command contains control characters")
 	}
 
 	e.mu.RLock()
-	defer e.mu.RUnlock()
+	stream := e.stream
+	stop := e.meta.Stop
+	e.mu.RUnlock()
+	if stream == nil {
+		return errors.Wrap(ErrNotAttached, "environment/docker: cannot send command to container")
+	}
 
 	// If the command being processed is the same as the process stop command then we
 	// want to mark the server as entering the stopping state otherwise the process will
 	// stop and Wings will think it has crashed and attempt to restart it.
-	if e.meta.Stop.Type == "command" && c == e.meta.Stop.Value {
+	if stop.Type == "command" && c == stop.Value {
 		e.SetState(environment.ProcessStoppingState)
 	}
 
-	_, err := e.stream.Conn.Write([]byte(c + "\n"))
+	// The process may never read its input, so don't wait forever for there to be
+	// room for the command.
+	_ = stream.Conn.SetWriteDeadline(time.Now().Add(commandWriteTimeout))
+	_, err := stream.Conn.Write([]byte(c + "\n"))
 
 	return errors.Wrap(err, "environment/docker: could not write to container stream")
 }

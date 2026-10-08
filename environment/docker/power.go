@@ -237,9 +237,11 @@ func (e *Environment) WaitForStop(ctx context.Context, duration time.Duration, t
 
 	// We pass through the timed context for this stop action so that if one of the
 	// internal docker calls fails to ever finish before we've exhausted the time limit
-	// the resources get cleaned up, and the exection is stopped.
+	// the resources get cleaned up, and the exection is stopped. If the process could
+	// not be asked to stop for any reason, fall back to terminating it when allowed.
 	if err := e.Stop(tctx); err != nil {
-		if terminate && errors.Is(err, context.DeadlineExceeded) {
+		if terminate {
+			e.log().WithField("error", err).Warn("failed to stop container")
 			return doTermination("stop")
 		}
 		return err

@@ -21,9 +21,16 @@ type ConfigurationMeta struct {
 	Description string `json:"description"`
 }
 
+// Configuration is the configuration of a server, as provided by the Panel. The
+// values are kept in an embedded struct so that a new configuration can replace
+// them without also overwriting the mutex that guards them.
 type Configuration struct {
 	mu sync.RWMutex
 
+	configurationData
+}
+
+type configurationData struct {
 	// The unique identifier for the server that should be used when referencing
 	// it against the Panel API (and internally). This will be used when naming
 	// docker containers as well as in log output.
@@ -65,6 +72,14 @@ func (s *Server) Config() *Configuration {
 	s.cfg.mu.RLock()
 	defer s.cfg.mu.RUnlock()
 	return &s.cfg
+}
+
+// snapshot returns a copy of the configuration that is read while holding the
+// lock, so it is consistent and safe to use without holding the lock.
+func (c *Configuration) snapshot() Configuration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return Configuration{configurationData: c.configurationData}
 }
 
 // DiskSpace returns the amount of disk space available to a server in bytes.

@@ -240,7 +240,7 @@ func (ip *InstallationProcess) writeScriptToDisk() error {
 	if err := os.MkdirAll(ip.tempDir(), 0o700); err != nil {
 		return errors.WithMessage(err, "could not create temporary directory for install process")
 	}
-	f, err := os.OpenFile(filepath.Join(ip.tempDir(), "install.sh"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
+	f, err := os.OpenFile(filepath.Join(ip.tempDir(), "install.sh"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644) //nolint:gosec // read by the install container, which may not run as root
 	if err != nil {
 		return errors.WithMessage(err, "failed to write server installation script to disk before mount")
 	}

@@ -44,6 +44,23 @@ func (w *WebsocketBag) Push(u uuid.UUID, cancel *context.CancelFunc) {
 	w.conns[u] = cancel
 }
 
+// TryPush adds a new websocket connection to the stack if there are fewer than
+// max connections in it, returning false if the connection was not added.
+func (w *WebsocketBag) TryPush(u uuid.UUID, cancel *context.CancelFunc, max int) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.conns == nil {
+		w.conns = make(map[uuid.UUID]*context.CancelFunc)
+	}
+	if _, ok := w.conns[u]; !ok && len(w.conns) >= max {
+		return false
+	}
+
+	w.conns[u] = cancel
+	return true
+}
+
 // Remove removes a connection from the stack.
 func (w *WebsocketBag) Remove(u uuid.UUID) {
 	w.mu.Lock()
