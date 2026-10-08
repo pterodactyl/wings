@@ -1,0 +1,22 @@
+router/router_system_test.go
+  s_839a04683f9f74::t_853cdb114627d5 58-156
+  s_839a04683f9f74::t_bb96a7fd805a29 5,11
+router/router_system.go
+  s_839a04683f9f74::t_8df761b1e1eb7d 121-175,187-189,192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3724474f8f6143879689d30c701c5b63f6064dbf",
+  "prompts": {},
+  "sessions": {
+    "s_839a04683f9f74": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8dea3e76-cf48-4619-b073-5681eb04cc31",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
