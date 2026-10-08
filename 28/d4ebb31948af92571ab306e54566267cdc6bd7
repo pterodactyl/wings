@@ -1,0 +1,24 @@
+router/downloader/downloader.go
+  s_839a04683f9f74::t_b47c36910e37f7 227-229
+server/filesystem/path.go
+  s_839a04683f9f74::t_491e0e04ba6db7 20-23
+  s_839a04683f9f74::t_0dcd836155e2b6 4
+server/filesystem/path_denylist_test.go
+  s_839a04683f9f74::t_53d78ba7291455 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "28d4ebb31948af92571ab306e54566267cdc6bd7",
+  "prompts": {},
+  "sessions": {
+    "s_839a04683f9f74": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8dea3e76-cf48-4619-b073-5681eb04cc31",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
