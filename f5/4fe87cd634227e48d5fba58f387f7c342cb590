@@ -1,0 +1,21 @@
+go.mod
+  s_f493535ac28c9e::t_a0048df06b3f93 35,47
+go.sum
+  s_f493535ac28c9e::t_391f337c074001 224-225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f54fe87cd634227e48d5fba58f387f7c342cb590",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
