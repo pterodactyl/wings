@@ -48,7 +48,7 @@ func init() {
 func configureCmdRun(cmd *cobra.Command, args []string) {
 	if configureArgs.AllowInsecure {
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, //nolint:gosec // opt-in via --allow-insecure
 		}
 	}
 
@@ -124,7 +124,6 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	fmt.Printf("%+v", req.Header)
 	fmt.Println(req.URL.String())
 
 	res, err := c.Do(req)
@@ -151,9 +150,12 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	if err := json.Unmarshal(b, cfg); err != nil {
+	// Only take the values from the Panel that it is allowed to set.
+	p := cfg.PanelConfiguration()
+	if err := json.Unmarshal(b, &p); err != nil {
 		panic(err)
 	}
+	cfg.ApplyPanelConfiguration(p)
 
 	// Manually specify the Panel URL as it won't be decoded from JSON.
 	cfg.PanelLocation = configureArgs.PanelURL
