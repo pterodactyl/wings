@@ -1,0 +1,21 @@
+system/system.go
+  s_a8689ed3575cef::t_133c24cf075080 6-7,14,61-76,78-108,175-194,196
+system/system_info_test.go
+  s_a8689ed3575cef::t_237ec837891628 1-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e98043374104b0b6348185a5cdff9bd6dd023409",
+  "prompts": {},
+  "sessions": {
+    "s_a8689ed3575cef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "deee3f73-aca3-4ced-a393-f4dc91d019f6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}

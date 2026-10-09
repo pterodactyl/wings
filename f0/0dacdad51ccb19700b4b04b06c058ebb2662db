@@ -1,0 +1,67 @@
+internal/ufs/read_head_test.go
+  s_b228824272d4fd::t_5e233843760a58 10,92
+  s_a8689ed3575cef::t_9f2cddfc464484 1-9,11-91,93-125
+internal/ufs/walk_unix.go
+  s_a8689ed3575cef::t_579730bb702de5 16,113-115,218-226
+  s_a8689ed3575cef::t_8c278e49f1c96c 321
+  s_a8689ed3575cef::t_03d618c8df8531 61,227,232,279,317-320,322
+internal/ufs/fs_unix.go
+  s_a8689ed3575cef::t_4832b8800b2eb7 303-304,312-316,318-320,322-326,328-333,335-336
+  s_a8689ed3575cef::t_ebe72ad5b1addd 762-769
+  s_a8689ed3575cef::t_96866276c221db 811
+  s_a8689ed3575cef::t_f0cb22e50a1f14 879,881
+  s_a8689ed3575cef::t_100d93b239d6ca 321
+  s_a8689ed3575cef::t_8c278e49f1c96c 305-311,317,327,334
+  s_a8689ed3575cef::t_03d618c8df8531 355
+  s_a8689ed3575cef::t_152dd9371fd65f 875-878,880,882-883,889-891
+router/router_server_files_bench_test.go
+  s_a8689ed3575cef::t_6b193b749482fc 15-16,26
+  s_a8689ed3575cef::t_8751332c5b44a8 1-12,14,17-23,27-79,107-114,119-123,128-137,142-147
+  s_a8689ed3575cef::t_8d33e5558eacc1 13,24-25,115-118
+  s_a8689ed3575cef::t_d4a8aad16fa1f6 80-106,124-127,138-141
+server/filesystem/filesystem.go
+  s_a8689ed3575cef::t_fc5078af9f906a 4,560-561,563-583,588-591,593-597
+  s_a8689ed3575cef::t_aa381c4f63f4b0 535,544,546,549-550,584-585
+  s_a8689ed3575cef::t_83d3556c23ffcb 18
+router/router_server_files.go
+  s_a8689ed3575cef::t_009e30758b5662 83-99
+server/filesystem/mime.go
+  s_a8689ed3575cef::t_fc5078af9f906a 79-85,101,121-122,129,142
+  s_a8689ed3575cef::t_17de05d7f83d91 1-78,86-100,102-120,123-128,130-134,136-141,143-149,151,155,157-164
+  s_a8689ed3575cef::t_8c278e49f1c96c 135,150,152-154,156
+server/filesystem/stat.go
+  s_a8689ed3575cef::t_fa65646e54ce6c 7
+  s_a8689ed3575cef::t_c36d7e94e7f3aa 9
+  s_a8689ed3575cef::t_a25dbd206d410d 25-42,48-58,60
+  s_a8689ed3575cef::t_d9283bddc5e6d8 74-76,91-114
+  s_a8689ed3575cef::t_aa08599f052e76 22-24,43-47,59,61-73,77-90,115-129
+server/filesystem/list_directory_test.go
+  s_a8689ed3575cef::t_8fac95dd3b86ae 1-158,160-249,252-268,270-271,273-351,366-372,378,381
+  s_b228824272d4fd::t_5e233843760a58 250-251
+  s_a8689ed3575cef::t_d9283bddc5e6d8 352-365
+  s_a8689ed3575cef::t_59034417e01840 159,269,272,373-377
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f00dacdad51ccb19700b4b04b06c058ebb2662db",
+  "prompts": {},
+  "sessions": {
+    "s_a8689ed3575cef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "deee3f73-aca3-4ced-a393-f4dc91d019f6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    },
+    "s_b228824272d4fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db8eac6a-fcec-4413-b99a-8db16b8d3d4c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
