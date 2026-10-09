@@ -1,0 +1,57 @@
+environment/allocations.go
+  s_b228824272d4fd::t_b30d802fe3ac44 68,75-83,87,89
+environment/allocations_test.go
+  s_b228824272d4fd::t_b561fff9b20433 1-46
+remote/types.go
+  s_b228824272d4fd::t_2033f379642a43 99-100,107,126,128-129,131-134
+remote/types_test.go
+  s_b228824272d4fd::t_975b64a5055eab 1-31
+router/router_server_backup.go
+  s_b228824272d4fd::t_a628f17be090c0 134-136,145,199
+router/router_server_restore_test.go
+  s_b228824272d4fd::t_a698cb3be6b0a0 1-61
+router/router_server_transfer.go
+  s_b228824272d4fd::t_9704715a77e77f 35-39,41,76-82
+server/backup.go
+  s_b228824272d4fd::t_9269f9ac7b8821 4,8,124-125,129,132-134,144-145,154-160,167,172-203
+server/config_parser.go
+  s_b228824272d4fd::t_f34c089ebac9b5 25-31,39-40,49-54
+server/console_output_test.go
+  s_b228824272d4fd::t_796c4ade3a37e1 1-55
+server/install.go
+  s_b228824272d4fd::t_db12219696f468 11,166-175,453-454,458,469-474,581-584,589-592
+server/install_container_test.go
+  s_b228824272d4fd::t_efd2689832769d 1-159
+server/listeners.go
+  s_b228824272d4fd::t_c997ba23b7fce4 54-57
+server/power.go
+  s_b228824272d4fd::t_f93308dd8da139 13,119-121
+server/power_destroy_test.go
+  s_b228824272d4fd::t_961f9486b229e7 1-30
+server/transfer/manager.go
+  s_b228824272d4fd::t_364d96f81ce0bb 35-37,41-43,45,48-49,54-56
+server/transfer/manager_test.go
+  s_b228824272d4fd::t_8eadf116e7f10e 1-35
+system/locker.go
+  s_b228824272d4fd::t_29942dfb66f6eb 10-13,18-19,25-26,43-45,57-61,64-73,75-76,99-100,103-120
+system/locker_destroy_test.go
+  s_b228824272d4fd::t_3454396ce9f4ea 1-57
+system/locker_test.go
+  s_b228824272d4fd::t_da3f1e1601e4a5 131,137-139,141-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6ea8fd5e0d3db9ce3d9d2bece5e90ab07ea6213f",
+  "prompts": {},
+  "sessions": {
+    "s_b228824272d4fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db8eac6a-fcec-4413-b99a-8db16b8d3d4c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
