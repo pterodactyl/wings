@@ -10,6 +10,8 @@
 
 package ufs
 
+import "errors"
+
 // mkdirAll is a recursive Mkdir implementation that properly handles symlinks.
 //
 // It returns the directories it created, ordered from shallowest to deepest, so
@@ -21,8 +23,12 @@ func (fs *UnixFS) mkdirAll(name string, mode FileMode) ([]string, error) {
 	if err == nil {
 		if dir.Mode()&ModeSymlink != 0 {
 			// If the final path is a symlink, resolve its target and use that
-			// to check instead.
+			// to check instead. A link that leads outside the filesystem is
+			// not a directory that can be used.
 			dir, err = fs.Stat(name)
+			if errors.Is(err, ErrBadPathResolution) {
+				return nil, &PathError{Op: "mkdir", Path: name, Err: ErrNotDirectory}
+			}
 			if err != nil {
 				return nil, err
 			}

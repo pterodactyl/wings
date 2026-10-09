@@ -84,6 +84,17 @@ func (f *quotaFile) writeAtLocked(p []byte, off int64, write func() (int, error)
 	return n, err
 }
 
+// CheckSize returns an error if growing the file to size bytes would exceed the
+// disk limit.
+func (f *quotaFile) CheckSize(size int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if size <= f.size {
+		return nil
+	}
+	return f.fs.HasSpaceFor(size - f.size)
+}
+
 func quotaWriteEnd(off int64, size int) (int64, bool) {
 	if size < 0 || off > math.MaxInt64-int64(size) {
 		return 0, false

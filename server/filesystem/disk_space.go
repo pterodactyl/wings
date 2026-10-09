@@ -112,12 +112,13 @@ func (fs *Filesystem) DiskUsage(allowStaleValue bool) (int64, error) {
 		// If we are now allowing a stale response go ahead  and perform the lookup and return the fresh
 		// value. This is a blocking operation to the calling process.
 		if !allowStaleValue {
-			return fs.updateCachedDiskUsage()
-		} else if !fs.lookupInProgress.Load() {
+			return fs.refreshDiskUsage()
+		} else if fs.lookupInProgress.CompareAndSwap(false, true) {
 			// Otherwise, if we allow a stale value and there isn't a valid item in the cache and we aren't
 			// currently performing a lookup, just do the disk usage calculation in the background.
 			go func(fs *Filesystem) {
-				if _, err := fs.updateCachedDiskUsage(); err != nil {
+				defer fs.lookupInProgress.Store(false)
+				if _, err := fs.refreshDiskUsage(); err != nil {
 					log.WithField("root", fs.Path()).WithField("error", err).Warn("failed to update fs disk usage from within routine")
 				}
 			}(fs)
@@ -128,14 +129,31 @@ func (fs *Filesystem) DiskUsage(allowStaleValue bool) (int64, error) {
 	return fs.unixFS.Usage(), nil
 }
 
-// Updates the currently used disk space for a server.
-func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
-	// Obtain an exclusive lock on this process so that we don't unintentionally run it at the same
-	// time as another running process. Once the lock is available it'll read from the cache for the
-	// second call rather than hitting the disk in parallel.
+// refreshDiskUsage updates the currently used disk space for a server, unless
+// another lookup finished while this one was waiting for it.
+func (fs *Filesystem) refreshDiskUsage() (int64, error) {
 	fs.lookupMu.Lock()
 	defer fs.lookupMu.Unlock()
 
+	if fs.lastLookupTime.Get().After(time.Now().Add(time.Second * fs.diskCheckInterval * -1)) {
+		return fs.unixFS.Usage(), nil
+	}
+	return fs.walkDiskUsage()
+}
+
+// Updates the currently used disk space for a server.
+func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
+	// Obtain an exclusive lock on this process so that we don't unintentionally run it at the same
+	// time as another running process.
+	fs.lookupMu.Lock()
+	defer fs.lookupMu.Unlock()
+
+	return fs.walkDiskUsage()
+}
+
+// walkDiskUsage walks the disk and updates the cached usage. The caller must
+// hold lookupMu.
+func (fs *Filesystem) walkDiskUsage() (int64, error) {
 	// Signal that we're currently updating the disk size so that other calls to the disk checking
 	// functions can determine if they should queue up additional calls to this function. Ensure that
 	// we always set this back to "false" when this process is done executing.
@@ -155,9 +173,8 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	// the cache once we've gotten it.
 	size, err := fs.DirectorySize("/")
 
-	// Always cache the size, even if there is an error. We want to always return that value
-	// so that we don't cause an endless loop of determining the disk size if there is a temporary
-	// error encountered.
+	// Always record the lookup, even if there is an error, so that a persistent error does not
+	// cause the disk to be walked on every call.
 	fs.lastLookupTime.Set(time.Now())
 
 	// The walk may or may not have seen the data written by writes that are still in progress, so
@@ -167,6 +184,11 @@ func (fs *Filesystem) updateCachedDiskUsage() (int64, error) {
 	// over its limit. Either error is corrected by the next walk.
 	fs.mu.Lock()
 	usage := size + fs.walkReserved
+	if err != nil {
+		// A walk that failed part of the way through has only counted some of the files, so
+		// never lower the usage because of one.
+		usage = max(usage, fs.unixFS.Usage())
+	}
 	fs.unixFS.SetUsage(usage)
 	fs.walking = false
 	fs.mu.Unlock()
@@ -186,6 +208,10 @@ func (fs *Filesystem) DirectorySize(root string) (int64, error) {
 
 	var size atomic.Int64
 	err = fs.unixFS.WalkDirat(dirfd, name, func(dirfd int, name, _ string, d ufs.DirEntry, err error) error {
+		// Files can be removed while the walk is running, which is not an error.
+		if errors.Is(err, ufs.ErrNotExist) {
+			return nil
+		}
 		if err != nil {
 			return errors.Wrap(err, "walkdirat err")
 		}
@@ -196,6 +222,9 @@ func (fs *Filesystem) DirectorySize(root string) (int64, error) {
 		}
 
 		info, err := fs.unixFS.Lstatat(dirfd, name)
+		if errors.Is(err, ufs.ErrNotExist) {
+			return nil
+		}
 		if err != nil {
 			return errors.Wrap(err, "lstatat err")
 		}

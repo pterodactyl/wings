@@ -48,6 +48,12 @@ func (fs *UnixFS) walkDir(b []byte, parentfd int, name, relative string, d DirEn
 		defer unix.Close(dirfd)
 	}
 	if err != nil {
+		// Report the error to the callback, the same as a failed read below, so
+		// that it can decide whether to continue.
+		err = walkDirFn(parentfd, name, relative, d, err)
+		if err == SkipDir && d.IsDir() {
+			err = nil
+		}
 		return err
 	}
 

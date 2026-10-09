@@ -105,19 +105,48 @@ func (fs *Filesystem) UnixFS() *ufs.UnixFS {
 // already. If  it is present, the file is opened using the defaults which will truncate
 // the contents. The opened file is then returned to the caller.
 func (fs *Filesystem) Touch(p string, flag int) (ufs.File, error) {
-	var currentSize int64
-	st, err := fs.unixFS.Stat(p)
-	if err != nil && !errors.Is(err, ufs.ErrNotExist) {
-		return nil, err
-	} else if err == nil && !st.IsDir() {
-		currentSize = st.Size()
-	}
-
-	file, err := fs.unixFS.Touch(p, flag, 0o644)
+	file, currentSize, err := fs.openForWrite(p, flag, 0o644)
 	if err != nil {
 		return nil, err
 	}
 	return newQuotaFile(fs, file, currentSize), nil
+}
+
+// openForWrite opens p with the given flags, creating it if it does not exist,
+// and returns it along with the size it had when it was opened. The size is read
+// from the opened file rather than from the path, since the path can be changed,
+// for example to a symlink, between being checked and being opened. If flag
+// includes O_TRUNC the file is truncated after its size is read.
+func (fs *Filesystem) openForWrite(p string, flag int, mode ufs.FileMode) (ufs.File, int64, error) {
+	file, err := fs.unixFS.Touch(p, flag&^ufs.O_TRUNC, mode)
+	if err != nil {
+		return nil, 0, err
+	}
+	st, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, 0, err
+	}
+	var size int64
+	if st.Mode().IsRegular() {
+		size = st.Size()
+	}
+	if flag&ufs.O_TRUNC != 0 {
+		if err := file.Truncate(0); err != nil {
+			_ = file.Close()
+			return nil, 0, err
+		}
+	}
+	return file, size, nil
+}
+
+// checkNotDirectory returns an error if p is a directory.
+func (fs *Filesystem) checkNotDirectory(p string) error {
+	if st, err := fs.unixFS.Lstat(p); err == nil && st.IsDir() {
+		// TODO: resolved
+		return errors.WithStack(&Error{code: ErrCodeIsDirectory, resolved: ""})
+	}
+	return nil
 }
 
 // Writefile writes a file to the system. If the file does not already exist one
@@ -126,22 +155,14 @@ func (fs *Filesystem) Touch(p string, flag int) (ufs.File, error) {
 //
 // DEPRECATED: use `Write` instead.
 func (fs *Filesystem) Writefile(p string, r io.Reader) error {
-	var currentSize int64
-	st, err := fs.unixFS.Stat(p)
-	if err != nil && !errors.Is(err, ufs.ErrNotExist) {
-		return errors.Wrap(err, "server/filesystem: writefile: failed to stat file")
-	} else if err == nil {
-		if st.IsDir() {
-			// TODO: resolved
-			return errors.WithStack(&Error{code: ErrCodeIsDirectory, resolved: ""})
-		}
-		currentSize = st.Size()
+	if err := fs.checkNotDirectory(p); err != nil {
+		return err
 	}
 
 	// Touch the file and return the handle to it at this point. This will
 	// create or truncate the file, and create any necessary parent directories
 	// if they are missing.
-	file, err := fs.unixFS.Touch(p, ufs.O_RDWR|ufs.O_TRUNC, 0o644)
+	file, currentSize, err := fs.openForWrite(p, ufs.O_RDWR|ufs.O_TRUNC, 0o644)
 	if err != nil {
 		return fmt.Errorf("error touching file: %w", err)
 	}
@@ -162,30 +183,9 @@ func (fs *Filesystem) Writefile(p string, r io.Reader) error {
 }
 
 func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode ufs.FileMode) error {
-	var currentSize int64
-	st, err := fs.unixFS.Stat(p)
-	if err != nil && !errors.Is(err, ufs.ErrNotExist) {
-		return errors.Wrap(err, "server/filesystem: writefile: failed to stat file")
-	} else if err == nil {
-		if st.IsDir() {
-			// TODO: resolved
-			return errors.WithStack(&Error{code: ErrCodeIsDirectory, resolved: ""})
-		}
-		currentSize = st.Size()
-	}
-
-	// Check that the new size we're writing to the disk can fit, and reserve it so that
-	// writes happening at the same time cannot each use the space that is left. If there
-	// is currently a file we'll subtract that current file size from the size of the buffer
-	// to determine the amount of new data we're writing (or amount we're removing if smaller).
-	if err := fs.reserveDisk(newSize - currentSize); err != nil {
+	if err := fs.checkNotDirectory(p); err != nil {
 		return err
 	}
-	reserved := max(newSize-currentSize, 0)
-	// Release the reservation even if reading r panics, since the panic is
-	// recovered and the reservation would otherwise last until Wings restarts.
-	var used int64
-	defer func() { fs.releaseDisk(reserved, used) }()
 
 	// Ensure the parent directories exist and are owned by the server user
 	// before creating the file. Touch would create any missing parents
@@ -195,14 +195,38 @@ func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode ufs.FileM
 		return err
 	}
 
-	// Touch the file and return the handle to it at this point. This will
-	// create or truncate the file, and create any necessary parent directories
-	// if they are missing.
-	file, err := fs.unixFS.Touch(p, ufs.O_RDWR|ufs.O_TRUNC, mode)
+	_, statErr := fs.unixFS.Lstat(p)
+	existed := statErr == nil
+
+	// Open the file before reserving space, so that the size being replaced is the
+	// size of the file that is written to.
+	file, currentSize, err := fs.openForWrite(p, ufs.O_RDWR, mode)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
+
+	// Check that the new size we're writing to the disk can fit, and reserve it so that
+	// writes happening at the same time cannot each use the space that is left. If there
+	// is currently a file we'll subtract that current file size from the size of the buffer
+	// to determine the amount of new data we're writing (or amount we're removing if smaller).
+	if err := fs.reserveDisk(newSize - currentSize); err != nil {
+		if !existed {
+			_ = fs.unixFS.Remove(p)
+		}
+		return err
+	}
+	reserved := max(newSize-currentSize, 0)
+	// Release the reservation even if reading r panics, since the panic is
+	// recovered and the reservation would otherwise last until Wings restarts.
+	var used int64
+	defer func() { fs.releaseDisk(reserved, used) }()
+
+	if err := file.Truncate(0); err != nil {
+		return err
+	}
+	// The file is now empty.
+	used = -currentSize
 
 	var n int64
 	if newSize > 0 {
@@ -219,6 +243,37 @@ func (fs *Filesystem) Write(p string, r io.Reader, newSize int64, mode ufs.FileM
 	}
 	// Return any remaining error.
 	return err
+}
+
+// WriteFrom writes the contents of r to p, creating the file or truncating it
+// if it exists, and returns the number of bytes written. Unlike Write, the size
+// of the contents does not need to be known ahead of time: each write is counted
+// against the disk limit as it happens. If writing fails the file is removed.
+func (fs *Filesystem) WriteFrom(p string, r io.Reader) (int64, error) {
+	if err := fs.checkNotDirectory(p); err != nil {
+		return 0, err
+	}
+
+	if err := fs.mkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return 0, err
+	}
+
+	file, err := fs.Touch(p, ufs.O_RDWR|ufs.O_TRUNC)
+	if err != nil {
+		return 0, err
+	}
+	n, err := io.Copy(file, r)
+	if cerr := file.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = fs.chownFile(p)
+	}
+	if err != nil {
+		_ = fs.unixFS.Remove(p)
+		return n, err
+	}
+	return n, nil
 }
 
 // CreateDirectory creates a new directory (name) at a specified path (p) for
@@ -428,26 +483,19 @@ func (fs *Filesystem) Copy(p string) error {
 }
 
 // TruncateRootDirectory removes _all_ files and directories from a server's
-// data directory and resets the used disk space to zero.
+// data directory and resets the used disk space to zero. The directory itself
+// is kept, since it is mounted into the server's container.
 func (fs *Filesystem) TruncateRootDirectory() error {
-	if err := os.RemoveAll(fs.Path()); err != nil {
+	if err := fs.unixFS.RemoveContents("."); err != nil {
 		return err
 	}
-	if err := os.Mkdir(fs.Path(), 0o755); err != nil { //nolint:gosec // see New
-		return err
-	}
-	_ = fs.unixFS.Close()
-	unixFS, err := ufs.NewUnixFS(fs.Path(), config.UseOpenat2())
-	if err != nil {
-		return err
-	}
-	var limit int64
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	// Space reserved by writes that are still in progress remains in use.
+	fs.unixFS.SetUsage(fs.reserved)
 	if fs.isTest {
-		limit = 0
-	} else {
-		limit = fs.unixFS.Limit()
+		fs.unixFS.SetLimit(0)
 	}
-	fs.unixFS = ufs.NewQuota(unixFS, limit)
 	return nil
 }
 

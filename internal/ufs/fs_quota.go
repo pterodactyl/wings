@@ -6,6 +6,8 @@ package ufs
 import (
 	"math"
 	"sync/atomic"
+
+	"golang.org/x/sys/unix"
 )
 
 // Quota is a wrapper around [*UnixFS] that provides the ability to limit the
@@ -140,13 +142,7 @@ func (fs *Quota) Remove(name string) error {
 		return err
 	}
 
-	// Don't reduce the quota's usage as `name` is not a regular file.
-	if !s.Mode().IsRegular() {
-		return nil
-	}
-
-	// Remove the size of the deleted file from the quota usage.
-	fs.Add(-s.Size())
+	fs.Add(-freedBy(s))
 	return nil
 }
 
@@ -182,9 +178,23 @@ func (fs *Quota) removeAll(path string) error {
 func (fs *Quota) unlinkat(dirfd int, name string, flags int) error {
 	if flags == 0 {
 		s, err := fs.Lstatat(dirfd, name)
-		if err == nil && s.Mode().IsRegular() {
-			fs.Add(-s.Size())
+		if err == nil {
+			fs.Add(-freedBy(s))
 		}
 	}
 	return fs.UnixFS.unlinkat(dirfd, name, flags)
+}
+
+// freedBy returns the number of bytes removing the name described by s frees.
+// Only regular files count towards the usage. A file with other names (hard
+// links) keeps its data and is only counted once, so removing one of several
+// names frees nothing.
+func freedBy(s FileInfo) int64 {
+	if !s.Mode().IsRegular() {
+		return 0
+	}
+	if st, ok := s.Sys().(*unix.Stat_t); ok && st.Nlink > 1 {
+		return 0
+	}
+	return s.Size()
 }

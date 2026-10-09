@@ -1,9 +1,11 @@
 package filesystem
 
 import (
+	"archive/tar"
 	"context"
 	"fmt"
 	"io"
+	iofs "io/fs"
 	"math"
 	"path"
 	"path/filepath"
@@ -186,8 +188,10 @@ func (fs *Filesystem) DecompressFile(ctx context.Context, dir string, file strin
 	})
 }
 
-// ExtractStreamUnsafe .
-func (fs *Filesystem) ExtractStreamUnsafe(ctx context.Context, dir string, r io.Reader) error {
+// ExtractTransfer extracts the archive of a server that is being transferred to
+// this node into the server's directory. Every file is kept, including ones the
+// denylist would refuse, since they are the server's own files.
+func (fs *Filesystem) ExtractTransfer(ctx context.Context, r io.Reader) error {
 	format, input, err := archives.Identify(ctx, "archive.tar.gz", r)
 	if err != nil {
 		if errors.Is(err, archives.NoMatch) {
@@ -196,9 +200,10 @@ func (fs *Filesystem) ExtractStreamUnsafe(ctx context.Context, dir string, r io.
 		return err
 	}
 	return fs.extractStream(ctx, extractStreamOptions{
-		Directory: dir,
-		Format:    format,
-		Reader:    input,
+		Directory:    "/",
+		Format:       format,
+		Reader:       input,
+		KeepDenylist: true,
 	})
 }
 
@@ -211,6 +216,8 @@ type extractStreamOptions struct {
 	Format archives.Format
 	// Reader for the archive.
 	Reader io.Reader
+	// KeepDenylist extracts files the denylist would otherwise skip.
+	KeepDenylist bool
 }
 
 func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptions) error {
@@ -238,43 +245,11 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 		}
 		defer reader.Close()
 
-		// Open the file for creation/writing
-		f, err := fs.unixFS.OpenFile(p, ufs.O_WRONLY|ufs.O_CREATE, 0o644)
-		if err != nil {
-			return err
+		// Write the file, counting each write against the disk limit. The file is
+		// removed if it does not fit.
+		if _, err := fs.WriteFrom(p, reader); err != nil {
+			return wrapError(err, opts.FileName)
 		}
-		defer f.Close()
-
-		// Read in 4 KB chunks
-		buf := make([]byte, 4096)
-		for {
-			n, err := reader.Read(buf)
-			if n > 0 {
-
-				// Reserve the space for the chunk before writing it
-				if quotaErr := fs.reserveDisk(int64(n)); quotaErr != nil {
-					return quotaErr
-				}
-
-				// Write the chunk
-				written, writeErr := f.Write(buf[:n])
-				fs.releaseDisk(int64(n), int64(written))
-				if writeErr != nil {
-					return writeErr
-				}
-			}
-
-			if err != nil {
-				// EOF are expected
-				if err == io.EOF {
-					break
-				}
-
-				// Return any other
-				return err
-			}
-		}
-
 		return nil
 	}
 
@@ -282,8 +257,10 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 	return ex.Extract(ctx, opts.Reader, func(ctx context.Context, f archives.FileInfo) error {
 		p := filepath.Join(opts.Directory, f.NameInArchive)
 		// If it is ignored, just don't do anything with the entry and skip over it.
-		if err := fs.IsIgnored(p); err != nil {
-			return nil
+		if !opts.KeepDenylist {
+			if err := fs.IsIgnored(p); err != nil {
+				return nil
+			}
 		}
 		// Create directories explicitly; an empty one has no file to create it
 		// implicitly and would otherwise be dropped during extraction.
@@ -291,6 +268,25 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 			if err := fs.mkdirAll(p, 0o755); err != nil {
 				return wrapError(err, opts.FileName)
 			}
+			return nil
+		}
+		if f.Mode()&iofs.ModeSymlink != 0 {
+			if f.LinkTarget == "" {
+				return nil
+			}
+			if err := fs.mkdirAll(filepath.Dir(p), 0o755); err != nil {
+				return wrapError(err, opts.FileName)
+			}
+			if err := fs.Symlink(f.LinkTarget, p); err != nil && !errors.Is(err, ufs.ErrExist) {
+				return wrapError(err, opts.FileName)
+			}
+			return nil
+		}
+		// Hard links, devices and other special files are not extracted.
+		if !f.Mode().IsRegular() {
+			return nil
+		}
+		if h, ok := f.Header.(*tar.Header); ok && h.Typeflag == tar.TypeLink {
 			return nil
 		}
 		r, err := f.Open()
