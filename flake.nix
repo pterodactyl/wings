@@ -24,7 +24,7 @@
       in {
          devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
-            go_1_24
+            go_1_26
             gofumpt
             golangci-lint
             gotools
