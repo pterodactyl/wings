@@ -89,24 +89,22 @@ func handleServerWebsocket(c *gin.Context, maxConnections int, authTimeout time.
 	//
 	// Messages are handled in their own goroutines which can outlive this function, so
 	// a connection that authenticates after it has closed is not tracked.
+	// Connections that do not authenticate in time are closed.
 	var (
 		trackMu sync.Mutex
 		closed  bool
 	)
-	_ = handler.Connection.SetReadDeadline(time.Now().Add(authTimeout))
+	authTimer := time.AfterFunc(authTimeout, cancel)
+	defer authTimer.Stop()
 	handler.OnAuthenticated(func() error {
 		trackMu.Lock()
 		defer trackMu.Unlock()
-		if closed {
+		if closed || !authTimer.Stop() {
 			return context.Canceled
 		}
-		if !s.Websockets().TryPush(handler.Uuid(), &cancel, maxConnections) {
+		if !s.Websockets().TryPush(handler.Uuid(), &cancel, handler.User, maxConnections) {
 			cancel()
 			return errTooManyWebsockets
-		}
-		if err := handler.Connection.SetReadDeadline(time.Time{}); err != nil {
-			s.Websockets().Remove(handler.Uuid())
-			return err
 		}
 		return nil
 	})
@@ -147,7 +145,7 @@ func handleServerWebsocket(c *gin.Context, maxConnections int, authTimeout time.
 	// the HTTP response in the websocket client, thus we connect and then
 	// immediately close with failure.
 	if s.IsSuspended() {
-		_ = handler.Connection.WriteMessage(ws.CloseMessage, ws.FormatCloseMessage(4409, "server is suspended"))
+		_ = handler.SendClose(4409, "server is suspended")
 
 		return
 	}
@@ -173,7 +171,7 @@ func handleServerWebsocket(c *gin.Context, maxConnections int, authTimeout time.
 		if !rl.Allow() {
 			if !throttled {
 				throttled = true
-				_ = handler.Connection.WriteJSON(websocket.Message{Event: websocket.ThrottledEvent, Args: []string{"global"}})
+				_ = handler.SendThrottled("global")
 			}
 			continue
 		}
@@ -197,6 +195,13 @@ func handleServerWebsocket(c *gin.Context, maxConnections int, authTimeout time.
 		}
 
 		go func(msg websocket.Message) {
+			// Close this connection if handling the message panics.
+			defer func() {
+				if r := recover(); r != nil {
+					handler.Logger().WithField("panic", r).Error("recovered from panic while handling websocket message")
+					cancel()
+				}
+			}()
 			if err := handler.HandleInbound(ctx, msg); err != nil {
 				if errors.Is(err, server.ErrSuspended) {
 					cancel()

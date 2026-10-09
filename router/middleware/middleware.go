@@ -106,7 +106,7 @@ func SetAccessControlHeaders() gin.HandlerFunc {
 		// CORS for Private Networks (RFC1918)
 		// @see https://developer.chrome.com/blog/private-network-access-update/?utm_source=devtools
 		if allowPrivateNetwork {
-			c.Header("Access-Control-Request-Private-Network", "true")
+			c.Header("Access-Control-Allow-Private-Network", "true")
 		}
 
 		// Maximum age allowable under Chromium v76 is 2 hours, so just use that since

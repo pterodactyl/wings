@@ -3,6 +3,7 @@ package downloader
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime"
 	"net"
@@ -38,6 +39,9 @@ func init() {
 	trnspt := http.DefaultTransport.(*http.Transport).Clone()
 	// Always connect directly, so that every destination is checked.
 	trnspt.Proxy = nil
+	// Store the file exactly as it is served. Asking for a compressed response
+	// would also hide the length of the file, which is needed to write it.
+	trnspt.DisableCompression = true
 	trnspt.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		host, _, err := net.SplitHostPort(addr)
 		if err != nil {
@@ -212,7 +216,7 @@ func (dl *Download) Execute() error {
 		if IsDownloadError(err) {
 			return err
 		}
-		return errors.Wrap(err, ErrDownloadFailed.Error())
+		return errors.WithStack(fmt.Errorf("%w: %w", ErrDownloadFailed, err))
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -230,8 +234,12 @@ func (dl *Download) Execute() error {
 				return errors.WrapIf(err, "downloader: invalid \"Content-Disposition\" header")
 			}
 
+			// Only use the name of the file, so that it is saved in the
+			// directory that was asked for.
 			if v, ok := params["filename"]; ok {
-				dl.path = v
+				if name := filepath.Base(filepath.Clean("/" + v)); name != "/" && name != "." {
+					dl.path = name
+				}
 			}
 		}
 	}

@@ -205,14 +205,14 @@ func postDeauthorizeUser(c *gin.Context) {
 		for _, uuid := range data.Servers {
 			if s, ok := m.Get(uuid); ok {
 				tokens.DenyForServer(s.ID(), data.User)
-				s.Websockets().CancelAll()
+				s.Websockets().CancelUser(data.User)
 				s.Sftp().Cancel(data.User)
 			}
 		}
 	} else {
 		for _, s := range m.All() {
 			tokens.DenyForServer(s.ID(), data.User)
-			s.Websockets().CancelAll()
+			s.Websockets().CancelUser(data.User)
 			s.Sftp().Cancel(data.User)
 		}
 	}

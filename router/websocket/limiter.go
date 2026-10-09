@@ -17,21 +17,22 @@ func (h *Handler) IsThrottled(e Event) bool {
 	l := h.limiter.For(e)
 
 	h.limiter.mu.Lock()
-	defer h.limiter.mu.Unlock()
-
 	if l.Allow() {
 		h.limiter.throttles[e] = false
+		h.limiter.mu.Unlock()
 
 		return false
 	}
 
 	// If not allowed, track the throttling and send an event over the wire
 	// if one wasn't already sent in the same throttling period.
-	if v, ok := h.limiter.throttles[e]; !v || !ok {
-		h.limiter.throttles[e] = true
-		h.Logger().WithField("event", e).Debug("throttling websocket due to event volume")
+	notify := !h.limiter.throttles[e]
+	h.limiter.throttles[e] = true
+	h.limiter.mu.Unlock()
 
-		_ = h.unsafeSendJson(&Message{Event: ThrottledEvent, Args: []string{string(e)}})
+	if notify {
+		h.Logger().WithField("event", e).Debug("throttling websocket due to event volume")
+		_ = h.SendThrottled(string(e))
 	}
 
 	return true

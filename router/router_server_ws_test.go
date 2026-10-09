@@ -38,6 +38,15 @@ func startWebsocketTestServer(t *testing.T) string {
 
 func startWebsocketTestServerFor(t *testing.T) (string, *server.Server) {
 	t.Helper()
+	manager, s := newWebsocketTestManager(t)
+	srv := httptest.NewServer(Configure(manager, nil))
+	t.Cleanup(srv.Close)
+	return "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/servers/" + websocketTestServerUuid + "/ws", s
+}
+
+// newWebsocketTestManager returns a manager holding a single running server.
+func newWebsocketTestManager(t *testing.T) (*server.Manager, *server.Server) {
+	t.Helper()
 	cfg, err := config.NewAtPath(filepath.Join(t.TempDir(), "config.yml"))
 	if err != nil {
 		t.Fatal(err)
@@ -57,10 +66,7 @@ func startWebsocketTestServerFor(t *testing.T) (string, *server.Server) {
 	s.Environment = runningEnvironment{}
 	manager := server.NewEmptyManager(nil)
 	manager.Add(s)
-
-	srv := httptest.NewServer(Configure(manager, nil))
-	t.Cleanup(srv.Close)
-	return "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/servers/" + websocketTestServerUuid + "/ws", s
+	return manager, s
 }
 
 func dialWebsocket(t *testing.T, url string) (*ws.Conn, error) {

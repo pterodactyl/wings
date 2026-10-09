@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -583,18 +582,12 @@ func postServerUploadFiles(c *gin.Context) {
 	}
 	middleware.ClearDeadlines(c)
 
-	form, err := c.MultipartForm()
+	// Read the files one part at a time and write each straight to the server's
+	// disk.
+	reader, err := c.Request.MultipartReader()
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error": "Failed to get multipart form data from request.",
-		})
-		return
-	}
-
-	headers, ok := form.File["files"]
-	if !ok {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": "No files were found on the request body.",
 		})
 		return
 	}
@@ -603,45 +596,63 @@ func postServerUploadFiles(c *gin.Context) {
 
 	maxFileSize := config.Get().Api.UploadLimit
 	maxFileSizeBytes := maxFileSize * 1024 * 1024
-	var totalSize int64
-	for _, header := range headers {
-		if header.Size > maxFileSizeBytes {
+	var found bool
+	for {
+		part, err := reader.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-				"error": "File " + header.Filename + " is larger than the maximum file upload size of " + strconv.FormatInt(maxFileSize, 10) + " MB.",
+				"error": "Failed to get multipart form data from request.",
 			})
 			return
 		}
-		totalSize += header.Size
-	}
+		if part.FormName() != "files" || part.FileName() == "" {
+			continue
+		}
+		found = true
 
-	for _, header := range headers {
-		// We run this in a different method so I can use defer without any of
-		// the consequences caused by calling it in a loop.
-		if err := handleFileUpload(filepath.Join(directory, header.Filename), s, header); err != nil {
+		name := part.FileName()
+		if err := handleFileUpload(filepath.Join(directory, name), s, part, maxFileSizeBytes); err != nil {
+			if errors.Is(err, errUploadTooLarge) {
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+					"error": "File " + name + " is larger than the maximum file upload size of " + strconv.FormatInt(maxFileSize, 10) + " MB.",
+				})
+				return
+			}
 			middleware.CaptureAndAbort(c, err)
 			return
-		} else {
-			s.SaveActivity(s.NewRequestActivity(token.UserUuid, c.ClientIP()), server.ActivityFileUploaded, models.ActivityMeta{
-				"file":      header.Filename,
-				"directory": filepath.Clean(directory),
-			})
 		}
+		s.SaveActivity(s.NewRequestActivity(token.UserUuid, c.ClientIP()), server.ActivityFileUploaded, models.ActivityMeta{
+			"file":      name,
+			"directory": filepath.Clean(directory),
+		})
+	}
+
+	if !found {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "No files were found on the request body.",
+		})
 	}
 }
 
-func handleFileUpload(p string, s *server.Server, header *multipart.FileHeader) error {
-	file, err := header.Open()
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+var errUploadTooLarge = errors.New("router: uploaded file is larger than the upload limit")
 
+// handleFileUpload writes an uploaded file to p, refusing it if it is larger
+// than limit bytes.
+func handleFileUpload(p string, s *server.Server, r io.Reader, limit int64) error {
 	if err := s.Filesystem().IsIgnored(p); err != nil {
 		return err
 	}
 
-	if err := s.Filesystem().Write(p, file, header.Size, 0o644); err != nil {
+	n, err := s.Filesystem().WriteFrom(p, io.LimitReader(r, limit+1))
+	if err != nil {
 		return err
+	}
+	if n > limit {
+		_ = s.Filesystem().Delete(p)
+		return errUploadTooLarge
 	}
 	return nil
 }
