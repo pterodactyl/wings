@@ -1,0 +1,32 @@
+router/router_server_files_contents_test.go
+  s_a8689ed3575cef::t_811818654b15ea 1-18,20-50,52-93,96-110
+  s_a8689ed3575cef::t_7080f3ce934290 19,51
+  s_a8689ed3575cef::t_3ab63078b5b48c 94-95
+server/filesystem/list_directory_test.go
+  s_a8689ed3575cef::t_811818654b15ea 7,297-344
+  s_a8689ed3575cef::t_1b582a0e5515de 345-346
+router/router_server_files.go
+  s_a8689ed3575cef::t_e93fffb35ffda4 66,75-85
+  s_a8689ed3575cef::t_9a35d5de8a5627 86-87
+server/filesystem/stat.go
+  s_a8689ed3575cef::t_e93fffb35ffda4 133,142-163
+server/filesystem/mime.go
+  s_a8689ed3575cef::t_e93fffb35ffda4 5,11-12,54-70
+  s_a8689ed3575cef::t_0e4a273a1bba3f 71-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c0cb2e5800ea7dcf7b6bcd1798777515ef2ef0e8",
+  "prompts": {},
+  "sessions": {
+    "s_a8689ed3575cef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "deee3f73-aca3-4ced-a393-f4dc91d019f6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
