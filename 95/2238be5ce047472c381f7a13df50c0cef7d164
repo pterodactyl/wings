@@ -1,0 +1,23 @@
+server/filesystem/decompress_test.go
+  s_f493535ac28c9e::t_b397ddddd6ca93 56-59
+  s_f493535ac28c9e::t_576997ef5342de 1-55,60-145
+server/filesystem/compress.go
+  s_f493535ac28c9e::t_fb17e1cf8c435f 248-251,273-291
+  s_f493535ac28c9e::t_bbbcd9347ffd6c 4,8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "952238be5ce047472c381f7a13df50c0cef7d164",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
