@@ -1,0 +1,31 @@
+server/backup_restore_test.go
+  s_f493535ac28c9e::t_045481f2d420d4 10
+  s_f493535ac28c9e::t_3173ed62642e52 1-9,11-195
+server/filesystem/filesystem.go
+  s_f493535ac28c9e::t_588ca9938c56fc 486-487,489,492-495
+  s_f493535ac28c9e::t_54f67b20e983a3 497
+router/router_server_backup.go
+  s_f493535ac28c9e::t_588ca9938c56fc 134-136,145,199
+router/router_server_restore_test.go
+  s_f493535ac28c9e::t_5026e71ee94bb8 1-61
+server/backup.go
+  s_f493535ac28c9e::t_0143bd38eb5e04 124-125,129,132-134,144-145,154-160,167,172-202
+  s_f493535ac28c9e::t_588ca9938c56fc 4,8
+  s_f493535ac28c9e::t_7a86627a8f4213 203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bc0cf40e744270dbc37ce35ef9087d61f9e5daa2",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
