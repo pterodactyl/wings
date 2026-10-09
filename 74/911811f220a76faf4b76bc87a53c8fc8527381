@@ -1,0 +1,22 @@
+cmd/shutdown_test.go
+  s_f493535ac28c9e::t_ff25a53b739c51 1-45
+cmd/root.go
+  s_f493535ac28c9e::t_28589217eb9f72 13,347-353,393,402,408,413-426
+  s_f493535ac28c9e::t_69032bed706cb6 427-428
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "74911811f220a76faf4b76bc87a53c8fc8527381",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
