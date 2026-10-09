@@ -128,20 +128,18 @@ func TestPower(t *testing.T) {
 		})
 
 		g.Describe("PowerLocker#Destroy", func() {
-			g.It("should unlock and close the channel", func() {
+			g.It("should unlock and refuse further acquires", func() {
 				g.Assert(l.Acquire()).IsNil()
 				g.Assert(l.IsLocked()).IsTrue()
 				l.Destroy()
 				g.Assert(l.IsLocked()).IsFalse()
 
-				defer func() {
-					r := recover()
+				g.Assert(errors.Is(l.Acquire(), ErrLockerDestroyed)).IsTrue()
+				g.Assert(errors.Is(l.TryAcquire(context.Background()), ErrLockerDestroyed)).IsTrue()
+				g.Assert(l.IsLocked()).IsFalse()
 
-					g.Assert(r).IsNotNil()
-					g.Assert(r.(error).Error()).Equal("send on closed channel")
-				}()
-
-				_ = l.Acquire()
+				// Destroying it again is a no-op.
+				l.Destroy()
 			})
 		})
 	})

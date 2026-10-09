@@ -32,12 +32,13 @@ func postServerTransfer(c *gin.Context) {
 
 	s := ExtractServer(c)
 
-	// Check if the server is already being transferred.
-	// There will be another endpoint for resetting this value either by deleting the
-	// server, or by canceling the transfer.
-	if s.IsTransferring() {
+	// Mark the server as being transferred, which blocks it from starting. This
+	// fails if a transfer is already in progress, or if the server is being
+	// installed or restored. There will be another endpoint for resetting this
+	// value either by deleting the server, or by canceling the transfer.
+	if !s.StartTransferring() {
 		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
-			"error": "A transfer is already in progress for this server.",
+			"error": "The server cannot be transferred while it is being transferred, installed, or restored.",
 		})
 		return
 	}
@@ -56,9 +57,6 @@ func postServerTransfer(c *gin.Context) {
 		s.SetTransferring(false)
 	}
 
-	// Block the server from starting while we are transferring it.
-	s.SetTransferring(true)
-
 	// Ensure the server is offline. Sometimes a "No such container" error gets through
 	// which means the server is already stopped. We can ignore that.
 	if s.Environment.State() != environment.ProcessOfflineState {
@@ -75,7 +73,13 @@ func postServerTransfer(c *gin.Context) {
 
 	// Create a new transfer instance for this server.
 	trnsfr := transfer.New(context.Background(), s)
-	transfer.Outgoing().Add(trnsfr)
+	if !transfer.Outgoing().Add(trnsfr) {
+		s.SetTransferring(false)
+		c.AbortWithStatusJSON(http.StatusConflict, gin.H{
+			"error": "A transfer is already in progress for this server.",
+		})
+		return
+	}
 
 	go func() {
 		defer transfer.Outgoing().Remove(trnsfr)

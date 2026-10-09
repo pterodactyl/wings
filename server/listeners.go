@@ -51,10 +51,10 @@ func (dsl *diskSpaceLimiter) Trigger() {
 // output lines to determine if the server is started yet, and if the output is
 // not being throttled, will send the data over to the websocket.
 func (s *Server) processConsoleOutputEvent(v []byte) {
-	// Always process the console output, but do this in a seperate thread since we
-	// don't really care about side-effects from this call, and don't want it to block
-	// the console sending logic.
-	go s.onConsoleOutput(v)
+	// Always check the console output, including lines that are throttled, so that
+	// the line marking the server as started is not missed. Lines are checked in
+	// the order they are read.
+	s.onConsoleOutput(v)
 
 	// If the console is being throttled, do nothing else with it, we don't want
 	// to waste time. This code previously terminated server instances after violating

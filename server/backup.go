@@ -1,9 +1,11 @@
 package server
 
 import (
+	"archive/tar"
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"time"
 
 	"emperror.dev/errors"
@@ -119,20 +121,17 @@ func (s *Server) Backup(b backup.BackupInterface) error {
 
 // RestoreBackup calls the Restore function on the provided backup. Once this
 // restoration is completed an event is emitted to the websocket to notify the
-// Panel that is has been completed.
+// Panel that is has been completed. If truncate is set, all of the server's
+// files are deleted once it has stopped, before the backup is restored.
 //
 // In addition to the websocket event an API call is triggered to notify the
 // Panel of the new state.
-func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (err error) {
-	s.Config().SetSuspended(true)
+func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser, truncate bool) (err error) {
 	// Local backups will not pass a reader through to this function, so check first
 	// to make sure it is a valid reader before trying to close it.
-	defer func() {
-		s.Config().SetSuspended(false)
-		if reader != nil {
-			_ = reader.Close()
-		}
-	}()
+	if reader != nil {
+		defer reader.Close()
+	}
 	// Send an API call to the Panel as soon as this function is done running so that
 	// the Panel is informed of the restoration status of this backup.
 	defer func() {
@@ -142,13 +141,20 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	}()
 
 	// Don't try to restore the server until we have completely stopped the running
-	// instance, otherwise you'll likely hit all types of write errors due to the
-	// server being suspended.
+	// instance, otherwise you'll likely hit all types of write errors. The server
+	// cannot be started again while it is being restored.
 	if s.Environment.State() != environment.ProcessOfflineState {
 		if err = s.Environment.WaitForStop(s.Context(), 2*time.Minute, false); err != nil {
 			if !cerrdefs.IsNotFound(err) {
 				return errors.WrapIf(err, "server/backup: restore: failed to wait for container stop")
 			}
+		}
+	}
+
+	if truncate {
+		s.Log().Info("deleting server files before restoring backup")
+		if err = s.Filesystem().TruncateRootDirectory(); err != nil {
+			return errors.WrapIf(err, "server/backup: restore: failed to delete server files")
 		}
 	}
 
@@ -158,15 +164,40 @@ func (s *Server) RestoreBackup(b backup.BackupInterface, reader io.ReadCloser) (
 	err = b.Restore(s.Context(), reader, func(file string, info fs.FileInfo, r io.ReadCloser) error {
 		defer r.Close()
 		s.Events().Publish(DaemonMessageEvent, "(restoring): "+file)
-		// TODO: since this will be called a lot, it may be worth adding an optimized
-		// Write with Chtimes method to the UnixFS that is able to re-use the
-		// same dirfd and file name.
-		if err := s.Filesystem().Write(file, r, info.Size(), info.Mode()); err != nil {
-			return err
-		}
-		atime := info.ModTime()
-		return s.Filesystem().Chtimes(file, atime, atime)
+		return s.restoreEntry(file, info, r)
 	})
 
 	return errors.WithStackIf(err)
+}
+
+// restoreEntry restores a single entry of a backup archive.
+func (s *Server) restoreEntry(file string, info fs.FileInfo, r io.Reader) error {
+	switch {
+	case info.IsDir():
+		return s.Filesystem().CreateDirectory(file, "/")
+	case info.Mode()&fs.ModeSymlink != 0:
+		h, ok := info.Sys().(*tar.Header)
+		if !ok || h.Linkname == "" {
+			return nil
+		}
+		if err := s.Filesystem().CreateDirectory(filepath.Dir(file), "/"); err != nil {
+			return err
+		}
+		if err := s.Filesystem().Symlink(h.Linkname, file); err != nil && !errors.Is(err, os.ErrExist) {
+			return err
+		}
+		return nil
+	case !info.Mode().IsRegular():
+		// Hard links, devices and other special files are not restored.
+		return nil
+	}
+
+	// TODO: since this will be called a lot, it may be worth adding an optimized
+	// Write with Chtimes method to the UnixFS that is able to re-use the
+	// same dirfd and file name.
+	if err := s.Filesystem().Write(file, r, info.Size(), info.Mode()); err != nil {
+		return err
+	}
+	atime := info.ModTime()
+	return s.Filesystem().Chtimes(file, atime, atime)
 }

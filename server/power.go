@@ -10,6 +10,7 @@ import (
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/system"
 )
 
 type PowerAction string
@@ -115,6 +116,9 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 		if err := s.powerLock.Acquire(); err == nil {
 			log.Info("acquired exclusive lock on power actions, processing event...")
 			defer cleanup()
+		} else if errors.Is(err, system.ErrLockerDestroyed) {
+			// The server is being deleted.
+			return err
 		} else {
 			log.Warn("failed to acquire exclusive lock, ignoring failure for termination event")
 		}

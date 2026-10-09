@@ -7,17 +7,23 @@ import (
 	"emperror.dev/errors"
 )
 
-var ErrLockerLocked = errors.Sentinel("locker: cannot acquire lock, already locked")
+var (
+	ErrLockerLocked    = errors.Sentinel("locker: cannot acquire lock, already locked")
+	ErrLockerDestroyed = errors.Sentinel("locker: cannot acquire lock, locker destroyed")
+)
 
 type Locker struct {
 	mu sync.RWMutex
 	ch chan bool
+	// done is closed when the locker is destroyed.
+	done chan struct{}
 }
 
 // NewLocker returns a new Locker instance.
 func NewLocker() *Locker {
 	return &Locker{
-		ch: make(chan bool, 1),
+		ch:   make(chan bool, 1),
+		done: make(chan struct{}),
 	}
 }
 
@@ -34,6 +40,9 @@ func (l *Locker) IsLocked() bool {
 func (l *Locker) Acquire() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.destroyed() {
+		return ErrLockerDestroyed
+	}
 	select {
 	case l.ch <- true:
 	default:
@@ -46,8 +55,25 @@ func (l *Locker) Acquire() error {
 // is canceled.
 func (l *Locker) TryAcquire(ctx context.Context) error {
 	select {
+	case <-l.done:
+		return ErrLockerDestroyed
+	default:
+	}
+	select {
 	case l.ch <- true:
+		// The locker may have been destroyed while waiting.
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		if l.destroyed() {
+			select {
+			case <-l.ch:
+			default:
+			}
+			return ErrLockerDestroyed
+		}
 		return nil
+	case <-l.done:
+		return ErrLockerDestroyed
 	case <-ctx.Done():
 		if err := ctx.Err(); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
@@ -70,15 +96,27 @@ func (l *Locker) Release() {
 	l.mu.Unlock()
 }
 
-// Destroy cleans up the power locker by closing the channel.
+// Destroy releases the lock and stops it from being acquired again. Calling it
+// more than once is a no-op.
 func (l *Locker) Destroy() {
 	l.mu.Lock()
-	if l.ch != nil {
-		select {
-		case <-l.ch:
-		default:
-		}
-		close(l.ch)
+	defer l.mu.Unlock()
+	if l.destroyed() {
+		return
 	}
-	l.mu.Unlock()
+	select {
+	case <-l.ch:
+	default:
+	}
+	close(l.done)
+}
+
+// destroyed reports whether Destroy has been called. The caller must hold mu.
+func (l *Locker) destroyed() bool {
+	select {
+	case <-l.done:
+		return true
+	default:
+		return false
+	}
 }

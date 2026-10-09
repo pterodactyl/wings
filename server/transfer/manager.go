@@ -32,20 +32,28 @@ func NewManager() *Manager {
 	}
 }
 
-// Add adds a transfer to the manager.
-func (m *Manager) Add(transfer *Transfer) {
+// Add adds a transfer to the manager, returning false if there is already a
+// transfer for the server.
+func (m *Manager) Add(transfer *Transfer) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if _, ok := m.transfers[transfer.Server.ID()]; ok {
+		return false
+	}
 	m.transfers[transfer.Server.ID()] = transfer
+	return true
 }
 
-// Remove removes a transfer from the manager.
+// Remove removes a transfer from the manager. A different transfer for the same
+// server is left in place.
 func (m *Manager) Remove(transfer *Transfer) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	delete(m.transfers, transfer.Server.ID())
+	if m.transfers[transfer.Server.ID()] == transfer {
+		delete(m.transfers, transfer.Server.ID())
+	}
 }
 
 // Get gets a transfer from the manager using a server ID.

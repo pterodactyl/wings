@@ -96,13 +96,15 @@ type OutputLineMatcher struct {
 	// `regex:` which indicates we want to match against the regex expression.
 	raw []byte
 	reg *regexp.Regexp
+	// literal is the text matched when there is no regex.
+	literal []byte
 }
 
 // Matches determines if the provided byte string matches the given regex or
 // raw string provided to the matcher.
 func (olm *OutputLineMatcher) Matches(s []byte) bool {
 	if olm.reg == nil {
-		return bytes.Contains(s, olm.raw)
+		return bytes.Contains(s, olm.literal)
 	}
 	return olm.reg.Match(s)
 }
@@ -121,10 +123,15 @@ func (olm *OutputLineMatcher) UnmarshalJSON(data []byte) error {
 	}
 
 	olm.raw = []byte(r)
+	olm.literal = olm.raw
 	if bytes.HasPrefix(olm.raw, []byte("regex:")) && len(olm.raw) > 6 {
-		r, err := regexp.Compile(strings.TrimPrefix(string(olm.raw), "regex:"))
+		pattern := strings.TrimPrefix(string(olm.raw), "regex:")
+		r, err := regexp.Compile(pattern)
 		if err != nil {
-			log.WithField("error", err).WithField("raw", string(olm.raw)).Warn("failed to compile output line marked as being regex")
+			// Match the expression as plain text instead, rather than never
+			// matching, which would leave the server starting forever.
+			log.WithField("error", err).WithField("raw", string(olm.raw)).Warn("failed to compile output line marked as being regex, matching it as text")
+			olm.literal = []byte(pattern)
 		}
 		olm.reg = r
 	}
