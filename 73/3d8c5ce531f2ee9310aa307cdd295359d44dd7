@@ -1,0 +1,22 @@
+server/listeners.go
+  s_f493535ac28c9e::t_622741eff5773d 54-59
+server/console_output_test.go
+  s_f493535ac28c9e::t_200154726a9f24 4,10,29-33
+  s_f493535ac28c9e::t_622741eff5773d 1-3,5-9,11-28,34-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "733d8c5ce531f2ee9310aa307cdd295359d44dd7",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
