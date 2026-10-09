@@ -1,0 +1,27 @@
+internal/ufs/walk_unix.go
+  s_f493535ac28c9e::t_db7995f8df1644 51-56
+server/filesystem/disk_space.go
+  s_f493535ac28c9e::t_a69cb9677435fb 116,163-164,174-178,198-201,212-214
+  s_f493535ac28c9e::t_d47b6749d8ec71 145-148
+  s_f493535ac28c9e::t_27bd99b04588e2 149
+server/filesystem/disk_usage_lookup_test.go
+  s_f493535ac28c9e::t_d9de087b33fb0b 1-51
+internal/ufs/walk_unix_test.go
+  s_f493535ac28c9e::t_a92dba93c759ce 1-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0ca72296039851a1debe97d984626a2a010f0158",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
