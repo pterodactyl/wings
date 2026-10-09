@@ -1,0 +1,39 @@
+cmd/configure.go
+  s_b228824272d4fd::t_872aed0305cd86 6,56-63,155,160-178,180,185-186,191,193-195,198
+cmd/configure_test.go
+  s_b228824272d4fd::t_408121cdef06eb 1-117
+cmd/diagnostics.go
+  s_b228824272d4fd::t_2c8e07f7e37ab2 37-39,86,115,177-180,182-186,195-225,249-250,255,261
+cmd/diagnostics_test.go
+  s_b228824272d4fd::t_91146cdc3035ad 1-82
+cmd/root.go
+  s_b228824272d4fd::t_0656b355856fc0 13,347-353,393,402,408,413-428
+cmd/shutdown_test.go
+  s_b228824272d4fd::t_8f1015517c8c83 1-45
+config/config.go
+  s_b228824272d4fd::t_4035397a0a8e1b 385,698-700,703,707,710-719
+parser/helpers.go
+  s_b228824272d4fd::t_d3f8bbad166619 258
+parser/parser.go
+  s_b228824272d4fd::t_31bf20173875c5 40-67,159-163,312-316,376-377,380,449-450,453,470,507,534-537,543,632-652,659-660
+parser/parser_fields_test.go
+  s_b228824272d4fd::t_7786da92c55583 1-57
+parser/parser_xml_test.go
+  s_b228824272d4fd::t_d06a0d728e4a53 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "297aaf4c9667640e4e2dd4bc7e06ecf6ff35a4fe",
+  "prompts": {},
+  "sessions": {
+    "s_b228824272d4fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db8eac6a-fcec-4413-b99a-8db16b8d3d4c",
+        "model": "unknown"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
