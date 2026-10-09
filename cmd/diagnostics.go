@@ -34,6 +34,9 @@ const (
 	DefaultLogLines    = 200
 )
 
+// hastebinTimeout is how long uploading the report may take.
+var hastebinTimeout = 30 * time.Second
+
 var diagnosticsArgs struct {
 	IncludeEndpoints   bool
 	IncludeLogs        bool
@@ -80,7 +83,7 @@ func diagnosticsCmdRun(*cobra.Command, []string) {
 			Name: "ReviewBeforeUpload",
 			Prompt: &survey.Confirm{
 				Message: "Do you want to review the collected data before uploading to " + diagnosticsArgs.HastebinURL + "?",
-				Help:    "The data, especially the logs, might contain sensitive information, so you should review it. You will be asked again if you want to upload.",
+				Help:    "The data, especially the logs, might contain sensitive information, so you should review it. You will be asked before anything is uploaded.",
 				Default: true,
 			},
 		},
@@ -109,31 +112,7 @@ func diagnosticsCmdRun(*cobra.Command, []string) {
 	}
 
 	printHeader(output, "Wings Configuration")
-	var cfg *config.Configuration
-	if err := config.FromFile(config.DefaultLocation); err != nil {
-		fmt.Fprintln(output, "Failed to load configuration:", err)
-	} else {
-		cfg = config.Get()
-		fmt.Fprintln(output, "      Panel Location:", redact(cfg.PanelLocation))
-		fmt.Fprintln(output, "")
-		fmt.Fprintln(output, "  Internal Webserver:", redact(cfg.Api.Host), ":", cfg.Api.Port)
-		fmt.Fprintln(output, "         SSL Enabled:", cfg.Api.Ssl.Enabled)
-		fmt.Fprintln(output, "     SSL Certificate:", redact(cfg.Api.Ssl.CertificateFile))
-		fmt.Fprintln(output, "             SSL Key:", redact(cfg.Api.Ssl.KeyFile))
-		fmt.Fprintln(output, "")
-		fmt.Fprintln(output, "         SFTP Server:", redact(cfg.System.Sftp.Address), ":", cfg.System.Sftp.Port)
-		fmt.Fprintln(output, "      SFTP Read-Only:", cfg.System.Sftp.ReadOnly)
-		fmt.Fprintln(output, "")
-		fmt.Fprintln(output, "      Root Directory:", cfg.System.RootDirectory)
-		fmt.Fprintln(output, "      Logs Directory:", cfg.System.LogDirectory)
-		fmt.Fprintln(output, "      Data Directory:", cfg.System.Data)
-		fmt.Fprintln(output, "   Archive Directory:", cfg.System.ArchiveDirectory)
-		fmt.Fprintln(output, "    Backup Directory:", cfg.System.BackupDirectory)
-		fmt.Fprintln(output, "")
-		fmt.Fprintln(output, "            Username:", cfg.System.Username)
-		fmt.Fprintln(output, "         Server Time:", time.Now().Format(time.RFC1123Z))
-		fmt.Fprintln(output, "          Debug Mode:", cfg.Debug)
-	}
+	cfg := writeConfiguration(output)
 
 	printHeader(output, "Docker: Info")
 	if dockerErr == nil {
@@ -195,21 +174,53 @@ func diagnosticsCmdRun(*cobra.Command, []string) {
 		output.WriteString(s)
 	}
 
-	fmt.Println("\n---------------  generated report  ---------------")
-	fmt.Println(output.String())
-	fmt.Print("---------------   end of report    ---------------\n\n")
-
-	upload := !diagnosticsArgs.ReviewBeforeUpload
-	if !upload {
-		// A failed or interrupted prompt leaves upload false.
-		_ = survey.AskOne(&survey.Confirm{Message: "Upload to " + diagnosticsArgs.HastebinURL + "?", Default: false}, &upload)
+	if diagnosticsArgs.ReviewBeforeUpload {
+		fmt.Println("\n---------------  generated report  ---------------")
+		fmt.Println(output.String())
+		fmt.Print("---------------   end of report    ---------------\n\n")
 	}
+
+	// Always ask before uploading, since the report can contain sensitive
+	// information. A failed or interrupted prompt leaves upload false.
+	var upload bool
+	_ = survey.AskOne(&survey.Confirm{Message: "Upload to " + diagnosticsArgs.HastebinURL + "?", Default: false}, &upload)
 	if upload {
 		u, err := uploadToHastebin(diagnosticsArgs.HastebinURL, output.String())
 		if err == nil {
 			fmt.Println("Your report is available here: ", u)
 		}
 	}
+}
+
+// writeConfiguration writes the relevant parts of the configuration file Wings
+// was started with, and returns it if it could be read.
+func writeConfiguration(w io.Writer) *config.Configuration {
+	var cfg *config.Configuration
+	if err := config.FromFile(configPath); err != nil {
+		fmt.Fprintln(w, "Failed to load configuration:", err)
+	} else {
+		cfg = config.Get()
+		fmt.Fprintln(w, "      Panel Location:", redact(cfg.PanelLocation))
+		fmt.Fprintln(w, "")
+		fmt.Fprintln(w, "  Internal Webserver:", redact(cfg.Api.Host), ":", cfg.Api.Port)
+		fmt.Fprintln(w, "         SSL Enabled:", cfg.Api.Ssl.Enabled)
+		fmt.Fprintln(w, "     SSL Certificate:", redact(cfg.Api.Ssl.CertificateFile))
+		fmt.Fprintln(w, "             SSL Key:", redact(cfg.Api.Ssl.KeyFile))
+		fmt.Fprintln(w, "")
+		fmt.Fprintln(w, "         SFTP Server:", redact(cfg.System.Sftp.Address), ":", cfg.System.Sftp.Port)
+		fmt.Fprintln(w, "      SFTP Read-Only:", cfg.System.Sftp.ReadOnly)
+		fmt.Fprintln(w, "")
+		fmt.Fprintln(w, "      Root Directory:", cfg.System.RootDirectory)
+		fmt.Fprintln(w, "      Logs Directory:", cfg.System.LogDirectory)
+		fmt.Fprintln(w, "      Data Directory:", cfg.System.Data)
+		fmt.Fprintln(w, "   Archive Directory:", cfg.System.ArchiveDirectory)
+		fmt.Fprintln(w, "    Backup Directory:", cfg.System.BackupDirectory)
+		fmt.Fprintln(w, "")
+		fmt.Fprintln(w, "            Username:", cfg.System.Username)
+		fmt.Fprintln(w, "         Server Time:", time.Now().Format(time.RFC1123Z))
+		fmt.Fprintln(w, "          Debug Mode:", cfg.Debug)
+	}
+	return cfg
 }
 
 func getDockerInfo() (types.Version, dockersystem.Info, error) {
@@ -235,17 +246,19 @@ func uploadToHastebin(hbUrl, content string) (string, error) {
 		return "", err
 	}
 	u.Path = path.Join(u.Path, "documents")
-	res, err := http.Post(u.String(), "text/plain", r)
+	client := &http.Client{Timeout: hastebinTimeout}
+	res, err := client.Post(u.String(), "text/plain", r)
 	if err != nil {
 		fmt.Println("Failed to upload report to ", u.String(), err)
 		return "", err
 	}
+	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		fmt.Println("Failed to upload report to ", u.String(), res.Status)
 		return "", errors.New("unexpected response status: " + res.Status)
 	}
 	pres := make(map[string]interface{})
-	body, err := io.ReadAll(res.Body)
+	body, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 	if err != nil {
 		fmt.Println("Failed to parse response.", err)
 		return "", err

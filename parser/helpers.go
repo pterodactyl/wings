@@ -255,7 +255,7 @@ func (f *ConfigurationFile) LookupConfigurationValue(cfr ConfigurationFileReplac
 
 		// If there is no key, keep the original value intact, that way it is obvious there
 		// is a replace issue at play.
-		return string(match), nil
+		return cfr.ReplaceWith.String(), nil
 	}
 
 	// Only substitute scalar values, not whole objects or arrays.

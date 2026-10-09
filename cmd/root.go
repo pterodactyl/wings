@@ -10,6 +10,7 @@ import (
 	"net/http"
 	_ "net/http/pprof" //nolint:gosec // only served on localhost with --pprof; nothing else uses http.DefaultServeMux
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -343,6 +344,13 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	}
 	listener = network.LimitListener(listener, httpConnections, "http")
 
+	// Save the state of every server and stop serving requests when Wings is asked
+	// to stop. The servers themselves keep running, and are picked up again when
+	// Wings next starts.
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	go shutdownOnSignal(signals, manager, s)
+
 	profile, _ := cmd.Flags().GetBool("pprof")
 	if profile {
 		if r, _ := cmd.Flags().GetInt("pprof-block-rate"); r > 0 {
@@ -382,7 +390,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 			}
 		}()
 		// Start the main http server with TLS using autocert.
-		if err := s.ServeTLS(listener, "", ""); err != nil {
+		if err := s.ServeTLS(listener, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.WithFields(log.Fields{"auto_tls": true, "tls_hostname": tlshostname, "error": err}).Fatal("failed to configure HTTP server using auto-tls")
 		}
 		return
@@ -391,14 +399,30 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 	// Check if main http server should run with TLS. Otherwise, reset the TLS
 	// config on the server and then serve it over normal HTTP.
 	if api.Ssl.Enabled {
-		if err := s.ServeTLS(listener, api.Ssl.CertificateFile, api.Ssl.KeyFile); err != nil {
+		if err := s.ServeTLS(listener, api.Ssl.CertificateFile, api.Ssl.KeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.WithFields(log.Fields{"auto_tls": false, "error": err}).Fatal("failed to configure HTTPS server")
 		}
 		return
 	}
 	s.TLSConfig = nil
-	if err := s.Serve(listener); err != nil {
+	if err := s.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.WithField("error", err).Fatal("failed to configure HTTP server")
+	}
+}
+
+// shutdownOnSignal waits for a signal, then saves the state of every server and
+// stops the HTTP server, which returns from Serve so that Wings can exit.
+func shutdownOnSignal(signals <-chan os.Signal, manager *server.Manager, srv *http.Server) {
+	sig := <-signals
+	log.WithField("signal", sig.String()).Info("received signal, shutting down")
+	if err := manager.PersistStates(); err != nil {
+		log.WithField("error", err).Warn("failed to persist server states to disk")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.WithField("error", err).Warn("failed to stop the HTTP server cleanly")
+		_ = srv.Close()
 	}
 }
 

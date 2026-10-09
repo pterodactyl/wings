@@ -382,7 +382,7 @@ type Configuration struct {
 	// additional origins.
 	AllowedOrigins []string `json:"allowed_origins" yaml:"allowed_origins"`
 
-	// AllowCORSPrivateNetwork sets the `Access-Control-Request-Private-Network` header which
+	// AllowCORSPrivateNetwork sets the `Access-Control-Allow-Private-Network` header which
 	// allows client browsers to make requests to internal IP addresses over HTTP.  This setting
 	// is only required by users running Wings without SSL certificates and using internal IP
 	// addresses in order to connect. Most users should NOT enable this setting.
@@ -695,19 +695,28 @@ nobody:x:65534:65534::/var/empty:/bin/sh
 	return nil
 }
 
-// FromFile reads the configuration from the provided file and stores it in the
-// global singleton for this instance.
-func FromFile(path string) error {
+// Load reads the configuration from the provided file without resolving its
+// token or storing it in the global singleton.
+func Load(path string) (*Configuration, error) {
 	b, err := os.ReadFile(path) //nolint:gosec // the configuration file chosen by the operator
 	if err != nil {
-		return err
+		return nil, err
 	}
 	c, err := NewAtPath(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	if err := yaml.Unmarshal(b, c); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// FromFile reads the configuration from the provided file and stores it in the
+// global singleton for this instance.
+func FromFile(path string) error {
+	c, err := Load(path)
+	if err != nil {
 		return err
 	}
 
