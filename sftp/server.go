@@ -282,7 +282,7 @@ func (c *SFTPServer) serve(listener net.Listener, conf *ssh.ServerConfig) error 
 				log.WithField("error", err).WithField("ip", conn.RemoteAddr().String()).Error("sftp: failed to accept inbound connection")
 				return
 			}
-			user := sconn.User()
+			user := sessionKey(sconn)
 			if !c.sessions.acquire(user, 0, c.limits.maxPerUser) {
 				c.droppedUser.log("too many connections for user, dropping connections", user)
 				_ = sconn.Close()
@@ -294,6 +294,17 @@ func (c *SFTPServer) serve(listener net.Listener, conf *ssh.ServerConfig) error 
 			}
 		}(conn, key)
 	}
+}
+
+// sessionKey returns the key used to limit the connections of a user, which is
+// the user and server the Panel authenticated.
+func sessionKey(sconn *ssh.ServerConn) string {
+	if sconn.Permissions != nil {
+		if user := sconn.Permissions.Extensions["user"]; user != "" {
+			return user + ":" + sconn.Permissions.Extensions["uuid"]
+		}
+	}
+	return strings.ToLower(sconn.User())
 }
 
 // handshake performs the SSH handshake, including authentication, on the
@@ -337,6 +348,12 @@ func (c *SFTPServer) handle(sconn *ssh.ServerConn, chans <-chan ssh.NewChannel, 
 			continue
 		}
 
+		srv, ok := c.manager.Get(sconn.Permissions.Extensions["uuid"])
+		if !ok {
+			_ = ch.Reject(ssh.ConnectionFailed, "server not found")
+			continue
+		}
+
 		channel, requests, err := ch.Accept()
 		if err != nil {
 			continue
@@ -352,10 +369,8 @@ func (c *SFTPServer) handle(sconn *ssh.ServerConn, chans <-chan ssh.NewChannel, 
 			}
 		}(requests)
 
-		if srv, ok := c.manager.Get(sconn.Permissions.Extensions["uuid"]); ok {
-			if err := c.Handle(sconn, srv, channel); err != nil {
-				return err
-			}
+		if err := c.Handle(sconn, srv, channel); err != nil {
+			return err
 		}
 	}
 
@@ -373,10 +388,17 @@ func (c *SFTPServer) Handle(conn *ssh.ServerConn, srv *server.Server, channel ss
 	ctx := srv.Sftp().Context(handler.User())
 	rs := sftp.NewRequestServer(channel, handler.Handlers())
 
+	// Close the session when access is revoked, and stop waiting for that once
+	// the session ends on its own.
+	done := make(chan struct{})
+	defer close(done)
 	go func() {
-		<-ctx.Done()
-		srv.Log().WithField("user", conn.User()).Warn("sftp: terminating active session")
-		_ = rs.Close()
+		select {
+		case <-ctx.Done():
+			srv.Log().WithField("user", conn.User()).Warn("sftp: terminating active session")
+			_ = rs.Close()
+		case <-done:
+		}
 	}()
 
 	if err := rs.Serve(); err == io.EOF {

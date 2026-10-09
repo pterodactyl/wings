@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -24,6 +25,8 @@ const (
 	PermissionFileUpdate      = "file.update"
 	PermissionFileDelete      = "file.delete"
 	sftpAttributeExtended     = 1 << 31
+	// maxOpenFiles is the number of files a session may have open at once.
+	maxOpenFiles = 64
 )
 
 type Handler struct {
@@ -34,11 +37,49 @@ type Handler struct {
 	permissions []string
 	logger      *log.Entry
 	ro          bool
+	open        atomic.Int32
+}
+
+// openFile returns a slot for a file opened by the session, or nil if the
+// session already has the most files open that it may.
+func (h *Handler) openFile() *openFile {
+	if h.open.Add(1) > maxOpenFiles {
+		h.open.Add(-1)
+		return nil
+	}
+	return &openFile{release: func() { h.open.Add(-1) }}
+}
+
+// openFile is a session's slot for an open file, released when it is closed.
+type openFile struct {
+	once    sync.Once
+	release func()
+}
+
+func (f *openFile) close() {
+	if f != nil {
+		f.once.Do(f.release)
+	}
+}
+
+// readerAt is a file opened for reading by a session.
+type readerAt struct {
+	io.ReaderAt
+	slot *openFile
+}
+
+func (r readerAt) Close() error {
+	r.slot.close()
+	if c, ok := r.ReaderAt.(io.Closer); ok {
+		return c.Close()
+	}
+	return nil
 }
 
 type quotaWriterAt struct {
 	io.WriterAt
 	server *server.Server
+	slot   *openFile
 }
 
 func (w quotaWriterAt) WriteAt(p []byte, off int64) (int, error) {
@@ -54,6 +95,7 @@ func (w quotaWriterAt) WriteAt(p []byte, off int64) (int, error) {
 }
 
 func (w quotaWriterAt) Close() error {
+	w.slot.close()
 	if c, ok := w.WriterAt.(io.Closer); ok {
 		return c.Close()
 	}
@@ -102,17 +144,22 @@ func (h *Handler) Fileread(request *sftp.Request) (io.ReaderAt, error) {
 	if !h.can(PermissionFileReadContent) {
 		return nil, sftp.ErrSSHFxPermissionDenied
 	}
+	slot := h.openFile()
+	if slot == nil {
+		return nil, sftp.ErrSSHFxFailure
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	f, _, err := h.fs.File(request.Filepath)
 	if err != nil {
+		slot.close()
 		if !errors.Is(err, os.ErrNotExist) {
 			h.logger.WithField("error", err).Error("error processing readfile request")
 			return nil, sftp.ErrSSHFxFailure
 		}
 		return nil, sftp.ErrSSHFxNoSuchFile
 	}
-	return f, nil
+	return readerAt{ReaderAt: f, slot: slot}, nil
 }
 
 // Filewrite handles the write actions for a file on the system.
@@ -146,8 +193,13 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 	if !h.can(permission) {
 		return nil, sftp.ErrSSHFxPermissionDenied
 	}
+	slot := h.openFile()
+	if slot == nil {
+		return nil, sftp.ErrSSHFxFailure
+	}
 	f, err := h.fs.Touch(request.Filepath, os.O_RDWR|os.O_TRUNC)
 	if err != nil {
+		slot.close()
 		l.WithField("flags", request.Flags).WithField("error", err).Error("failed to open existing file on system")
 		return nil, sftp.ErrSSHFxFailure
 	}
@@ -159,7 +211,7 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 		event = server.ActivitySftpCreate
 	}
 	h.events.MustLog(event, FileAction{Entity: request.Filepath})
-	return quotaWriterAt{WriterAt: f, server: h.server}, nil
+	return quotaWriterAt{WriterAt: f, server: h.server, slot: slot}, nil
 }
 
 func setstatMode(request *sftp.Request) (os.FileMode, error) {
