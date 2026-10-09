@@ -1,0 +1,38 @@
+router/websocket/limiter.go
+  s_f493535ac28c9e::t_833be1de092efa 36
+  s_f493535ac28c9e::t_349bb33a9dd41d 22,28-32,34
+  s_f493535ac28c9e::t_0f8400d40cbdf1 35
+router/router_server_ws_write_test.go
+  s_f493535ac28c9e::t_9c405f3d80f107 1-84,86-89,91-164,169
+  s_f493535ac28c9e::t_3f3d79908e3448 165-168
+  s_f493535ac28c9e::t_a16646ee25b496 85,90
+router/router_server_ws_test.go
+  s_f493535ac28c9e::t_c52db4f15b0bac 41-48
+  s_f493535ac28c9e::t_dcbe694854071b 69
+  s_f493535ac28c9e::t_45b745b1384651 40
+router/router_server_ws.go
+  s_f493535ac28c9e::t_fcf76560396f18 200-207
+  s_f493535ac28c9e::t_0904cfb936095b 92-94,99-100,104
+  s_f493535ac28c9e::t_ad1f68a1d5fc8a 176
+  s_f493535ac28c9e::t_51ad92a95ecf91 150
+router/websocket/websocket.go
+  s_f493535ac28c9e::t_26b108f1b72f61 41-44,46-49
+  s_f493535ac28c9e::t_8ab8e3a9c6b1da 210-211,213,217-230
+  s_f493535ac28c9e::t_34c5f37a4a6fe5 231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "78225a79ebf90a49b8f2fb3754f2066cd1241949",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
