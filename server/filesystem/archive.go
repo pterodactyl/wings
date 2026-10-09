@@ -26,7 +26,7 @@ const memory = 4 * 1024
 var pool = sync.Pool{
 	New: func() interface{} {
 		b := make([]byte, memory)
-		return b
+		return &b
 	},
 }
 
@@ -331,11 +331,9 @@ func (a *Archive) addToArchive(dirfd int, name, relative string, entry ufs.DirEn
 		buf = make([]byte, header.Size)
 	} else {
 		// Get a fixed-size buffer from the pool to save on allocations.
-		buf = pool.Get().([]byte)
-		defer func() {
-			buf = make([]byte, memory)
-			pool.Put(buf)
-		}()
+		bp := pool.Get().(*[]byte)
+		defer pool.Put(bp)
+		buf = *bp
 	}
 
 	// Open the file.

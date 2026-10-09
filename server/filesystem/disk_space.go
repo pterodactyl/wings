@@ -275,8 +275,3 @@ func (fs *Filesystem) adjustDisk(size int64) int64 {
 
 	return fs.unixFS.Add(size)
 }
-
-// Updates the disk usage for the Filesystem instance.
-func (fs *Filesystem) addDisk(i int64) int64 {
-	return fs.unixFS.Add(i)
-}

@@ -21,6 +21,11 @@ linters:
       - path: _test\.go
         linters:
           - gosec
+      # Explicit embedded-field selectors (e.g. f.File.Seek in a wrapper type)
+      # are kept on purpose.
+      - linters:
+          - staticcheck
+        text: "QF1008:"
 
 formatters:
   enable:

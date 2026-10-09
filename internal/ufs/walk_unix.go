@@ -305,11 +305,3 @@ func (de dirent) Open() (File, error) {
 	return de.fs.OpenFileat(de.dirfd, de.name, O_RDONLY, 0)
 	// return de.fs.OpenFile(de.path, O_RDONLY, 0)
 }
-
-// reset releases memory held by entry err and name, and resets mode type to 0.
-func (de *dirent) reset() {
-	de.name = ""
-	de.path = ""
-	de.modeType = 0
-	de.dirfd = 0
-}

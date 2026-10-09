@@ -58,7 +58,7 @@ func AttachApiClient(client remote.Client) gin.HandlerFunc {
 // at the time it is called the stack will be attached.
 func CaptureAndAbort(c *gin.Context, err error) {
 	c.Abort()
-	c.Error(errors.WithStackDepthIf(err, 1))
+	_ = c.Error(errors.WithStackDepthIf(err, 1))
 }
 
 // CaptureErrors is custom handler function allowing for errors bubbled up by

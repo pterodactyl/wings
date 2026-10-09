@@ -57,10 +57,7 @@ func (sc *sftpCron) Run(ctx context.Context) error {
 		max: sc.max,
 	}
 
-	for {
-		if len(activity) == 0 {
-			break
-		}
+	for len(activity) != 0 {
 		slen := len(events.ids)
 		for _, a := range activity {
 			events.Push(a)

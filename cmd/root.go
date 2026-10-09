@@ -20,7 +20,7 @@ import (
 	"github.com/NYTimes/logrotate"
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/multi"
-	"github.com/docker/docker/client"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/gammazero/workerpool"
 	"github.com/mitchellh/colorstring"
 	"github.com/spf13/cobra"
@@ -227,7 +227,7 @@ func rootCmdRun(cmd *cobra.Command, _ []string) {
 			// point. If we didn't do this, and you pruned all the images and then started wings you could
 			// end up waiting a long period of time for all the images to be re-pulled on Wings boot rather
 			// than when the server itself is started.
-			if err != nil && !client.IsErrNotFound(err) {
+			if err != nil && !cerrdefs.IsNotFound(err) {
 				s.Log().WithField("error", err).Error("error checking server environment status")
 			}
 

@@ -139,7 +139,7 @@ func TestFilesystem_Blocks_Symlinks(t *testing.T) {
 			err = fs.Rename("my_file.txt", "foo/my_file.txt")
 			g.Assert(errors.Is(err, ufs.ErrNotDirectory)).IsTrue()
 
-			st, err = os.Lstat(filepath.Join(rfs.root, "malicious_dir", "my_file.txt"))
+			_, err = os.Lstat(filepath.Join(rfs.root, "malicious_dir", "my_file.txt"))
 			g.Assert(errors.Is(err, ufs.ErrNotExist)).IsTrue()
 		})
 	})

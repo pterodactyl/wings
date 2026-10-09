@@ -39,7 +39,9 @@ func compileIgnore(s string) (*ignore.GitIgnore, error) {
 // regular expression metacharacters that gitignore treats literally so that go-gitignore
 // does not interpret them.
 func parseIgnore(s string) ([]string, error) {
+	// The errors below are shown to users as written.
 	if len(s) > MaxIgnoreLength {
+		//nolint:staticcheck // ST1005
 		return nil, fmt.Errorf("The ignored files list may not be larger than %d KiB.", MaxIgnoreLength/1024)
 	}
 	lines := strings.Split(s, "\n")
@@ -50,10 +52,12 @@ func parseIgnore(s string) ([]string, error) {
 		}
 		patterns++
 		if patterns > MaxIgnorePatterns {
+			//nolint:staticcheck // ST1005
 			return nil, fmt.Errorf("The ignored files list may not contain more than %d patterns.", MaxIgnorePatterns)
 		}
 		escaped, wildcards := escapeIgnorePattern(line)
 		if wildcards > MaxIgnorePatternWildcards {
+			//nolint:staticcheck // ST1005
 			return nil, fmt.Errorf("The ignored files pattern on line %d may not contain more than %d wildcards.", n+1, MaxIgnorePatternWildcards)
 		}
 		lines[n] = escaped

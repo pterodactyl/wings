@@ -539,10 +539,6 @@ func (fs *UnixFS) Lstatat(dirfd int, name string) (FileInfo, error) {
 	return fs._fstatat("lstatat", dirfd, name, AT_SYMLINK_NOFOLLOW)
 }
 
-func (fs *UnixFS) fstat(name string, flags int) (FileInfo, error) {
-	return fs._fstat("fstat", name, flags)
-}
-
 func (fs *UnixFS) _fstat(op string, name string, flags int) (FileInfo, error) {
 	dirfd, name, closeFd, err := fs.safePath(name)
 	defer closeFd()
@@ -550,10 +546,6 @@ func (fs *UnixFS) _fstat(op string, name string, flags int) (FileInfo, error) {
 		return nil, err
 	}
 	return fs._fstatat(op, dirfd, name, flags)
-}
-
-func (fs *UnixFS) fstatat(dirfd int, name string, flags int) (FileInfo, error) {
-	return fs._fstatat("fstatat", dirfd, name, flags)
 }
 
 func (fs *UnixFS) _fstatat(op string, dirfd int, name string, flags int) (FileInfo, error) {
@@ -766,12 +758,12 @@ func (fs *UnixFS) _openat(dirfd int, name string, flag int, mode uint32) (int, e
 	}
 	// O_LARGEFILE is set by Openat for us automatically.
 	fd, err := unix.Openat(dirfd, name, flag, mode)
-	switch {
-	case err == nil:
+	switch err {
+	case nil:
 		return fd, nil
-	case err == unix.EINTR:
+	case unix.EINTR:
 		return fd, err
-	case err == unix.EAGAIN:
+	case unix.EAGAIN:
 		return fd, err
 	default:
 		return fd, ensurePathError(err, "openat", name)
@@ -805,12 +797,12 @@ func (fs *UnixFS) _openat2(dirfd int, name string, flag, mode uint64) (int, erro
 		// This is why using Openat2 over Openat is preferred if available.
 		Resolve: unix.RESOLVE_BENEATH,
 	})
-	switch {
-	case err == nil:
+	switch err {
+	case nil:
 		return fd, nil
-	case err == unix.EINTR:
+	case unix.EINTR:
 		return fd, err
-	case err == unix.EAGAIN:
+	case unix.EAGAIN:
 		return fd, err
 	default:
 		return fd, ensurePathError(err, "openat2", name)

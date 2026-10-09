@@ -201,7 +201,8 @@ func diagnosticsCmdRun(*cobra.Command, []string) {
 
 	upload := !diagnosticsArgs.ReviewBeforeUpload
 	if !upload {
-		survey.AskOne(&survey.Confirm{Message: "Upload to " + diagnosticsArgs.HastebinURL + "?", Default: false}, &upload)
+		// A failed or interrupted prompt leaves upload false.
+		_ = survey.AskOne(&survey.Confirm{Message: "Upload to " + diagnosticsArgs.HastebinURL + "?", Default: false}, &upload)
 	}
 	if upload {
 		u, err := uploadToHastebin(diagnosticsArgs.HastebinURL, output.String())
@@ -249,7 +250,10 @@ func uploadToHastebin(hbUrl, content string) (string, error) {
 		fmt.Println("Failed to parse response.", err)
 		return "", err
 	}
-	json.Unmarshal(body, &pres)
+	if err := json.Unmarshal(body, &pres); err != nil {
+		fmt.Println("Failed to parse response.", err)
+		return "", err
+	}
 	if key, ok := pres["key"].(string); ok {
 		u, _ := url.Parse(hbUrl)
 		u.Path = path.Join(u.Path, key)

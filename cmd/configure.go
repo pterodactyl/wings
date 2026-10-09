@@ -53,7 +53,8 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 	}
 
 	if _, err := os.Stat(configureArgs.ConfigPath); err == nil && !configureArgs.Override {
-		survey.AskOne(&survey.Confirm{Message: "Override existing configuration file"}, &configureArgs.Override)
+		// A failed or interrupted prompt leaves Override false, which aborts below.
+		_ = survey.AskOne(&survey.Confirm{Message: "Override existing configuration file"}, &configureArgs.Override)
 		if !configureArgs.Override {
 			fmt.Println("Aborting process; a configuration file already exists for this node.")
 			os.Exit(1)
@@ -144,6 +145,9 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 	}
 
 	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		panic(err)
+	}
 
 	cfg, err := config.NewAtPath(configPath)
 	if err != nil {

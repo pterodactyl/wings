@@ -8,8 +8,8 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
 
 	"github.com/pterodactyl/wings/environment"
 	"github.com/pterodactyl/wings/remote"
@@ -26,7 +26,7 @@ import (
 func (e *Environment) OnBeforeStart(ctx context.Context) error {
 	// Always destroy and re-create the server container to ensure that synced data from the Panel is used.
 	if err := e.client.ContainerRemove(ctx, e.Id, container.RemoveOptions{RemoveVolumes: true}); err != nil {
-		if !client.IsErrNotFound(err) {
+		if !cerrdefs.IsNotFound(err) {
 			return errors.WrapIf(err, "environment/docker: failed to remove container during pre-boot")
 		}
 	}
@@ -70,7 +70,7 @@ func (e *Environment) Start(ctx context.Context) error {
 		// a nil-pointer when checking c.State below.
 		//
 		// @see https://github.com/pterodactyl/panel/issues/2000
-		if !client.IsErrNotFound(err) {
+		if !cerrdefs.IsNotFound(err) {
 			return errors.WrapIf(err, "environment/docker: failed to inspect container")
 		}
 	} else {
@@ -195,7 +195,7 @@ func (e *Environment) Stop(ctx context.Context) error {
 	if err := e.client.ContainerStop(ctx, e.Id, container.StopOptions{Timeout: &timeout}); err != nil {
 		// If the container does not exist just mark the process as stopped and return without
 		// an error.
-		if client.IsErrNotFound(err) {
+		if cerrdefs.IsNotFound(err) {
 			e.SetStream(nil)
 			e.SetState(environment.ProcessOfflineState)
 			return nil
@@ -262,7 +262,7 @@ func (e *Environment) WaitForStop(ctx context.Context, duration time.Duration, t
 	case err := <-errChan:
 		// If the error stems from the container not existing there is no point in wasting
 		// CPU time to then try and terminate it.
-		if err == nil || client.IsErrNotFound(err) {
+		if err == nil || cerrdefs.IsNotFound(err) {
 			return nil
 		}
 		if terminate {
@@ -284,7 +284,7 @@ func (e *Environment) SignalContainer(ctx context.Context, signal string) error 
 	if err != nil {
 		// Treat missing containers as an okay error state, means it is obviously
 		// already terminated at this point.
-		if client.IsErrNotFound(err) {
+		if cerrdefs.IsNotFound(err) {
 			return nil
 		}
 		return errors.WithStack(err)
@@ -304,7 +304,7 @@ func (e *Environment) SignalContainer(ctx context.Context, signal string) error 
 
 	// We set it to stopping than offline to prevent crash detection from being triggered.
 	e.SetState(environment.ProcessStoppingState)
-	if err := e.client.ContainerKill(ctx, e.Id, signal); err != nil && !client.IsErrNotFound(err) {
+	if err := e.client.ContainerKill(ctx, e.Id, signal); err != nil && !cerrdefs.IsNotFound(err) {
 		return errors.WithStack(err)
 	}
 

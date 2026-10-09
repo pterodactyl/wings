@@ -13,6 +13,7 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
@@ -183,7 +184,7 @@ func (ip *InstallationProcess) RemoveContainer() error {
 		RemoveVolumes: true,
 		Force:         true,
 	})
-	if err != nil && !client.IsErrNotFound(err) {
+	if err != nil && !cerrdefs.IsNotFound(err) {
 		return err
 	}
 	return nil
@@ -341,7 +342,11 @@ func (ip *InstallationProcess) GetLogPath() string {
 // This grabs the logs from the process to store in the server configuration
 // directory, and then destroys the associated installation container.
 func (ip *InstallationProcess) AfterExecute(containerId string) error {
-	defer ip.RemoveContainer()
+	defer func() {
+		if err := ip.RemoveContainer(); err != nil {
+			ip.Server.Log().WithField("error", err).Warn("failed to remove installation container")
+		}
+	}()
 
 	ip.Server.Log().WithField("container_id", containerId).Debug("pulling installation logs for server")
 	reader, err := ip.client.ContainerLogs(ip.Server.Context(), containerId, container.LogsOptions{
@@ -350,7 +355,7 @@ func (ip *InstallationProcess) AfterExecute(containerId string) error {
 		Follow:     false,
 	})
 
-	if err != nil && !client.IsErrNotFound(err) {
+	if err != nil && !cerrdefs.IsNotFound(err) {
 		return err
 	}
 

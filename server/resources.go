@@ -34,8 +34,11 @@ func (s *Server) Proc() ResourceUsage {
 	defer s.resources.mu.Unlock()
 	// Store the updated disk usage when requesting process usage.
 	atomic.StoreInt64(&s.resources.Disk, s.Filesystem().CachedUsage())
-	//goland:noinspection GoVetCopyLock
-	return s.resources
+	return ResourceUsage{
+		Stats: s.resources.Stats,
+		State: s.resources.State,
+		Disk:  s.resources.Disk,
+	}
 }
 
 // UpdateStats updates the current stats for the server's resource usage.

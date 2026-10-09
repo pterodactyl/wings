@@ -35,7 +35,7 @@ func (t *TokenStore) IsValidToken(token string) bool {
 	_, exists := t.cache.Get(token)
 
 	if !exists {
-		t.cache.Add(token, "", time.Minute*60)
+		t.cache.Set(token, "", time.Minute*60)
 	}
 
 	return !exists

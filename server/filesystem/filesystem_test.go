@@ -3,9 +3,9 @@ package filesystem
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"math"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,7 +30,6 @@ func NewFs() (*Filesystem, *rootFs) {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "pterodactyl")
 	if err != nil {
 		panic(err)
-		return nil, nil
 	}
 
 	rfs := rootFs{root: tmpDir}
@@ -38,14 +37,12 @@ func NewFs() (*Filesystem, *rootFs) {
 	p := filepath.Join(tmpDir, "server")
 	if err := os.Mkdir(p, 0o755); err != nil {
 		panic(err)
-		return nil, nil
 	}
 
 	fs, _ := New(p, 0, []string{})
 	fs.isTest = true
 	if err := fs.TruncateRootDirectory(); err != nil {
 		panic(err)
-		return nil, nil
 	}
 
 	return fs, &rfs
@@ -383,6 +380,7 @@ func TestFilesystem_Rename(t *testing.T) {
 
 		g.It("does not allow renaming from a location outside the root", func() {
 			err := rfs.CreateServerFileFromString("/../ext-source.txt", "taget content")
+			g.Assert(err).IsNil()
 
 			err = fs.Rename("/../ext-source.txt", "target.txt")
 			g.Assert(err).IsNotNil()
@@ -461,6 +459,7 @@ func TestFilesystem_Copy(t *testing.T) {
 
 		g.It("should return an error if the source is outside the root", func() {
 			err := rfs.CreateServerFileFromString("/../ext-source.txt", "text content")
+			g.Assert(err).IsNil()
 
 			err = fs.Copy("../ext-source.txt")
 			g.Assert(err).IsNotNil()
@@ -566,6 +565,7 @@ func TestFilesystem_Delete(t *testing.T) {
 
 		g.It("does not delete files outside the root directory", func() {
 			err := rfs.CreateServerFileFromString("/../ext-source.txt", "external content")
+			g.Assert(err).IsNil()
 
 			err = fs.Delete("../ext-source.txt")
 			g.Assert(err).IsNotNil()

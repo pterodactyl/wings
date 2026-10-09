@@ -262,7 +262,7 @@ func (h *Handler) SendErrorJson(msg Message, err error, shouldLog ...bool) error
 	m, u := h.GetErrorMessage(wsm.Args[0])
 	wsm.Args = []string{m}
 
-	if !isJWTError && (len(shouldLog) == 0 || (len(shouldLog) == 1 && shouldLog[0] == true)) {
+	if !isJWTError && (len(shouldLog) == 0 || (len(shouldLog) == 1 && shouldLog[0])) {
 		h.server.Log().WithFields(log.Fields{"event": msg.Event, "error_identifier": u.String(), "error": err}).
 			Errorf("error processing websocket event \"%s\"", msg.Event)
 	}
@@ -321,7 +321,7 @@ func (h *Handler) HandleInbound(ctx context.Context, m Message) error {
 	if m.Event != AuthenticationEvent {
 		var err error
 		if j, err = h.validJwt(); err != nil {
-			h.unsafeSendJson(Message{
+			_ = h.unsafeSendJson(Message{
 				Event: JwtErrorEvent,
 				Args:  []string{err.Error()},
 			})

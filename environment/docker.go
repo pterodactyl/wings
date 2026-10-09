@@ -7,6 +7,7 @@ import (
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 
@@ -40,7 +41,7 @@ func ConfigureDocker(ctx context.Context) error {
 	nw := config.Get().Docker.Network
 	resource, err := cli.NetworkInspect(ctx, nw.Name, network.InspectOptions{})
 	if err != nil {
-		if !client.IsErrNotFound(err) {
+		if !cerrdefs.IsNotFound(err) {
 			return err
 		}
 

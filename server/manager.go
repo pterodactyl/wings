@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -295,8 +294,8 @@ func (m *Manager) init(ctx context.Context) error {
 	// before continuing.
 	pool.StopWait()
 
-	diff := time.Now().Sub(start)
-	log.WithField("duration", fmt.Sprintf("%s", diff)).Info("finished processing server configurations")
+	diff := time.Since(start)
+	log.WithField("duration", diff.String()).Info("finished processing server configurations")
 
 	return nil
 }

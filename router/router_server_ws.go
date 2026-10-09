@@ -119,15 +119,12 @@ func handleServerWebsocket(c *gin.Context, maxConnections int, authTimeout time.
 	}()
 
 	go func() {
-		select {
 		// When the main context is canceled (through disconnect, server deletion, or server
 		// suspension) close the connection itself.
-		case <-ctx.Done():
-			handler.Logger().Debug("closing connection to server websocket")
-			if err := handler.Connection.Close(); err != nil {
-				handler.Logger().WithError(err).Error("failed to close websocket connection")
-			}
-			break
+		<-ctx.Done()
+		handler.Logger().Debug("closing connection to server websocket")
+		if err := handler.Connection.Close(); err != nil {
+			handler.Logger().WithError(err).Error("failed to close websocket connection")
 		}
 	}()
 

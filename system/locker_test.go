@@ -93,7 +93,7 @@ func TestPower(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*200)
 				defer cancel()
 
-				l.Acquire()
+				g.Assert(l.Acquire()).IsNil()
 				go func() {
 					time.AfterFunc(time.Millisecond*50, func() {
 						l.Release()
@@ -110,7 +110,7 @@ func TestPower(t *testing.T) {
 
 		g.Describe("PowerLocker#Release", func() {
 			g.It("should release when channel is full", func() {
-				l.Acquire()
+				g.Assert(l.Acquire()).IsNil()
 				g.Assert(l.IsLocked()).IsTrue()
 				l.Release()
 				g.Assert(cap(l.ch)).Equal(1)
@@ -129,7 +129,7 @@ func TestPower(t *testing.T) {
 
 		g.Describe("PowerLocker#Destroy", func() {
 			g.It("should unlock and close the channel", func() {
-				l.Acquire()
+				g.Assert(l.Acquire()).IsNil()
 				g.Assert(l.IsLocked()).IsTrue()
 				l.Destroy()
 				g.Assert(l.IsLocked()).IsFalse()
@@ -141,7 +141,7 @@ func TestPower(t *testing.T) {
 					g.Assert(r.(error).Error()).Equal("send on closed channel")
 				}()
 
-				l.Acquire()
+				_ = l.Acquire()
 			})
 		})
 	})

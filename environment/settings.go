@@ -171,21 +171,21 @@ func (v Variables) Get(key string) string {
 		return ""
 	}
 
-	switch val.(type) {
+	switch val := val.(type) {
 	case int:
-		return strconv.Itoa(val.(int))
+		return strconv.Itoa(val)
 	case int32:
-		return strconv.FormatInt(val.(int64), 10)
+		return strconv.FormatInt(int64(val), 10)
 	case int64:
-		return strconv.FormatInt(val.(int64), 10)
+		return strconv.FormatInt(val, 10)
 	case float32:
-		return fmt.Sprintf("%f", val.(float32))
+		return fmt.Sprintf("%f", val)
 	case float64:
-		return fmt.Sprintf("%f", val.(float64))
+		return fmt.Sprintf("%f", val)
 	case bool:
-		return strconv.FormatBool(val.(bool))
+		return strconv.FormatBool(val)
 	case string:
-		return val.(string)
+		return val
 	}
 
 	// TODO: I think we can add a check for val == nil and return an empty string for those

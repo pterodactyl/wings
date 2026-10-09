@@ -374,11 +374,9 @@ func (c *SFTPServer) Handle(conn *ssh.ServerConn, srv *server.Server, channel ss
 	rs := sftp.NewRequestServer(channel, handler.Handlers())
 
 	go func() {
-		select {
-		case <-ctx.Done():
-			srv.Log().WithField("user", conn.User()).Warn("sftp: terminating active session")
-			_ = rs.Close()
-		}
+		<-ctx.Done()
+		srv.Log().WithField("user", conn.User()).Warn("sftp: terminating active session")
+		_ = rs.Close()
 	}()
 
 	if err := rs.Serve(); err == io.EOF {

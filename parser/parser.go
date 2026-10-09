@@ -296,7 +296,7 @@ func (f *ConfigurationFile) parseXmlFile(file ufs.File) error {
 			doc.SetRoot(doc.CreateElement(parts[0]))
 		}
 
-		path := "./" + strings.Replace(replacement.Match, ".", "/", -1)
+		path := "./" + strings.ReplaceAll(replacement.Match, ".", "/")
 
 		// If we're not doing a wildcard replacement go ahead and create the
 		// missing element if we cannot find it yet.

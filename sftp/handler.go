@@ -214,7 +214,6 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 			l.WithField("error", err).Error("failed to perform setstat on item")
 			return sftp.ErrSSHFxFailure
 		}
-		break
 	// Support renaming a file (aka Move).
 	case "Rename":
 		if !h.can(PermissionFileUpdate) {
@@ -228,7 +227,6 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 			return sftp.ErrSSHFxFailure
 		}
 		h.events.MustLog(server.ActivitySftpRename, FileAction{Entity: request.Filepath, Target: request.Target})
-		break
 	// Handle deletion of a directory. This will properly delete all of the files and
 	// folders within that directory if it is not already empty (unlike a lot of SFTP
 	// clients that must delete each file individually).
@@ -255,7 +253,6 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 			return sftp.ErrSSHFxFailure
 		}
 		h.events.MustLog(server.ActivitySftpCreateDirectory, FileAction{Entity: request.Filepath})
-		break
 	// Support creating symlinks between files. The source and target must resolve within
 	// the server home directory.
 	case "Symlink":
@@ -266,7 +263,6 @@ func (h *Handler) Filecmd(request *sftp.Request) error {
 			l.WithField("target", request.Target).WithField("error", err).Error("failed to create symlink")
 			return sftp.ErrSSHFxFailure
 		}
-		break
 	// Called when deleting a file.
 	case "Remove":
 		if !h.can(PermissionFileDelete) {
