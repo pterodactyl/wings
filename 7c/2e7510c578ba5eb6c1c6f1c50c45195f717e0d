@@ -1,0 +1,23 @@
+server/install.go
+  s_f493535ac28c9e::t_fab19876c9d22b 11,443-444,448,459-464,571-575,580-582
+  s_f493535ac28c9e::t_a02dd9127d1742 583
+server/install_container_test.go
+  s_f493535ac28c9e::t_5d1854afad71a8 1-158
+  s_f493535ac28c9e::t_513adb5ccaffa0 159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7c2e7510c578ba5eb6c1c6f1c50c45195f717e0d",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
