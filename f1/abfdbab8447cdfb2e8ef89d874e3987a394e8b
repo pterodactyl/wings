@@ -1,0 +1,112 @@
+internal/ufs/fs_unix.go
+  s_f493535ac28c9e::t_285bd21cb51dcd 761-762,764,766,800-801,803,805
+server/filesystem/ignore.go
+  s_f493535ac28c9e::t_589ee95afe3a98 60
+  s_f493535ac28c9e::t_9d3588a7f63161 55
+  s_f493535ac28c9e::t_5ca6cdcb52bf9d 42,44
+server/filesystem/filesystem_test.go
+  s_f493535ac28c9e::t_a7e7ed859585c5 6
+  s_f493535ac28c9e::t_8700a62cc5e12a 568
+  s_f493535ac28c9e::t_dbe4c79ce3c2fc 383
+  s_f493535ac28c9e::t_e882a585a9b5c5 462
+server/install.go
+  s_f493535ac28c9e::t_d792aa747ea257 187,358
+  s_f493535ac28c9e::t_1a1013955c30dd 345-349
+  s_f493535ac28c9e::t_22f57bf5daee1d 16
+router/router_system.go
+  s_f493535ac28c9e::t_d00ac06a86b60a 51
+router/websocket/websocket.go
+  s_f493535ac28c9e::t_285bd21cb51dcd 265
+  s_f493535ac28c9e::t_a0694af7115286 324
+cmd/root.go
+  s_f493535ac28c9e::t_5bd08adf781842 23
+  s_f493535ac28c9e::t_d792aa747ea257 230
+environment/docker/environment.go
+  s_f493535ac28c9e::t_9146eceb07fc4c 11
+  s_f493535ac28c9e::t_12c7219be4ce2d 138
+  s_f493535ac28c9e::t_d792aa747ea257 125,163
+sftp/server.go
+  s_f493535ac28c9e::t_b7f84a5efe14fe 377-379
+router/middleware/middleware.go
+  s_f493535ac28c9e::t_7bc2deaaeaf6dd 61
+environment/docker/container.go
+  s_f493535ac28c9e::t_d792aa747ea257 174,211,269,352
+  s_f493535ac28c9e::t_7b503cac830217 15
+cmd/configure.go
+  s_f493535ac28c9e::t_e6e644bd731ceb 56-57
+  s_f493535ac28c9e::t_a3d99f8fb9caef 148-150
+environment/docker.go
+  s_f493535ac28c9e::t_b3c8edaaaca5c2 10
+  s_f493535ac28c9e::t_d792aa747ea257 44
+environment/settings.go
+  s_f493535ac28c9e::t_1754938d8ac952 174,176,178,180,182,184,186,188
+router/router_server_ws.go
+  s_f493535ac28c9e::t_82d3b0594229da 124-127
+router/websocket/listeners.go
+  s_f493535ac28c9e::t_24bb6ebe986f90 101
+server/filesystem/path_test.go
+  s_f493535ac28c9e::t_c2088728dddcec 142
+system/locker_test.go
+  s_f493535ac28c9e::t_064c3fa59173dc 96
+  s_f493535ac28c9e::t_cadd746da0eb30 132
+  s_f493535ac28c9e::t_2dc19cdcbfba2a 144
+  s_f493535ac28c9e::t_2e4951a6403ba9 113
+parser/parser.go
+  s_f493535ac28c9e::t_285bd21cb51dcd 299
+environment/docker/api.go
+  s_f493535ac28c9e::t_2f1cd22b136c40 91
+  s_f493535ac28c9e::t_362f41ba8a9a7b 124-151
+  s_f493535ac28c9e::t_85050c2e2a28c6 13,15
+  s_f493535ac28c9e::t_d792aa747ea257 53,63
+  s_f493535ac28c9e::t_ff124155f66a37 82
+cmd/diagnostics.go
+  s_f493535ac28c9e::t_44f325423315c6 204-205
+  s_f493535ac28c9e::t_be90697eaf77d9 253-256
+server/backup.go
+  s_f493535ac28c9e::t_d792aa747ea257 149
+  s_f493535ac28c9e::t_afe305145ef337 11
+server/resources.go
+  s_f493535ac28c9e::t_c949deba187607 37-41
+router/tokens/token_store.go
+  s_f493535ac28c9e::t_e1f0124bd74871 38
+server/backup/backup_s3.go
+  s_f493535ac28c9e::t_3ab707c12d2de6 58-62
+system/utils.go
+  s_f493535ac28c9e::t_285bd21cb51dcd 73
+.golangci.yml
+  s_f493535ac28c9e::t_6bf628d071ada0 24-28
+server/power_test.go
+  s_f493535ac28c9e::t_3c89201ab8f17c 19
+server/backup/backup.go
+  s_f493535ac28c9e::t_5205490c8e8b59 160
+server/manager.go
+  s_f493535ac28c9e::t_285bd21cb51dcd 297-298
+go.mod
+  s_f493535ac28c9e::t_efa5114194189f 18-19
+environment/docker/power.go
+  s_f493535ac28c9e::t_d792aa747ea257 29,73,198,265,287,307
+  s_f493535ac28c9e::t_4b16ef19df7197 11
+internal/cron/sftp_cron.go
+  s_f493535ac28c9e::t_285bd21cb51dcd 60
+server/filesystem/archive.go
+  s_f493535ac28c9e::t_86459b8159bac6 334-336
+  s_f493535ac28c9e::t_92d43b446ac3a5 29
+environment/docker/api_test.go
+  s_f493535ac28c9e::t_48c885a49b0abb 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f1abfdbab8447cdfb2e8ef89d874e3987a394e8b",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
