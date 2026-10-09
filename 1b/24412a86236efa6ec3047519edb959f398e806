@@ -1,0 +1,49 @@
+router/downloader/downloader.go
+  s_41fcdb93953164::t_fda574c712d271 6,42-44,219,237-238,240-242
+router/downloader/downloader_pull_test.go
+  s_41fcdb93953164::t_b2e19ec5228a7e 1-129
+router/middleware/middleware.go
+  s_41fcdb93953164::t_7e3a37452ad20f 109
+router/middleware/middleware_cors_test.go
+  s_41fcdb93953164::t_f906e632a9fb26 1-45
+router/router_deauthorize_test.go
+  s_41fcdb93953164::t_9c8dd1f2f0e56f 1-107
+router/router_server_files.go
+  s_41fcdb93953164::t_6ce1ee1f5ab1e5 585-587,599-605,607,611-623,627-630,633-636,638-640,642-644,649-650,653-656
+router/router_server_files_upload_test.go
+  s_41fcdb93953164::t_542332ec91ec58 1-198
+router/router_server_ws.go
+  s_41fcdb93953164::t_2520bc22e8a112 92,97-98,102,105,148,174,198-204
+router/router_server_ws_test.go
+  s_41fcdb93953164::t_fde47e704b5fd4 40-48,69
+router/router_server_ws_write_test.go
+  s_41fcdb93953164::t_4088c355895fe3 1-170
+router/router_system.go
+  s_41fcdb93953164::t_80d6a8987f1964 208,215
+router/tokens/token_store.go
+  s_41fcdb93953164::t_f36a93d956aabd 15-18,24,28
+router/tokens/token_store_test.go
+  s_41fcdb93953164::t_419824b4d926c1 1-26
+router/websocket/limiter.go
+  s_41fcdb93953164::t_0b18b60614bb2c 22,29-31,33-35
+router/websocket/websocket.go
+  s_41fcdb93953164::t_6c6618f6c743c7 41-44,46-49,210-211,213,217-231,306-314
+server/websockets.go
+  s_41fcdb93953164::t_fd51d956fa5390 12-18,47,50,54-56,61,67,85-86,91-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1b24412a86236efa6ec3047519edb959f398e806",
+  "prompts": {},
+  "sessions": {
+    "s_41fcdb93953164": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1195e-1a00-7b71-b5cb-0d4497ecd2d8",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
