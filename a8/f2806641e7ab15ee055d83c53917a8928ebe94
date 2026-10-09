@@ -1,0 +1,31 @@
+server/filesystem/compress.go
+  s_b228824272d4fd::t_cbf00946044bb8 257-258,299-301
+server/filesystem/extract.go
+  s_b228824272d4fd::t_cbf00946044bb8 1-69
+server/filesystem/extract_test.go
+  s_a8689ed3575cef::t_7e5258ce300170 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8f2806641e7ab15ee055d83c53917a8928ebe94",
+  "prompts": {},
+  "sessions": {
+    "s_a8689ed3575cef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "deee3f73-aca3-4ced-a393-f4dc91d019f6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    },
+    "s_b228824272d4fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db8eac6a-fcec-4413-b99a-8db16b8d3d4c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
