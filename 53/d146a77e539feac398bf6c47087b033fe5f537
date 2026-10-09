@@ -1,0 +1,35 @@
+server/filesystem/quota_file.go
+  s_f493535ac28c9e::t_9cd3b2811c4aa3 87-97
+parser/helpers.go
+  s_f493535ac28c9e::t_b753d997baacbf 258
+parser/parser_fields_test.go
+  s_f493535ac28c9e::t_a5ed8899023d84 1-57
+server/config_parser_test.go
+  s_f493535ac28c9e::t_9af9d9f4ba982a 23
+  s_f493535ac28c9e::t_a5ed8899023d84 1-12,14-20,28-73
+  s_f493535ac28c9e::t_7e246b421c7e08 13,21-22,24-27
+  s_f493535ac28c9e::t_194f290c4bd32a 74
+server/config_parser.go
+  s_f493535ac28c9e::t_8bcbaa483f147d 25-31
+  s_f493535ac28c9e::t_b753d997baacbf 39-40,49-54
+parser/parser.go
+  s_f493535ac28c9e::t_b753d997baacbf 131-135,501-505
+  s_f493535ac28c9e::t_9cd3b2811c4aa3 343-344,347,416-417,420,437,474,511,601-620,627-628
+  s_f493535ac28c9e::t_8bcbaa483f147d 600
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "53d146a77e539feac398bf6c47087b033fe5f537",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
