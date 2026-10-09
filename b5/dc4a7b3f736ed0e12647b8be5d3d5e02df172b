@@ -1,0 +1,23 @@
+sftp/session_limits_test.go
+  s_f493535ac28c9e::t_f3ba4bb02a6374 1-277
+sftp/handler.go
+  s_f493535ac28c9e::t_be4dc5c30a1415 9,28-29,40-76,82,98,147-150,155,162,196-199,202,214
+sftp/server.go
+  s_f493535ac28c9e::t_404115062fe3f4 285,299-310,352-357,373-374,392-395,397-402
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b5dc4a7b3f736ed0e12647b8be5d3d5e02df172b",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
