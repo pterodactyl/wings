@@ -1,0 +1,28 @@
+system/locker.go
+  s_f493535ac28c9e::t_99a57d37bda8e5 10-13,18-20,26-27,44-46,58-62,65-74,76-77,100-101,104-121
+server/power_destroy_test.go
+  s_f493535ac28c9e::t_6b850769d479a5 1-31
+system/locker_test.go
+  s_f493535ac28c9e::t_99a57d37bda8e5 131,137-139,141-142
+system/locker_destroy_test.go
+  s_f493535ac28c9e::t_12db0a8737c84a 1-57
+server/power.go
+  s_f493535ac28c9e::t_da7e1c808fe4f2 13
+  s_f493535ac28c9e::t_651508a81fc62e 119-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ddabc12065b17a785703560cd2022cfa8a9dce77",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
