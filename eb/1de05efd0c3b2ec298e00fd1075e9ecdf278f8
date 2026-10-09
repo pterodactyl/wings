@@ -1,0 +1,23 @@
+server/filesystem/archive.go
+  s_f493535ac28c9e::t_07147830e85cd7 297,300,312
+internal/ufs/fs_unix.go
+  s_f493535ac28c9e::t_07147830e85cd7 594-613
+server/filesystem/archive_links_test.go
+  s_f493535ac28c9e::t_22dcb2f6830765 1-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eb1de05efd0c3b2ec298e00fd1075e9ecdf278f8",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
