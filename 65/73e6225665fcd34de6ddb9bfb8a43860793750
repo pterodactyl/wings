@@ -1,0 +1,63 @@
+internal/ufs/fs_chmod_test.go
+  s_01f4a6969ae96f::t_bda4ab6dd3714e 1-47
+internal/ufs/fs_quota.go
+  s_01f4a6969ae96f::t_b77b59c167b163 9-10,145,181-182,187-200
+internal/ufs/fs_unix.go
+  s_01f4a6969ae96f::t_c9dac80a47cd74 93-122,542-544,548-552,555-581,594-613,731-732,734-737,777-788,793,801,817,824
+internal/ufs/link_containment_test.go
+  s_01f4a6969ae96f::t_c04bcc882c7e03 1-177
+internal/ufs/mkdir_unix.go
+  s_01f4a6969ae96f::t_c6520a84a4d8ef 13-14,26-27,29-31
+internal/ufs/walk_unix.go
+  s_01f4a6969ae96f::t_a623c02330c349 51-56
+internal/ufs/walk_unix_test.go
+  s_01f4a6969ae96f::t_5cf2ce8e7b1148 1-69
+router/router_transfer.go
+  s_01f4a6969ae96f::t_485e3e1801c31c 63-72,110-117,124-126,179,195-196,257-268,270-285,287,289-291
+router/router_transfer_test.go
+  s_01f4a6969ae96f::t_9e7d14735966bb 1-285
+server/backup_restore_test.go
+  s_01f4a6969ae96f::t_eef9918204d9da 1-195
+server/config_parser_test.go
+  s_01f4a6969ae96f::t_d661dbdd3084f8 1-74
+server/filesystem/archive.go
+  s_01f4a6969ae96f::t_ebd1e975858d7d 297,300,312
+server/filesystem/archive_links_test.go
+  s_01f4a6969ae96f::t_95830121b25ffe 1-94
+server/filesystem/compress.go
+  s_01f4a6969ae96f::t_850df6c63047a6 4,8,191-194,203-206,219-220,248-251,260-263,273-291
+server/filesystem/decompress_test.go
+  s_01f4a6969ae96f::t_d503cc9ec0abf1 1-145
+server/filesystem/disk_space.go
+  s_01f4a6969ae96f::t_15a4e5a6c925b7 115-116,120-121,132-143,147,151-156,176-177,187-191,211-214,225-227
+server/filesystem/disk_usage_lookup_test.go
+  s_01f4a6969ae96f::t_8b96bb92fc11aa 1-51
+server/filesystem/extract_transfer_test.go
+  s_01f4a6969ae96f::t_0ac66892c4d0c6 1-43
+server/filesystem/filesystem.go
+  s_01f4a6969ae96f::t_cc1f2409a495e3 108-109,112-113,115-121,123,125-149,158-159,165,186-205,207,214-216,225,228-229,248-278,486-487,489,492-495,497
+server/filesystem/link_containment_test.go
+  s_01f4a6969ae96f::t_03353375d2a702 1-42
+server/filesystem/quota_file.go
+  s_01f4a6969ae96f::t_e1eab64449b581 87-97
+server/filesystem/quota_links_test.go
+  s_01f4a6969ae96f::t_ed57d8573435d9 1-82
+server/filesystem/write_links_test.go
+  s_01f4a6969ae96f::t_4fbe9a9ef3c62a 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6573e6225665fcd34de6ddb9bfb8a43860793750",
+  "prompts": {},
+  "sessions": {
+    "s_01f4a6969ae96f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a11a09-bbb9-7cc3-ab54-abdc83e48bd3",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
