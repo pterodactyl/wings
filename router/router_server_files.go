@@ -20,6 +20,7 @@ import (
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/internal/models"
+	"github.com/pterodactyl/wings/parser"
 	"github.com/pterodactyl/wings/router/downloader"
 	"github.com/pterodactyl/wings/router/middleware"
 	"github.com/pterodactyl/wings/router/tokens"
@@ -202,21 +203,30 @@ func postServerDeleteFiles(c *gin.Context) {
 		return
 	}
 
+	// Expand any patterns provided in the files array.
+	var expandedFiles []string
+	for _, pattern := range data.Files {
+		matches, err := parser.MatchPattern(s.Filesystem(), data.Root, pattern)
+		if err != nil {
+			middleware.CaptureAndAbort(c, err)
+			return
+		}
+		expandedFiles = append(expandedFiles, matches...)
+	}
+
 	g, ctx := errgroup.WithContext(context.Background())
 
-	// Loop over the array of files passed in and delete them. If any of the file deletions
-	// fail just abort the process entirely.
-	for _, p := range data.Files {
-		pi := path.Join(data.Root, p)
-
-		g.Go(func() error {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-				return s.Filesystem().Delete(pi)
+	for _, filePath := range expandedFiles {
+		g.Go(func(fp string) func() error {
+			return func() error {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+					return s.Filesystem().Delete(fp)
+				}
 			}
-		})
+		}(filePath))
 	}
 
 	if err := g.Wait(); err != nil {
