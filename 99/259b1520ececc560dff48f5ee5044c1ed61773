@@ -1,0 +1,27 @@
+config/config.go
+  s_f493535ac28c9e::t_e3bfd4e52d2d96 385
+router/tokens/token_store.go
+  s_f493535ac28c9e::t_f68161b1b8d3e2 15-18,24,28
+router/middleware/middleware.go
+  s_f493535ac28c9e::t_f68161b1b8d3e2 109
+router/middleware/middleware_cors_test.go
+  s_f493535ac28c9e::t_5859e8abedb35b 1-45
+router/tokens/token_store_test.go
+  s_f493535ac28c9e::t_5859e8abedb35b 1-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "99259b1520ececc560dff48f5ee5044c1ed61773",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
