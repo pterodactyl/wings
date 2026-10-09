@@ -1,0 +1,21 @@
+parser/parser.go
+  s_f493535ac28c9e::t_629759765083a3 40-70,315-319
+parser/parser_xml_test.go
+  s_f493535ac28c9e::t_629759765083a3 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ae14c59fe0128496169dbb7fb2fb284a24908e83",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
