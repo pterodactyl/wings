@@ -1,0 +1,29 @@
+router/router_deauthorize_test.go
+  s_f493535ac28c9e::t_113c8f2a0386e9 105-106
+  s_f493535ac28c9e::t_52b91cf3d25c08 102-104
+  s_f493535ac28c9e::t_e7fa7b265d8dfc 1-101,107
+router/router_server_ws.go
+  s_f493535ac28c9e::t_509c78d042e51b 107
+server/websockets.go
+  s_f493535ac28c9e::t_509c78d042e51b 12-18,47,50,54-56,61,67,85-86,91-104
+router/router_system.go
+  s_f493535ac28c9e::t_509c78d042e51b 208,215
+router/websocket/websocket.go
+  s_f493535ac28c9e::t_509c78d042e51b 306-314
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a10d984368f88f95a407940fd4a087f20ea4ce82",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
