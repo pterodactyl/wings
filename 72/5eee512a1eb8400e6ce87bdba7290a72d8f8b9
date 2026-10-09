@@ -1,0 +1,54 @@
+internal/ufs/fs_chmod_test.go
+  h_d26e211304196f 1-47
+internal/ufs/fs_quota.go
+  h_d26e211304196f 9-10,145,181-182,187-200
+internal/ufs/fs_unix.go
+  h_d26e211304196f 93-122,542-544,548-552,555-581,594-613,731-732,734-737,777-788,793,801,817,824
+internal/ufs/link_containment_test.go
+  h_d26e211304196f 1-177
+internal/ufs/mkdir_unix.go
+  h_d26e211304196f 13-14,26-27,29-31
+internal/ufs/walk_unix.go
+  h_d26e211304196f 51-56
+internal/ufs/walk_unix_test.go
+  h_d26e211304196f 1-69
+router/router_transfer.go
+  h_d26e211304196f 63-72,110-117,124-126,179,195-196,257-268,270-285,287,289-291
+router/router_transfer_test.go
+  h_d26e211304196f 1-285
+server/filesystem/archive.go
+  h_d26e211304196f 297,300,312
+server/filesystem/archive_links_test.go
+  h_d26e211304196f 1-94
+server/filesystem/compress.go
+  h_d26e211304196f 4,8,191-194,203-206,219-220,248-251,260-263,273-291
+server/filesystem/decompress_test.go
+  h_d26e211304196f 1-145
+server/filesystem/disk_space.go
+  h_d26e211304196f 115-116,120-121,132-143,147,151-156,176-177,187-191,211-214,225-227
+server/filesystem/disk_usage_lookup_test.go
+  h_d26e211304196f 1-51
+server/filesystem/extract_transfer_test.go
+  h_d26e211304196f 1-43
+server/filesystem/filesystem.go
+  h_d26e211304196f 108-109,112-113,115-121,123,125-149,158-159,165,186-205,207,214-216,225,228-229,248-278,486-487,489,492-495,497
+server/filesystem/link_containment_test.go
+  h_d26e211304196f 1-42
+server/filesystem/quota_file.go
+  h_d26e211304196f 87-97
+server/filesystem/quota_links_test.go
+  h_d26e211304196f 1-82
+server/filesystem/write_links_test.go
+  h_d26e211304196f 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "725eee512a1eb8400e6ce87bdba7290a72d8f8b9",
+  "prompts": {},
+  "humans": {
+    "h_d26e211304196f": {
+      "author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
