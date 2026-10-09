@@ -37,6 +37,75 @@ environment/docker/cgroup_burst.go
   s_f493535ac28c9e::t_a0048df06b3f93 85
 system/context_bag.go
   s_f493535ac28c9e::t_a0048df06b3f93 32
+.github/workflows/lint.yaml
+  s_f493535ac28c9e::t_a0048df06b3f93 1-33
+server/filesystem/compress.go
+  s_f493535ac28c9e::t_a0048df06b3f93 31,33-51,54-61,63,65-66,68-69,71,74-77,80-82,90,94,96-107,109-110,115-140,143-144,147-157,254-255,260-262
+internal/ufs/removeall_unix.go
+  s_f493535ac28c9e::t_a0048df06b3f93 180,234,246-247
+server/filesystem/ignore.go
+  s_f493535ac28c9e::t_a0048df06b3f93 107-111,113-115,126-143
+server/filesystem/quota_file.go
+  s_f493535ac28c9e::t_a0048df06b3f93 60-62,76,81
+go.mod
+  s_f493535ac28c9e::t_a0048df06b3f93 35,47
+internal/network/limit_listener_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-77
+internal/network/address_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-38
+internal/ufs/walk_unix.go
+  s_f493535ac28c9e::t_a0048df06b3f93 142,145,240
+server/filesystem/quota_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-290
+server/filesystem/ignore_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 4,114-160
+  s_f493535ac28c9e::t_c2cfe0b7407c51 161
+config/config.go
+  s_f493535ac28c9e::t_a0048df06b3f93 72-79,103-107,395-453,649,655,680,692,701,773,780,956
+server/filesystem/race_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-7
+server/filesystem/norace_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-7
+server/filesystem/fifo_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-71
+internal/network/allowlist_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-31
+internal/network/limit_listener.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-63
+server/filesystem/path_denylist_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-28
+.golangci.yml
+  s_f493535ac28c9e::t_a0048df06b3f93 1-31
+go.sum
+  s_f493535ac28c9e::t_391f337c074001 224-225
+server/backup/backup.go
+  s_f493535ac28c9e::t_a0048df06b3f93 5,135,140
+server/filesystem/filesystem.go
+  s_f493535ac28c9e::t_a0048df06b3f93 27-39,50,177-181,184-188,207-208,214-216,375-377,380-382,396-412,419,436
+internal/ufs/removeall_unix_test.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-53
+internal/network/allowlist.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-30
+server/filesystem/archive.go
+  s_f493535ac28c9e::t_a0048df06b3f93 88,144
+server/filesystem/disk_space.go
+  s_f493535ac28c9e::t_a0048df06b3f93 136-137,145-151,163-172,174,227-230,243-246,250-265
+  s_f493535ac28c9e::t_8aeb0aa89daec8 266-267
+server/filesystem/path.go
+  s_f493535ac28c9e::t_a0048df06b3f93 4,20-27
+server/filesystem/compress_test.go
+  s_f493535ac28c9e::t_79894fca27a39f 211-213,215
+  s_f493535ac28c9e::t_a0048df06b3f93 10-11,13,104-210,214
+cmd/configure.go
+  s_f493535ac28c9e::t_a0048df06b3f93 51,153-155,158
+internal/network/address.go
+  s_f493535ac28c9e::t_a0048df06b3f93 1-54
+internal/ufs/fs_unix.go
+  s_f493535ac28c9e::t_a0048df06b3f93 662-668,687-693,741-757
+Makefile
+  s_f493535ac28c9e::t_a0048df06b3f93 19-22,26
+config/config_docker.go
+  s_f493535ac28c9e::t_a0048df06b3f93 236
 ---
 {
   "schema_version": "authorship/3.0.0",
