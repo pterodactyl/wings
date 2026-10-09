@@ -1,0 +1,39 @@
+cmd/configure.go
+  s_a8689ed3575cef::t_e6dc6eb9322c6f 6,56-63,155,160-178,180,185-186,191,193-195,198
+cmd/configure_test.go
+  s_a8689ed3575cef::t_d1abce08c7570d 1-117
+cmd/diagnostics.go
+  s_a8689ed3575cef::t_b44c500eb20d52 37-39,86,115,177-180,182-186,195-225,249-250,255,261
+cmd/diagnostics_test.go
+  s_a8689ed3575cef::t_1c723a8414f625 1-82
+cmd/root.go
+  s_a8689ed3575cef::t_3dcbed50c0b48f 13,347-353,393,402,408,413-428
+cmd/shutdown_test.go
+  s_a8689ed3575cef::t_def5d75524e494 1-45
+config/config.go
+  s_a8689ed3575cef::t_530f5c29719be1 385,698-700,703,707,710-719
+parser/helpers.go
+  s_a8689ed3575cef::t_556c98bad66e8c 258
+parser/parser.go
+  s_a8689ed3575cef::t_1576b35936ff3a 40-67,159-163,312-316,376-377,380,449-450,453,470,507,534-537,543,632-652,659-660
+parser/parser_fields_test.go
+  s_a8689ed3575cef::t_c84c392245fcb4 1-57
+parser/parser_xml_test.go
+  s_a8689ed3575cef::t_1153d48c31192e 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "32751c90ed5180e5b0ec936d7f6ebcbd3e6dee3f",
+  "prompts": {},
+  "sessions": {
+    "s_a8689ed3575cef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "deee3f73-aca3-4ced-a393-f4dc91d019f6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
