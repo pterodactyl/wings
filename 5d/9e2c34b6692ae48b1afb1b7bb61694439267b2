@@ -1,0 +1,44 @@
+router/downloader/downloader.go
+  h_d26e211304196f 6,42-44,219,237-238,240-242
+router/downloader/downloader_pull_test.go
+  h_d26e211304196f 1-129
+router/middleware/middleware.go
+  h_d26e211304196f 109
+router/middleware/middleware_cors_test.go
+  h_d26e211304196f 1-45
+router/router_deauthorize_test.go
+  h_d26e211304196f 1-107
+router/router_server_files.go
+  h_d26e211304196f 585-587,599-605,607,611-623,627-630,633-636,638-640,642-644,649-650,653-656
+router/router_server_files_upload_test.go
+  h_d26e211304196f 1-198
+router/router_server_ws.go
+  h_d26e211304196f 92,97-98,102,105,148,174,198-204
+router/router_server_ws_test.go
+  h_d26e211304196f 40-48,69
+router/router_server_ws_write_test.go
+  h_d26e211304196f 1-170
+router/router_system.go
+  h_d26e211304196f 208,215
+router/tokens/token_store.go
+  h_d26e211304196f 15-18,24,28
+router/tokens/token_store_test.go
+  h_d26e211304196f 1-26
+router/websocket/limiter.go
+  h_d26e211304196f 22,29-31,33-35
+router/websocket/websocket.go
+  h_d26e211304196f 41-44,46-49,210-211,213,217-231,306-314
+server/websockets.go
+  h_d26e211304196f 12-18,47,50,54-56,61,67,85-86,91-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5d9e2c34b6692ae48b1afb1b7bb61694439267b2",
+  "prompts": {},
+  "humans": {
+    "h_d26e211304196f": {
+      "author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
