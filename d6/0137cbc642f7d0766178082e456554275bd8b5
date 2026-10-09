@@ -1,0 +1,26 @@
+internal/cron/sftp_cron.go
+  s_f493535ac28c9e::t_45160b699558c7 5-6,17-24,37-44,48-50,64-68,70-71,73-92,94,96-104,106-109,114-116,118-119,121,129,134,143-156,166,171,177,180-185,187,192,201-209,222-230
+internal/cron/activity_cron.go
+  s_f493535ac28c9e::t_828afbe02ac500 41,48-54,62
+  s_f493535ac28c9e::t_7795138a351139 33-40,42-47,55-57,61,65,68,71-73,78,81,84-86,88-89,91
+internal/cron/delivery.go
+  s_f493535ac28c9e::t_b22cf465635333 1-120
+internal/cron/activity_delivery_test.go
+  s_f493535ac28c9e::t_2a4eac4e9a854f 1-269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d60137cbc642f7d0766178082e456554275bd8b5",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
