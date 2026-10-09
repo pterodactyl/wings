@@ -1,0 +1,23 @@
+cmd/configure.go
+  s_f493535ac28c9e::t_3eaaf9e7c5ba82 6,56-63,155,160-178,180,185-186,191,193-196,199
+config/config.go
+  s_f493535ac28c9e::t_3eaaf9e7c5ba82 698-700,703,707,710-719
+cmd/configure_test.go
+  s_f493535ac28c9e::t_a1e5c4e89634ee 1-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1fb09f9e7933372e9ddef9bf4ed52f3c103b2f0f",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
