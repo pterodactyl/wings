@@ -1,0 +1,21 @@
+server/filesystem/quota_links_test.go
+  s_f493535ac28c9e::t_94b97d4016754c 1-82
+internal/ufs/fs_quota.go
+  s_f493535ac28c9e::t_7a9cf1e7e9e4b3 9-10,145,181-182,187-200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "16f5d3378eb1dba669f21deb925e480ddd03f3ef",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
