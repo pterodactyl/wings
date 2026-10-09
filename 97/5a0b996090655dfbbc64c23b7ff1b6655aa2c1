@@ -1,0 +1,19 @@
+server/filesystem/list_directory_test.go
+  s_a8689ed3575cef::t_4e2545aafc2bf2 379-380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "975a0b996090655dfbbc64c23b7ff1b6655aa2c1",
+  "prompts": {},
+  "sessions": {
+    "s_a8689ed3575cef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "deee3f73-aca3-4ced-a393-f4dc91d019f6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
