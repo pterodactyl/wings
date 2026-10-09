@@ -1,0 +1,23 @@
+cmd/diagnostics.go
+  s_f493535ac28c9e::t_7afbbd4bc46842 37-39,86,177-180,182-186,249-250,255,261
+  s_f493535ac28c9e::t_b483af032f1b74 115,195-223
+  s_f493535ac28c9e::t_053df564130b8b 224-225
+cmd/diagnostics_test.go
+  s_f493535ac28c9e::t_0df9a1d6d9d792 1-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "77c518333137a461a36f21126529e53401333244",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
