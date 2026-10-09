@@ -1,0 +1,26 @@
+internal/ufs/mkdir_unix.go
+  s_f493535ac28c9e::t_220d143a8f22f7 13-14,26-27,29-31
+internal/ufs/fs_unix.go
+  s_f493535ac28c9e::t_2f1ff9e3c387f8 539
+  s_f493535ac28c9e::t_222e69ee86cd6f 513-515,519-523,526-538,540-552,682-683,685-688,728-739,744,752,768,775
+server/filesystem/link_containment_test.go
+  s_f493535ac28c9e::t_7c890c3cd38ee3 1-56
+internal/ufs/link_containment_test.go
+  s_f493535ac28c9e::t_7c890c3cd38ee3 1-179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "577c024287d01a00c95b255cbe8670ca838ae3f0",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
