@@ -1,0 +1,25 @@
+router/router_server_files.go
+  s_f493535ac28c9e::t_e646f81432cdb2 585-587,599-605,607,611-623,627-630,633-636,638-640,642-644,649-650,653-655
+  s_f493535ac28c9e::t_2611ce54a90f7a 656
+server/filesystem/filesystem.go
+  s_f493535ac28c9e::t_7cb82bd36bded3 224-257
+router/router_server_files_upload_test.go
+  s_f493535ac28c9e::t_54712113e982a5 12,22,42-64,88
+  s_f493535ac28c9e::t_0dadd3a7554189 1-11,13-21,23-41,65-87,89-201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0da68399e5961d1a48e9394addbedcd71ca6034c",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
