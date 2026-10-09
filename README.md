@@ -43,9 +43,9 @@ I would like to extend my sincere thanks to the following sponsors for helping f
 
 ## Documentation
 
-* [Panel Documentation](https://pterodactyl.io/panel/1.0/getting_started.html)
-* [Wings Documentation](https://pterodactyl.io/wings/1.0/installing.html)
-* [Community Guides](https://pterodactyl.io/community/about.html)
+* [Panel Documentation](https://docs.pterodactyl.io/v1/panel/getting-started)
+* [Wings Documentation](https://docs.pterodactyl.io/v1/wings/)
+* [Community Guides](https://docs.pterodactyl.io/v1/guides/panel-installation/debian)
 * Or, get additional help [via Discord](https://discord.gg/pterodactyl)
 
 ## Reporting Issues
