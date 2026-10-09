@@ -1,0 +1,32 @@
+internal/ufs/walk_unix.go
+  s_f493535ac28c9e::t_db7995f8df1644 51-56
+server/filesystem/disk_space.go
+  s_f493535ac28c9e::t_a69cb9677435fb 116,176-177,187-191,211-214,225-227
+  s_f493535ac28c9e::t_29624b608b151d 115,120-121,132-143,147,151-156
+server/filesystem/disk_usage_lookup_test.go
+  s_f493535ac28c9e::t_d9de087b33fb0b 1-51
+internal/ufs/walk_unix_test.go
+  s_f493535ac28c9e::t_a92dba93c759ce 1-69
+sftp/server.go
+  s_f493535ac28c9e::t_404115062fe3f4 285,299-310,352-357,373-374,392-395,397-402
+sftp/session_limits_test.go
+  s_f493535ac28c9e::t_f3ba4bb02a6374 1-267
+sftp/handler.go
+  s_f493535ac28c9e::t_be4dc5c30a1415 9,28-29,40-76,82,98,147-150,155,162,196-199,202,214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "51a3be9a9a12304c74ed80de19c668405998cb45",
+  "prompts": {},
+  "sessions": {
+    "s_f493535ac28c9e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b45da4e-94a7-416d-8bcf-4fa59b1d54b5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
