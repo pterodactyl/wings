@@ -1,0 +1,25 @@
+internal/ufs/fs_quota.go
+  s_a8689ed3575cef::t_422111bbf2ca3b 149-155
+server/filesystem/write_replace_test.go
+  s_a8689ed3575cef::t_e841f88e1c1765 7,51-61
+  s_a8689ed3575cef::t_55408032e44d4f 64-80
+  s_a8689ed3575cef::t_01404bae0c4966 62-63,81
+server/filesystem/filesystem.go
+  s_a8689ed3575cef::t_422111bbf2ca3b 242-245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7dc2c4bb867d8dd7afb95932c1566cf763a32220",
+  "prompts": {},
+  "sessions": {
+    "s_a8689ed3575cef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "deee3f73-aca3-4ced-a393-f4dc91d019f6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
