@@ -143,3 +143,30 @@ func TestDecompressZipSymlinkEntry(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "target.txt", target)
 }
+
+// An archive created by the compress endpoint and renamed to a different
+// extension is still read as the format it actually is.
+func TestDecompressRenamedArchive(t *testing.T) {
+	fs, rfs := NewFs()
+	t.Cleanup(func() { _ = os.RemoveAll(rfs.root) })
+
+	fs.SetDiskLimit(1 << 20)
+	require.NoError(t, fs.CreateDirectory("source", "/"))
+	require.NoError(t, rfs.CreateServerFileFromString("source/file.txt", "hello"))
+
+	st, err := fs.CompressFiles("/", []string{"source"})
+	require.NoError(t, err)
+	require.NoError(t, fs.Rename(st.Name(), "renamed.zip"))
+	require.NoError(t, os.RemoveAll(filepath.Join(rfs.root, "server", "source")))
+
+	// The formats matching an archive are tried in random order, so a single
+	// attempt can pass by chance.
+	for i := 0; i < 10; i++ {
+		require.NoError(t, fs.SpaceAvailableForDecompression(context.Background(), "/", "renamed.zip"))
+		require.NoError(t, fs.DecompressFile(context.Background(), "/", "renamed.zip"))
+	}
+
+	got, err := os.ReadFile(filepath.Join(rfs.root, "server", "source", "file.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "hello", string(got))
+}
