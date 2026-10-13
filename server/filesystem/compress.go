@@ -95,7 +95,7 @@ func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir st
 	}
 	defer f.Close()
 
-	format, _, err := archives.Identify(ctx, filepath.Base(file), f)
+	format, _, err := identifyArchive(ctx, file, f)
 	if err != nil && !errors.Is(err, archives.NoMatch) {
 		return err
 	}
@@ -172,7 +172,7 @@ func (fs *Filesystem) DecompressFile(ctx context.Context, dir string, file strin
 	defer f.Close()
 
 	// Identify the type of archive we are dealing with.
-	format, input, err := archives.Identify(ctx, filepath.Base(file), f)
+	format, input, err := identifyArchive(ctx, file, f)
 	if err != nil {
 		if errors.Is(err, archives.NoMatch) {
 			return newFilesystemError(ErrCodeUnknownArchive, err)
@@ -186,6 +186,18 @@ func (fs *Filesystem) DecompressFile(ctx context.Context, dir string, file strin
 		Format:    format,
 		Reader:    input,
 	})
+}
+
+// identifyArchive identifies the format of an archive by its contents, and only
+// falls back to its file name when the contents are not recognized. Matching on
+// the name first reads an archive with the wrong extension, such as a .tar.gz
+// renamed to .zip, as a zip inside a gzip stream, which cannot be extracted.
+func identifyArchive(ctx context.Context, file string, f ufs.File) (archives.Format, io.Reader, error) {
+	format, input, err := archives.Identify(ctx, "", f)
+	if errors.Is(err, archives.NoMatch) {
+		return archives.Identify(ctx, filepath.Base(file), f)
+	}
+	return format, input, err
 }
 
 // ExtractTransfer extracts the archive of a server that is being transferred to
