@@ -3,6 +3,7 @@ package downloader
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -12,7 +13,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -126,4 +129,78 @@ func TestDownloadConnectionFailureIsDownloadError(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, IsDownloadError(err), "got %v", err)
 	require.ErrorIs(t, err, ErrDownloadFailed)
+}
+
+// newStalledOrigin returns the address of a file whose body is never sent, so a
+// download of it only ends when it is cancelled. The number of requests made to
+// it is counted.
+func newStalledOrigin(t *testing.T) (*url.URL, *atomic.Int32) {
+	t.Helper()
+	var requests atomic.Int32
+	release := make(chan struct{})
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Length", "1048576")
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	t.Cleanup(origin.Close)
+	t.Cleanup(func() { close(release) })
+
+	u, err := url.Parse(origin.URL + "/stalled.bin")
+	require.NoError(t, err)
+	return u, &requests
+}
+
+// execute runs the download in the background and returns its outcome.
+func execute(dl *Download) <-chan error {
+	done := make(chan error, 1)
+	go func() { done <- dl.Execute() }()
+	return done
+}
+
+// waitForDownload fails the test if the download does not end shortly.
+func waitForDownload(t *testing.T, done <-chan error) error {
+	t.Helper()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(5 * time.Second):
+		t.Fatal("download is still running after it was cancelled")
+		return nil
+	}
+}
+
+// A download cancelled before it starts never makes the request.
+func TestDownloadCancelledBeforeExecuteIsNotStarted(t *testing.T) {
+	s := newPullTestServer(t)
+	u, requests := newStalledOrigin(t)
+
+	dl := New(s, DownloadRequest{Directory: "/", URL: u, FileName: "stalled.bin"})
+	dl.Cancel()
+	require.Nil(t, ByID(dl.Identifier))
+
+	err := waitForDownload(t, execute(dl))
+	require.ErrorIs(t, err, context.Canceled)
+	require.Zero(t, requests.Load())
+	require.NoFileExists(t, filepath.Join(s.Filesystem().Path(), "stalled.bin"))
+}
+
+// A download cancelled while it is starting is stopped, wherever the
+// cancellation lands.
+func TestDownloadCancelledWhileExecuteStartsIsStopped(t *testing.T) {
+	s := newPullTestServer(t)
+	u, _ := newStalledOrigin(t)
+
+	for range 20 {
+		dl := New(s, DownloadRequest{Directory: "/", URL: u, FileName: "stalled.bin"})
+		done := execute(dl)
+		dl.Cancel()
+		waitForDownload(t, done)
+		require.Nil(t, ByID(dl.Identifier))
+	}
 }
