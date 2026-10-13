@@ -20,7 +20,7 @@ require (
 	github.com/creasty/defaults v1.8.0
 	github.com/distribution/reference v0.6.0
 	github.com/docker/docker v28.5.2+incompatible
-	github.com/docker/go-connections v0.5.0
+	github.com/docker/go-connections v0.8.2
 	github.com/fatih/color v1.18.0
 	github.com/franela/goblin v0.0.0-20211003143422-0a4f594942bf
 	github.com/gabriel-vasile/mimetype v1.4.15
