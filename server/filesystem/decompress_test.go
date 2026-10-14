@@ -49,6 +49,9 @@ func TestDecompressSingleFileReplacesExistingContent(t *testing.T) {
 // A single file decompressed from a compressed archive is owned by the server
 // user, like every other extracted file.
 func TestDecompressSingleFileOwnedByServerUser(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("giving files to another user needs root")
+	}
 	fs, rfs := NewFs()
 	t.Cleanup(func() { _ = os.RemoveAll(rfs.root) })
 
