@@ -24,13 +24,16 @@ import (
 const pullTestServerUuid = "ffffffff-ffff-4fff-8fff-ffffffffffff"
 
 // newPullTestServer returns a server whose files are stored in a temporary data
-// directory. Loopback is allowed so that the tests can use a local origin.
+// directory and owned by the user running the tests, so that they pass without
+// root. Loopback is allowed so that the tests can use a local origin.
 func newPullTestServer(t *testing.T) *server.Server {
 	t.Helper()
 	previous := config.Get()
 	t.Cleanup(func() { config.Set(previous) })
 	next := *previous
 	next.System.Data = t.TempDir()
+	next.System.User.Uid = os.Getuid()
+	next.System.User.Gid = os.Getgid()
 	next.Api.RemoteDownloadAllowlist = []string{"127.0.0.1"}
 	config.Set(&next)
 
