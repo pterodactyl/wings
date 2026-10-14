@@ -177,7 +177,7 @@ func removeContentsFrom(fs unixFS, parent File, base string) error {
 		}
 	}
 
-	return nil
+	return recurseErr
 }
 
 func removeAllFrom(fs unixFS, parent File, base string) error {
@@ -231,7 +231,7 @@ func removeAllFrom(fs unixFS, parent File, base string) error {
 		return recurseErr
 	}
 
-	return ensurePathError(err, "unlinkat", base)
+	return ensurePathError(unlinkErr, "unlinkat", base)
 }
 
 // openFdAt opens path relative to the directory in fd.
@@ -243,7 +243,8 @@ func openFdAt(dirfd int, name string) (File, error) {
 	var fd int
 	for {
 		var err error
-		fd, err = unix.Openat(dirfd, name, O_RDONLY|O_CLOEXEC|O_NOFOLLOW, 0)
+		// This is only used to open directories.
+		fd, err = unix.Openat(dirfd, name, O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_DIRECTORY, 0)
 		if err == nil {
 			break
 		}

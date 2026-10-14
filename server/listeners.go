@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"regexp"
 	"strconv"
 	"sync"
@@ -13,14 +12,7 @@ import (
 	"github.com/pterodactyl/wings/system"
 
 	"github.com/pterodactyl/wings/environment"
-	"github.com/pterodactyl/wings/remote"
 )
-
-var dockerEvents = []string{
-	environment.DockerImagePullStatus,
-	environment.DockerImagePullStarted,
-	environment.DockerImagePullCompleted,
-}
 
 type diskSpaceLimiter struct {
 	o      sync.Once
@@ -59,10 +51,10 @@ func (dsl *diskSpaceLimiter) Trigger() {
 // output lines to determine if the server is started yet, and if the output is
 // not being throttled, will send the data over to the websocket.
 func (s *Server) processConsoleOutputEvent(v []byte) {
-	// Always process the console output, but do this in a seperate thread since we
-	// don't really care about side-effects from this call, and don't want it to block
-	// the console sending logic.
-	go s.onConsoleOutput(v)
+	// Always check the console output, including lines that are throttled, so that
+	// the line marking the server as started is not missed. Lines are checked in
+	// the order they are read.
+	s.onConsoleOutput(v)
 
 	// If the console is being throttled, do nothing else with it, we don't want
 	// to waste time. This code previously terminated server instances after violating
@@ -184,14 +176,7 @@ func (s *Server) onConsoleOutput(data []byte) {
 		}
 	}
 
-	// If the command sent to the server is one that should stop the server we will need to
-	// set the server to be in a stopping state, otherwise crash detection will kick in and
-	// cause the server to unexpectedly restart on the user.
-	if s.IsRunning() {
-		stop := processConfiguration.Stop
-
-		if stop.Type == remote.ProcessStopCommand && bytes.Equal(v, []byte(stop.Value)) {
-			s.Environment.SetState(environment.ProcessOfflineState)
-		}
-	}
+	// Output from the server process is not used to mark it as stopping or stopped.
+	// The environment marks the server as stopping when the stop command is sent to
+	// it.
 }

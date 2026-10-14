@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"emperror.dev/errors"
 	"github.com/apex/log"
@@ -57,7 +58,7 @@ func AttachApiClient(client remote.Client) gin.HandlerFunc {
 // at the time it is called the stack will be attached.
 func CaptureAndAbort(c *gin.Context, err error) {
 	c.Abort()
-	c.Error(errors.WithStackDepthIf(err, 1))
+	_ = c.Error(errors.WithStackDepthIf(err, 1))
 }
 
 // CaptureErrors is custom handler function allowing for errors bubbled up by
@@ -105,7 +106,7 @@ func SetAccessControlHeaders() gin.HandlerFunc {
 		// CORS for Private Networks (RFC1918)
 		// @see https://developer.chrome.com/blog/private-network-access-update/?utm_source=devtools
 		if allowPrivateNetwork {
-			c.Header("Access-Control-Request-Private-Network", "true")
+			c.Header("Access-Control-Allow-Private-Network", "true")
 		}
 
 		// Maximum age allowable under Chromium v76 is 2 hours, so just use that since
@@ -182,8 +183,18 @@ func RequireAuthorization() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "You are not authorized to access this endpoint."})
 			return
 		}
+		ClearDeadlines(c)
 		c.Next()
 	}
+}
+
+// ClearDeadlines removes the deadlines the server applies to requests that have
+// not authenticated, so that an authenticated request is able to send and
+// receive large bodies, such as file uploads, downloads and server transfers.
+func ClearDeadlines(c *gin.Context) {
+	rc := http.NewResponseController(c.Writer)
+	_ = rc.SetReadDeadline(time.Time{})
+	_ = rc.SetWriteDeadline(time.Time{})
 }
 
 // RemoteDownloadEnabled checks if remote downloads are enabled for this instance

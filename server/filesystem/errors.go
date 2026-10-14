@@ -2,12 +2,8 @@ package filesystem
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"emperror.dev/errors"
-	"github.com/apex/log"
-
-	"github.com/pterodactyl/wings/internal/ufs"
 )
 
 type ErrorCode string
@@ -83,26 +79,6 @@ func (e *Error) Error() string {
 // there may not be a cause present, in which case nil will be returned.
 func (e *Error) Unwrap() error {
 	return e.err
-}
-
-// Generates an error logger instance with some basic information.
-func (fs *Filesystem) error(err error) *log.Entry {
-	return log.WithField("subsystem", "filesystem").WithField("root", fs.Path()).WithField("error", err)
-}
-
-// Handle errors encountered when walking through directories.
-//
-// If there is a path resolution error just skip the item entirely. Only return this for a
-// directory, otherwise return nil. Returning this error for a file will stop the walking
-// for the remainder of the directory. This is assuming an FileInfo struct was even returned.
-func (fs *Filesystem) handleWalkerError(err error, f ufs.FileInfo) error {
-	if !IsErrorCode(err, ErrCodePathResolution) {
-		return err
-	}
-	if f != nil && f.IsDir() {
-		return filepath.SkipDir
-	}
-	return nil
 }
 
 // IsFilesystemError checks if the given error is one of the Filesystem errors.

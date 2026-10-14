@@ -30,70 +30,63 @@ func (ac *activityCron) Run(ctx context.Context) error {
 	}
 	defer ac.mu.Store(false)
 
+	if err := pruneActivity(ctx, maxStoredActivity); err != nil {
+		return err
+	}
+
+	// Keep sending batches until the stored activity has been sent, so that it is
+	// sent as quickly as it is created.
+	for i := 0; i < maxBatchesPerRun; i++ {
+		n, err := ac.sendBatch(ctx)
+		if err != nil || n < ac.batchSize() {
+			return err
+		}
+	}
+	return nil
+}
+
+func (ac *activityCron) batchSize() int {
+	if ac.max <= 0 {
+		return 100
+	}
+	return ac.max
+}
+
+// sendBatch sends the oldest stored activity to the Panel and returns how many
+// rows were read.
+func (ac *activityCron) sendBatch(ctx context.Context) (int, error) {
 	var activity []models.Activity
 	tx := database.Instance().WithContext(ctx).
 		Where("event NOT LIKE ?", "server:sftp.%").
-		Limit(ac.max).
+		Order("id ASC").
+		Limit(ac.batchSize()).
 		Find(&activity)
 	if tx.Error != nil {
-		return errors.WithStack(tx.Error)
+		return 0, errors.WithStack(tx.Error)
 	}
 	if len(activity) == 0 {
-		return nil
+		return 0, nil
 	}
 
-	// ids to delete from the database.
-	ids := make([]int, 0, len(activity))
-	// activities to send to the panel.
-	activities := make([]models.Activity, 0, len(activity))
+	// ids of activity to delete without sending it.
+	var invalid []int
+	items := make([]batchItem, 0, len(activity))
 	for _, v := range activity {
 		// Delete any activity that has an invalid IP address. This is a fix for
 		// a bug that truncated the last octet of an IPv6 address in the database.
 		if ip := net.ParseIP(v.IP); ip == nil {
-			ids = append(ids, v.ID)
+			invalid = append(invalid, v.ID)
 			continue
 		}
-		activities = append(activities, v)
+		items = append(items, batchItem{activity: v, ids: []int{v.ID}})
 	}
 
-	// Delete any invalid activies
-	if len(ids) > 0 {
-		tx = database.Instance().WithContext(ctx).Where("id IN ?", ids).Delete(&models.Activity{})
-		if tx.Error != nil {
-			return errors.WithStack(tx.Error)
-		}
+	done, err := deliver(ctx, ac.manager.Client(), items)
+	if derr := deleteActivity(ctx, append(invalid, done...)); derr != nil {
+		return 0, derr
 	}
-
-	if len(activities) == 0 {
-		return nil
+	if err != nil {
+		return 0, errors.WrapIf(err, "cron: failed to send activity events to Panel")
 	}
-
-	if err := ac.manager.Client().SendActivityLogs(ctx, activities); err != nil {
-		return errors.WrapIf(err, "cron: failed to send activity events to Panel")
-	}
-
-	ids = make([]int, len(activities))
-	for i, v := range activities {
-		ids[i] = v.ID
-	}
-
-	// SQLite has a limitation of how many parameters we can specify in a single
-	// query, so we need to delete the activies in chunks of 32,000 instead of
-	// all at once.
-	i := 0
-	idsLen := len(ids)
-	for i < idsLen {
-		start := i
-		end := min(i+32000, idsLen)
-		batchSize := end - start
-
-		tx = database.Instance().WithContext(ctx).Where("id IN ?", ids[start:end]).Delete(&models.Activity{})
-		if tx.Error != nil {
-			return errors.WithStack(tx.Error)
-		}
-
-		i += batchSize
-	}
-
-	return nil
+	return len(activity), nil
 }

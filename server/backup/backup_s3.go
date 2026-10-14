@@ -55,7 +55,11 @@ func (s *S3Backup) Generate(ctx context.Context, fsys *filesystem.Filesystem, ig
 	if err := s.validateIdentifier(); err != nil {
 		return nil, err
 	}
-	defer s.Remove()
+	defer func() {
+		if err := s.Remove(); err != nil && !errors.Is(err, os.ErrNotExist) {
+			s.log().WithField("error", err).Warn("failed to remove local copy of backup")
+		}
+	}()
 
 	a := &filesystem.Archive{
 		Filesystem: fsys,

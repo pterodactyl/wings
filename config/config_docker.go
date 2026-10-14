@@ -233,7 +233,7 @@ type RegistryConfiguration struct {
 // Base64 returns the authentication for a given registry as a base64 encoded
 // string value.
 func (c RegistryConfiguration) Base64() (string, error) {
-	b, err := json.Marshal(registry.AuthConfig{
+	b, err := json.Marshal(registry.AuthConfig{ //nolint:gosec // the Docker API needs these credentials to pull images
 		Username: c.Username,
 		Password: c.Password,
 	})

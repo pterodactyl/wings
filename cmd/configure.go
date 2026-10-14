@@ -3,6 +3,7 @@ package cmd
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -48,12 +49,20 @@ func init() {
 func configureCmdRun(cmd *cobra.Command, args []string) {
 	if configureArgs.AllowInsecure {
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, //nolint:gosec // opt-in via --allow-insecure
 		}
 	}
 
-	if _, err := os.Stat(configureArgs.ConfigPath); err == nil && !configureArgs.Override {
-		survey.AskOne(&survey.Confirm{Message: "Override existing configuration file"}, &configureArgs.Override)
+	// The configuration is written to --config-path, or to the global --config
+	// path if only that was given.
+	target := configureArgs.ConfigPath
+	if cmd != nil && !cmd.Flags().Changed("config-path") && cmd.Flags().Changed("config") {
+		target = configPath
+	}
+
+	if _, err := os.Stat(target); err == nil && !configureArgs.Override {
+		// A failed or interrupted prompt leaves Override false, which aborts below.
+		_ = survey.AskOne(&survey.Confirm{Message: "Override existing configuration file"}, &configureArgs.Override)
 		if !configureArgs.Override {
 			fmt.Println("Aborting process; a configuration file already exists for this node.")
 			os.Exit(1)
@@ -124,7 +133,6 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 		panic(err)
 	}
 
-	fmt.Printf("%+v", req.Header)
 	fmt.Println(req.URL.String())
 
 	res, err := c.Do(req)
@@ -144,25 +152,50 @@ func configureCmdRun(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	b, err := io.ReadAll(res.Body)
-
-	cfg, err := config.NewAtPath(configPath)
+	b, err := io.ReadAll(io.LimitReader(res.Body, maxConfigurationResponseSize))
 	if err != nil {
 		panic(err)
 	}
 
-	if err := json.Unmarshal(b, cfg); err != nil {
-		panic(err)
-	}
-
-	// Manually specify the Panel URL as it won't be decoded from JSON.
-	cfg.PanelLocation = configureArgs.PanelURL
-
-	if err = config.WriteToDisk(cfg); err != nil {
-		panic(err)
+	if err := writePanelConfiguration(target, configureArgs.PanelURL, b); err != nil {
+		fmt.Println("Failed to configure wings.\n", err.Error())
+		os.Exit(1)
 	}
 
 	fmt.Println("Successfully configured wings.")
+}
+
+// maxConfigurationResponseSize is the largest node configuration that is read
+// from the Panel.
+const maxConfigurationResponseSize = 1 << 20
+
+// writePanelConfiguration applies the node configuration returned by the Panel
+// to the configuration file at path, keeping any other settings already in it.
+func writePanelConfiguration(path string, panelURL string, body []byte) error {
+	cfg, err := config.Load(path)
+	if errors.Is(err, os.ErrNotExist) {
+		cfg, err = config.NewAtPath(path)
+	}
+	if err != nil {
+		return err
+	}
+
+	// Only take the values from the Panel that it is allowed to set.
+	p := cfg.PanelConfiguration()
+	if err := json.Unmarshal(body, &p); err != nil {
+		return err
+	}
+	cfg.ApplyPanelConfiguration(p)
+
+	// Manually specify the Panel URL as it won't be decoded from JSON.
+	cfg.PanelLocation = panelURL
+
+	// The Panel returns the token itself.
+	if err := cfg.ResolveToken(true); err != nil {
+		return err
+	}
+
+	return config.WriteToDisk(cfg)
 }
 
 func getRequest() (*http.Request, error) {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/pterodactyl/wings/config"
 	"github.com/pterodactyl/wings/environment"
+	"github.com/pterodactyl/wings/system"
 )
 
 type PowerAction string
@@ -115,6 +116,9 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 		if err := s.powerLock.Acquire(); err == nil {
 			log.Info("acquired exclusive lock on power actions, processing event...")
 			defer cleanup()
+		} else if errors.Is(err, system.ErrLockerDestroyed) {
+			// The server is being deleted.
+			return err
 		} else {
 			log.Warn("failed to acquire exclusive lock, ignoring failure for termination event")
 		}
@@ -169,6 +173,8 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 // Execute a few functions before actually calling the environment start commands. This ensures
 // that everything is ready to go for environment booting, and that the server can even be started.
 func (s *Server) onBeforeStart() error {
+	// Sync also applies the new environment variables and process resource limits
+	// to the environment.
 	s.Log().Info("syncing server configuration with panel")
 	if err := s.Sync(); err != nil {
 		return errors.WithMessage(err, "unable to sync server data from Panel instance")
@@ -179,10 +185,6 @@ func (s *Server) onBeforeStart() error {
 	if s.IsSuspended() {
 		return ErrSuspended
 	}
-
-	// Ensure we sync the server information with the environment so that any new environment variables
-	// and process resource limits are correctly applied.
-	s.SyncWithEnvironment()
 
 	// If a server has unlimited disk space, we don't care enough to block the startup to check remaining.
 	// However, we should trigger a size anyway, as it'd be good to kick it off for other processes.

@@ -29,7 +29,7 @@ func (cb *ContextBag) Context(key string) context.Context {
 	defer cb.mu.Unlock()
 
 	if _, ok := cb.items[key]; !ok {
-		ctx, cancel := context.WithCancel(cb.ctx)
+		ctx, cancel := context.WithCancel(cb.ctx) //nolint:gosec // cancel is stored and called by Cancel or CancelAll
 		cb.items[key] = ctxHolder{ctx, cancel}
 	}
 

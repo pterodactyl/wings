@@ -16,7 +16,7 @@ func TestPower(t *testing.T) {
 			s := &Server{powerLock: system.NewLocker()}
 
 			g.Assert(s.ExecutingPowerAction()).IsFalse()
-			s.powerLock.Acquire()
+			g.Assert(s.powerLock.Acquire()).IsNil()
 			g.Assert(s.ExecutingPowerAction()).IsTrue()
 		})
 	})

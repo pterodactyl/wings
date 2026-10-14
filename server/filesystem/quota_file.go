@@ -57,8 +57,9 @@ func (f *quotaFile) writeAtLocked(p []byte, off int64, write func() (int, error)
 	if !ok {
 		return 0, newFilesystemError(ErrCodeDiskSpace, nil)
 	}
-	if growth := end - previousSize; growth > 0 {
-		if err := f.fs.reserveDisk(growth); err != nil {
+	reserved := end - previousSize
+	if reserved > 0 {
+		if err := f.fs.reserveDisk(reserved); err != nil {
 			return 0, err
 		}
 	}
@@ -72,17 +73,26 @@ func (f *quotaFile) writeAtLocked(p []byte, off int64, write func() (int, error)
 		}
 	}
 
-	if reserved := end - previousSize; reserved > 0 {
+	if reserved > 0 {
 		actual := int64(0)
 		if writtenEnd > previousSize {
 			actual = writtenEnd - previousSize
 		}
-		if actual < reserved {
-			f.fs.adjustDisk(actual - reserved)
-		}
+		f.fs.releaseDisk(reserved, actual)
 	}
 
 	return n, err
+}
+
+// CheckSize returns an error if growing the file to size bytes would exceed the
+// disk limit.
+func (f *quotaFile) CheckSize(size int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if size <= f.size {
+		return nil
+	}
+	return f.fs.HasSpaceFor(size - f.size)
 }
 
 func quotaWriteEnd(off int64, size int) (int64, bool) {

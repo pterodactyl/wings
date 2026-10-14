@@ -10,7 +10,9 @@ import (
 	"sync"
 
 	"emperror.dev/errors"
+	"github.com/containerd/errdefs/pkg/errhttp"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/errdefs"
@@ -25,7 +27,6 @@ var (
 )
 
 type cliSettings struct {
-	enabled bool
 	proto   string
 	host    string
 	scheme  string
@@ -49,7 +50,7 @@ func configure(c *client.Client) {
 // a large number of requests to this endpoint are spawned by Wings, and the
 // standard "encoding/json" shows its performance woes badly even with single
 // containers running.
-func (e *Environment) ContainerInspect(ctx context.Context) (types.ContainerJSON, error) {
+func (e *Environment) ContainerInspect(ctx context.Context) (container.InspectResponse, error) {
 	configure(e.client)
 
 	// Support feature flagging of this functionality so that if something goes
@@ -59,7 +60,7 @@ func (e *Environment) ContainerInspect(ctx context.Context) (types.ContainerJSON
 		return e.client.ContainerInspect(ctx, e.Id)
 	}
 
-	var st types.ContainerJSON
+	var st container.InspectResponse
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/containers/"+e.Id+"/json", nil)
 	if err != nil {
 		return st, errors.WithStack(err)
@@ -78,7 +79,7 @@ func (e *Environment) ContainerInspect(ctx context.Context) (types.ContainerJSON
 			return st, errdefs.Unknown(err)
 		}
 		_ = res.Body.Close()
-		return st, errdefs.FromStatusCode(err, res.StatusCode)
+		return st, statusError(err, res.StatusCode)
 	}
 	defer res.Body.Close()
 
@@ -87,7 +88,7 @@ func (e *Environment) ContainerInspect(ctx context.Context) (types.ContainerJSON
 		return st, errors.Wrap(err, "failed to read response body from Docker")
 	}
 	if err := parseErrorFromResponse(res, body); err != nil {
-		return st, errdefs.FromStatusCode(err, res.StatusCode)
+		return st, statusError(err, res.StatusCode)
 	}
 	if err := json.Unmarshal(body, &st); err != nil {
 		return st, errors.WithStack(err)
@@ -119,4 +120,32 @@ func parseErrorFromResponse(res *http.Response, body []byte) error {
 	}
 
 	return errors.Wrap(errors.New(emsg), "Error response from daemon")
+}
+
+// httpStatusError keeps the original error message while matching the error
+// class (not found, conflict, etc.) for the response status code.
+type httpStatusError struct {
+	err    error
+	errdef error
+}
+
+func (e *httpStatusError) Error() string {
+	return e.err.Error()
+}
+
+func (e *httpStatusError) Unwrap() error {
+	return e.err
+}
+
+func (e *httpStatusError) Is(target error) bool {
+	return errors.Is(e.errdef, target)
+}
+
+// statusError is the equivalent of the Docker client's own handling of error
+// responses, so callers can use cerrdefs.IsNotFound and friends on the result.
+func statusError(err error, statusCode int) error {
+	if err == nil {
+		return nil
+	}
+	return &httpStatusError{err: err, errdef: errhttp.ToNative(statusCode)}
 }

@@ -82,7 +82,7 @@ func writeBurstFile(pid int, burst int64) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(f, []byte(strconv.FormatInt(burst, 10)), 0o644)
+	return os.WriteFile(f, []byte(strconv.FormatInt(burst, 10)), 0o644) //nolint:gosec // an existing cgroupfs file, the mode is never applied
 }
 
 // logBurstFailure warns the first time a burst cannot be applied and stays at
