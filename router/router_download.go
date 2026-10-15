@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"errors"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -82,6 +84,12 @@ func getDownloadFile(c *gin.Context) {
 		return
 	}
 
+	filePath, err := url.QueryUnescape(token.FilePath)
+	if err != nil {
+		middleware.CaptureAndAbort(c, err)
+		return
+	}
+
 	s, ok := manager.Get(token.ServerUuid)
 	if !ok || token.Denylisted() || !token.IsUniqueRequest() || !token.HasScope(tokens.FileDownload) {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
@@ -91,7 +99,7 @@ func getDownloadFile(c *gin.Context) {
 	}
 	middleware.ClearDeadlines(c)
 
-	f, st, err := s.Filesystem().File(token.FilePath)
+	f, st, err := s.Filesystem().File(filePath)
 	if err != nil {
 		middleware.CaptureAndAbort(c, err)
 		return
@@ -105,7 +113,8 @@ func getDownloadFile(c *gin.Context) {
 	}
 
 	c.Header("Content-Length", strconv.Itoa(int(st.Size())))
-	c.Header("Content-Disposition", "attachment; filename="+strconv.Quote(st.Name()))
+	filename := filepath.Base(filePath)
+	c.Header("Content-Disposition", "attachment; filename="+strconv.Quote(filename))
 	c.Header("Content-Type", "application/octet-stream")
 
 	_, _ = bufio.NewReader(f).WriteTo(c.Writer)
