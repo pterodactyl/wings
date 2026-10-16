@@ -179,6 +179,8 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 	// The specific permission required to perform this action. If the file exists on the
 	// system already it only needs to be an update, otherwise we'll check for a create.
 	permission := PermissionFileUpdate
+	flags := request.Pflags()
+	exists := true
 	_, sterr := h.fs.Stat(request.Filepath)
 	if sterr != nil {
 		if !errors.Is(sterr, os.ErrNotExist) {
@@ -186,6 +188,7 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 			return nil, sftp.ErrSSHFxFailure
 		}
 		permission = PermissionFileCreate
+		exists = false
 	}
 	// Confirm the user has permission to perform this action BEFORE calling Touch, otherwise
 	// you'll potentially create a file on the system and then fail out because of user
@@ -193,13 +196,25 @@ func (h *Handler) Filewrite(request *sftp.Request) (io.WriterAt, error) {
 	if !h.can(permission) {
 		return nil, sftp.ErrSSHFxPermissionDenied
 	}
+	openFlags := os.O_RDWR | os.O_TRUNC
+	if flags.Creat && flags.Excl {
+		// SSH_FXF_CREAT with SSH_FXF_EXCL is an exclusive create request.
+		if exists {
+			return nil, os.ErrExist
+		}
+		openFlags = os.O_RDWR | os.O_CREATE | os.O_EXCL
+	}
 	slot := h.openFile()
 	if slot == nil {
 		return nil, sftp.ErrSSHFxFailure
 	}
-	f, err := h.fs.Touch(request.Filepath, os.O_RDWR|os.O_TRUNC)
+	f, err := h.fs.Touch(request.Filepath, openFlags)
 	if err != nil {
 		slot.close()
+		if errors.Is(err, os.ErrExist) {
+			// Preserve exclusive-create semantics if the file appeared after the pre-check.
+			return nil, os.ErrExist
+		}
 		l.WithField("flags", request.Flags).WithField("error", err).Error("failed to open existing file on system")
 		return nil, sftp.ErrSSHFxFailure
 	}
