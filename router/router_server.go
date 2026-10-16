@@ -86,7 +86,10 @@ func postServerPower(c *gin.Context) {
 	// we can immediately return a response from the server. Some of these actions
 	// can take quite some time, especially stopping or restarting.
 	go func(s *server.Server) {
-		if data.WaitSeconds < 0 || data.WaitSeconds > 300 {
+		// The response has already been sent, so an action that cannot get the power lock
+		// right away would be dropped without the caller knowing. Wait for the lock by default
+		// so that a stop or kill sent while the server is booting runs once the boot finishes.
+		if data.WaitSeconds <= 0 || data.WaitSeconds > 300 {
 			data.WaitSeconds = 30
 		}
 		if err := s.HandlePowerAction(data.Action, data.WaitSeconds); err != nil {
