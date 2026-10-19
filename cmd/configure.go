@@ -187,6 +187,22 @@ func writePanelConfiguration(path string, panelURL string, body []byte) error {
 	}
 	cfg.ApplyPanelConfiguration(p)
 
+	var host struct {
+		AllowedMounts []string `json:"allowed_mounts"`
+		System        struct {
+			Data string `json:"data"`
+		} `json:"system"`
+	}
+	if err := json.Unmarshal(body, &host); err != nil {
+		return err
+	}
+	if host.AllowedMounts != nil {
+		cfg.AllowedMounts = host.AllowedMounts
+	}
+	if host.System.Data != "" {
+		cfg.System.Data = host.System.Data
+	}
+
 	// Manually specify the Panel URL as it won't be decoded from JSON.
 	cfg.PanelLocation = panelURL
 
