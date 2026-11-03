@@ -118,7 +118,7 @@ func (s *S3Backup) Restore(ctx context.Context, r io.Reader, callback RestoreCal
 }
 
 // Generates the remote S3 request and begins the upload.
-func (s *S3Backup) generateRemoteRequest(ctx context.Context, rc io.ReadCloser) ([]remote.BackupPart, error) {
+func (s *S3Backup) generateRemoteRequest(ctx context.Context, rc *os.File) ([]remote.BackupPart, error) {
 	defer rc.Close()
 
 	s.log().Debug("attempting to get size of backup...")
@@ -149,7 +149,7 @@ func (s *S3Backup) generateRemoteRequest(ctx context.Context, rc io.ReadCloser) 
 		}
 
 		// Attempt to upload the part.
-		etag, err := uploader.uploadPart(ctx, part, partSize)
+		etag, err := uploader.uploadPart(ctx, part, int64(i)*urls.PartSize, partSize)
 		if err != nil {
 			s.log().WithField("part_id", i+1).WithError(err).Warn("failed to upload part")
 			return nil, err
@@ -166,15 +166,15 @@ func (s *S3Backup) generateRemoteRequest(ctx context.Context, rc io.ReadCloser) 
 }
 
 type s3FileUploader struct {
-	io.ReadCloser
+	io.ReaderAt
 	client        *http.Client
 	uploadedParts []remote.BackupPart
 }
 
 // newS3FileUploader returns a new file uploader instance.
-func newS3FileUploader(file io.ReadCloser) *s3FileUploader {
+func newS3FileUploader(file io.ReaderAt) *s3FileUploader {
 	return &s3FileUploader{
-		ReadCloser: file,
+		ReaderAt: file,
 		// We purposefully use a super high timeout on this request since we need to upload
 		// a 5GB file. This assumes at worst a 10Mbps connection for uploading. While technically
 		// you could go slower we're targeting mostly hosted servers that should have 100Mbps
@@ -198,21 +198,20 @@ func (fu *s3FileUploader) backoff(ctx context.Context) backoff.BackOffContext {
 // backoff to try and successfully upload the part.
 //
 // Once uploaded the ETag is returned to the caller.
-func (fu *s3FileUploader) uploadPart(ctx context.Context, part string, size int64) (string, error) {
-	r, err := http.NewRequestWithContext(ctx, http.MethodPut, part, nil)
-	if err != nil {
-		return "", errors.Wrap(err, "backup: could not create request for S3")
-	}
-
-	r.ContentLength = size
-	r.Header.Add("Content-Length", strconv.Itoa(int(size)))
-	r.Header.Add("Content-Type", "application/x-gzip")
-
-	// Limit the reader to the size of the part.
-	r.Body = Reader{Reader: io.LimitReader(fu.ReadCloser, size)}
-
+func (fu *s3FileUploader) uploadPart(ctx context.Context, part string, offset, size int64) (string, error) {
 	var etag string
-	err = backoff.Retry(func() error {
+	err := backoff.Retry(func() error {
+		// The request is created again for each attempt so that a retry sends
+		// the part from its first byte, not what is left of a consumed body.
+		r, err := http.NewRequestWithContext(ctx, http.MethodPut, part, io.NewSectionReader(fu.ReaderAt, offset, size))
+		if err != nil {
+			return backoff.Permanent(errors.Wrap(err, "backup: could not create request for S3"))
+		}
+
+		r.ContentLength = size
+		r.Header.Add("Content-Length", strconv.Itoa(int(size)))
+		r.Header.Add("Content-Type", "application/x-gzip")
+
 		res, err := fu.client.Do(r)
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
@@ -248,14 +247,4 @@ func (fu *s3FileUploader) uploadPart(ctx context.Context, part string, size int6
 		return "", err
 	}
 	return etag, nil
-}
-
-// Reader provides a wrapper around an existing io.Reader
-// but implements io.Closer in order to satisfy an io.ReadCloser.
-type Reader struct {
-	io.Reader
-}
-
-func (Reader) Close() error {
-	return nil
 }
