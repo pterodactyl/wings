@@ -1,0 +1,22 @@
+cmd/configure.go
+  s_b3559732df535e::t_1e6da2bc7fa40d 190-192
+cmd/configure_test.go
+  s_b3559732df535e::t_c4348abc29c1ec 119-121
+  s_b3559732df535e::t_e4df3ae9176faa 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3236480d078c09b823b8a8f21dab76c4029608a5",
+  "prompts": {},
+  "sessions": {
+    "s_b3559732df535e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c6a0a43-8b44-49e7-8837-d6be8e5f0f2a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "robert dennis <31261583+robertdrakedennis@users.noreply.github.com>"
+    }
+  }
+}
