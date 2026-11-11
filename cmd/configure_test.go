@@ -116,9 +116,9 @@ docker:
 	require.Contains(t, cfg.Docker.Registries, "registry.example.com")
 }
 
-// Configuring an existing node replaces the mounts and data directory with the
-// ones from the Panel.
-func TestConfigureAppliesPanelHostPaths(t *testing.T) {
+// Configuring an existing node replaces the mounts with the ones from the Panel
+// and keeps the local data directory.
+func TestConfigureAppliesPanelMounts(t *testing.T) {
 	clearTokenEnvironment(t)
 	path := filepath.Join(t.TempDir(), "config.yml")
 	require.NoError(t, os.WriteFile(path, []byte(`token_id: old-id
@@ -135,7 +135,7 @@ system:
 	cfg, err := config.Load(path)
 	require.NoError(t, err)
 	require.Equal(t, []string{"/srv/media", "/srv/maps"}, cfg.AllowedMounts)
-	require.Equal(t, "/srv/volumes", cfg.System.Data)
+	require.Equal(t, "/srv/old-volumes", cfg.System.Data)
 }
 
 // Mounts removed from the node in the Panel are removed from the configuration.

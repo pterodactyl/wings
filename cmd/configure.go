@@ -187,20 +187,17 @@ func writePanelConfiguration(path string, panelURL string, body []byte) error {
 	}
 	cfg.ApplyPanelConfiguration(p)
 
+	// The node's mounts are only taken here, where the operator runs configure on
+	// the host, never through a remote update. The data directory stays local so
+	// a stale daemon base in the Panel cannot move existing servers.
 	var host struct {
 		AllowedMounts []string `json:"allowed_mounts"`
-		System        struct {
-			Data string `json:"data"`
-		} `json:"system"`
 	}
 	if err := json.Unmarshal(body, &host); err != nil {
 		return err
 	}
 	if host.AllowedMounts != nil {
 		cfg.AllowedMounts = host.AllowedMounts
-	}
-	if host.System.Data != "" {
-		cfg.System.Data = host.System.Data
 	}
 
 	// Manually specify the Panel URL as it won't be decoded from JSON.
