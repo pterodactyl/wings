@@ -115,3 +115,42 @@ docker:
 	require.Equal(t, []string{"/srv/shared"}, cfg.AllowedMounts)
 	require.Contains(t, cfg.Docker.Registries, "registry.example.com")
 }
+
+// Configuring an existing node replaces the mounts and data directory with the
+// ones from the Panel.
+func TestConfigureAppliesPanelHostPaths(t *testing.T) {
+	clearTokenEnvironment(t)
+	path := filepath.Join(t.TempDir(), "config.yml")
+	require.NoError(t, os.WriteFile(path, []byte(`token_id: old-id
+token: old-token
+allowed_mounts:
+  - /srv/shared
+system:
+  data: /srv/old-volumes
+`), 0o600))
+
+	body := `{"token_id":"new-id","token":"new-token","allowed_mounts":["/srv/media","/srv/maps"],"system":{"data":"/srv/volumes","sftp":{"bind_port":2022}}}`
+	require.NoError(t, writePanelConfiguration(path, "http://panel.test", []byte(body)))
+
+	cfg, err := config.Load(path)
+	require.NoError(t, err)
+	require.Equal(t, []string{"/srv/media", "/srv/maps"}, cfg.AllowedMounts)
+	require.Equal(t, "/srv/volumes", cfg.System.Data)
+}
+
+// Mounts removed from the node in the Panel are removed from the configuration.
+func TestConfigureClearsRemovedMounts(t *testing.T) {
+	clearTokenEnvironment(t)
+	path := filepath.Join(t.TempDir(), "config.yml")
+	require.NoError(t, os.WriteFile(path, []byte(`token_id: old-id
+token: old-token
+allowed_mounts:
+  - /srv/shared
+`), 0o600))
+
+	require.NoError(t, writePanelConfiguration(path, "http://panel.test", []byte(`{"token_id":"new-id","token":"new-token","allowed_mounts":[]}`)))
+
+	cfg, err := config.Load(path)
+	require.NoError(t, err)
+	require.Empty(t, cfg.AllowedMounts)
+}
