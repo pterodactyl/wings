@@ -62,14 +62,14 @@ jobs:
           go test -race $(go list ./...)
 
       - name: Upload Release Artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') && matrix.go == '1.27.2' }}
         with:
           name: wings_linux_${{ matrix.goarch }}
           path: dist/wings
 
       - name: Upload Debug Artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ (github.ref == 'refs/heads/develop' || github.event_name == 'pull_request') && matrix.go == '1.27.2' }}
         with:
           name: wings_linux_${{ matrix.goarch }}_debug
