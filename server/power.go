@@ -113,12 +113,27 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 		//
 		// If we did successfully acquire the lock, make sure we release it once we're done
 		// executiong the power actions.
-		if err := s.powerLock.Acquire(); err == nil {
+		err := s.powerLock.Acquire()
+
+		// A lock held while the server is booting belongs to a start or restart that has not
+		// created the container yet, so there is nothing to kill. Wait for the boot like any
+		// other action instead of marking a server that is still starting as offline.
+		booting := errors.Is(err, system.ErrLockerLocked) && s.isBooting()
+		if booting && wait > 0 {
+			ctx, cancel := context.WithTimeout(s.ctx, time.Second*time.Duration(wait))
+			defer cancel()
+
+			err = s.powerLock.TryAcquire(ctx)
+		}
+
+		if err == nil {
 			log.Info("acquired exclusive lock on power actions, processing event...")
 			defer cleanup()
 		} else if errors.Is(err, system.ErrLockerDestroyed) {
 			// The server is being deleted.
 			return err
+		} else if booting {
+			return errors.Wrap(err, "failed to acquire exclusive lock for power actions while the server is starting")
 		} else {
 			log.Warn("failed to acquire exclusive lock, ignoring failure for termination event")
 		}
@@ -168,6 +183,14 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 	}
 
 	return errors.New("attempting to handle unknown power action")
+}
+
+// isBooting reports whether the server process is offline or starting. When the power lock
+// is held in one of these states, a start or restart is running its pre-boot steps or
+// creating and starting the container.
+func (s *Server) isBooting() bool {
+	st := s.Environment.State()
+	return st == environment.ProcessOfflineState || st == environment.ProcessStartingState
 }
 
 // Execute a few functions before actually calling the environment start commands. This ensures
