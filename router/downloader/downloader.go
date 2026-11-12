@@ -149,6 +149,7 @@ type Download struct {
 	req        DownloadRequest
 	server     *server.Server
 	progress   float64
+	cancelled  bool
 	cancelFunc *context.CancelFunc
 }
 
@@ -199,7 +200,14 @@ func (dl *Download) MarshalJSON() ([]byte, error) {
 // completed the download will be removed from the cache.
 func (dl *Download) Execute() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour*12)
+	dl.mu.Lock()
 	dl.cancelFunc = &cancel
+	// The download may have been cancelled before it started, in which case the
+	// request is never made.
+	if dl.cancelled {
+		cancel()
+	}
+	dl.mu.Unlock()
 	defer dl.Cancel()
 
 	// At this point we have verified the destination is not within the local network, so we can
@@ -270,9 +278,12 @@ func (dl *Download) Execute() error {
 // Cancel cancels a running download and frees up the associated resources. If a file is being
 // written a partial file will remain present on the disk.
 func (dl *Download) Cancel() {
+	dl.mu.Lock()
+	dl.cancelled = true
 	if dl.cancelFunc != nil {
 		(*dl.cancelFunc)()
 	}
+	dl.mu.Unlock()
 	instance.remove(dl.Identifier)
 }
 
