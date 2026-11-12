@@ -201,31 +201,7 @@ func (c *SFTPServer) Run() error {
 		return err
 	}
 
-	conf := &ssh.ServerConfig{
-		Config: ssh.Config{
-			KeyExchanges: []string{
-				"curve25519-sha256", "curve25519-sha256@libssh.org",
-				"ecdh-sha2-nistp256", "ecdh-sha2-nistp384", "ecdh-sha2-nistp521",
-				"diffie-hellman-group14-sha256",
-			},
-			Ciphers: []string{
-				"aes128-gcm@openssh.com",
-				"chacha20-poly1305@openssh.com",
-				"aes128-ctr", "aes192-ctr", "aes256-ctr",
-			},
-			MACs: []string{
-				"hmac-sha2-256-etm@openssh.com", "hmac-sha2-256",
-			},
-		},
-		NoClientAuth: false,
-		MaxAuthTries: 6,
-		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
-			return c.makeCredentialsRequest(conn, remote.SftpAuthPassword, string(password))
-		},
-		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			return c.makeCredentialsRequest(conn, remote.SftpAuthPublicKey, string(ssh.MarshalAuthorizedKey(key)))
-		},
-	}
+	conf := c.serverConfig()
 	conf.AddHostKey(private)
 
 	listener, err := net.Listen("tcp", c.Listen)
@@ -406,6 +382,41 @@ func (c *SFTPServer) Handle(conn *ssh.ServerConn, srv *server.Server, channel ss
 	}
 
 	return nil
+}
+
+// serverConfig returns the configuration of the SSH server, without a host key.
+// Password logins are left out when they are disabled, so that clients are only
+// offered key logins.
+func (c *SFTPServer) serverConfig() *ssh.ServerConfig {
+	conf := &ssh.ServerConfig{
+		Config: ssh.Config{
+			KeyExchanges: []string{
+				"curve25519-sha256", "curve25519-sha256@libssh.org",
+				"ecdh-sha2-nistp256", "ecdh-sha2-nistp384", "ecdh-sha2-nistp521",
+				"diffie-hellman-group14-sha256",
+			},
+			Ciphers: []string{
+				"aes128-gcm@openssh.com",
+				"chacha20-poly1305@openssh.com",
+				"aes128-ctr", "aes192-ctr", "aes256-ctr",
+			},
+			MACs: []string{
+				"hmac-sha2-256-etm@openssh.com", "hmac-sha2-256",
+			},
+		},
+		NoClientAuth: false,
+		MaxAuthTries: 6,
+		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			return c.makeCredentialsRequest(conn, remote.SftpAuthPassword, string(password))
+		},
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			return c.makeCredentialsRequest(conn, remote.SftpAuthPublicKey, string(ssh.MarshalAuthorizedKey(key)))
+		},
+	}
+	if config.Get().System.Sftp.DisablePasswordAuth {
+		conf.PasswordCallback = nil
+	}
+	return conf
 }
 
 // Generates a new ED25519 private key that is used for host authentication when
