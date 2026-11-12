@@ -69,6 +69,9 @@ type SftpConfiguration struct {
 	Port int `default:"2022" json:"bind_port" yaml:"bind_port"`
 	// If set to true, no write actions will be allowed on the SFTP server.
 	ReadOnly bool `default:"false" yaml:"read_only"`
+	// If set to true, the SFTP server will not accept passwords, so users must log
+	// in with an SSH key.
+	DisablePasswordAuth bool `json:"-" yaml:"disable_password_auth"`
 	// The maximum number of connections a single user may have open at once, or
 	// zero to use the default of 32.
 	MaxConnectionsPerUser int `json:"-" yaml:"max_connections_per_user"`

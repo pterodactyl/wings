@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+
+	"github.com/pterodactyl/wings/config"
 )
 
 func startTestServer(t *testing.T, limits connectionLimits) string {
@@ -197,5 +199,56 @@ func TestAuthenticatedConnectionsAreLimitedPerUser(t *testing.T) {
 	t.Cleanup(func() { _ = other.Close() })
 	if closedWithin(other, time.Millisecond*500) {
 		t.Fatal("expected a connection for another user to stay open")
+	}
+}
+
+// Password logins can be turned off, so that users must log in with an SSH key.
+// The server then does not offer password logins at all, so a client is never
+// asked for one.
+func TestPasswordAuthCanBeDisabled(t *testing.T) {
+	config.Set(&config.Configuration{AuthenticationToken: "abc"})
+	if (&SFTPServer{}).serverConfig().PasswordCallback == nil {
+		t.Fatal("expected password logins to be allowed by default")
+	}
+
+	config.Set(&config.Configuration{
+		AuthenticationToken: "abc",
+		System:              config.SystemConfiguration{Sftp: config.SftpConfiguration{DisablePasswordAuth: true}},
+	})
+	conf := (&SFTPServer{}).serverConfig()
+	if conf.PasswordCallback != nil || conf.PublicKeyCallback == nil {
+		t.Fatal("expected only key logins to be allowed")
+	}
+
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := ssh.NewSignerFromKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf.AddHostKey(signer)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		_ = (&SFTPServer{limits: defaultLimits}).serve(listener, conf)
+	}()
+
+	asked := false
+	_, err = ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
+		User: "user.12345678",
+		Auth: []ssh.AuthMethod{ssh.PasswordCallback(func() (string, error) {
+			asked = true
+			return "password", nil
+		})},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         time.Second * 5,
+	})
+	if err == nil || asked {
+		t.Fatalf("expected the server not to offer password logins, got %v", err)
 	}
 }
