@@ -1,0 +1,9 @@
+/usr/local/bin/wings		--	gen_context(system_u:object_r:wings_exec_t,s0)
+/etc/pterodactyl(/.*)?      --  gen_context(system_u:object_r:wings_etc_t,s0)
+/tmp/pterodactyl(/.*)?      --  gen_context(system_u:object_r:wings_tmp_t,s0)
+
+/var/lib/pterodactyl/volumes/.sftp(/.*)?  --  gen_context(system_u:object_r:wings_etc_t,s0)
+/var/lib/pterodactyl/wings.db  --  gen_context(system_u:object_r:wings_etc_t,s0)
+
+/var/lib/pterodactyl/volumes(/.*)?  --  gen_context(system_u:object_r:container_file_t,s0)
+/var/lib/pterodactyl/mounts(/.*)?   --  gen_context(system_u:object_r:container_file_t,s0)

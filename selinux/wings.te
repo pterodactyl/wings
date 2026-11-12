@@ -1,0 +1,72 @@
+policy_module(wings, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type wings_t;
+type wings_exec_t;
+type wings_etc_t;
+type wings_tmp_t;
+init_daemon_domain(wings_t, wings_exec_t, wings_etc_t, wings_tmp_t)
+
+########################################
+#
+# wings local policy
+#
+allow wings_t self:fifo_file rw_fifo_file_perms;
+allow wings_t self:unix_stream_socket create_stream_socket_perms;
+
+allow wings_t wings_exec_t:file execmod;
+
+allow wings_t container_file_t:file { open read setattr write };
+allow wings_t container_runtime_t:unix_stream_socket connectto;
+allow wings_t container_var_run_t:sock_file write;
+allow wings_t http_cache_port_t:tcp_socket name_bind;
+allow wings_t http_port_t:tcp_socket name_connect;
+allow wings_t node_t:tcp_socket node_bind;
+allow wings_t passwd_file_t:file { write open read };
+allow wings_t self:capability { chown dac_override dac_read_search };
+allow wings_t self:netlink_route_socket { bind create getattr nlmsg_read };
+allow wings_t self:process execmem;
+allow wings_t self:tcp_socket { accept bind connect create getattr getopt listen setopt };
+allow wings_t sysctl_net_t:dir search;
+allow wings_t sysctl_net_t:file { open read };
+allow wings_t sysfs_t:file { open read };
+allow wings_t unreserved_port_t:tcp_socket name_bind;
+allow wings_t var_lib_t:dir { read setattr };
+allow wings_t var_lib_t:file { open read };
+allow wings_t var_log_t:file open;
+allow wings_t wings_etc_t:file { getattr lock open read write };
+
+domain_use_interactive_fds(wings_t)
+
+files_read_etc_files(wings_t)
+
+miscfiles_read_localization(wings_t)
+
+files_manage_mounttab(wings_t)
+files_rw_var_lib_dirs(wings_t)
+
+require {
+        type container_file_t;
+        type container_runtime_t;
+        type container_var_run_t;
+        type http_cache_port_t;
+        type http_port_t;
+        type node_t;
+        type passwd_file_t;
+        type wings_t;
+        type wings_etc_t;
+        type sysctl_net_t;
+        type sysfs_t;
+        type unreserved_port_t;
+        type var_lib_t;
+        type var_log_t;
+        class process execmem;
+        class tcp_socket { accept bind connect create getattr getopt listen setopt };
+        class capability { chown dac_override dac_read_search };
+        class netlink_route_socket { bind create getattr nlmsg_read };
+        class file { getattr lock open read setattr write };
+}
